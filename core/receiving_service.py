@@ -183,7 +183,10 @@ def _status_for(index: dict, base: dict, chz_info) -> dict:
     candidates = _pack_candidates(index, chz_info)
     if name:
         seen = {c.get('id') for c in candidates}
-        candidates += [c for c in receiving_index.similar_cards(name, index, brand) or []
+        # Кега по ЧЗ (кеги есть с DataMatrix, а штрихкод в iiko — у малой доли кеговых
+        # карточек): при равном счёте её карточка «КЕГ …» — выше бутылки того же сорта.
+        keg = receiving_index.is_keg_text(name, chz_info.get('full_name'), chz_info.get('package_type'))
+        candidates += [c for c in receiving_index.similar_cards(name, index, brand, keg=keg) or []
                        if c.get('id') not in seen]
     if candidates:
         return {'status': 'similar', 'cards': cards,

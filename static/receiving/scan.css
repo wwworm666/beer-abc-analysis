@@ -341,9 +341,17 @@ body.rc-page { background: var(--rc-bg); }
 .rc-how-in { display: grid; gap: 6px; margin-top: 8px; max-width: 90ch; font-size: 12.5px; line-height: 1.55; color: var(--rc-ink2); }
 .rc-how-in p { margin: 0; }
 
+/* Камера — главная кнопка экрана (на РЦ сканируют только телефоном): на всю ширину,
+   выше остальных, сразу под счётчиком. */
+.rc-cam-cta { width: 100%; height: 64px; margin-bottom: 12px; font-size: 18px; }
+.rc-cam-cta svg { width: 22px; height: 22px; }
+/* «Завершить» — не главная (главная — камера), но заметная: зелёная рамка и текст. */
+.rc .rc-btn-finish { border-color: var(--rc-ok); color: var(--rc-ok-ink); }
+.rc .rc-btn-finish:hover { background: var(--rc-ok-soft); border-color: var(--rc-ok); }
+
 .rc-actions {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 8px;
     margin-bottom: 4px;
 }
@@ -488,10 +496,13 @@ body.rc-page { background: var(--rc-bg); }
     padding: 12px 18px calc(12px + env(safe-area-inset-bottom, 0px));
     background: var(--rc-cam-panel);
 }
-.rc-cam-bar .rc-btn { flex: 1; height: var(--rc-ctl-lg); }
+.rc-cam-bar .rc-btn { flex: 1; min-width: 0; height: var(--rc-ctl-lg); padding: 0 8px; white-space: normal; line-height: 1.2; text-align: center; }
 .rc-cam .rc-btn[aria-pressed="true"] { background: var(--rc-accent); border-color: var(--rc-accent); color: var(--rc-on-accent); }
 
 /* ==================== Уведомление ==================== */
+
+/* Пока открыта камера, уведомление — над её кнопками, а не поверх них. */
+.rc-cam-on .rc-toast { bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
 
 .rc-toast {
     position: fixed;
@@ -526,7 +537,8 @@ body.rc-page { background: var(--rc-bg); }
     .rc-counter-side { flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: space-between; text-align: left; }
     .rc-pending { white-space: normal; height: auto; min-height: 26px; }
     .rc-status { font-size: 18px; }
-    .rc-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .rc-actions .rc-btn { padding: 0 6px; font-size: 14px; }
+    .rc-actions .rc-btn svg { display: none; }
     .rc-row { grid-template-columns: 64px auto minmax(0, 1fr); gap: 8px; padding: 7px 14px; }
     .rc-invoice { padding: 8px 14px; }
     .rc-sheet-wrap { align-items: flex-end; padding: 0; }

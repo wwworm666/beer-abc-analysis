@@ -1,10 +1,16 @@
 /* Экран приёмщика РЦ: /receiving (templates/receiving.html, static/receiving/scan.css).
 
    Что делает. Приёмщик открывает приёмку («Новая приёмка» или «Продолжить»),
-   сканирует каждую бутылку, банку и кегу ручным сканером (или камерой телефона),
+   сканирует каждую бутылку, банку и кегу камерой телефона (или ручным сканером),
    фотографирует накладную и нажимает «Завершить» — сервер сверяет коды с iiko в
    фоне, итог разбирает бухгалтерия на /receiving/review. API — routes/receiving.py,
    документация — docs/receiving.md.
+
+   На РЦ сканируют только телефоном (решение владельца 2026-10-03): камера — основной
+   путь. Детектор кодов — встроенный BarcodeDetector или библиотека-полифил из
+   static/libs (своя копия: склад не зависит от доступности CDN). Камера видит в
+   кадре сразу и DataMatrix, и обычный штрихкод той же бутылки — штрихкод ждёт
+   CAMERA_EAN_WAIT_MS и не считается, если рядом прочитан код ЧЗ того же товара.
 
    Ручной сканер печатает «как клавиатура», а поля ввода на экране нет (поле в
    фокусе открыло бы клавиатуру телефона). Поэтому код собирается из keydown на
@@ -75,15 +81,30 @@
     const PHOTO_MAX_SIDE = 2400;
     const PHOTO_QUALITY = 0.85;
 
-    // Камера (запасной путь, если ручного сканера нет).
+    // Камера — основной путь: на РЦ сканируют телефоном.
     const CAMERA_FORMATS = ['data_matrix', 'ean_13', 'ean_8', 'upc_a'];
-    const CAMERA_POLYFILL = 'https://cdn.jsdelivr.net/npm/barcode-detector@2/dist/es/pure.min.js';
+    // Полифил BarcodeDetector (barcode-detector 2.3.1 + zxing-wasm 1.3.4): своя копия в
+    // static/libs — версия в пути, поэтому месячный кэш статики не мешает обновлению.
+    // CDN — запасной источник, если своя копия почему-то не загрузилась.
+    const CAMERA_POLYFILL_DIR = '/static/libs/barcode-detector-2.3.1/';
+    const CAMERA_POLYFILLS = [
+        { url: CAMERA_POLYFILL_DIR + 'pure.js', wasm: CAMERA_POLYFILL_DIR + 'zxing_reader.wasm' },
+        { url: 'https://cdn.jsdelivr.net/npm/barcode-detector@2.3.1/dist/es/pure.min.js', wasm: '' },
+    ];
+    // Видео с камеры: 1920x1080 «желательно» — мелкий DataMatrix на крышке читается
+    // с 15-20 см; телефон без такого режима отдаст ближайший.
+    const CAMERA_VIDEO = { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } };
     // Детектор спрашиваем 5 раз в секунду: чаще телефон греется, реже — заметная задержка.
     const CAMERA_TICK_MS = 200;
     // Код в кадре виден много кадров подряд: тот же код считается снова, только если
     // его не было видно 2,5 с (окно скользит, пока код в кадре — иначе EAN, который
     // считается каждый раз, насчитал бы бутылку несколько раз).
     const CAMERA_REPEAT_MS = 2500;
+    // Обычный штрихкод (EAN) и DataMatrix одной бутылки часто попадают в кадр вместе.
+    // Штрихкод с камеры ждёт 0,8 с (4 кадра детектора): прочитан за это время код ЧЗ
+    // того же GTIN — штрихкод не считается (бутылка уже посчитана по коду ЧЗ). Код ЧЗ
+    // этого GTIN, виденный за последние CAMERA_REPEAT_MS, тоже гасит штрихкод.
+    const CAMERA_EAN_WAIT_MS = 800;
 
     // Сигналы: высокий короткий — принято; два коротких — уже посчитана; низкий
     // длинный — не распознан. Частоты в Гц, at и ms — в миллисекундах.
@@ -167,7 +188,7 @@
     };
 
     const cam = { open: false, stream: null, track: null, detector: null, timer: null, seen: new Map(), torch: false,
-        attempt: 0 };
+        attempt: 0, dm: new Map(), eans: new Map(), wake: null };
 
     const $ = (id) => document.getElementById(id);
 
@@ -1265,7 +1286,7 @@
         if (!state.sheet) return;
         state.sheet = null;
         $('rc-sheet-wrap').hidden = true;
-        document.documentElement.classList.remove('rc-lock');
+        if (!cam.open) document.documentElement.classList.remove('rc-lock');   // под окном — камера: прокрутку не возвращаем
         const input = $('rc-sheet-input');
         if (input && typeof input.blur === 'function') input.blur();
     }
@@ -1404,13 +1425,13 @@
         const name = error && error.name;
         if (name === 'NotAllowedError' || name === 'SecurityError') return 'Нет доступа к камере — разрешите его в настройках браузера';
         if (name === 'NotFoundError' || name === 'OverconstrainedError') return 'Камера не найдена';
-        if (error && error.code === 'no_detector') return 'Этот браузер не читает коды с камеры — используйте сканер';
+        if (error && error.code === 'no_detector') return 'Этот браузер не читает коды с камеры — обновите Safari или Chrome либо введите код вручную';
         return 'Камера не включилась' + (error && error.message ? ': ' + error.message : '');
     }
 
     // Детектор кодов: встроенный BarcodeDetector (Chrome на Android), а если он не
-    // умеет DataMatrix — библиотека-полифил с того же API (загружается при первом
-    // включении камеры; в браузере без детектора — только сканер).
+    // умеет DataMatrix (iPhone, Chrome на компьютере) — библиотека-полифил с тем же API
+    // (загружается при первом включении камеры: своя копия, затем CDN).
     async function createDetector() {
         let Detector = window.BarcodeDetector;
         let formats = [];
@@ -1421,13 +1442,22 @@
             } catch (error) { formats = []; }
         }
         if (!Detector || formats.indexOf('data_matrix') === -1) {
-            try {
-                const module = await import(CAMERA_POLYFILL);
-                if (module && module.BarcodeDetector) {
+            for (const source of CAMERA_POLYFILLS) {
+                try {
+                    const module = await import(source.url);
+                    if (!module || !module.BarcodeDetector) continue;
+                    if (source.wasm && typeof module.setZXingModuleOverrides === 'function') {
+                        // Движок распознавания (.wasm) — рядом со своей копией, а не с CDN.
+                        const wasm = source.wasm;
+                        module.setZXingModuleOverrides({
+                            locateFile: (file, prefix) => (/\.wasm$/.test(file) ? wasm : prefix + file),
+                        });
+                    }
                     Detector = module.BarcodeDetector;
                     formats = CAMERA_FORMATS.slice();
-                }
-            } catch (error) { /* нет сети до CDN — остаётся встроенный, если он есть */ }
+                    break;
+                } catch (error) { /* не загрузился — следующий источник; нет ни одного — встроенный, если есть */ }
+            }
         }
         if (!Detector || !formats.length) {
             const error = new Error('no detector');
@@ -1448,16 +1478,18 @@
         const attempt = ++cam.attempt;
         const alive = () => cam.open && cam.attempt === attempt;
         cam.seen = new Map();
+        cam.dm = new Map();
+        cam.eans = new Map();
         $('rc-cam-wrap').hidden = false;
         $('rc-torch').hidden = true;
-        document.documentElement.classList.add('rc-lock');
+        document.documentElement.classList.add('rc-lock', 'rc-cam-on');
         setCamStatus('Включаю камеру…');
         renderCamera();
         try {
             const detector = await createDetector();
             if (!alive()) return;                                    // закрыли, пока грузился детектор
             cam.detector = detector;
-            const stream = await media.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+            const stream = await media.getUserMedia({ video: CAMERA_VIDEO, audio: false });
             if (!alive()) {
                 // Камеру закрыли (или открыли заново), пока ждали разрешения: этот поток лишний.
                 stream.getTracks().forEach((track) => track.stop());
@@ -1471,6 +1503,7 @@
             const caps = cam.track && typeof cam.track.getCapabilities === 'function' ? cam.track.getCapabilities() : {};
             $('rc-torch').hidden = !(caps && caps.torch);
             setCamStatus('Наведите камеру на код');
+            keepAwake(attempt);
             tickCamera();
         } catch (error) {
             if (!alive()) return;
@@ -1489,6 +1522,7 @@
                 for (const item of found || []) {
                     if (item && item.rawValue) onCameraCode(String(item.rawValue));
                 }
+                settleCameraEans();
             })
             .catch(() => { /* кадр не прочитался — следующий */ })
             .then(() => {
@@ -1498,11 +1532,58 @@
 
     function onCameraCode(raw) {
         const now = clock();
+        const parsed = parseLocal(raw);
+        const gtin = parsed && parsed.ok && parsed.gtin ? parsed.gtin : '';
+        if (gtin && parsed.kind === 'datamatrix') {
+            // Код ЧЗ в кадре: штрихкод того же товара — это та же бутылка, не считаем.
+            cam.dm.set(gtin, now);
+            for (const [code, pending] of cam.eans) if (pending.gtin === gtin) cam.eans.delete(code);
+        }
+        for (const [key, at] of cam.dm) if (now - at > CAMERA_REPEAT_MS) cam.dm.delete(key);
         const seenAt = cam.seen.get(raw);
         cam.seen.set(raw, now);     // окно скользит, пока код в кадре
         for (const [code, at] of cam.seen) if (now - at > CAMERA_REPEAT_MS) cam.seen.delete(code);
         if (seenAt !== undefined && now - seenAt < CAMERA_REPEAT_MS) return;
+        if (gtin && parsed.kind === 'ean') {
+            if (cam.dm.has(gtin)) return;                       // код ЧЗ этого товара только что был в кадре
+            cam.eans.set(raw, { gtin, at: now });               // решится в settleCameraEans
+            return;
+        }
         handleCode(raw, 'camera');
+    }
+
+    // Штрихкоды, прождавшие CAMERA_EAN_WAIT_MS без кода ЧЗ того же GTIN, — в счёт.
+    function settleCameraEans() {
+        if (!cam.open || !cam.eans.size) return;
+        const now = clock();
+        for (const [code, pending] of cam.eans) {
+            if (now - pending.at < CAMERA_EAN_WAIT_MS) continue;
+            cam.eans.delete(code);
+            if (cam.dm.has(pending.gtin)) continue;
+            handleCode(code, 'camera');
+            if (!cam.open) return;                               // скан закрыл камеру (приёмку закрыли)
+        }
+    }
+
+    // Экран не гаснет, пока открыта камера (Wake Lock; где его нет — как раньше).
+    function keepAwake(attempt) {
+        const wakeLock = navigator.wakeLock;
+        if (!wakeLock || typeof wakeLock.request !== 'function' || cam.wake) return;
+        Promise.resolve()
+            .then(() => wakeLock.request('screen'))
+            .then((sentinel) => {
+                if (cam.open && cam.attempt === attempt && !cam.wake) cam.wake = sentinel;
+                else if (sentinel && typeof sentinel.release === 'function') sentinel.release().catch(() => {});
+            })
+            .catch(() => { /* не дали (энергосбережение) — экран погаснет по таймеру телефона */ });
+    }
+
+    function releaseWake() {
+        const sentinel = cam.wake;
+        cam.wake = null;
+        if (sentinel && typeof sentinel.release === 'function') {
+            try { Promise.resolve(sentinel.release()).catch(() => {}); } catch (error) { /* уже снят */ }
+        }
     }
 
     function closeCamera() {
@@ -1515,10 +1596,14 @@
         cam.stream = null;
         cam.track = null;
         cam.torch = false;
+        cam.eans.clear();          // штрихкод без сигнала «принято» не посчитан — приёмщик видел это
+        cam.dm.clear();
+        releaseWake();
         const video = $('rc-video');
         if (video) video.srcObject = null;
         $('rc-cam-wrap').hidden = true;
         $('rc-torch').setAttribute('aria-pressed', 'false');
+        document.documentElement.classList.remove('rc-cam-on');
         if (!state.sheet) document.documentElement.classList.remove('rc-lock');
     }
 
@@ -1777,6 +1862,7 @@
         });
 
         $('rc-cam-close').addEventListener('click', () => closeCamera());
+        $('rc-cam-undo').addEventListener('click', () => undoLast($('rc-cam-undo')));
         $('rc-torch').addEventListener('click', () => toggleTorch());
 
         window.addEventListener('online', () => {
@@ -1835,7 +1921,8 @@
         render,
         charFor,
         constants: {
-            QUEUE_KEY, SNAPSHOT_KEY, SCAN_GAP_MS, MIN_CODE_LEN, RETRY_DELAYS_MS, CAMERA_REPEAT_MS,
+            QUEUE_KEY, SNAPSHOT_KEY, SCAN_GAP_MS, MIN_CODE_LEN, RETRY_DELAYS_MS, CAMERA_REPEAT_MS, CAMERA_EAN_WAIT_MS,
+            CAMERA_VIDEO, CAMERA_POLYFILLS,
             PHOTO_MAX_SIDE, PHOTO_QUALITY, TONES, VIBRATION,
         },
     };

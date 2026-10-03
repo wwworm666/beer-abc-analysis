@@ -1,5 +1,24 @@
 ﻿# Changelog
 
+### 2026-10-03 (5) — Приёмка на РЦ: ответы владельца (только телефон, архив, кеги)
+
+| Что | Почему | Где | Что сломается при неверной правке |
+|---|---|---|---|
+| Камера — главная кнопка экрана приёмщика («Сканировать камерой» под счётчиком), «Завершить» — зелёная рамка, отмена последнего скана в окне камеры, экран не гаснет (Wake Lock) | На РЦ сканируют только телефоном | `templates/receiving.html`, `static/receiving/scan.css`, `static/js/receiving/scan.js` | Приёмщик не найдёт камеру или будет выходить из неё ради отмены |
+| Полифил `BarcodeDetector` — своя копия `static/libs/barcode-detector-2.3.1/` (pure.js + zxing_reader.wasm), CDN той же версии — запасной | На iPhone DataMatrix читает только полифил; склад не должен зависеть от доступности jsdelivr | `static/libs/barcode-detector-2.3.1/`, `scan.js` (`CAMERA_POLYFILLS`, `setZXingModuleOverrides`) | Без своей копии камера на iPhone не включится при недоступном CDN |
+| Видео 1920x1080 «желательно» | Мелкий DataMatrix на крышке | `scan.js` (`CAMERA_VIDEO`) | Код не читается с 15-20 см |
+| Штрихкод с камеры ждёт 0,8 с и не считается, если рядом прочитан код ЧЗ того же GTIN | DataMatrix и EAN одной бутылки в кадре давали две штуки | `scan.js` (`onCameraCode`, `settleCameraEans`, `CAMERA_EAN_WAIT_MS`) | Двойной счёт бутылок при сканировании камерой |
+| «Старое и неактуальное» — архив целиком, со всеми подгруппами | Решение владельца | `core/receiving_index.py` (`ARCHIVE_GROUP_IDS`, `ARCHIVE_GROUP_NAMES`), `templates/receiving_review.html` | Карточки из старых акций считались бы актуальными, «Есть в iiko» вместо «Восстановить» |
+| Кега по названию ЧЗ («кега», «КЕГ», «кег») поднимает кеговые карточки в «Похожей» при равном счёте | Кеги приходят с DataMatrix, штрихкод в iiko — у 75 из 439 кеговых карточек; «кег» — стоп-слово, и кега шла ниже бутылки | `core/receiving_index.py` (`is_keg_text`, `similar_cards(keg=)`), `core/receiving_service.py` | Бухгалтер привяжет GTIN кеги к бутылке |
+
+- **Почему.** Ответы владельца на открытые вопросы плана (2026-10-03): только телефон, на
+  кегах DataMatrix есть, «Старое и неактуальное» — архив, iiko — iikoOffice, СБИС — аккаунт
+  есть, про API не знают (справка — отдельной записью).
+- **Файлы.** Код — в таблице; тесты `tests/test_receiving_index.py`, `test_receiving_service.py`,
+  `test_receiving_scan_render.mjs`, `test_receiving_scan_runtime.mjs`; доки `docs/receiving.md`
+  (камера, кеги, архив, ответы владельца), `docs/PROJECT_STRUCTURE.md` (`static/libs`),
+  `.claude/INDEX.md`.
+
 ### 2026-10-03 (4) — Приёмка на РЦ: исправления по адверсариальному ревью
 
 | Что | Почему | Где | Что сломается при неверной правке |

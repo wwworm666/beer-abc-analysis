@@ -289,6 +289,7 @@ static/
 ├── admin_mcp.css        # стили страницы «Доступ агентов» (только токены цвета)
 ├── receiving/           # scan.css (токены --rc-*), review.css (токены --rv-*)
 ├── fonts/               # IBM Plex Mono (ttf) + IBM Plex Sans (woff2, субсеты)
+├── libs/                # свои копии библиотек: chart.umd.min.js, flexidatepicker, barcode-detector-2.3.1/ (полифил BarcodeDetector + zxing_reader.wasm — камера /receiving на iPhone)
 ├── css/
 └── pwa/                 # manifest.webmanifest, sw.js
 ```

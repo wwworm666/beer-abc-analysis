@@ -187,8 +187,14 @@ def test_build_deleted_and_archived(index):
     named = cards['p-named-arch']
     assert named['archived'] is True
     assert named['group'] == 'Напитки Фасовка / АРХИВ'
-    # «Старое и неактуальное» само по себе — не архив (решение спецификации).
-    assert ri.build_index([_product('x', 'В старом', parent=G_OLD)], GROUPS)['cards']['x']['archived'] is False
+    # «Старое и неактуальное» — архив целиком (решение владельца 2026-10-03): по имени
+    # группы (синтетический GUID) и по настоящему GUID без справочника групп.
+    assert ri.build_index([_product('x', 'В старом', parent=G_OLD)], GROUPS)['cards']['x']['archived'] is True
+    real_old = '23881b17-8ced-47d5-aa03-c5b757e2f184'
+    assert real_old in ri.ARCHIVE_GROUP_IDS
+    assert ri.build_index([_product('y', 'Чипсы', parent=real_old)], groups=[])['cards']['y']['archived'] is True
+    sub = [{'id': 'g-sub', 'name': 'Черная пятница', 'parent': G_OLD, 'deleted': False}]
+    assert ri.build_index([_product('z', 'Пиво', parent='g-sub')], GROUPS + sub)['cards']['z']['archived'] is True
 
 
 def test_build_archive_by_missing_parent_id():
@@ -1103,7 +1109,7 @@ def test_constants_contract():
     assert ri.SEARCH_TYPES == ('GOODS', 'PREPARED')
     assert ri.SIMILAR_MIN_SCORE == 2 and ri.SIMILAR_LIMIT == 5
     assert ri.STALE_RUNNING_SEC == 900
-    assert ri.ARCHIVE_GROUP_NAMES == ('архив товаров', 'архив')
+    assert ri.ARCHIVE_GROUP_NAMES == ('старое и неактуальное', 'архив товаров', 'архив')
     assert ri.INDEX_FILE == 'receiving_index.json'
     assert ri.STATE_FILE == 'receiving_index_state.json'
     assert ri.RUN_LOCK_FILE == '.receiving_index_run.lock'

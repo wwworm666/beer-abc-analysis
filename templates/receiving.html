@@ -20,9 +20,11 @@
         {% include 'shared/nav.html' %}
 
         <!-- Экран приёмщика: старт (новая / открытые приёмки), сканирование, «готово».
-             Поля ввода на экране нет: ручной сканер печатает «как клавиатура», код
-             собирает scan.js из нажатий клавиш (а поле в фокусе открыло бы клавиатуру
-             телефона). Данные — /api/receiving/*, всё недоверенное — через textContent. -->
+             На РЦ сканируют телефоном: основной путь — камера (кнопка «Сканировать
+             камерой»). Поля ввода на экране нет: ручной сканер, если его подключат,
+             печатает «как клавиатура», код собирает scan.js из нажатий клавиш (а поле в
+             фокусе открыло бы клавиатуру телефона). Данные — /api/receiving/*, всё
+             недоверенное — через textContent. -->
         <div class="rc" id="rc">
             <p class="rc-note is-bad" id="rc-auth" role="alert" hidden>
                 Сессия истекла — сканы сохранены в телефоне.
@@ -37,7 +39,7 @@
             <section id="rc-start" aria-label="Приёмки">
                 <div class="rc-panel rc-hero">
                     <h1 class="rc-h1">Приёмка на РЦ</h1>
-                    <p class="rc-lead">Сканируйте каждую бутылку, банку и кегу. Сканы сначала сохраняются в телефоне и уходят на сервер, когда есть связь.</p>
+                    <p class="rc-lead">Сканируйте камерой телефона каждую бутылку, банку и кегу. Сканы сначала сохраняются в телефоне и уходят на сервер, когда есть связь.</p>
                     <div class="rc-hero-actions">
                         <button class="rc-btn rc-btn-primary rc-btn-lg" id="rc-new" type="button">
                             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
@@ -84,6 +86,10 @@
                     <div class="rc-status" id="rc-status" role="status" aria-live="polite">Сканируйте товар</div>
                     <div class="rc-last" id="rc-last"></div>
                 </div>
+                <button class="rc-btn rc-btn-lg rc-btn-primary rc-cam-cta" id="rc-camera" type="button">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
+                    Сканировать камерой
+                </button>
                 <details class="rc-how">
                     <summary>Как считается</summary>
                     <div class="rc-how-in">
@@ -98,19 +104,20 @@
                         <p><b>Не отправлено</b> — сканы, сохранённые в телефоне и ждущие связи. Они уже в счётчике и
                             уходят на сервер по одному, по порядку; повтор после обрыва связи не считается дважды.
                             Ответ сервера главнее: если сервер не принял скан, счётчик поправится и прозвучит сигнал.</p>
-                        <p><b>Сканер</b>: код — символы, пришедшие подряд с паузой не больше 80 мс и завершённые
-                            Enter или Tab. Медленный набор руками сканом не считается; раскладка клавиатуры
-                            значения не имеет.</p>
+                        <p><b>Камера</b> читает DataMatrix и обычные штрихкоды (EAN-13, EAN-8, UPC-A) 5 раз в
+                            секунду; в кадре можно держать несколько кодов сразу. Код, который не уходит из кадра,
+                            считается один раз: снова — только если его не было видно 2,5 с. Штрихкод с камеры
+                            ждёт 0,8 с: если за это время (или за 2,5 с до него) прочитан код Честного знака того
+                            же товара, штрихкод не считается — это та же бутылка.</p>
+                        <p><b>Ручной сканер</b> (если подключён): код — символы, пришедшие подряд с паузой не
+                            больше 80 мс и завершённые Enter или Tab. Медленный набор руками сканом не считается;
+                            раскладка клавиатуры значения не имеет.</p>
                         <p><b>Отменить последний</b> убирает последний посчитанный скан: ещё не отправленный —
                             из телефона, уже отправленный — на сервере.</p>
                     </div>
                 </details>
 
                 <div class="rc-actions">
-                    <button class="rc-btn rc-btn-lg" id="rc-camera" type="button">
-                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
-                        Камера
-                    </button>
                     <button class="rc-btn rc-btn-lg" id="rc-photo" type="button">
                         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5"/><path d="M9 13h7M9 17h5"/></svg>
                         Накладная
@@ -119,7 +126,7 @@
                         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg>
                         Отменить последний
                     </button>
-                    <button class="rc-btn rc-btn-lg rc-btn-primary" id="rc-finish" type="button">
+                    <button class="rc-btn rc-btn-lg rc-btn-finish" id="rc-finish" type="button">
                         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5L20 7"/></svg>
                         Завершить
                     </button>
@@ -180,7 +187,7 @@
             </div>
         </div>
 
-        <!-- Камера: запасной путь, если ручного сканера нет. -->
+        <!-- Камера: основной путь сканирования на РЦ (только телефон). -->
         <div class="rc-cam-wrap" id="rc-cam-wrap" hidden>
             <div class="rc-cam" id="rc-cam" role="dialog" aria-modal="true" aria-label="Сканирование камерой">
                 <video class="rc-video" id="rc-video" playsinline muted autoplay></video>
@@ -191,6 +198,7 @@
                 </div>
                 <div class="rc-cam-bar">
                     <button class="rc-btn" id="rc-torch" type="button" aria-pressed="false" hidden>Фонарик</button>
+                    <button class="rc-btn" id="rc-cam-undo" type="button">Отменить последний</button>
                     <button class="rc-btn" id="rc-cam-close" type="button">Закрыть камеру</button>
                 </div>
             </div>

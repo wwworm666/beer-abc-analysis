@@ -208,11 +208,27 @@ test('поля ввода на экране нет: только скрытый 
     assert.ok(!/<textarea|<select/.test(html));
 });
 
-test('кнопки экрана сканирования: Камера, Накладная, Отменить последний, Завершить', () => {
+test('кнопки экрана сканирования: «Сканировать камерой» сразу под счётчиком, Накладная, Отменить последний, Завершить', () => {
+    // Только телефон (решение владельца 2026-10-03): камера — главная кнопка экрана,
+    // сразу под счётчиком, до пояснения и остальных кнопок.
+    const counterAt = html.indexOf('id="rc-counter"');
+    const cameraAt = html.indexOf('id="rc-camera"');
+    assert.ok(counterAt > 0 && cameraAt > counterAt, 'кнопка камеры не под счётчиком');
+    assert.ok(cameraAt < html.indexOf('<details class="rc-how">'), 'кнопка камеры ниже пояснения');
+    assert.match(html, /<button class="rc-btn rc-btn-lg rc-btn-primary rc-cam-cta" id="rc-camera" type="button">[\s\S]*?Сканировать камерой/);
+    // На экране сканирования главная кнопка одна — камера; «Завершить» выделена иначе.
+    const scanScreen = html.slice(html.indexOf('id="rc-scan"'), html.indexOf('id="rc-done"'));
+    assert.equal((scanScreen.match(/rc-btn-primary/g) || []).length, 1, 'на экране сканирования больше одной главной кнопки');
+    assert.match(scanScreen, /class="rc-btn rc-btn-lg rc-btn-finish" id="rc-finish"/);
     const actions = html.slice(html.indexOf('<div class="rc-actions">'), html.indexOf('id="rc-photo-input"'));
-    for (const [id, label] of [['rc-camera', 'Камера'], ['rc-photo', 'Накладная'],
+    for (const [id, label] of [['rc-photo', 'Накладная'],
                                ['rc-undo', 'Отменить последний'], ['rc-finish', 'Завершить']]) {
         assert.match(actions, new RegExp('id="' + id + '" type="button">[\\s\\S]*?' + label), 'нет кнопки ' + label);
+    }
+    // В окне камеры: отмена последнего скана без выхода из камеры.
+    const camBar = html.slice(html.indexOf('class="rc-cam-bar"'), html.indexOf('id="rc-toast"'));
+    for (const [id, label] of [['rc-torch', 'Фонарик'], ['rc-cam-undo', 'Отменить последний'], ['rc-cam-close', 'Закрыть камеру']]) {
+        assert.match(camBar, new RegExp('id="' + id + '" type="button"[^>]*>' + label), 'нет кнопки ' + label + ' в окне камеры');
     }
     assert.match(html, /id="rc-new" type="button">[\s\S]*?Новая приёмка/);
     assert.match(html, /href="\/receiving\/review">Разбор приёмок<\/a>/, 'нет ссылки на разбор');
@@ -228,9 +244,18 @@ test('«Как считается» свёрнуто у счётчика, а п�
     const gap = Number(js.match(/const SCAN_GAP_MS = (\d+);/)[1]);
     assert.equal(gap, 80);
     assert.ok(details[1].includes(gap + ' мс'), 'в пояснении другая пауза сканера');
-    for (const word of ['DataMatrix', 'EAN', 'SSCC', 'Не отправлено', 'Отменить последний']) {
+    for (const word of ['DataMatrix', 'EAN', 'SSCC', 'Не отправлено', 'Отменить последний', 'Камера']) {
         assert.ok(details[1].includes(word), 'в пояснении нет «' + word + '»');
     }
+    // Числа камеры в пояснении — те же, что в JS.
+    const sec = (name) => (Number(js.match(new RegExp('const ' + name + ' = (\\d+);'))[1]) / 1000).toString().replace('.', ',') + ' с';
+    assert.equal(sec('CAMERA_REPEAT_MS'), '2,5 с');
+    assert.equal(sec('CAMERA_EAN_WAIT_MS'), '0,8 с');
+    for (const text of [sec('CAMERA_REPEAT_MS'), sec('CAMERA_EAN_WAIT_MS')]) {
+        assert.ok(details[1].includes(text), 'в пояснении нет «' + text + '»');
+    }
+    const tick = Number(js.match(/const CAMERA_TICK_MS = (\d+);/)[1]);
+    assert.ok(details[1].includes((1000 / tick) + ' раз в'), 'частота детектора в пояснении не совпадает с JS');
     assert.ok(!/<details(?![^>]*class="rc-how")/.test(html), 'раскрывашка без своего класса');
 });
 
@@ -303,8 +328,19 @@ test('JS: очередь rc.queue.v1 пишется до отправки, по�
 
 test('JS: камера — BarcodeDetector с форматами спецификации, запасной полифил, 2,5 с, фонарик', () => {
     assert.match(js, /const CAMERA_FORMATS = \['data_matrix', 'ean_13', 'ean_8', 'upc_a'\];/);
-    assert.match(js, /'https:\/\/cdn\.jsdelivr\.net\/npm\/barcode-detector@2\/dist\/es\/pure\.min\.js'/);
-    assert.match(js, /facingMode: 'environment'/);
+    // Полифил: своя копия в static/libs (версия в пути), CDN той же версии — запасной.
+    const dir = js.match(/const CAMERA_POLYFILL_DIR = '(\/static\/libs\/barcode-detector-[0-9.]+\/)';/);
+    assert.ok(dir, 'нет своей копии полифила');
+    for (const file of ['pure.js', 'zxing_reader.wasm', 'LICENSE.txt']) {
+        assert.ok(fs.existsSync(path.join(ROOT, dir[1].slice(1), file)), 'нет файла ' + dir[1] + file);
+    }
+    const version = dir[1].match(/barcode-detector-([0-9.]+)\//)[1];
+    assert.match(js, new RegExp("'https://cdn\\.jsdelivr\\.net/npm/barcode-detector@" + version.replace(/\./g, '\\.') + "/dist/es/pure\\.min\\.js'"));
+    // Своя копия грузит .wasm рядом с собой, а не с fastly.jsdelivr.net.
+    assert.match(js, /setZXingModuleOverrides\(/);
+    assert.match(js, /facingMode: 'environment', width: \{ ideal: 1920 \}, height: \{ ideal: 1080 \}/);
+    assert.match(js, /const CAMERA_EAN_WAIT_MS = 800;/);
+    assert.match(js, /wakeLock/);
     assert.match(js, /const CAMERA_REPEAT_MS = 2500;/);
     assert.match(js, /\.torch/);
     assert.match(js, /const PHOTO_MAX_SIDE = 2400;/);

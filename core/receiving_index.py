@@ -67,20 +67,24 @@ RUN_LOCK_FILE = '.receiving_index_run.lock'
 INDEX_VERSION = 1
 
 # Группы-архивы: товар в такой группе (на любой глубине) не «актуальный», его надо
-# восстановить. GUID — те же, что в scripts/export_keg_catalog.py; в дереве iiko
-# «Старое и неактуальное» -> «Архив» -> «Архив товаров». Сама «Старое и неактуальное»
-# (и её подгруппы вне «Архива») архивом НЕ считается — так решено в спецификации;
-# расширить — добавить GUID сюда.
-ARCHIVE_GROUP_IDS = frozenset({'14bc1f9d-e172-1a9d-0196-f2627515aab6',   # «Архив товаров»
+# восстановить. В дереве iiko «Старое и неактуальное» -> «Архив» -> «Архив товаров».
+# «Старое и неактуальное» — архив целиком, со всеми подгруппами («Черная пятница»,
+# «Снеки (старое)», «Октоберфест» и т. д.): решение владельца 2026-10-03. GUID «Архив» и
+# «Архив товаров» — те же, что в scripts/export_keg_catalog.py (у каталога кег своё
+# правило, его это решение не меняет).
+ARCHIVE_GROUP_IDS = frozenset({'23881b17-8ced-47d5-aa03-c5b757e2f184',   # «Старое и неактуальное»
+                               '14bc1f9d-e172-1a9d-0196-f2627515aab6',   # «Архив товаров»
                                'be375ee4-671f-4c7b-87ae-ab945b1f8edc'})  # «Архив»
 # Те же архивы по имени предка (casefold, без лишних пробелов, точное совпадение):
 # на случай новой группы-архива, созданной в iiko под тем же именем.
-ARCHIVE_GROUP_NAMES = ('архив товаров', 'архив')
+ARCHIVE_GROUP_NAMES = ('старое и неактуальное', 'архив товаров', 'архив')
 # Группа «Kеги» (первая буква — ЛАТИНСКАЯ K; есть ещё кириллическая «Кеги - …»),
 # поэтому кеги узнаём по GUID, а не по имени (docs/keg-catalog.md).
 KEG_GROUP_ID = '4a5b2a76-8f86-4365-b8e6-5c9aeecd3323'
 # Кеговая фасовка в карточке: «кег(30)», «кега 20», «KEG 30L» — как keg_reason
-# в scripts/export_keg_catalog.py.
+# в scripts/export_keg_catalog.py. Тем же словом кегу узнаём в названии ЧЗ: в
+# выгрузке остатков ЧЗ так названы все кеги («кега 20 л ПЭТ», «30л. КЕГ (ПЭТ)»,
+# «пластиковый кег»), см. is_keg_text.
 KEG_CONTAINER_RE = re.compile(r'кег|keg', re.IGNORECASE)
 # Глубина цепочки групп: в дереве iiko единицы уровней; 50 — защита от кривых данных
 # (цикл в parent), как _MAX_GROUP_DEPTH в core/nomenclature_xml.py.
@@ -206,6 +210,11 @@ def _name_words(name) -> list:
         if word not in words:
             words.append(word)
     return words
+
+
+def is_keg_text(*texts) -> bool:
+    """Текст ЧЗ (название, полное название, вид упаковки) говорит, что товар — кега."""
+    return any(KEG_CONTAINER_RE.search(_clean(text)) for text in texts if text)
 
 
 def _text_words(text) -> list:
@@ -532,7 +541,8 @@ def _candidate_words(index) -> list:
     return pairs
 
 
-def similar_cards(name: str, index: dict, brand: str = '', limit: int = SIMILAR_LIMIT) -> list:
+def similar_cards(name: str, index: dict, brand: str = '', limit: int = SIMILAR_LIMIT,
+                  keg: bool = False) -> list:
     """Карточки iiko, похожие на товар ЧЗ по названию (порт suggest_barcode_fixes.py).
 
     Направление как в оригинале: значимые слова КАРТОЧКИ (_name_words) ищутся среди
@@ -543,8 +553,11 @@ def similar_cards(name: str, index: dict, brand: str = '', limit: int = SIMILAR_
     давал «pale» и «ale» из одного «Pale» — счёт 2 у любой карточки «… Pale Ale»
     (ревью 2026-10-03). Счёт — сколько разных слов карточки совпало; кандидат —
     счёт >= SIMILAR_MIN_SCORE. Кандидаты — карточки SEARCH_TYPES любые: актуальные,
-    удалённые, архивные (пометки видны в сводке). Порядок: счёт по убыванию,
-    актуальные раньше, имя. Возврат: [card_summary + {'score': n}] не больше limit.
+    удалённые, архивные (пометки видны в сводке). Порядок: счёт по убыванию, при
+    keg=True (товар ЧЗ — кега, см. is_keg_text) кеги раньше бутылок того же счёта,
+    затем актуальные раньше, имя. «Кег» — стоп-слово, в счёт не идёт: без keg бутылка
+    и кега одного сорта набирают одинаково, и кега (имя «КЕГ …») оказывалась ниже.
+    Возврат: [card_summary + {'score': n}] не больше limit.
     """
     tokens = _text_words(_clean(name) + ' ' + _clean(brand))
     if not tokens:
@@ -564,7 +577,7 @@ def similar_cards(name: str, index: dict, brand: str = '', limit: int = SIMILAR_
                     break
         if score >= SIMILAR_MIN_SCORE:
             scored.append((score, card))
-    scored.sort(key=lambda item: (-item[0],) + _order_key(item[1]))
+    scored.sort(key=lambda item: (-item[0], bool(keg) and not item[1].get('keg')) + _order_key(item[1]))
     return [dict(card_summary(card), score=score) for score, card in scored[:max(0, int(limit))]]
 
 

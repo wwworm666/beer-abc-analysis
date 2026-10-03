@@ -36,6 +36,7 @@ sys.path.insert(0, ROOT)
 os.environ['SESSION_COOKIE_SECURE'] = '0'
 
 from core import receiving_service as svc  # noqa: E402
+from core import receiving_index as real_index  # noqa: E402
 
 # Настоящая проверка кредов: фикстура fakes подменяет её на «креды есть».
 REAL_IIKO_CONFIGURED = svc.iiko_configured
@@ -91,6 +92,7 @@ class FakeIndexModule:
         self.refresh_calls = []
         self.acquire_calls = []
         self.similar_calls = []
+        self.keg_flags = []             # keg, переданный в similar_cards
         self.locks = []
         self.state = {'running': False, 'trigger': 'button', 'started_at': '', 'finished_at': '',
                       'error': '', 'counts': None}
@@ -108,9 +110,12 @@ class FakeIndexModule:
         status, cards = index['classes'].get(gtin, ('missing', []))
         return {'status': status, 'cards': [dict(c) for c in cards]}
 
-    def similar_cards(self, name, index, brand='', limit=5):
+    def similar_cards(self, name, index, brand='', limit=5, keg=False):
         self.similar_calls.append((name, brand))
+        self.keg_flags.append(keg)
         return [dict(c) for c in index['similar'].get(name, [])]
+
+    is_keg_text = staticmethod(real_index.is_keg_text)
 
     def acquire_run_lock(self, wait=0):
         self.acquire_calls.append(wait)
@@ -374,6 +379,7 @@ def test_process_full_flow_statuses_chz_and_notify(fakes):
     assert fakes.chz.calls == [[G_RESTORE, G_DUP, G_SIMILAR, G_NEW_NAMED, G_NEW_BARE]]
     # Похожие — только для missing с названием ЧЗ (бренд передан)
     assert fakes.index.similar_calls == [('Пиво Портер тёмное', 'Бровари'), ('Квас живой', '')]
+    assert fakes.index.keg_flags == [False, False]
 
     ups = _by_gtin(fakes.store.upserts)
     assert {g: u['status'] for g, u in ups.items()} == {
@@ -1082,3 +1088,42 @@ def test_end_to_end_with_real_store_and_index(real_modules, monkeypatch):
 
 if __name__ == '__main__':
     sys.exit(pytest.main([__file__, '-q']))
+
+
+# ----------------------------------------------------------------- кеги (решение 2026-10-03)
+
+def _real_card(pid, name, parent):
+    return {'id': pid, 'name': name, 'type': 'GOODS', 'parent': parent, 'deleted': False,
+            'num': '', 'code': '', 'category': None, 'mainUnit': None, 'containers': [], 'barcodes': []}
+
+
+def test_classify_keg_by_chz_name_puts_keg_card_first():
+    """Кеги приходят с DataMatrix, а штрихкод в iiko есть у малой доли кеговых карточек:
+    для кеги по названию ЧЗ («кега 30 л», «КЕГ») карточка «КЕГ …» — выше бутылки того же
+    сорта при равном счёте; для бутылки порядок прежний (бутылка раньше по имени)."""
+    groups = [{'id': 'g-beer', 'name': 'Пиво бутылочное', 'parent': None, 'deleted': False},
+              {'id': real_index.KEG_GROUP_ID, 'name': 'Kеги', 'parent': None, 'deleted': False}]
+    index = real_index.build_index([
+        _real_card('bottle', 'Black Cat Scater 0,5 бут.', 'g-beer'),
+        _real_card('keg', 'КЕГ Black Cat Scater', real_index.KEG_GROUP_ID),
+    ], groups, built_at='2026-10-03T07:30:00+03:00')
+    keg_gtin, bottle_gtin = '04650300021678', '04650300021685'
+    result = svc.classify_gtins([keg_gtin, bottle_gtin], index, {
+        keg_gtin: {'name': 'Пиво светлое Black Cat Scater 30л. КЕГ (ПЭТ)', 'brand': 'Black Cat'},
+        bottle_gtin: {'name': 'Пиво светлое Black Cat Scater', 'brand': 'Black Cat',
+                      'package_type': 'бутылка'},
+    })
+    assert [c['id'] for c in result[keg_gtin]['candidates']] == ['keg', 'bottle']
+    assert result[keg_gtin]['candidates'][0]['keg'] is True
+    assert [c['id'] for c in result[bottle_gtin]['candidates']] == ['bottle', 'keg']
+    # Кега только по виду упаковки — тоже кега.
+    by_package = svc.classify_gtins([keg_gtin], index, {
+        keg_gtin: {'name': 'Пиво светлое Black Cat Scater', 'brand': 'Black Cat', 'package_type': 'кега'}})
+    assert [c['id'] for c in by_package[keg_gtin]['candidates']] == ['keg', 'bottle']
+
+
+def test_is_keg_text_matches_chz_keg_names():
+    for text in ('кега 20 л ПЭТ', '30л. КЕГ (ПЭТ)', 'пластиковый кег', 'KEG 30L', 'Кега'):
+        assert real_index.is_keg_text('Пиво', text) is True, text
+    assert real_index.is_keg_text('Пиво светлое 0,45 л', None, '') is False
+    assert real_index.is_keg_text() is False

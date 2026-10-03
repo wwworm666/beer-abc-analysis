@@ -463,6 +463,7 @@ function makeEnv(options) {
         onLine: true,
         vibrate: (pattern) => { env.vibrations.push(JSON.stringify(pattern)); return true; },
         mediaDevices: opts.mediaDevices,
+        wakeLock: opts.wakeLock,
     };
 
     let uuidSeq = 0;
@@ -1284,11 +1285,14 @@ await test('камера: BarcodeDetector, тот же код в кадре 2,5 
     env.$('rc-camera').click();
     await settle(env);
     assert.equal(env.$('rc-cam-wrap').hidden, false);
-    assert.deepEqual(plain(media.constraints), { video: { facingMode: 'environment' }, audio: false });
+    assert.deepEqual(plain(media.constraints),
+        { video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
     assert.deepEqual(plain(Detector.formats), ['data_matrix', 'ean_13']);
     assert.equal(env.$('rc-torch').hidden, false);
     frame = [EAN_A];
     await advance(env, 200);
+    assert.equal(env.scanCalls().length, 0, 'штрихкод с камеры посчитан, не дождавшись 0,8 с');
+    await advance(env, 800);
     assert.equal(env.scanCalls().length, 1);
     assert.equal(env.scanCalls()[0].body.source, 'camera');
     for (let i = 0; i < 20; i++) await advance(env, 200);   // 4 с в кадре — окно скользит
@@ -1296,7 +1300,7 @@ await test('камера: BarcodeDetector, тот же код в кадре 2,5 
     frame = [];
     await advance(env, 2600);
     frame = [EAN_A];
-    await advance(env, 200);
+    await advance(env, 1000);
     assert.equal(env.scanCalls().length, 2, 'код, ушедший из кадра на 2,5 с, не считается снова');
     await settle(env);
     assert.equal(env.$('rc-cam-units').textContent, '2 шт.');
@@ -1472,6 +1476,144 @@ await test('камера: закрыли и открыли заново, пок�
     await settle(env);
     env.$('rc-cam-close').click();
     assert.deepEqual(stopped, ['first', 'second']);
+});
+
+// Камера-заглушка для тестов «только телефон»: кадр задаёт тест, детектор отдаёт его.
+function cameraRig() {
+    const rig = { frame: [], stopped: [], wake: [] };
+    class Detector {
+        static getSupportedFormats() { return Promise.resolve(['ean_13', 'data_matrix']); }
+        detect() { return Promise.resolve(rig.frame.map((rawValue) => ({ rawValue }))); }
+    }
+    const track = { stop: () => rig.stopped.push('video'), getCapabilities: () => ({}) };
+    const stream = { getTracks: () => [track], getVideoTracks: () => [track] };
+    rig.media = { getUserMedia: () => Promise.resolve(stream) };
+    rig.Detector = Detector;
+    rig.wakeLock = {
+        request: (type) => {
+            const sentinel = { type, released: false, release: () => { sentinel.released = true; return Promise.resolve(); } };
+            rig.wake.push(sentinel);
+            return Promise.resolve(sentinel);
+        },
+    };
+    return rig;
+}
+
+await test('камера: DataMatrix и штрихкод той же бутылки в одном кадре — одна штука', async () => {
+    const server = new FakeServer();
+    server.addReceipt({ id: 130 });
+    const rig = cameraRig();
+    const env = await boot({ server, search: '?r=130', mediaDevices: rig.media, barcodeDetector: rig.Detector });
+    env.$('rc-camera').click();
+    await settle(env);
+    rig.frame = [EAN_A, DM_1];            // EAN раньше в ответе детектора — всё равно не считается
+    for (let i = 0; i < 10; i++) await advance(env, 200);
+    assert.deepEqual(env.scanCalls().map((c) => c.body.code), [DM_1]);
+    // Следующая бутылка того же товара: новый код ЧЗ, штрихкод тот же — снова одна штука.
+    rig.frame = [DM_2, EAN_A];
+    for (let i = 0; i < 10; i++) await advance(env, 200);
+    assert.deepEqual(env.scanCalls().map((c) => c.body.code), [DM_1, DM_2]);
+    await settle(env);
+    assert.equal(units(env), 2);
+});
+
+await test('камера: штрихкод, за которым через 0,4 с прочитан код ЧЗ того же товара, не считается', async () => {
+    const server = new FakeServer();
+    server.addReceipt({ id: 131 });
+    const rig = cameraRig();
+    const env = await boot({ server, search: '?r=131', mediaDevices: rig.media, barcodeDetector: rig.Detector });
+    env.$('rc-camera').click();
+    await settle(env);
+    rig.frame = [EAN_A];
+    await advance(env, 400);
+    rig.frame = [DM_1];
+    for (let i = 0; i < 10; i++) await advance(env, 200);
+    assert.deepEqual(env.scanCalls().map((c) => c.body.code), [DM_1]);
+    // Штрихкод другого товара (без кода ЧЗ в кадре) считается через 0,8 с.
+    rig.frame = [EAN_B];
+    await advance(env, 1000);
+    assert.deepEqual(env.scanCalls().map((c) => c.body.code), [DM_1, EAN_B]);
+    // Код ЧЗ того же товара уже ушёл из кадра больше 2,5 с назад — его штрихкод снова в счёт.
+    rig.frame = [];
+    await advance(env, 2600);
+    rig.frame = [EAN_A];
+    await advance(env, 1000);
+    assert.deepEqual(env.scanCalls().map((c) => c.body.code), [DM_1, EAN_B, EAN_A]);
+});
+
+await test('камера: штрихкод без сигнала не считается, если камеру закрыли раньше 0,8 с', async () => {
+    const server = new FakeServer();
+    server.addReceipt({ id: 132 });
+    const rig = cameraRig();
+    const env = await boot({ server, search: '?r=132', mediaDevices: rig.media, barcodeDetector: rig.Detector });
+    env.$('rc-camera').click();
+    await settle(env);
+    rig.frame = [EAN_A];
+    await advance(env, 400);
+    env.$('rc-cam-close').click();
+    await advance(env, 2000);
+    assert.equal(env.scanCalls().length, 0);
+    assert.equal(env.api.cam.eans.size, 0);
+});
+
+await test('камера: «Отменить последний» в окне камеры отменяет скан, камера остаётся открытой', async () => {
+    const server = new FakeServer();
+    server.addReceipt({ id: 133 });
+    const rig = cameraRig();
+    const env = await boot({ server, search: '?r=133', mediaDevices: rig.media, barcodeDetector: rig.Detector });
+    env.$('rc-camera').click();
+    await settle(env);
+    rig.frame = [DM_1];
+    await advance(env, 200);
+    await settle(env);
+    rig.frame = [];
+    assert.equal(units(env), 1);
+    env.$('rc-cam-undo').click();
+    await settle(env);
+    await advance(env, 200);
+    await settle(env);
+    assert.equal(units(env), 0);
+    assert.equal(env.$('rc-cam-wrap').hidden, false, 'отмена закрыла камеру');
+    assert.equal(env.$('rc-cam-units').textContent, '0 шт.');
+});
+
+await test('камера: экран не гаснет, пока она открыта (Wake Lock), закрытие отпускает', async () => {
+    const server = new FakeServer();
+    server.addReceipt({ id: 134 });
+    const rig = cameraRig();
+    const env = await boot({ server, search: '?r=134', mediaDevices: rig.media, barcodeDetector: rig.Detector,
+        wakeLock: rig.wakeLock });
+    env.$('rc-camera').click();
+    await settle(env);
+    assert.equal(rig.wake.length, 1);
+    assert.equal(rig.wake[0].type, 'screen');
+    assert.equal(rig.wake[0].released, false);
+    assert.ok(env.sandbox.document.documentElement.classList.contains('rc-cam-on'));
+    env.$('rc-cam-close').click();
+    await settle(env);
+    assert.equal(rig.wake[0].released, true);
+    assert.ok(!env.sandbox.document.documentElement.classList.contains('rc-cam-on'));
+    // Без Wake Lock в браузере камера работает как раньше.
+    const env2 = await boot({ server, search: '?r=134', mediaDevices: rig.media, barcodeDetector: rig.Detector });
+    env2.$('rc-camera').click();
+    await settle(env2);
+    assert.equal(env2.$('rc-cam-wrap').hidden, false);
+});
+
+await test('камера: браузер без DataMatrix и без полифила — понятная ошибка про Safari/Chrome и ввод вручную', async () => {
+    const server = new FakeServer();
+    server.addReceipt({ id: 135 });
+    class EanOnly {
+        static getSupportedFormats() { return Promise.resolve(['qr_code']); }
+        detect() { return Promise.resolve([]); }
+    }
+    const rig = cameraRig();
+    const env = await boot({ server, search: '?r=135', mediaDevices: rig.media, barcodeDetector: EanOnly });
+    env.$('rc-camera').click();
+    await settle(env);
+    assert.equal(env.$('rc-cam-wrap').hidden, true);
+    assert.match(env.$('rc-toast').textContent, /обновите Safari или Chrome либо введите код вручную/);
+    assert.ok(!/используйте сканер/.test(env.$('rc-toast').textContent));
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);
