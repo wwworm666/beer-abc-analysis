@@ -810,13 +810,15 @@ def image_search():
     -> до 12 вариантов и id поиска. POST, а не GET: поиск пишет файл поиска и тратит платный
     суточный предел — это запись (в MCP — черновик, в коннекторе «Только чтение» его нет).
     Только администратор: запрос в Яндекс платный (MCP работает от имени владельца). Предел
-    считается и на подключение: токен MCP (mcp_token_id) или вход человека.
+    считается и на подключение: подключение MCP (mcp_connection_id — грант OAuth или
+    статический токен; не id OAuth-токена, он меняется каждый час) или вход человека.
     Ответы: 400 — неверный запрос; 429 — суточный предел поисков; 502 — Яндекс не
     ответил; 503 — ключ Яндекса не настроен."""
     _require_admin('искать картинки (запрос в Яндекс платный)')
     body = _json_body()
     user = current_user() or {}
-    caller = str(user.get('mcp_token_id') or '') or ('login:' + str(user.get('login') or ''))
+    caller = (str(user.get('mcp_connection_id') or user.get('mcp_token_id') or '')
+              or ('login:' + str(user.get('login') or '')))
     return jsonify(_image_finder().search(body.get('q'), orientation=body.get('orientation'),
                                           site=body.get('site'), page=body.get('page'), caller=caller))
 
@@ -854,8 +856,10 @@ def add_found_media(material_id):
     if not ok:
         return _error(name_or_err)
     try:
-        material_view, unapproved = store.add_media(material_id, name_or_err, len(data), source.get('domain'),
-                                                    user, _view_month(), source=source)
+        material_view, unapproved = store.add_media(
+            material_id, name_or_err, len(data),
+            content_image_search.found_media_name(source.get('domain'), name_or_err),
+            user, _view_month(), source=source)
     except Exception:
         store.media.delete(name_or_err)
         raise

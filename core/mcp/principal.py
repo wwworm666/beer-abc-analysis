@@ -30,6 +30,14 @@ class Principal:
     domains: Tuple[str, ...] = field(default=(ALL_DOMAINS,))
     expires_at: Optional[str] = None   # ISO; None — бессрочный статический токен
     mode: str = 'full'                 # режим токена: read | draft | full
+    grant_id: Optional[str] = None     # OAuth: грант 'g_…' — одно подключение клиента; access-токен
+                                       # в нём меняется каждый час, грант остаётся
+
+    def connection_id(self) -> str:
+        """Стабильный id подключения: грант OAuth или статический токен. Для учёта «на
+        подключение» (предел поисков картинок): token_id OAuth меняется с каждым
+        обновлением access-токена (раз в час), и учёт по нему обнулялся бы ежечасно."""
+        return self.grant_id or self.token_id
 
     def allows(self, domain: Optional[str]) -> bool:
         """Можно ли этим токеном ходить в домен. None — полный коннектор /mcp."""

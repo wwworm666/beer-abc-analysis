@@ -359,6 +359,7 @@ def test_full_happy_path_and_refresh_rotation(env):
     assert p is not None
     assert p.user_id == env.admin_id and p.login == 'owner' and p.display_name == 'Владелец Бара'
     assert p.token_kind == 'oauth' and p.token_id.startswith('oa_')
+    assert p.grant_id.startswith('g_') and p.connection_id() == p.grant_id
     assert p.client_name == 'Claude'
     assert p.domains == ('stocks',)
     assert p.allows('stocks') and not p.allows('staff') and not p.allows(None)
@@ -372,7 +373,11 @@ def test_full_happy_path_and_refresh_rotation(env):
     body2 = r2.get_json()
     assert body2['refresh_token'] != body['refresh_token']
     assert body2['access_token'] != body['access_token']
-    assert oauth.verify_access_token(body2['access_token'], BASE + '/mcp/stocks') is not None
+    p2 = oauth.verify_access_token(body2['access_token'], BASE + '/mcp/stocks')
+    assert p2 is not None
+    # новый токен — новый id, но подключение то же: учёт «на подключение» не обнуляется
+    # каждый час (предел поиска картинок, docs/lessons.md)
+    assert p2.token_id != p.token_id and p2.connection_id() == p.connection_id() == p.grant_id
     r3 = env.token({'grant_type': 'refresh_token', 'refresh_token': body['refresh_token'],
                     'client_id': reg['client_id']})
     assert r3.status_code == 400 and r3.get_json()['error'] == 'invalid_grant'

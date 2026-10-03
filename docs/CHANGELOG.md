@@ -1,5 +1,27 @@
 ﻿# Changelog
 
+### 2026-10-03 — Поиск картинок: две ошибки после проверки выкладки, команды для сервера
+
+- **Что.** (1) Найденная картинка получает в материале имя «<сайт>.jpg» (`found_media_name`),
+  а не голый сайт: архив для Instagram дописывает расширение, только если в имени нет точки, и
+  файл ложился как `01_upload.wikimedia.org` — телефон не открыл бы его как фото. (2) Предел
+  «60 поисков в сутки на подключение» считается по гранту OAuth (`Principal.grant_id`,
+  `connection_id()`, в маршрут — `mcp_connection_id`), а не по id access-токена: claude.ai
+  обновляет токен каждый час, и предел фактически был 60 в час. Общий предел 150 в сутки работал
+  и раньше. (3) Документация: пересоздание контейнера после правки `.env` — с `--no-build` и не
+  во время выкладки (`docs/guides/deploy.md`, `docs/content-plan.md`), `/login` после пересоздания
+  проверять с повторами, `.jpg` коллажа появляется только при всех превью; убраны устаревшие
+  фразы «в образе нет Pillow» (теперь он есть, поведение приёмки фото не меняется).
+- **Почему.** Проверка перед выкладкой PR #25 (2026-10-03): обе ошибки подтверждены
+  независимой перепроверкой; на выкладку не влияли, поиск ещё не включён (ключи на сервер не
+  положены).
+- **Файлы.** `core/content_image_search.py`, `routes/content_plan.py`, `core/content_plan.py`
+  (описание), `core/mcp/principal.py`, `core/mcp/oauth.py`, `core/mcp/bridge.py`,
+  `core/bar_photo_store.py` (комментарий); тесты `tests/test_content_image_search.py`,
+  `tests/test_mcp_oauth.py`, `tests/test_mcp_bridge.py`, `tests/test_bar_acceptance.py`
+  (комментарий); доки `docs/content-plan.md`, `docs/mcp.md`, `docs/guides/deploy.md`,
+  `docs/cleanliness.md`, `docs/lessons.md`, `docs/CHANGELOG.md`.
+
 ### 2026-10-03 — Поиск картинок: инструкция по включению на сервере
 
 - **Что.** В `docs/content-plan.md` (раздел «Картинки к постам», «Настройка») — пошаговое

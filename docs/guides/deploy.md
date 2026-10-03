@@ -149,8 +149,11 @@ Host-маунты перекрывают содержимое образа: `dat
 cd /opt/beer && docker compose up -d --force-recreate caddy
 ```
 
-Для `.env` достаточно `docker compose up -d app`; для ручного обновления кода
-без установленного скрипта обязательно `docker compose up -d --build app`.
+Для `.env`: `cd /opt/beer && docker compose up -d --no-build --no-deps --force-recreate app` —
+контейнер читает `.env` только при создании; `--no-build` берёт уже выложенный образ
+`beer-abc-analysis:latest` и ничего не собирает из текущего дерева. Не запускать, пока
+идёт «Deploy production» (скрипт держит `/run/lock/beer-deploy.lock`). Для ручного
+обновления кода без установленного скрипта обязательно `docker compose up -d --build app`.
 В `.dockerignore` исключены `.env`, `.env.*` (включая резервные копии) и `secrets/`.
 
 Быстрый ручной откат последнего успешного автоматического выпуска без пересборки:
