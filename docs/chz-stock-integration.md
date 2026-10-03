@@ -382,6 +382,7 @@ cd C:\chz_test
 | `participants` | Проверить есть ли участник с нашим ИНН |
 | `search [date_from] [date_to]` | Поиск кодов через `/cises/search` (диагностика) |
 | `report [from] [to]` | Старый формат отчёта (не используется) |
+| `product-info GTIN[,GTIN...]` | Карточки товаров по GTIN через `POST /api/v4/true-api/product/info` (до 1000 GTIN). Ответ — последней строкой `@@CHZ_JSON@@{"ok", "items", "missing", "error"}` только в ASCII (консоль бар-ПК в cp1251). Зовёт сервер для приёмки на РЦ ([receiving.md](receiving.md)); с 2026-10-03 |
 
 Локальный запуск через SSH:
 ```bash
@@ -762,6 +763,8 @@ iiko не знает правильный баркод.
 ---
 
 ## Changelog
+
+- **2026-10-03** — команда `chz.py product-info` для приёмки на РЦ: названия новинок по GTIN, ответ одной ASCII-строкой с маркером; сервер (`core/receiving_chz.py`) не шлёт её, пока идёт ночное обновление (`refresh.lock`). На бар-ПК обновить `chz.py` вручную: `python remote_exec.py push chz_test/chz.py C:\chz_test`.
 
 См. [docs/CHANGELOG.md](CHANGELOG.md). Все шаги от 2026-04-22 до
 2026-04-26 относятся к этой интеграции.

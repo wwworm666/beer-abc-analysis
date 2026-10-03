@@ -281,6 +281,7 @@ DOCS_ALLOWLIST = (
     'docs/stocks.md',
     'docs/orders.md',
     'docs/suppliers.md',
+    'docs/receiving.md',
     'docs/expiration.md',
     'docs/taps.md',
     'docs/taplist-v2.md',

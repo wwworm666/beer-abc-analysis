@@ -45,6 +45,7 @@
 | `stocks_bp` | `/api` | taplist, kitchen, bottles, order-board, expiry, chz refresh | [routes/stocks.py](../routes/stocks.py) |
 | `orders_bp` | `/api/orders` | черновик заказа, отправка, «приехало», отмена, история | [routes/orders.py](../routes/orders.py) |
 | `suppliers_bp` | `/api/suppliers` | справочник поставщиков: написания, срок и дни доставки, кратность | [routes/suppliers.py](../routes/suppliers.py) |
+| `receiving_bp` | `/receiving`, `/receiving/review`, `/api/receiving` | приёмка на РЦ: сканы, проверка по iiko, разбор бухгалтерии ([receiving.md](receiving.md)) | [routes/receiving.py](../routes/receiving.py) |
 | `schedule_bp` | `/api` | график смен по барам | [routes/schedule.py](../routes/schedule.py) |
 | `misc_bp` | `/api` | dish-group, wiki, Telegram webhook | [routes/misc.py](../routes/misc.py) |
 | `expiration_bp` | `/api` | Shelf-Life Cockpit (board, recommend) | [routes/expiration.py](../routes/expiration.py) |
@@ -82,8 +83,16 @@
 - [taps_manager.py](../core/taps_manager.py) — CRUD кранов, atomic-write через tmp+fsync+replace
 - [expiry_recommend.py](../core/expiry_recommend.py) — `classify_tier()` + `recommend()` для Shelf-Life Cockpit
 
+#### Приёмка на РЦ ([receiving.md](receiving.md), с 2026-10-03)
+- [receiving_codes.py](../core/receiving_codes.py) — разбор кода со сканера (DataMatrix ЧЗ, EAN/UPC, SSCC)
+- [receiving_index.py](../core/receiving_index.py) — свой индекс «GTIN → карточки iiko» с удалёнными и архивными
+- [receiving_chz.py](../core/receiving_chz.py) — название по GTIN из Честного ЗНАКа (кэш, `chz_stock.json`, `product-info` на бар-ПК)
+- [receiving_store.py](../core/receiving_store.py), [receiving_photo_store.py](../core/receiving_photo_store.py) — `receiving.db` и фото накладных
+- [receiving_service.py](../core/receiving_service.py), [receiving_notify.py](../core/receiving_notify.py) — обработка закрытой приёмки, Telegram бухгалтерии
+
 #### Шедулеры и фоновые процессы
 - [chz_scheduler.py](../core/chz_scheduler.py) — daemon-thread, авторефреш ЧЗ-кэша в 03:00 МСК + atomic lock-файл
+- [receiving_scheduler.py](../core/receiving_scheduler.py) — индекс iiko для приёмки на РЦ в 07:30 МСК (и после старта, если устарел), подбор зависших обработок приёмок раз в 10 минут
 - [open_check_scheduler.py](../core/open_check_scheduler.py) — daemon-thread, проверка открытых смен в 14:59 МСК + atomic lock-файл
 - [yml_scheduler.py](../core/yml_scheduler.py) — daemon-thread, снимок пива для фидов Яндекса в 05:00 МСК (и по кнопке), повторы и тревога ([yandex-feeds.md](yandex-feeds.md))
 - [yandex_maps_status.py](../core/yandex_maps_status.py) — daemon-thread, раз в 3 часа сверяет прайсы баров на Яндекс Картах с нашими файлами (публичная страница, без кабинета)
@@ -136,6 +145,7 @@ data/
 ├── taps_data.json          # Состояние 60 кранов + история (atomic-write)
 ├── meeting_notes.json      # Заметки совещаний
 ├── open_check_subscribers.json  # Самоподписавшиеся чаты open-check бота
+├── receiving.db, receiving_photos/, receiving_index.json  # Приёмка на РЦ (на проде /kultura)
 ├── nomenclature_cache.json # Кэш номенклатуры iiko (24ч диск + 15 мин память)
 ├── olap_all_fields.json    # Справочник OLAP-полей продаж (снимок /columns 2025-10-18; конструктор читает копию в resources/)
 ├── beer_report.json, kegs_products.json, keg_mapping.json
@@ -146,6 +156,7 @@ data/
 │   └── ...
 └── .chz_refresh_lock_YYYY-MM-DD     # Atomic lock-файл (создаётся scheduler'ом)
    .open_check_lock_YYYY-MM-DD       # Atomic lock-файл (создаётся scheduler'ом)
+   .receiving_index_lock_YYYY-MM-DD  # Утреннее обновление индекса приёмки
 ```
 
 **Persistence на Selectel:** docker volume `/srv/beer/data → /app/data` + `/srv/beer/chz_debug → /app/chz_test/debug`. Логика deduplicate'нных путей реализована в [core/storage_paths.py](../core/storage_paths.py) через `PERSISTENT_DATA_DIR=/kultura`.
@@ -172,6 +183,7 @@ data/
 │  |  +- Шедулеры (daemon-threads):                            | │
 │  |  |   * chz_scheduler — 03:00 МСК + atomic lock            | │
 │  |  |   * open_check_scheduler — 14:59 МСК + atomic lock     | │
+│  |  |   * receiving_scheduler — 07:30 МСК + atomic lock      | │
 │  |  +- Telegram webhook handlers (open_check_bp, misc_bp)    | │
 │  +------------------------------------------------------------+ │
 │                                                                │
@@ -212,8 +224,8 @@ data/
 | Сервис | Назначение | Где конфигурируется |
 |---|---|---|
 | **iiko API** | Продажи (OLAP), кассовые смены, посещения сотрудников, номенклатура (баркоды через XML) | env `IIKO_SERVER/PORT/LOGIN/PASSWORD`, [core/iiko_api.py](../core/iiko_api.py) |
-| **Честный Знак** | Маркировка пива/безалк/соков, сроки годности по партиям, привязка к КПП баров. Доступ — через бар-ПК с CryptoPro+Rutoken | env `REMOTE_USER/HOST/PASS`, [chz_test/chz.py](../chz_test/chz.py), [core/chz_scheduler.py](../core/chz_scheduler.py) |
-| **Telegram** | KULT Taplist (уведомления барменам) + Open-check (мониторинг открытых смен) | env `TELEGRAM_BOT_TOKEN`, `TELEGRAM_OPEN_CHECK_BOT_TOKEN`, `TELEGRAM_GROUP_CHAT_ID`, `TELEGRAM_ALARM_CHAT_IDS` |
+| **Честный Знак** | Маркировка пива/безалк/соков, сроки годности по партиям, привязка к КПП баров. Доступ — через бар-ПК с CryptoPro+Rutoken | env `REMOTE_USER/HOST/PASS`, [chz_test/chz.py](../chz_test/chz.py), [core/chz_scheduler.py](../core/chz_scheduler.py); названия новинок для приёмки — команда `product-info` ([core/receiving_chz.py](../core/receiving_chz.py)) |
+| **Telegram** | KULT Taplist (уведомления барменам) + Open-check (мониторинг открытых смен) | env `TELEGRAM_BOT_TOKEN`, `TELEGRAM_OPEN_CHECK_BOT_TOKEN`, `TELEGRAM_GROUP_CHAT_ID`, `TELEGRAM_ALARM_CHAT_IDS`; бухгалтерии о разборе приёмок — `RECEIVING_NOTIFY_CHAT_IDS` |
 | **Tailscale** | Mesh-сеть до бар-ПК (`100.98.149.108`) | На сервере и бар-ПК как daemon |
 
 ---
@@ -245,6 +257,7 @@ data/
 | Stocks | `/api/chz/stock|refresh|refresh/status` | GET/POST | [chz-stock-integration.md](chz-stock-integration.md) |
 | Orders | `/api/orders/draft`, `/api/orders/send`, `/api/orders`, `/api/orders/<id>/received|close|cancel` | GET/POST | [orders.md](orders.md) |
 | Suppliers | `/api/suppliers`, `/api/suppliers/<name>`, `/api/suppliers/<name>/aliases` | GET/PUT/DELETE/POST | [suppliers.md](suppliers.md) |
+| Receiving | `/api/receiving`, `/api/receiving/<id>/scan`, `/api/receiving/<id>/close`, `/api/receiving/review`, `/api/receiving/barcodes/refresh` | GET/POST/PUT/DELETE | [receiving.md](receiving.md) |
 | Expiration | `/api/expiration/board?bars=...` | GET | [expiration.md](expiration.md) |
 | Explorer | `/api/explorer/columns`, `/values`, `/report`, `/export`, `/presets`, `/saved` | GET/POST/DELETE | [explorer.md](explorer.md) |
 | Open-check | `/api/admin/open-check/run-now`, `/telegram/openbot/*` | POST/GET | [open-check-bot.md](open-check-bot.md) |
@@ -253,5 +266,6 @@ data/
 
 ## Changelog
 
+- **2026-10-03** — Приёмка на РЦ: blueprint `receiving_bp`, модули `core/receiving_*`, шедулер индекса iiko, данные `receiving.db`/`receiving_photos/`/`receiving_index.json`, Telegram бухгалтерии ([receiving.md](receiving.md)).
 - **2026-05-28** — Полная ревизия. Документация консолидирована в `docs/`. Добавлены: Selectel-деплой, atomic locks под gunicorn 2-workers, WAL для shifts.db, отдельные модули explorer/expiration/open-check, menu_tool как standalone. Удалены: упоминания удалённого menu-модуля и render.yaml-деплоя.
 - **2026-03-27** — Создан overview.md с описанием 8 blueprints, 20+ core-модулей, render.yaml-деплоя.

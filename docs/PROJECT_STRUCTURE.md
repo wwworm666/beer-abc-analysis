@@ -42,7 +42,9 @@ beer-abc-analysis/
 │                           #   test_taplist_polling.py, test_review_notify.py; старые ошибки:
 │                           #   test_dashboard_comments.py, test_dashboard_compare_export.py,
 │                           #   test_msk_today_routes.py, test_schedule_employee_update.py,
-│                           #   test_docs_secrets_moved.py; conftest.py — пустые боевые токены
+│                           #   test_docs_secrets_moved.py; приёмка на РЦ: test_receiving_*.py,
+│                           #   test_receiving_*.mjs, fixtures/receiving_codes.json (паритет Python/JS);
+│                           #   conftest.py — пустые боевые токены
 │                           #   для каждого прогона pytest)
 ├── docs/                   # Документация проекта (SoT)
 ├── secrets/                # ТОЛЬКО локально (в .gitignore и .dockerignore): LOCAL_NOTES.md —
@@ -61,7 +63,7 @@ beer-abc-analysis/
 
 ---
 
-## `core/` — Бизнес-логика (63 модуля)
+## `core/` — Бизнес-логика (71 модуль)
 
 ### iiko-интеграция и данные (4)
 | Файл | Что делает |
@@ -138,10 +140,22 @@ beer-abc-analysis/
 | `taps_manager.py` | CRUD 60 кранов, atomic-write через tmp+fsync+replace |
 | `expiry_recommend.py` | `classify_tier()` + `recommend()` для Shelf-Life Cockpit |
 
-### Шедулеры и боты (8)
+### Приёмка на РЦ (7, с 2026-10-03, [receiving.md](receiving.md))
+| Файл | Что делает |
+|---|---|
+| `receiving_codes.py` | Разбор кода со сканера: DataMatrix ЧЗ, EAN/UPC, SSCC, кириллическая раскладка, контрольная цифра GS1 (JS-порт — `static/js/receiving/codes.js`) |
+| `receiving_index.py` | Свой индекс «GTIN → карточки iiko» с удалёнными и архивными (`receiving_index.json`): загрузка из iiko v2, статусы, похожая карточка, поиск, межпроцессный лок обновления |
+| `receiving_chz.py` | Название по GTIN: кэш, `chz_stock.json`, `product-info` на бар-ПК по SSH |
+| `receiving_store.py` | SQLite `receiving.db`: приёмки, сканы, фото накладных, строки разбора, кэш ответов ЧЗ |
+| `receiving_photo_store.py` | Фото накладных на диске (`receiving_photos/`) |
+| `receiving_service.py` | Обработка закрытой приёмки и обновление индекса с перепроверкой открытых строк |
+| `receiving_notify.py` | Сообщение бухгалтерии в Telegram (бот kulturaopenclosed, чаты `RECEIVING_NOTIFY_CHAT_IDS`) |
+
+### Шедулеры и боты (9)
 | Файл | Что делает |
 |---|---|
 | `chz_scheduler.py` | Daemon-thread, ЧЗ refresh в 03:00 МСК + atomic lock |
+| `receiving_scheduler.py` | Приёмка на РЦ: индекс iiko в 07:30 МСК (суточный лок), после старта, если индекса нет или он старше 26 ч; раз в 10 минут — подбор зависших обработок приёмок |
 | `open_check_scheduler.py` | Daemon-thread, open-check в 14:59 МСК + atomic lock |
 | `content_publisher_scheduler.py` | Daemon-thread, отправка контент-плана раз в минуту (hh:mm:01), один процесс (flock `data/.content_publisher.lock`); без токена бота и при `CONTENT_PUBLISH=0` не стартует |
 | `taplist_polling.py` | Long-polling гостевого бота @kult_taplist_bot: краны, подписка на новости с согласием, отзывы, выключатель `bot.signup` и меню команд |
@@ -195,6 +209,7 @@ beer-abc-analysis/
 | `stocks_bp` | `/api` | `stocks.py` |
 | `orders_bp` | `/api/orders` | `orders.py` |
 | `suppliers_bp` | `/api/suppliers` | `suppliers.py` |
+| `receiving_bp` | `/receiving`, `/receiving/review`, `/api/receiving` | `receiving.py` |
 | `schedule_bp` | `/api` | `schedule.py` |
 | `misc_bp` | `/api` | `misc.py` |
 | `expiration_bp` | `/api` | `expiration.py` |
@@ -220,6 +235,8 @@ templates/
 ├── taps_bar.html        # Краны одного бара
 ├── stocks.html          # 6 вкладок: К заказу / К отправке / Таплист / Фасовка / Сроки / Меню кухни
 ├── suppliers.html       # Справочник поставщиков (/suppliers)
+├── receiving.html       # Приёмка на РЦ: экран приёмщика (/receiving)
+├── receiving_review.html # «Разбор приёмок» для бухгалтерии (/receiving/review)
 ├── expiration.html      # Shelf-Life Cockpit
 ├── explorer.html        # Конструктор OLAP-отчётов iiko (/explorer)
 ├── schedule.html, salary.html, bonus.html
@@ -261,6 +278,7 @@ static/
 │   ├── me/
 │   ├── schedule/
 │   ├── taps/
+│   ├── receiving/       # codes.js (разбор кода, паритет с core/receiving_codes.py), scan.js (/receiving), review.js (/receiving/review)
 │   └── stocks/
 ├── draft/               # draft.css — оформление /draft по макету (токены --dr-*)
 ├── packaging/           # packaging.css — оформление /packaging как /draft (токены --pk-*)
@@ -269,6 +287,7 @@ static/
 ├── me/                  # me.css — оформление /me по макету (токены --me-*)
 ├── guest_hub/           # hub.css (токены --gh-* на .gh-scope, тёмная тема), content_plan.css, reviews.css
 ├── admin_mcp.css        # стили страницы «Доступ агентов» (только токены цвета)
+├── receiving/           # scan.css (токены --rc-*), review.css (токены --rv-*)
 ├── fonts/               # IBM Plex Mono (ttf) + IBM Plex Sans (woff2, субсеты)
 ├── css/
 └── pwa/                 # manifest.webmanifest, sw.js
@@ -295,6 +314,9 @@ data/
 ├── guest_subscribers.db    # Подписчики гостевого бота и шаги его диалога, SQLite WAL (на проде /kultura, в git нет)
 ├── period_comments.json    # Комментарии к периодам дашборда (на проде /kultura, в git нет)
 ├── mcp.db                  # MCP: токены, OAuth, журнал вызовов, настройки, общие лимиты (на проде /kultura, в git нет)
+├── receiving.db            # Приёмка на РЦ: приёмки, сканы, разбор, кэш ЧЗ, SQLite WAL (на проде /kultura, в git нет)
+├── receiving_photos/       # Фото накладных r<id>_<время>_<hex>.jpg (на проде /kultura, в git нет)
+├── receiving_index.json    # Индекс «GTIN → карточки iiko» и receiving_index_state.json (на проде /kultura, в git нет)
 ├── open_check_subscribers.json   # Самоподписавшиеся чаты open-check ({"chats":[...]})
 ├── nomenclature_cache.json # iiko nomenclature (24ч диск + 15 мин память)
 ├── olap_all_fields.json    # Справочник OLAP-полей продаж (снимок /columns 2025-10-18; конструктор читает копию в resources/)
@@ -304,7 +326,8 @@ data/
 │   ├── nomenclature_full.json       # OLAP nomenclature
 │   ├── kitchen_report.json, store_operations_report.json
 │   └── ...
-└── .chz_refresh_lock_*, .open_check_lock_*, .content_publisher.lock   # Atomic locks от шедулеров
+└── .chz_refresh_lock_*, .open_check_lock_*, .content_publisher.lock,
+    .receiving_index_lock_*, .receiving_index_run.lock, .receiving_chz.lock   # Atomic locks от шедулеров
 ```
 
 **Persistence на Selectel:** docker volumes — `/srv/beer/data → /app/data` и `/srv/beer/chz_debug → /app/chz_test/debug`. На локальном dev — обычная директория. Маршрутизация — через [core/storage_paths.py](../core/storage_paths.py).
@@ -496,6 +519,7 @@ docker compose up -d
 | `/taps/<bar_id>` | Управление кранами |
 | `/stocks` | Заказы и остатки: экран «К заказу» |
 | `/suppliers` | Справочник поставщиков |
+| `/receiving`, `/receiving/review` | Приёмка на РЦ: сканирование (приёмщик) и «Разбор приёмок» (бухгалтерия) |
 | `/content-plan`, `/reviews`, `/guests` | Раздел «Гости»: контент-план, отзывы, маркетинг |
 | `/mcp`, `/mcp/<раздел>` | MCP-коннекторы для ИИ-агентов владельца (Bearer-токен или OAuth) |
 | `/admin/mcp` | «Доступ агентов»: токены, OAuth-приложения, журнал вызовов, настройки (только админ) |

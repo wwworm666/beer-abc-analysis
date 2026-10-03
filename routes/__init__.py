@@ -5,6 +5,7 @@ from .taps import taps_bp
 from .stocks import stocks_bp
 from .orders import orders_bp
 from .suppliers import suppliers_bp
+from .receiving import receiving_bp
 from .dashboard import dashboard_bp
 from .schedule import schedule_bp
 from .misc import misc_bp
@@ -37,6 +38,9 @@ def register_blueprints(app):
     app.register_blueprint(stocks_bp)
     app.register_blueprint(orders_bp)
     app.register_blueprint(suppliers_bp)
+    # Приёмка на РЦ (2026-10-03): сканирование /receiving, разбор бухгалтерии
+    # /receiving/review, API /api/receiving/*, см. docs/receiving.md
+    app.register_blueprint(receiving_bp)
     app.register_blueprint(dashboard_bp)
     app.register_blueprint(schedule_bp)
     app.register_blueprint(misc_bp)

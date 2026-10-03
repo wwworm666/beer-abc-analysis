@@ -98,6 +98,15 @@ data/.monthly_report_startup_*
 data/.guests_sync_lock_*
 data/.guests_sync_startup_*
 
+# Приёмка на РЦ (docs/receiving.md; на проде живут на /kultura и /srv/beer/data):
+# WAL-файлы receiving.db (сама БД покрыта data/*.db), фото накладных, индекс
+# «GTIN -> карточки iiko» и состояние его обновления, lock-файлы шедулера и бар-ПК
+data/receiving.db-*
+data/receiving_photos/
+data/receiving_index.json*
+data/receiving_index_state.json*
+data/.receiving_*
+
 # API ключи и секреты
 апи
 .env

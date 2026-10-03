@@ -655,6 +655,115 @@ def get_product_names(gtins, token=None):
     return result
 
 
+# ==================== КАРТОЧКИ ДЛЯ ПРИЁМКИ НА РЦ (product-info) ====================
+
+# Лимит метода product/info: «максимальное количество кодов товаров в списке — 1000»
+# (документация ЧЗ, chz_test/чз/docs.cr11pt.ru.html). Больше — пакетами.
+PRODUCT_INFO_MAX_GTINS = 1000
+
+# Строка-маркер ответа команды product-info. Сервер (core/receiving_chz.py) берёт
+# ПОСЛЕДНЮЮ строку с маркером: всё, что напечатано выше (load_token пишет
+# «Получаю новый токен...», get_token — строки [auth]), пропускается. После маркера —
+# JSON только из ASCII: консоль бар-ПК в cp1251, а сервер читает её как cp866, и
+# кириллица без \u-экранирования пришла бы кракозябрами.
+CHZ_JSON_SENTINEL = "@@CHZ_JSON@@"
+# Версия формата ответа: сервер узнаёт по ней, что chz.py на бар-ПК новый.
+CHZ_JSON_VERSION = 1
+
+
+def parse_gtin_args(args):
+    """GTIN из аргументов командной строки: через запятую и/или пробел.
+
+    Берутся только токены из цифр ASCII длиной до 14; они дополняются нулями слева
+    до 14 (EAN-13 -> GTIN-14). Мусор пропускается, повторы убираются (порядок
+    сохраняется), больше PRODUCT_INFO_MAX_GTINS не берётся.
+    """
+    result = []
+    seen = set()
+    for arg in args:
+        for token in str(arg).replace(",", " ").split():
+            if not (token.isascii() and token.isdigit() and len(token) <= 14):
+                continue
+            gtin = token.zfill(14)
+            if gtin in seen:
+                continue
+            seen.add(gtin)
+            result.append(gtin)
+            if len(result) >= PRODUCT_INFO_MAX_GTINS:
+                return result
+    return result
+
+
+def fetch_product_info(gtins, token):
+    """Карточки товаров по GTIN из product/info — объекты results[] целиком, как есть.
+
+    В отличие от get_product_names различает «сбой» и «в ЧЗ нет»: для приёмки на РЦ
+    «нет в ЧЗ» запоминается на неделю, а сбой — нет.
+
+    POST /api/v4/true-api/product/info {"gtins": [...], "rdInfo": false}, пакетами по
+    PRODUCT_INFO_MAX_GTINS. ЧЗ отдаёт только карточки с goodTurnFlag/goodMarkFlag:
+    GTIN без ответа — карточки в каталоге нет (импорт, внутренний код, ошибка).
+
+    Returns: (status, items, error)
+      status — HTTP-код последнего запроса (None — сбой сети или пустой список);
+      items  — {gtin14: объект results[]}; при сбое — то, что успели получить;
+      error  — "" или причина: "HTTP <код>", "network: <текст>", "bad_response".
+               На первом сбойном пакете остальные не запрашиваются.
+    """
+    headers = {"Authorization": f"Bearer {token}"}
+    url = f"{CHZ_BASE_URL_V4}/product/info"
+    padded = [str(g).zfill(14) for g in gtins]
+    items = {}
+    status = None
+    for start in range(0, len(padded), PRODUCT_INFO_MAX_GTINS):
+        chunk = padded[start:start + PRODUCT_INFO_MAX_GTINS]
+        status, response = make_request(url, "POST", {"gtins": chunk, "rdInfo": False}, headers)
+        if status is None:
+            # make_request при сетевой ошибке отдаёт (None, текст исключения)
+            return status, items, "network: " + str(response)[:200]
+        if status != 200:
+            return status, items, f"HTTP {status}"
+        if not isinstance(response, dict):
+            return status, items, "bad_response"
+        for item in response.get("results") or []:
+            if isinstance(item, dict) and item.get("gtin"):
+                items[str(item["gtin"]).zfill(14)] = item
+    return status, items, ""
+
+
+def print_chz_json(ok, items=None, missing=None, error=""):
+    """Напечатать ответ для сервера последней строкой: маркер + JSON (только ASCII)."""
+    payload = {
+        "ok": bool(ok),
+        "version": CHZ_JSON_VERSION,
+        "items": items or {},
+        "missing": missing or [],
+        "error": error or "",
+    }
+    print(CHZ_JSON_SENTINEL + json.dumps(payload, ensure_ascii=True), flush=True)
+
+
+def run_product_info(args):
+    """Команда product-info: карточки ЧЗ по GTIN одной строкой-маркером для сервера.
+
+    Ошибки тоже уходят маркером ({"ok": false, "error": ...}), чтобы сервер отличил
+    «chz.py ответил» от «chz.py старый и напечатал справку».
+    """
+    gtins = parse_gtin_args(args)
+    if not gtins:
+        print_chz_json(False, error="no_gtins")
+        return
+    token = load_token()
+    if not token:
+        print_chz_json(False, error="no_token")
+        return
+    _status, items, error = fetch_product_info(gtins, token)
+    # При сбое «не найдено» неизвестно (пакет мог не дойти) — missing не заполняем:
+    # сервер запоминает «в ЧЗ нет» на неделю и не должен сделать это из-за сбоя.
+    missing = [] if error else [g for g in gtins if g not in items]
+    print_chz_json(not error, items=items, missing=missing, error=error)
+
+
 # ==================== ПАРСЕР CSV-ЭКСПОРТОВ ИЗ ЛК ЧЗ ====================
 
 def parse_chz_csv(csv_dir=None):
@@ -1410,6 +1519,7 @@ def print_help():
     print(f"  python chz.py stock              — остатки: название, кол-во, срок (6 мес)")
     print(f"  python chz.py stock 2025-10-01   — остатки с даты")
     print(f"  python chz.py stock 2025-10-01 2026-04-05  — период")
+    print("  python chz.py product-info GTIN[,GTIN...]  — карточки товаров для приёмки (JSON для сервера)")
     print(f"\nПараметры по умолчанию:")
     print(f"  группы = beer + nabeer + softdrinks")
     print(f"  период = последние 6 месяцев")
@@ -1591,6 +1701,12 @@ def main():
             print(f"      address: {m.get('address')}")
             print(f"      productGroups: {m.get('productGroups')}")
         print(f"\n  FILE: {out_file}")
+
+    elif cmd == "product-info":
+        # python chz.py product-info GTIN[,GTIN...] [GTIN ...] — карточки из каталога ЧЗ
+        # для приёмки на РЦ. Зовёт сервер по SSH (core/receiving_chz.py); ответ —
+        # последней строкой CHZ_JSON_SENTINEL + JSON.
+        run_product_info(rest)
 
     else:
         print_help()

@@ -1,5 +1,42 @@
 ﻿# Changelog
 
+### 2026-10-03 (3) — Приёмка на РЦ: подготовка и первый этап
+
+- **Что.** Новый модуль «Приёмка на РЦ» по плану владельца (документ «Приёмка на РЦ: проверка
+  позиций по iiko — план»). Подготовка: разбор кода со сканера — чистая функция на Python и её
+  JS-порт с общей фикстурой (DataMatrix с GS и без, префикс `]d2`, русская раскладка, `␝`,
+  криптохвост, EAN-8/13, UPC-A, GTIN-14, SSCC, контрольная цифра GS1); свой индекс «GTIN →
+  карточки iiko» из v2 `includeDeleted=true` (удалённые, архивные по группам «Архив» и «Архив
+  товаров», кеги, дубли штрихкода) с автообновлением (утро 07:30 МСК, кнопка, закрытие приёмки,
+  после старта) и выходом из iiko; команда `chz.py product-info` для бар-ПК и серверный клиент
+  (кэш, `chz_stock.json`, SSH пакетами по 400, «в ЧЗ нет» — неделя, не мешает ночному
+  обновлению ЧЗ). Первый этап: экран приёмщика `/receiving` (ручной сканер по `event.code`,
+  камера с `BarcodeDetector` или полифиллом, сигналы, повтор DataMatrix не задваивается, отмена,
+  фото накладной, очередь в телефоне — сканы не теряются без связи), фоновая обработка закрытой
+  приёмки (статусы Новая / Похожая / Восстановить / Дубль / Есть, название из ЧЗ, похожая
+  карточка по словам названия), «Разбор приёмок» `/receiving/review` (вкладки, поставщик из
+  справочника, «Скопировать для iiko», поиск в iiko, «Сделано», «Не нужно», автозакрытие по
+  индексу), сообщение бухгалтерии в Telegram, 14 инструментов MCP `stocks_receiving_*`.
+- **Почему.** Владелец: поймать новинку на РЦ, пока она не доехала до бара, — приёмщик только
+  сканирует, сервис сверяет и подтягивает данные, бухгалтерия разбирает готовый список.
+  Второй этап (УПД из СБИС) ждёт доступа к API СБИС; третий — решения владельца.
+- **Сделать владельцу.** Обновить `chz.py` на бар-ПК (`python remote_exec.py push
+  chz_test/chz.py C:\chz_test`); бухгалтеру нажать /start в боте kulturaopenclosed и вписать его
+  chat id в `RECEIVING_NOTIFY_CHAT_IDS` в `.env` сервера (пересоздать контейнер с `--no-build`);
+  ответить на открытые вопросы плана (чем сканируют на РЦ, DataMatrix на кегах, считать ли
+  архивом «Старое и неактуальное»).
+- **Файлы.** `core/receiving_codes.py`, `core/receiving_index.py`, `core/receiving_chz.py`,
+  `core/receiving_store.py`, `core/receiving_photo_store.py`, `core/receiving_service.py`,
+  `core/receiving_notify.py`, `core/receiving_scheduler.py`, `routes/receiving.py`,
+  `routes/__init__.py`, `app.py` (шедулер), `chz_test/chz.py`, `core/mcp/tools/stocks.py`,
+  `core/mcp/tools/common.py`, `core/mcp/spec.py`, `templates/receiving.html`,
+  `templates/receiving_review.html`, `templates/shared/nav.html`, `static/receiving/*.css`,
+  `static/js/receiving/*.js`, `.env.example`, `.gitignore`, `.dockerignore`; тесты
+  `tests/test_receiving_*.py`, `tests/test_receiving_*.mjs`, `tests/fixtures/receiving_codes.json`,
+  `tests/test_mcp_tools_stocks.py`, `tests/conftest.py`; доки `docs/receiving.md` (новый),
+  `docs/mcp.md`, `docs/overview.md`, `docs/PROJECT_STRUCTURE.md`, `docs/chz-stock-integration.md`,
+  `chz_test/README.md`, `.claude/INDEX.md`.
+
 ### 2026-10-03 — Поиск картинок: две ошибки после проверки выкладки, команды для сервера
 
 - **Что.** (1) Найденная картинка получает в материале имя «<сайт>.jpg» (`found_media_name`),
