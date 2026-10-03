@@ -49,6 +49,7 @@ data/guest_reviews.json
 # Контент-план раздела «Гости» и его фото/видео (на проде живут на /kultura)
 data/content_plan.json
 data/content_media/
+data/content_image_search/
 # Комментарии к периодам дашборда (core/plans_manager.PeriodCommentsStore; на проде — /kultura)
 data/period_comments.json*
 # Настройки «Каналы и отправка» контент-плана (core/content_channels.py; на проде — /kultura)

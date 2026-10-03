@@ -60,6 +60,23 @@ idempotent — сетевой вызов), content_channel_test, content_publish
 отзывы — локальные файлы, живой предпросмотр читает снимок кранов и реестр Untappd с диска
 (ни iiko, ни сети).
 
+Картинки из интернета (с 2026-10-02, core/content_image_search.py). Пометки — по смыслу
+этого модуля: open_world — «выходит в Telegram или разрешает выход» (публикация наружу);
+эти инструменты ничего не публикуют и не открывают наружу, они только ЧИТАЮТ интернет,
+поэтому не open_world (иначе их нельзя было бы держать в режиме черновиков, а готовить
+картинки к плану — работа расписания):
+- content_image_search — POST, draft_write, НЕ read_only: каждый вызов пишет файл поиска
+  и тратит платный суточный предел (150 на сеть, 60 на подключение), поэтому коннектору
+  «Только чтение» поиск не виден, а клиент не считает его безопасным «только чтением»;
+- content_image_search_collage — read_only: строит картинку из уже найденного (превью
+  качаются с соблюдением тех же защит и общего бюджета времени);
+- content_media_add_found — draft_write: файл ложится в черновик агента и никуда не уходит;
+  сервер скачивает ТОЛЬКО вариант из своего файла поиска (candidate), а не адрес из вызова,
+  и соединяется только с проверенным публичным IP — внедрённая в отзыв «команда» не
+  направит сервер ни по своему адресу, ни во внутреннюю сеть.
+Пример коллажа — несуществующий id поиска (404 без сети). У поиска примера нет (запись);
+мост проверяется сценарием с поддельным Яндексом (tests/test_mcp_tools_content.py).
+
 Примеры (examples) есть только у инструментов чтения. Для чтения по id (материал, журнал,
 файл) пример — заведомо несуществующий id правильной формы: дымовой прогон проходит
 путь до хранилища и получает 404, а не 500, на любых данных.
@@ -81,6 +98,12 @@ idempotent — сетевой вызов), content_channel_test, content_publish
 - 2026-09-28 (проверка) — content_publish_now только ставит в очередь («уйдёт в течение
   минуты»); content_bulk_pause — open_world; content_channel_check не idempotent; пауза и
   отмена останавливают идущую рассылку; на сайте выпуск публикаций — только администратор.
+- 2026-10-02 — картинки к постам: content_image_search, content_image_search_collage,
+  content_media_add_found (решение владельца: агент сам находит картинки к историям и сразу
+  добавляет в план, поиск не ограничен открытыми лицензиями); раздел «ФОТО» в инструкциях,
+  шаг про картинки в сценарии content_plan_month, уточнение у content_media_upload. По
+  независимой проверке того же дня поиск — POST и draft_write (пишет файл поиска и тратит
+  платный предел; в коннекторе «Только чтение» его нет), предел 60 поисков на подключение.
 """
 import re
 from typing import Dict, List, Tuple
@@ -172,6 +195,21 @@ DATE_OR_EMPTY_PATTERN = r'^(\d{4}-\d{2}-\d{2})?$'
 TIME_OR_EMPTY_PATTERN = r'^(\d{1,2}:\d{2})?$'
 DATETIME_PATTERN = r'^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(:\d{2}(\.\d+)?)?$'
 MEDIA_NAME_PATTERN = r'^cp_\d{8}_[0-9a-f]{12}\.(jpg|png|webp|mp4)$'   # content_media.NAME_RE
+
+# Поиск картинок (core/content_image_search.py; тест сверяет с константами модуля).
+IMAGE_ORIENTATIONS = ('vertical', 'horizontal', 'square')   # content_image_search.ORIENTATIONS
+IMAGE_QUERY_MIN, IMAGE_QUERY_MAX = 2, 400                   # content_image_search.QUERY_MIN/QUERY_MAX
+IMAGE_PAGE_MAX = 9                                          # content_image_search.PAGE_MAX
+IMAGE_CANDIDATES_MAX = 12                                   # content_image_search.CANDIDATES_MAX
+IMAGE_MIN_LONG_SIDE = 1000                                  # content_image_search.MIN_LONG_SIDE
+IMAGE_ATTACH_MIN_LONG_SIDE = 800                            # content_image_search.ATTACH_MIN_LONG_SIDE
+IMAGE_MAX_SIDE = 2560                                       # content_image_search.MAX_SIDE
+IMAGE_KEEP_DAYS = 3                                         # content_image_search.KEEP_DAYS
+IMAGE_DAILY_LIMIT = 150                                     # content_image_search.DAILY_LIMIT
+IMAGE_CALLER_DAILY_LIMIT = 60                               # content_image_search.PER_CALLER_DAILY_LIMIT
+SEARCH_ID_PATTERN = r'^is_\d{8}_[0-9a-f]{12}$'               # content_image_search.SEARCH_ID_RE
+CANDIDATE_PATTERN = r'^is_\d{8}_[0-9a-f]{12}-\d{1,2}$'       # content_image_search.CANDIDATE_RE
+SITE_PATTERN = r'^([a-z0-9-]+\.)+[a-z0-9-]{2,}$'             # content_image_search.SITE_RE (без длины)
 
 BAR_HELP = ('bolshoy — Большой пр. В.О (ВО), ligovskiy — Лиговский (Лиг), kremenchugskaya — '
             'Кременчугская (Крем), varshavskaya — Варшавская (Вар)')
@@ -841,8 +879,9 @@ _tool(
         'содержимому; у материала до 20 файлов. Размещения с набором «все файлы» получают файл сами — их '
         'утверждение снимается (unapproved). Через MCP файл идёт в base64 внутри запроса, а запрос MCP — до '
         '25 МБ: файл больше ~18 МБ (длинное видео) так не загрузить — его загружает владелец на странице. '
-        'Фото снимает команда: агент загружает только файл, который дал владелец; если фото нет — заполните '
-        'shot_list.'
+        'Фото баров, кранов, блюд и людей снимает команда: сюда агент загружает только файл, который дал '
+        'владелец; если фото нет — заполните shot_list. Картинки из интернета к историям — '
+        'content_image_search и content_media_add_found.'
     ),
     input_schema=_obj({'material_id': _MATERIAL_ID, 'file': _FILE}, required=('material_id', 'file')),
     method='POST', path='/api/content-plan/materials/<material_id>/media', path_params=('material_id',),
@@ -861,6 +900,80 @@ _tool(
     input_schema=_obj({'material_id': _MATERIAL_ID, 'name': _MEDIA_NAME}, required=('material_id', 'name')),
     method='DELETE', path='/api/content-plan/materials/<material_id>/media/<name>',
     path_params=('material_id', 'name'), read_only=False, destructive=True, idempotent=True,
+)
+
+# ---------------------------------------------------------------------------
+# Инструменты: картинки из интернета к постам (core/content_image_search.py)
+# ---------------------------------------------------------------------------
+
+_tool(
+    name='content_image_search',
+    title='Найти картинки к посту',
+    description=(
+        'Найти картинки в интернете к истории, празднику или событию (Yandex Search API): search_id и до '
+        '12 вариантов {candidate, n, width, height, format, domain, title, page_url, image_url}. Сервер уже '
+        'отбросил стоки с водяными знаками, повторы и картинки с большей стороной меньше 1000 px '
+        '(dropped). Перед выбором ОБЯЗАТЕЛЬНО посмотрите варианты глазами: '
+        'content_image_search_collage(search_id) — одна картинка с номерами; подходящий прикрепите: '
+        'content_media_add_found(material_id, candidate). Ничего не подошло — другой запрос: точнее '
+        '(человек, место, год, предмет, этикетка), по-английски или на языке страны сюжета; site — сайт '
+        'пивоварни; orientation=vertical — для Instagram; page — следующая страница выдачи. Каждый вызов '
+        '— новый платный запрос в Яндекс: не больше 150 поисков в сутки на сеть и 60 на одно подключение '
+        '(429), результаты хранятся 3 суток; не повторяйте тот же запрос. Фото баров, кранов, блюд и '
+        'людей сюда не ищутся — их снимает команда (shot_list). Ключ Яндекса не настроен — 503 '
+        'image_search_not_configured: скажите владельцу.'
+    ),
+    input_schema=_obj({
+        'q': _str('Что искать, 2..400 знаков: суть сюжета, а не жанр поста. Хорошо: «Rodenbach foeders '
+                  'Roeselare», «Theresienwiese 1810 Pferderennen», «Pilsner Urquell brewery 19th century». '
+                  'Плохо: «пиво», «красивая картинка к посту».',
+                  minLength=IMAGE_QUERY_MIN, maxLength=IMAGE_QUERY_MAX),
+        'orientation': _enum(IMAGE_ORIENTATIONS, 'Ориентация: vertical — для Instagram (4:5, 9:16), horizontal, '
+                                                 'square; не передавать — любая.'),
+        'site': _str('Искать только на одном сайте, например rodenbach.be (домен без http и пути).',
+                     pattern=SITE_PATTERN, maxLength=100),
+        'page': _int('Страница выдачи 0..9 (0 — первая), если на первой ничего не подошло.', 0, IMAGE_PAGE_MAX),
+    }, required=('q',)),
+    method='POST', path='/api/content-plan/image-search', body='json', read_only=False, draft_write=True,
+)
+
+_tool(
+    name='content_image_search_collage',
+    title='Посмотреть найденные картинки',
+    description=(
+        'Варианты поиска content_image_search одной картинкой: сетка 4 x 3, над каждой — номер n, размер '
+        'оригинала и сайт. Смотрите глазами и выбирайте: в тему ли сюжета, резкая ли, нет ли водяного '
+        'знака, надписей поперёк, детей, чужого логотипа главным планом, рекламы с обещаниями пользы. '
+        '«no preview» — сайт не отдал превью (оригинал может и не скачаться). Прикрепить — '
+        'content_media_add_found с candidate варианта. 404 — поиска нет или прошло больше 3 суток.'
+    ),
+    input_schema=_obj({'search_id': _str('Id поиска из content_image_search (is_YYYYMMDD_<12 hex>).',
+                                         pattern=SEARCH_ID_PATTERN)}, required=('search_id',)),
+    method='GET', path='/api/content-plan/image-search/<search_id>/collage', path_params=('search_id',),
+    read_only=True, idempotent=True,
+    examples=({'search_id': 'is_20260101_000000000000'},),
+)
+
+_tool(
+    name='content_media_add_found',
+    title='Прикрепить найденную картинку',
+    description=(
+        'Прикрепить к материалу вариант из content_image_search по candidate. Сервер сам скачивает '
+        'оригинал с сайта, переводит в JPEG (большая сторона до 2560 px, поворот по EXIF, прозрачность — '
+        'на белый), сохраняет в материал и запоминает источник в media[].source (адрес картинки, страница, '
+        'сайт, запрос, размер). Размещения с набором «все файлы» получают файл сами. Сайт не отдал '
+        'картинку, она мельче 800 px по большей стороне или не картинка — 400 image_download_failed: '
+        'возьмите другой вариант. Принимается только candidate из поиска — произвольный адрес нельзя. '
+        'В режиме «чтение и черновики» — только свои черновики (иначе 409). Ответ {material, unapproved, '
+        'file {name, size, width, height, source}}. 1–3 картинки на материал; лишнюю убирает владелец.'
+    ),
+    input_schema=_obj({
+        'material_id': _MATERIAL_ID,
+        'candidate': _str('Вариант из ответа content_image_search: candidate, например '
+                          'is_20261002_3f9a1c2b7d4e-3.', pattern=CANDIDATE_PATTERN),
+    }, required=('material_id', 'candidate')),
+    method='POST', path='/api/content-plan/materials/<material_id>/media/found', path_params=('material_id',),
+    body='json', read_only=False, draft_write=True,
 )
 
 # ---------------------------------------------------------------------------
@@ -1277,12 +1390,19 @@ INSTRUCTIONS = """\
   content_material_repeat(weekdays=[4]). Сорта руками не вписывать: список подставится при выходе,
   а кран без проверенной связи с Untappd остановит публикацию.
 - Telegram — канал каждого бара (конкретный бар): 4096 знаков без фото, 1024 с фото, до 10 файлов.
-- Instagram — один аккаунт сети (bar all): 2200 знаков, от 1 до 10 фото. Фото снимает команда: нет
-  фото — shot_list (кадры, бар, время суток, люди) и media_required=true.
+- Instagram — один аккаунт сети (bar all): 2200 знаков, от 1 до 10 фото (см. «ФОТО»); фото бара
+  нет — shot_list (кадры, бар, время суток, люди) и media_required=true.
 - Бот — редко, только по поводу и с явной аудиторией (bot_all, bot_bar с баром, bot_recent_30,
   bot_lapsed_60); его утверждение требует отдельного подтверждения владельца (confirm_bot).
 - Пределы хранения: название 200 знаков, текст 10 000, note, agent_rationale и shot_list — 2000.
 - agent_rationale заполнять ВСЕГДА: повод, рубрика, бар, откуда факты.
+
+ФОТО. Фото бара, кранов, блюд и людей снимает команда: shot_list и media_required=true, чужой картинкой
+их не заменять. К историям, праздникам и событиям картинки агент находит сам: content_image_search
+(запрос по сути сюжета: человек, место, год, предмет; по-английски или на языке страны; site — сайт
+пивоварни) -> content_image_search_collage (смотреть глазами) -> content_media_add_found. 1–3 картинки
+на материал: крупные, резкие, в тему, без водяных знаков и надписей поперёк; к Instagram — вертикальные.
+Без детей, без рекламы с обещаниями пользы, без чужих баров как своих. Не подошло — лучше shot_list.
 
 СТАТУСЫ. draft -> approved <-> paused -> published (отправил бот или отметили вручную); cancelled;
 failed — ошибка отправки (failed_error; retry ставит повтор в очередь). На экране: incomplete (коды
@@ -1410,7 +1530,10 @@ def _render_plan_month(args: dict) -> str:
         'content_live_preview(placement_id=...) у одного размещения каждого бара.',
         '8. Остальные материалы: content_material_create (agent_rationale обязательно; для Instagram и '
         'постов с фото — shot_list и media_required=true), затем content_placements_add с датой и временем. '
-        'Instagram — bar all и фото; бот — только по поводу и с явной аудиторией (размер — content_audience).',
+        'Instagram — bar all и фото; бот — только по поводу и с явной аудиторией (размер — content_audience). '
+        'К историям, праздникам и событиям — картинки сразу: content_image_search -> '
+        'content_image_search_collage (посмотреть) -> content_media_add_found, 1–3 на материал; фото баров, '
+        'кранов и блюд — только shot_list.',
         '9. Идеи, которым нужно решение владельца (акции, скидки, цены, новые события), — материалы-темы без '
         'размещений с note «нужно решение владельца: ...».',
         "10. content_approve_preview(month='" + month_arg + "') — что готово и чего не хватает.",

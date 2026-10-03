@@ -40,6 +40,8 @@ _OUTBOUND_SECRETS = (
     'SALARY_SHARE_WITH',
     'SALARY_SHEET_FOLDER_ID',
     'YANDEX_BUSINESS_SESSION_ID',    # кабинет Яндекс Бизнеса: каждый прогон — только с ок владельца
+    'YANDEX_SEARCH_API_KEY',         # Yandex Search API (поиск картинок к постам): каждый запрос платный
+    'YANDEX_SEARCH_FOLDER_ID',
 )
 
 for _name in _OUTBOUND_SECRETS:

@@ -330,6 +330,19 @@ agent_draft, summary: {label, state}, placements: [{id, channel, bar, date, time
 display_state}]} и stats; без справочников. Для агента: месяц с 20+ материалами в
 полном виде — больше 100 тыс. знаков, мост MCP режет ответ на 60 тыс.
 
+## Картинки из поиска (media[].source, 2026-10-02)
+
+Картинку, которую агент нашёл в интернете (core/content_image_search.py, маршрут
+POST /api/content-plan/materials/<id>/media/found), сервер скачивает сам и
+привязывает тем же `add_media`, что и загрузку с сайта, плюс source = {image_url,
+page_url, domain, title, query, candidate, width, height} — откуда картинка и по
+какому запросу найдена (`_clean_media_source`: только эти поля, строки до
+MEDIA_SOURCE_TEXT_MAX). original_name — домен сайта. Журнал: «Добавлена картинка из
+поиска: <домен>». У загруженных людьми файлов source нет. В режиме «чтение и
+черновики» `add_media` пускает только к своим черновикам (guard_draft_mode, 409) —
+раньше загрузка была только в полном режиме, теперь прикрепление найденного
+доступно и расписаниям.
+
 ## Changelog
 
 - 2026-09-26 — модуль создан (этап «только интерфейс», без отправки).
@@ -349,6 +362,8 @@ display_state}]} и stats; без справочников. Для агента:
   защита «сейчас отправляется» (409); реальный размер аудитории бота и
   delivery в ответе месяца (через подключаемые audience_fn/delivery_fn);
   agent_original и agent_edits; компактный вид месяца.
+- 2026-10-02 — картинки из поиска: add_media(source=...) хранит media[].source,
+  guard_draft_mode в add_media.
 """
 
 import copy
@@ -530,6 +545,9 @@ TITLE_MAX = 200             # название — строка в таблиц�
 TEXT_MAX = 10000            # общий/свой текст: > 4096 (самый длинный пост) с запасом на черновик
 NOTE_MAX = 2000             # внутренняя заметка
 ORIGINAL_NAME_MAX = 200     # исходное имя загруженного файла (только для подписи)
+MEDIA_SOURCE_TEXT_MAX = 500  # поля media[].source (адреса, домен, запрос) — только для справки
+MEDIA_SOURCE_TEXT_FIELDS = ('image_url', 'page_url', 'domain', 'title', 'query', 'candidate')
+MEDIA_SOURCE_INT_FIELDS = ('width', 'height')
 SOURCE_REVIEW_ID_MAX = 64   # id отзыва (r_ + 12 hex), запас на будущий формат
 MATERIAL_MEDIA_MAX = 20     # файлов у материала: 2 x максимум площадки (10), чтобы
                             # держать разные подборки для разных размещений
@@ -1190,6 +1208,21 @@ def is_agent_draft(material: dict) -> bool:
     draft или cancelled. Материал без размещений (тема) — тоже черновик."""
     return (material.get('origin') == ORIGIN_AGENT
             and all(p.get('status') in AGENT_DRAFT_STATUSES for p in material.get('placements') or []))
+
+
+def _clean_media_source(source: dict) -> dict:
+    """media[].source картинки из поиска: только известные поля, строки до
+    MEDIA_SOURCE_TEXT_MAX, размеры — положительные целые. Пустое — {}."""
+    out = {}
+    for key in MEDIA_SOURCE_TEXT_FIELDS:
+        value = ' '.join(str(source.get(key) or '').split())[:MEDIA_SOURCE_TEXT_MAX]
+        if value:
+            out[key] = value
+    for key in MEDIA_SOURCE_INT_FIELDS:
+        value = source.get(key)
+        if isinstance(value, int) and not isinstance(value, bool) and value > 0:
+            out[key] = value
+    return out
 
 
 def guard_draft_mode(user: Optional[dict], material: dict) -> None:
@@ -3115,25 +3148,36 @@ class ContentPlanStore:
     # ----- файлы -------------------------------------------------------------
 
     def add_media(self, material_id: str, name: str, size: int, original_name, user: Optional[dict],
-                  month: Optional[str] = None) -> Tuple[dict, List[str]]:
+                  month: Optional[str] = None, source: Optional[dict] = None) -> Tuple[dict, List[str]]:
         """Привязать уже сохранённый файл к материалу. Размещения «все файлы»
-        получают его автоматически — их утверждение снимается."""
+        получают его автоматически — их утверждение снимается. source — откуда
+        картинка, найденная поиском (core/content_image_search.py): хранится в
+        media[].source (`_clean_media_source`). Режим «чтение и черновики» —
+        только свои черновики (guard_draft_mode, 409)."""
         if not content_media.is_valid_name(name):
             raise ValueError('Недопустимое имя файла')
         original = os.path.basename(str(original_name or '').replace('\\', '/')).strip()
         original = original[:ORIGINAL_NAME_MAX] or name
+        clean_source = _clean_media_source(source) if source else None
         login = _login(user)
         now_str = self.now_str()
         with self._tx() as (data, _after):
             material = self._material(data, material_id)
+            guard_draft_mode(user, material)
             if len(material['media']) >= MATERIAL_MEDIA_MAX:
                 raise ValueError(f'У материала уже {MATERIAL_MEDIA_MAX} файлов — удалите лишние')
             before = self._signatures(material)
-            material['media'].append({'name': name, 'kind': content_media.kind_of(name),
-                                      'size': int(size), 'original_name': original,
-                                      'uploaded_at': now_str, 'uploaded_by': login})
+            item = {'name': name, 'kind': content_media.kind_of(name), 'size': int(size),
+                    'original_name': original, 'uploaded_at': now_str, 'uploaded_by': login}
+            if clean_source:
+                item['source'] = clean_source
+            material['media'].append(item)
             material['updated_at'], material['updated_by'] = now_str, login
-            self._log(data, now_str, login, 'media_add', material['id'], None, f'Добавлен файл «{original}»')
+            if clean_source:
+                what = f'Добавлена картинка из поиска: {clean_source.get("domain") or original}'
+            else:
+                what = f'Добавлен файл «{original}»'
+            self._log(data, now_str, login, 'media_add', material['id'], None, what)
             unapproved = self._auto_unapprove(data, material, before, now_str, login)
             result = self._json(material, now_str, month)
         return result, unapproved
