@@ -839,9 +839,12 @@ def refresh_index(trigger: str, *, lock=None, wait: float = 0, fetch=None, after
                       'finished_at': '', 'error': '', 'counts': None})
         try:
             sources = (fetch or fetch_iiko_sources)()
+            # Время индекса — момент ДО чтения iiko, а не конец сборки: «Сделано», нажатое
+            # бухгалтером во время загрузки, не должно выглядеть «старше индекса» (индекс
+            # его карточку не видел; строка не переоткрывается по такому индексу).
             index = build_index(sources.get('products'), sources.get('groups'),
                                 sources.get('categories'), sources.get('units'),
-                                sources.get('xml_barcodes'))
+                                sources.get('xml_barcodes'), built_at=started_at)
             if not index['cards']:
                 raise IndexSourceError('В ответе iiko нет ни одной карточки товара — индекс не перезаписан')
             save_index(index)

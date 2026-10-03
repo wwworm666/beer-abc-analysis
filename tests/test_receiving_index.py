@@ -645,6 +645,22 @@ def test_refresh_after_save_failure_keeps_index(monkeypatch, paths):
     ri.acquire_run_lock().release()
 
 
+def test_refresh_stamps_index_with_fetch_start(monkeypatch, paths):
+    """Ревью 2026-10-03: built_at — до чтения iiko. «Сделано» во время загрузки (12:00:30)
+    позже индекса (12:00:00), и такой индекс строку «Сделано» не переоткроет."""
+    moments = iter([_msk(2026, 10, 3, 12, 0, 0), _msk(2026, 10, 3, 12, 2, 0)])
+    current = {'t': next(moments)}
+    monkeypatch.setattr(ri.msk_time, 'now', lambda: current['t'])
+
+    def fetch():
+        current['t'] = next(moments)                       # загрузка шла 2 минуты
+        return _sources()
+
+    info = ri.refresh_index('button', fetch=fetch)
+    assert info['built_at'] == '2026-10-03T12:00:00+03:00'
+    assert ri.read_state()['finished_at'] == '2026-10-03T12:02:00+03:00'
+
+
 def test_logout_on_exit_calls_active_session():
     calls = []
     saved = ri._active_logout[0]
