@@ -138,8 +138,8 @@ class El {
         if (this.disabled) return null;
         return this.dispatch('click', Object.assign({ button: 0 }, init || {}));
     }
-    focus() {}
-    blur() { this.blurred++; }
+    focus() { if (El.doc) El.doc.activeElement = this; }
+    blur() { this.blurred++; if (El.doc && El.doc.activeElement === this) El.doc.activeElement = null; }
     select() {}
     scrollIntoView() { this.scrolled++; }
 }
@@ -458,6 +458,8 @@ function boot(opts) {
         setTimeout: (fn, ms) => { const id = ++timerSeq; timers.push({ id, fn, ms }); return id; },
         clearTimeout: (id) => { timers = timers.filter((t) => t.id !== id); },
     };
+    sandbox.document.activeElement = null;
+    El.doc = sandbox.document;     // фокус — у последнего окружения (тесты идут по одному)
     sandbox.window = sandbox;
     vm.createContext(sandbox);
     new vm.Script(JS, { filename: 'review.js' }).runInContext(sandbox);
@@ -477,6 +479,7 @@ function boot(opts) {
             item.release();
             await flush();
         },
+        document: sandbox.document,
         rows() { return byId.rvRows.children.filter((tr) => tr.dataset.gtin); },
         row(gtin) { return byId.rvRows.children.find((tr) => tr.dataset.gtin === gtin); },
         button(tr, action) { return findAll(tr, (n) => n.tagName === 'BUTTON' && n.dataset.action === action)[0]; },
@@ -1208,6 +1211,58 @@ await test('возврат на вкладку через минуту пере�
     e2.docListeners.visibilitychange.forEach((fn) => fn());
     await flush();
     assert.equal(e2.calls.length, 1);
+});
+
+// ---------------------------------------------------------------- ревью 2026-10-03
+
+await test('автообновление списка не стирает набираемую заметку и не уводит фокус', async () => {
+    const e3 = boot();
+    await flush();
+    const tr = e3.row('04607043562301');
+    const input = findAll(tr, hasClass('rv-input-note'))[0];
+    input.focus();
+    input.value = 'Завести в группу Разливное, уточнить у Пети';
+    e3.clearCalls();
+    await e3.api.load();                                   // конец обновления индекса / возврат на вкладку
+    const fresh = findAll(e3.row('04607043562301'), hasClass('rv-input-note'))[0];
+    assert.notEqual(fresh, input, 'строка не перерисована — проверка бессмысленна');
+    assert.equal(fresh.value, 'Завести в группу Разливное, уточнить у Пети');
+    assert.equal(e3.document.activeElement, fresh, 'фокус не вернулся в поле заметки');
+    assert.equal(e3.calls.filter((c) => c.method === 'PUT').length, 0, 'заметка ушла без ухода из поля');
+});
+
+await test('«Скопировать для iiko» дважды подряд: подпись возвращается к исходной', async () => {
+    const e4 = boot();
+    await flush();
+    const button = e4.button(e4.row('04650075420019'), 'copy');
+    button.click();
+    await flush();
+    button.click();
+    await flush();
+    assert.equal(button.textContent, 'Скопировано');
+    await e4.runTimers(1500);
+    assert.equal(button.textContent, 'Скопировать для iiko', 'подпись осталась «Скопировано»');
+});
+
+await test('мультипак: кандидат — единица упаковки, в тексте для iiko — строка «Упаковка»', async () => {
+    const e5 = boot();
+    await flush();
+    const row = {
+        gtin: '04600000000073', barcode: '4600000000073', status: 'similar', state: 'open', resolution: '',
+        cards: [], candidates: [{ id: 'u1', name: 'Пиво Хеллес 0,45 ж/б', num: '101', group: 'Пиво', supplier: '',
+            unit: 'шт', deleted: false, archived: false, keg: false, score: 0, pack: true, pack_units: '6',
+            unit_gtin: '04600000000011' }],
+        chz: { name: 'Пиво Хеллес 6 банок', brand: '', full_name: '', product_group: 'beer', volume: '',
+            package_type: '', source: 'product_info', level: 'inner-pack', main_gtin: '04600000000011', pack_units: '6' },
+        supplier: '', supplier_hint: '', note: '', qty: 2, receipts: [], first_seen_at: '', last_seen_at: '',
+        classified_at: '', index_built_at: '', updated_at: '', updated_by: '', resolved_at: null, resolved_by: '', reopened: 0,
+    };
+    e5.api.state.rows = [row];
+    e5.api.render();
+    const text = flat(e5.row('04600000000073').textContent);
+    assert.match(text, /единица этой упаковки \(в упаковке 6 шт\.\)/);
+    assert.doesNotMatch(text, /совпало слов/);
+    assert.match(e5.api.buildCopyText(row), /^Упаковка: 6 шт\. товара GTIN 04600000000011$/m);
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

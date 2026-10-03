@@ -104,7 +104,10 @@ LIST_STATES = ('open', 'closed', 'all')
 USER_STATES = ('done', 'not_needed', 'open')         # что может выставить бухгалтер
 FINISH_STATES = ('done', 'error')
 # Поля данных ЧЗ, которые попадают в строку разбора (остальное — в кэше chz_products).
-CHZ_FIELDS = ('name', 'brand', 'full_name', 'product_group', 'volume', 'package_type', 'source')
+# level / main_gtin / pack_units — групповая упаковка (мультипак): GTIN единицы внутри и
+# сколько единиц (core/receiving_chz.normalize_item); у единицы товара пустые.
+CHZ_FIELDS = ('name', 'brand', 'full_name', 'product_group', 'volume', 'package_type', 'source',
+              'level', 'main_gtin', 'pack_units')
 CHZ_TEXT_FIELDS = ('name', 'brand', 'full_name', 'product_group', 'volume', 'package_type')
 GTIN_LEN = 14
 
@@ -118,7 +121,8 @@ _SCHEMA_V1 = (
       closed_at TEXT, closed_by_login TEXT NOT NULL DEFAULT '', closed_by_name TEXT NOT NULL DEFAULT '',
       process_state TEXT NOT NULL DEFAULT 'none'
         CHECK (process_state IN ('none','pending','running','done','error')),
-      process_started_at TEXT, processed_at TEXT, process_note TEXT NOT NULL DEFAULT ''
+      process_started_at TEXT, processed_at TEXT, process_note TEXT NOT NULL DEFAULT '',
+      notified_at TEXT
     )""",
     """CREATE TABLE IF NOT EXISTS receipt_scans (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -161,7 +165,8 @@ _SCHEMA_V1 = (
       updated_at TEXT NOT NULL, updated_by_login TEXT NOT NULL DEFAULT '',
       updated_by_name TEXT NOT NULL DEFAULT '',
       resolved_at TEXT, resolved_by_login TEXT NOT NULL DEFAULT '', resolved_by_name TEXT NOT NULL DEFAULT '',
-      reopened INTEGER NOT NULL DEFAULT 0
+      reopened INTEGER NOT NULL DEFAULT 0,
+      notify_receipt_id INTEGER
     )""",
     'CREATE INDEX IF NOT EXISTS ix_review_state ON review_items(state, status)',
     """CREATE TABLE IF NOT EXISTS chz_products (
@@ -171,6 +176,16 @@ _SCHEMA_V1 = (
       package_type TEXT NOT NULL DEFAULT '',
       raw_json TEXT NOT NULL DEFAULT '{}', source TEXT NOT NULL DEFAULT '', fetched_at TEXT NOT NULL
     )""",
+)
+
+# Колонки, добавленные к схеме v1 до выкладки (2026-10-03, ревью): база, созданная
+# раньше (локально), догоняется ALTER TABLE ADD COLUMN — миграции только аддитивные.
+# notified_at — когда бухгалтерии ушло сообщение о приёмке (повтор обработки после
+# падения дошлёт его, а не потеряет); notify_receipt_id — какая приёмка открыла строку
+# (о ней и сообщение).
+_ADDED_COLUMNS = (
+    ('receipts', 'notified_at', 'TEXT'),
+    ('review_items', 'notify_receipt_id', 'INTEGER'),
 )
 
 # Порядок сортировки списка разбора: открытые раньше; статус по важности; свежие сверху.
@@ -286,6 +301,10 @@ def _ensure_schema(conn, path: str) -> None:
             if version < 1:
                 for sql in _SCHEMA_V1:
                     conn.execute(sql)
+            for table, column, decl in _ADDED_COLUMNS:
+                have = {r['name'] for r in conn.execute('PRAGMA table_info(%s)' % table)}
+                if column not in have:
+                    conn.execute('ALTER TABLE %s ADD COLUMN %s %s' % (table, column, decl))
             if version < SCHEMA_VERSION:
                 conn.execute('PRAGMA user_version = %d' % SCHEMA_VERSION)
             conn.execute('COMMIT')
@@ -314,6 +333,11 @@ def _transaction(immediate: bool):
                 _rollback_quietly(conn)
                 raise
         except sqlite3.DatabaseError as e:
+            if 'no such table' in str(e) or 'no such column' in str(e):
+                # Файл БД заменили или удалили на ходу (восстановление после сбоя):
+                # схема создаётся заново при следующем обращении, а не после рестарта.
+                with _schema_lock:
+                    _schema_done.discard(path)
             if not _is_unavailable_error(e):
                 raise
             raise _unavailable(e) from e
@@ -360,14 +384,22 @@ def _who(user) -> tuple:
     return login, name
 
 
+# Наибольшее целое SQLite (INTEGER PRIMARY KEY): номер больше — такой записи быть не может
+# (иначе sqlite3 бросил бы OverflowError, а маршрут ответил бы 500 вместо 404).
+SQLITE_INT_MAX = 2 ** 63 - 1
+
+
 def _rid(receipt_id) -> int:
-    """Номер приёмки как int; не число -> ReceiptNotFound (такой приёмки быть не может)."""
+    """Номер приёмки как int; не число или вне 1..SQLITE_INT_MAX -> ReceiptNotFound."""
     if isinstance(receipt_id, bool):
         raise ReceiptNotFound(str(receipt_id))
     try:
-        return int(receipt_id)
+        value = int(receipt_id)
     except (TypeError, ValueError):
         raise ReceiptNotFound(str(receipt_id)) from None
+    if not 1 <= value <= SQLITE_INT_MAX:
+        raise ReceiptNotFound(str(receipt_id))
+    return value
 
 
 def _clamp_limit(limit, default: int) -> int:
@@ -472,6 +504,7 @@ def _receipt_dict(row, counts: dict) -> dict:
         'process_state': row['process_state'],
         'processed_at': row['processed_at'],
         'process_note': row['process_note'],
+        'notified_at': row['notified_at'],
         'counts': counts,
     }
 
@@ -675,6 +708,8 @@ def delete_scan(receipt_id, scan_id, user) -> dict:
         sid = int(scan_id)
     except (TypeError, ValueError):
         raise ScanNotFound(str(scan_id)) from None
+    if not 1 <= sid <= SQLITE_INT_MAX:
+        raise ScanNotFound(str(scan_id))
     login, name = _who(user)
     with _write() as conn:
         receipt = _receipt_row(conn, rid)
@@ -895,20 +930,36 @@ def _auto_close_sql() -> str:
             " resolved_by_login = '', resolved_by_name = :actor")
 
 
+def _older(built: str, than) -> bool:
+    """Индекс built старше метки than (обе — ISO с +03:00, сравнение строк корректно).
+
+    Пустой built — время индекса неизвестно, считаем его старым; пустая than —
+    сравнивать не с чем, built не старше."""
+    than = str(than or '')
+    return bool(than) and (not built or built < than)
+
+
 def upsert_review(gtin, receipt_id, status, cards, candidates, chz, index_built_at) -> dict:
     """Строка разбора по итогам обработки приёмки. -> {'row','opened','reopened'}.
 
     - Строки нет -> вставить. status 'found' -> сразу closed/found (сводка для
-      истории); иначе open (opened=True).
-    - Строка есть -> всегда обновить status, cards, candidates, classified_at,
+      истории); иначе open (opened=True, notify_receipt_id = эта приёмка).
+    - Строка есть, а индекс СТАРШЕ того, по которому строка уже сверена
+      (index_built_at), -> устаревшие сведения: обновить только last_receipt_id,
+      last_seen_at и chz (если новый не пуст); статус и состояние не трогать.
+    - Иначе всегда обновить status, cards, candidates, classified_at,
       index_built_at, last_receipt_id, last_seen_at; chz — только если новый не пуст.
       Дальше по состоянию:
       - open и status 'found' -> closed, resolution 'auto', resolved_by 'индекс iiko';
         open и не found -> остаётся open (opened=False: строка уже в очереди);
       - closed/not_needed -> остаётся закрытой (бухгалтер решил: не заводим);
       - closed/(found|auto|done) и status != 'found' -> снова open, resolution '',
-        resolved_* очищены, reopened += 1 (opened=True, reopened=True): карточку
-        удалили, заархивировали или задублировали после закрытия.
+        resolved_* очищены, reopened += 1, notify_receipt_id = эта приёмка
+        (opened=True, reopened=True): карточку удалили, заархивировали или
+        задублировали после закрытия. НО только если индекс собран ПОЗЖЕ закрытия
+        (resolved_at): индекс старше решения бухгалтера ещё не видит карточку,
+        которую он только что завёл, — такую строку не трогаем (иначе «Сделано»
+        вернулось бы «Новой» и толкнуло бы завести в iiko дубль).
     - supplier и note не трогаются никогда.
     """
     gtin = _check_gtin(gtin)
@@ -921,35 +972,41 @@ def upsert_review(gtin, receipt_id, status, cards, candidates, chz, index_built_
     now = _stamp()
     opened = reopened = False
     with _write() as conn:
-        row = conn.execute('SELECT state, resolution FROM review_items WHERE gtin = ?',
-                           (gtin,)).fetchone()
+        row = conn.execute('SELECT state, resolution, resolved_at, index_built_at FROM review_items'
+                           ' WHERE gtin = ?', (gtin,)).fetchone()
         if row is None:
             found = status == 'found'
             conn.execute(
                 'INSERT INTO review_items (gtin, status, state, resolution, cards_json,'
                 ' candidates_json, chz_json, first_receipt_id, last_receipt_id, first_seen_at,'
                 ' last_seen_at, classified_at, index_built_at, updated_at, resolved_at,'
-                ' resolved_by_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                ' resolved_by_name, notify_receipt_id)'
+                ' VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                 (gtin, status, 'closed' if found else 'open', 'found' if found else '',
                  cards_json, candidates_json, _dumps(chz_clean), rid, rid, now, now, now, built,
-                 now, now if found else None, INDEX_ACTOR if found else ''))
+                 now, now if found else None, INDEX_ACTOR if found else '',
+                 None if found else rid))
             opened = not found
         else:
             params = {'gtin': gtin, 'status': status, 'cards': cards_json,
                       'candidates': candidates_json, 'now': now, 'built': built, 'rid': rid,
                       'chz': _dumps(chz_clean), 'actor': INDEX_ACTOR}
-            sets = ['status = :status', 'cards_json = :cards', 'candidates_json = :candidates',
-                    'classified_at = :now', 'index_built_at = :built', 'last_receipt_id = :rid',
-                    'last_seen_at = :now']
+            sets = ['last_receipt_id = :rid', 'last_seen_at = :now']
             if chz_clean:
                 sets.append('chz_json = :chz')
-            if row['state'] == 'open':
-                if status == 'found':
-                    sets.append(_auto_close_sql())
-            elif row['resolution'] != 'not_needed' and status != 'found':
-                sets.append("state = 'open', resolution = '', resolved_at = NULL,"
-                            " resolved_by_login = '', resolved_by_name = '', reopened = reopened + 1")
-                opened = reopened = True
+            resolved_late = (row['state'] == 'closed' and row['resolution'] != 'not_needed'
+                             and status != 'found' and _older(built, row['resolved_at']))
+            if not (_older(built, row['index_built_at']) or resolved_late):
+                sets += ['status = :status', 'cards_json = :cards', 'candidates_json = :candidates',
+                         'classified_at = :now', 'index_built_at = :built']
+                if row['state'] == 'open':
+                    if status == 'found':
+                        sets.append(_auto_close_sql())
+                elif row['resolution'] != 'not_needed' and status != 'found':
+                    sets.append("state = 'open', resolution = '', resolved_at = NULL,"
+                                " resolved_by_login = '', resolved_by_name = '',"
+                                ' reopened = reopened + 1, notify_receipt_id = :rid')
+                    opened = reopened = True
             conn.execute('UPDATE review_items SET ' + ', '.join(sets) + ' WHERE gtin = :gtin', params)
         return {'row': _load_review(conn, gtin), 'opened': opened, 'reopened': reopened}
 
@@ -957,9 +1014,10 @@ def upsert_review(gtin, receipt_id, status, cards, candidates, chz, index_built_
 def reclassify_open(gtin, status, cards, candidates, chz=None, index_built_at='') -> dict:
     """Пересверка открытой строки после обновления индекса. -> {'row','auto_closed'}.
 
-    Только для state='open' (закрытая возвращается как есть): обновить status,
-    cards, candidates, classified_at, index_built_at (если передан), chz (если не
-    пуст). status 'found' -> закрыть: resolution 'auto', resolved_by 'индекс iiko'.
+    Только для state='open' (закрытая возвращается как есть) и только если индекс не
+    старше того, по которому строка уже сверена: обновить status, cards, candidates,
+    classified_at, index_built_at (если передан), chz (если не пуст). status 'found'
+    -> закрыть: resolution 'auto', resolved_by 'индекс iiko'.
     Нет строки -> ReviewItemNotFound.
     """
     gtin = _check_gtin(gtin)
@@ -967,10 +1025,11 @@ def reclassify_open(gtin, status, cards, candidates, chz=None, index_built_at=''
     chz_clean = _clean_chz(chz)
     built = _text(index_built_at)
     with _write() as conn:
-        row = conn.execute('SELECT state FROM review_items WHERE gtin = ?', (gtin,)).fetchone()
+        row = conn.execute('SELECT state, index_built_at FROM review_items WHERE gtin = ?',
+                           (gtin,)).fetchone()
         if row is None:
             raise ReviewItemNotFound(gtin)
-        if row['state'] != 'open':
+        if row['state'] != 'open' or (built and _older(built, row['index_built_at'])):
             return {'row': _load_review(conn, gtin), 'auto_closed': False}
         params = {'gtin': gtin, 'status': status, 'cards': _dumps(_clean_list(cards)),
                   'candidates': _dumps(_clean_list(candidates)), 'now': _stamp(),
@@ -986,6 +1045,72 @@ def reclassify_open(gtin, status, cards, candidates, chz=None, index_built_at=''
             sets.append(_auto_close_sql())
         conn.execute('UPDATE review_items SET ' + ', '.join(sets) + ' WHERE gtin = :gtin', params)
         return {'row': _load_review(conn, gtin), 'auto_closed': auto_closed}
+
+
+def recheck_done(gtin, status, cards, candidates, index_built_at) -> dict:
+    """Проверка «Сделано» свежим индексом. -> {'row','reopened'}.
+
+    Только для строк closed/done и только индексом, собранным ПОЗЖЕ решения
+    (resolved_at): иначе строка возвращается как есть. Карточка нашлась (found) —
+    строка остаётся закрытой, статус и карточки обновляются (сделано подтверждено).
+    Не нашлась — бухгалтер нажал «Сделано», а GTIN в iiko так и не появился на
+    актуальной карточке (опечатка в штрихкоде, привязали не к той карточке): строка
+    снова open, reopened += 1. Сообщения в Telegram это не вызывает (приёмки нет).
+    """
+    gtin = _check_gtin(gtin)
+    status = _check_status(status)
+    built = _text(index_built_at)
+    with _write() as conn:
+        row = conn.execute('SELECT state, resolution, resolved_at FROM review_items WHERE gtin = ?',
+                           (gtin,)).fetchone()
+        if row is None:
+            raise ReviewItemNotFound(gtin)
+        if (row['state'] != 'closed' or row['resolution'] != 'done' or not built
+                or _older(built, row['resolved_at']) or built == str(row['resolved_at'] or '')):
+            return {'row': _load_review(conn, gtin), 'reopened': False}
+        params = {'gtin': gtin, 'status': status, 'cards': _dumps(_clean_list(cards)),
+                  'candidates': _dumps(_clean_list(candidates)), 'now': _stamp(), 'built': built}
+        sets = ['status = :status', 'cards_json = :cards', 'candidates_json = :candidates',
+                'classified_at = :now', 'index_built_at = :built']
+        reopened = status != 'found'
+        if reopened:
+            # notify_receipt_id = NULL: переоткрыла не приёмка, сообщение о ней не шлём заново.
+            sets.append("state = 'open', resolution = '', resolved_at = NULL,"
+                        " resolved_by_login = '', resolved_by_name = '', reopened = reopened + 1,"
+                        ' notify_receipt_id = NULL')
+        conn.execute('UPDATE review_items SET ' + ', '.join(sets) + ' WHERE gtin = :gtin', params)
+        return {'row': _load_review(conn, gtin), 'reopened': reopened}
+
+
+def done_review_gtins() -> list:
+    """GTIN строк «Сделано», ещё не подтверждённых индексом (статус не found) — для recheck_done."""
+    with _read() as conn:
+        rows = conn.execute("SELECT gtin FROM review_items WHERE state = 'closed'"
+                            " AND resolution = 'done' AND status != 'found' ORDER BY gtin").fetchall()
+    return [r['gtin'] for r in rows]
+
+
+def rows_to_notify(receipt_id) -> list:
+    """Строки, открытые этой приёмкой и всё ещё открытые, — о них сообщение бухгалтерии.
+
+    Берётся из базы, а не из итога одного прогона обработки: прогон, упавший между
+    открытием строк и отправкой, повторится — и сообщение уйдёт, а не потеряется.
+    """
+    rid = _rid(receipt_id)
+    with _read() as conn:
+        gtins = [r['gtin'] for r in conn.execute(
+            "SELECT gtin FROM review_items WHERE state = 'open' AND notify_receipt_id = ?"
+            ' ORDER BY gtin', (rid,)).fetchall()]
+        return [_load_review(conn, g) for g in gtins]
+
+
+def mark_notified(receipt_id) -> None:
+    """Отметить: о приёмке бухгалтерии сообщено (или сообщать было не о чем)."""
+    rid = _rid(receipt_id)
+    with _write() as conn:
+        cur = conn.execute('UPDATE receipts SET notified_at = ? WHERE id = ?', (_stamp(), rid))
+        if cur.rowcount != 1:
+            raise ReceiptNotFound(str(rid))
 
 
 def get_review_item(gtin) -> dict:

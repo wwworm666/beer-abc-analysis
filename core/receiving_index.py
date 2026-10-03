@@ -33,6 +33,7 @@ RefreshBusy. Состояние обновления — STATE_FILE: кнопк�
 две и больше -> duplicate, только удалённые/архивные -> restore, карточек нет ->
 missing (сервис дальше решает similar / new по названию из ЧЗ).
 """
+import atexit
 import hashlib
 import json
 import os
@@ -205,6 +206,14 @@ def _name_words(name) -> list:
         if word not in words:
             words.append(word)
     return words
+
+
+def _text_words(text) -> list:
+    """Слова текста ЧЗ для сравнения с карточкой: как _name_words, но со стоп-словами
+    (они всё равно не совпадут — у карточек их нет) и с повторами (каждое слово ЧЗ
+    засчитывается один раз)."""
+    return [w for w in _NON_WORD_RE.sub(' ', _fold(text)).split()
+            if len(w) >= MIN_WORD_LEN and not w.isdigit()]
 
 
 def _parse_iso(value) -> Optional[datetime]:
@@ -526,19 +535,33 @@ def _candidate_words(index) -> list:
 def similar_cards(name: str, index: dict, brand: str = '', limit: int = SIMILAR_LIMIT) -> list:
     """Карточки iiko, похожие на товар ЧЗ по названию (порт suggest_barcode_fixes.py).
 
-    Направление как в оригинале: значимые слова КАРТОЧКИ (_name_words) ищутся
-    подстрокой в тексте ЧЗ «name + ' ' + brand» (регистр не важен, ё = е). Счёт —
-    сколько разных слов карточки нашлось; кандидат — счёт >= SIMILAR_MIN_SCORE.
-    Кандидаты — карточки SEARCH_TYPES любые: актуальные, удалённые, архивные (пометки
-    видны в сводке). Порядок: счёт по убыванию, актуальные раньше, имя.
-    Возврат: [card_summary + {'score': n}] не больше limit.
+    Направление как в оригинале: значимые слова КАРТОЧКИ (_name_words) ищутся среди
+    слов текста ЧЗ «name + ' ' + brand» (регистр не важен, ё = е). Слово карточки
+    совпало, если одно из двух слов начинается с другого («лагер» — «лагерное»,
+    «урхельское» — «урхель»), и каждое слово ЧЗ засчитывается одному слову карточки.
+    Так одно слово ЧЗ не набирает порог в одиночку: в оригинале поиск подстрокой
+    давал «pale» и «ale» из одного «Pale» — счёт 2 у любой карточки «… Pale Ale»
+    (ревью 2026-10-03). Счёт — сколько разных слов карточки совпало; кандидат —
+    счёт >= SIMILAR_MIN_SCORE. Кандидаты — карточки SEARCH_TYPES любые: актуальные,
+    удалённые, архивные (пометки видны в сводке). Порядок: счёт по убыванию,
+    актуальные раньше, имя. Возврат: [card_summary + {'score': n}] не больше limit.
     """
-    text = _fold(_clean(name) + ' ' + _clean(brand))
-    if not text:
+    tokens = _text_words(_clean(name) + ' ' + _clean(brand))
+    if not tokens:
         return []
+    by_head = {}
+    for i, token in enumerate(tokens):
+        by_head.setdefault(token[:MIN_WORD_LEN], []).append(i)
     scored = []
     for card, words in _candidate_words(index):
-        score = sum(1 for word in words if word in text)
+        used = set()
+        score = 0
+        for word in words:
+            for i in by_head.get(word[:MIN_WORD_LEN], ()):
+                if i not in used and (tokens[i].startswith(word) or word.startswith(tokens[i])):
+                    used.add(i)
+                    score += 1
+                    break
         if score >= SIMILAR_MIN_SCORE:
             scored.append((score, card))
     scored.sort(key=lambda item: (-item[0],) + _order_key(item[1]))
@@ -598,6 +621,27 @@ def _parse_xml_barcodes(content) -> dict:
         if codes:
             result.setdefault(product_id, []).extend(codes)
     return result
+
+
+# Выход из iiko незавершённого обновления при остановке процесса. Фоновое обновление —
+# поток-демон: gunicorn перезапускает воркер (max-requests) посреди загрузки, поток
+# замирает и finally с logout не выполняется — слот лицензии iikoAPI висел бы до таймаута
+# сессии. atexit срабатывает при штатном выходе воркера; SIGKILL не спасает ничто.
+_active_logout = [None]
+
+
+def _logout_on_exit() -> None:
+    action = _active_logout[0]
+    if action is None:
+        return
+    try:
+        action()
+        print(f'{_LOG} выход из iiko при остановке процесса')
+    except Exception as error:  # noqa: BLE001 — процесс и так завершается
+        print(f'{_LOG} выход из iiko при остановке не прошёл ({type(error).__name__})')
+
+
+atexit.register(_logout_on_exit)
 
 
 def fetch_iiko_sources() -> dict:
@@ -663,6 +707,8 @@ def fetch_iiko_sources() -> dict:
                 token = str(UUID(raw))
             except ValueError:
                 raise IndexSourceError('iiko не выдал ключ входа') from None
+            _active_logout[0] = lambda: get('/logout', label='выход', accept='*/*',
+                                            timeout=LOGOUT_TIMEOUT)
 
             products = get_list('/v2/entities/products/list', {'includeDeleted': 'true'}, 'товары')
             if not products:
@@ -684,6 +730,7 @@ def fetch_iiko_sources() -> dict:
             return {'products': products, 'groups': groups, 'categories': categories,
                     'units': units, 'xml_barcodes': xml_barcodes}
         finally:
+            _active_logout[0] = None
             if token:
                 try:
                     get('/logout', label='выход', accept='*/*', timeout=LOGOUT_TIMEOUT)
@@ -719,10 +766,31 @@ def read_state() -> dict:
     state['counts'] = dict(counts) if isinstance(counts, dict) else None
     if state['running']:
         started = _parse_iso(state['started_at'])
-        if started is None or (msk_time.now() - started).total_seconds() > STALE_RUNNING_SEC:
+        if (started is None or (msk_time.now() - started).total_seconds() > STALE_RUNNING_SEC
+                or not _run_lock_held()):
             state['running'] = False
             state['error'] = state['error'] or STALE_RUNNING_ERROR
     return state
+
+
+def _run_lock_held() -> bool:
+    """Держит ли кто-то лок обновления прямо сейчас (проба без ожидания).
+
+    «running» в файле, а лок свободен — обновлявший воркер умер (перезапуск по
+    max-requests, kill): состояние не ждёт STALE_RUNNING_SEC, кнопка сразу доступна.
+    flock — на открытое описание файла: проба из того же процесса, где идёт
+    обновление, тоже видит лок занятым. Не проверить (нет каталога, права) — считаем
+    занятым, решает таймаут STALE_RUNNING_SEC.
+    """
+    try:
+        probe = portalocker.Lock(run_lock_path(), mode='a', timeout=0, fail_when_locked=True)
+        probe.acquire()
+    except portalocker.exceptions.LockException:
+        return True
+    except OSError:
+        return True
+    probe.release()
+    return False
 
 
 def _write_state(state: dict) -> None:
@@ -746,13 +814,17 @@ def acquire_run_lock(wait: float = 0):
     return lock
 
 
-def refresh_index(trigger: str, *, lock=None, wait: float = 0, fetch=None) -> dict:
+def refresh_index(trigger: str, *, lock=None, wait: float = 0, fetch=None, after_save=None) -> dict:
     """Пересобрать индекс из iiko синхронно; вернуть index_info нового индекса.
 
     trigger — кто запустил ('schedule', 'button', 'close', ...), пишется в состояние.
     lock — уже взятый acquire_run_lock (кнопка берёт его в запросе, чтобы сразу
     ответить 409, а обновляет в фоне); None — взять здесь (wait — сколько ждать).
     fetch — источник данных (тесты); по умолчанию fetch_iiko_sources.
+    after_save(index) — что сделать с новым индексом ДО отметки «готово» и ДО снятия
+    лока (сервис пересверяет открытые строки разбора): страница, увидев «обновление
+    закончилось», сразу показывает уже пересверенный список. Сбой after_save индекс
+    не отменяет: состояние done, в error — «Индекс обновлён, но …».
 
     Состояние: running -> done (finished_at, counts) или error (текст IndexSourceError
     как есть, иначе «Сбой обновления индекса: <тип>»), исключение пробрасывается, файл
@@ -790,8 +862,17 @@ def refresh_index(trigger: str, *, lock=None, wait: float = 0, fetch=None) -> di
             except Exception as state_error:   # не заслоняем исходную ошибку обновления
                 print(f'{_LOG} состояние ошибки не записано: {type(state_error).__name__}')
             raise
+        post_error = ''
+        if after_save is not None:
+            try:
+                after_save(index)
+            except Exception as error:   # индекс уже записан — не отменяем его
+                post_error = ('Индекс обновлён, но пересверка строк разбора не удалась: '
+                              + type(error).__name__)
+                print(f'{_LOG} {post_error}')
+                traceback.print_exc()
         _write_state({'running': False, 'trigger': str(trigger or ''), 'started_at': started_at,
-                      'finished_at': _now_iso(), 'error': '', 'counts': dict(index['counts'])})
+                      'finished_at': _now_iso(), 'error': post_error, 'counts': dict(index['counts'])})
         counts = index['counts']
         print(f'{_LOG} обновлён ({trigger}) за {time.monotonic() - started:.0f} с: '
               f'{counts["products"]} карточек, {counts["gtins"]} GTIN, '

@@ -364,6 +364,28 @@ def test_similar_scores_and_order():
     assert 'c-stout' not in ids        # одно общее слово (konix) — мало
 
 
+def test_similar_one_chz_word_counts_once():
+    """Ревью 2026-10-03: подстрокой «pale» в ЧЗ давало и «pale», и «ale» — счёт 2 у
+    любой карточки «… Pale Ale». Теперь слово ЧЗ засчитывается одному слову карточки."""
+    products = [
+        _product('c-hop', 'Victory Hop Devil Pale Ale 0,355 бут.'),
+        _product('c-bak', 'Бакунин Pale Ale 0,5'),
+        _product('c-sald', "Salden's Ale Pale 0,45 банка"),
+        _product('c-rig', 'Ригеле Файнес Урхель 0,5 бут.'),
+        _product('c-lager', 'Волковская Лагер светлый'),
+    ]
+    idx = ri.build_index(products, GROUPS, built_at='2026-10-03T07:30:05+03:00')
+    assert ri.similar_cards('Пиво светлое нефильтрованное Stamm Beer West Coast Pale', idx,
+                            brand='Stamm Beer') == []
+    rig = ri.similar_cards('Пиво светлое непастеризованное фильтрованное Ригеле Файнес Урхель', idx)
+    assert [(c['id'], c['score']) for c in rig] == [('c-rig', 3)]
+    # Окончания: слово карточки — начало слова ЧЗ и наоборот.
+    lager = ri.similar_cards('Пиво Волковская лагерное', idx)
+    assert [(c['id'], c['score']) for c in lager] == [('c-lager', 2)]
+    pale_ale = ri.similar_cards('Бакунин Pale Ale светлый эль', idx)
+    assert [c['id'] for c in pale_ale][0] == 'c-bak' and pale_ale[0]['score'] == 3
+
+
 def test_similar_stop_words_do_not_count():
     idx = _similar_index()
     # Все слова карточки c-generic — стоп-слова: без них был бы счёт 3.
@@ -575,6 +597,66 @@ def test_read_state_running_fresh_and_stale(monkeypatch):
     _write_raw_state({'running': True, 'trigger': 'close', 'started_at': '', 'counts': {'products': 3}})
     state = ri.read_state()
     assert state['running'] is False and state['counts'] == {'products': 3}
+
+
+def test_read_state_running_but_lock_free_is_dead(monkeypatch, paths):
+    """Ревью 2026-10-03: воркер умер посреди обновления — лок свободен, кнопка доступна сразу,
+    без ожидания STALE_RUNNING_SEC."""
+    _freeze(monkeypatch, _msk(2026, 10, 3, 12, 0, 0))
+    ri.acquire_run_lock().release()                      # каталог лока есть, лок свободен
+    _write_raw_state({'running': True, 'trigger': 'button', 'started_at': '2026-10-03T11:59:00+03:00',
+                      'finished_at': '', 'error': '', 'counts': None})
+    state = ri.read_state()
+    assert state['running'] is False and state['error'] == ri.STALE_RUNNING_ERROR
+    lock = ri.acquire_run_lock()                         # идёт настоящее обновление
+    try:
+        assert ri.read_state()['running'] is True
+    finally:
+        lock.release()
+
+
+def test_refresh_after_save_runs_before_done(monkeypatch, paths):
+    _freeze(monkeypatch, _msk(2026, 10, 3, 7, 30, 5))
+    seen = {}
+
+    def after(index):
+        seen['state'] = ri.read_state()
+        seen['cards'] = len(index['cards'])
+        seen['loaded'] = ri.load_index() is not None
+        with pytest.raises(ri.RefreshBusy):
+            ri.acquire_run_lock()                        # лок ещё у обновления
+
+    ri.refresh_index('button', fetch=_sources, after_save=after)
+    assert seen['state']['running'] is True and seen['cards'] > 0 and seen['loaded'] is True
+    assert ri.read_state()['running'] is False and ri.read_state()['error'] == ''
+
+
+def test_refresh_after_save_failure_keeps_index(monkeypatch, paths):
+    _freeze(monkeypatch, _msk(2026, 10, 3, 7, 30, 5))
+
+    def after(index):
+        raise RuntimeError('boom')
+
+    info = ri.refresh_index('button', fetch=_sources, after_save=after)
+    state = ri.read_state()
+    assert info['counts']['products'] > 0 and ri.load_index() is not None
+    assert state['running'] is False and state['counts'] == info['counts']
+    assert state['error'].startswith('Индекс обновлён, но пересверка') and 'boom' not in state['error']
+    ri.acquire_run_lock().release()
+
+
+def test_logout_on_exit_calls_active_session():
+    calls = []
+    saved = ri._active_logout[0]
+    try:
+        ri._active_logout[0] = lambda: calls.append('logout')
+        ri._logout_on_exit()
+        assert calls == ['logout']
+        ri._active_logout[0] = None
+        ri._logout_on_exit()                              # нечего закрывать — тихо
+        assert calls == ['logout']
+    finally:
+        ri._active_logout[0] = saved
 
 
 # ----- refresh_index и лок -----------------------------------------------------------------

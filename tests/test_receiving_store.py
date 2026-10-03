@@ -52,7 +52,7 @@ ANNA = {'login': 'anna', 'display_name': 'Анна'}
 AGENT = {'login': 'owner', 'display_name': 'Владелец', 'via_mcp': True}
 
 RECEIPT_KEYS = {'id', 'status', 'note', 'created_at', 'created_by', 'closed_at', 'closed_by',
-                'process_state', 'processed_at', 'process_note', 'counts'}
+                'process_state', 'processed_at', 'process_note', 'notified_at', 'counts'}
 COUNT_KEYS = {'units', 'gtins', 'rejected', 'repeats', 'invoices'}
 SCAN_KEYS = {'id', 'gtin', 'kind', 'accepted', 'reason', 'raw_short', 'scanned_at', 'source', 'by'}
 INVOICE_KEYS = {'name', 'url', 'size', 'uploaded_at', 'uploaded_by'}
@@ -609,7 +609,7 @@ def test_upsert_review_insert_new_and_found(db, clock):
     assert row['state'] == 'open' and row['resolution'] == '' and row['status'] == 'similar'
     assert row['barcode'] == G1[1:]                      # EAN-13 для iiko
     assert row['candidates'] == cands and row['cards'] == []
-    assert row['chz'] == {k: CHZ[k] for k in rs.CHZ_FIELDS}     # без fetched_at
+    assert row['chz'] == {k: CHZ.get(k, '') for k in rs.CHZ_FIELDS}     # без fetched_at
     assert row['qty'] == 2 and row['receipts'] == [{'id': rid, 'qty': 2, 'closed_at': clock.iso()}]
     assert row['first_seen_at'] == row['last_seen_at'] == row['classified_at'] == clock.iso()
     assert row['index_built_at'] == '2026-10-03T07:30:05+03:00'
@@ -717,6 +717,109 @@ def test_upsert_review_closed_stays_closed_when_found(db, clock):
     assert res['opened'] is False and res['reopened'] is False
     assert res['row']['state'] == 'closed' and res['row']['resolution'] == 'done'
     assert res['row']['status'] == 'found'
+
+
+# Метки индексов в настоящем формате (ISO с +03:00): решения сравниваются с ними.
+IDX_0700 = '2026-10-03T07:00:00+03:00'
+IDX_0730 = '2026-10-03T07:30:00+03:00'
+
+
+def test_stale_index_does_not_reopen_done_row(db, clock):
+    """Ревью 2026-10-03: индекс, собранный ДО «Сделано», не видит новую карточку —
+    строка не должна вернуться «Новой» (и толкнуть завести дубль в iiko)."""
+    r1 = _closed_receipt_with([_ean(G1)])
+    rs.upsert_review(G1, r1, 'new', [], [], CHZ, IDX_0700)
+    clock.move(hours=1)                                   # 10:00 > 07:00 и 07:30
+    rs.update_review(G1, ANNA, state='done')
+    r2 = _closed_receipt_with([_ean(G1)])
+    res = rs.upsert_review(G1, r2, 'new', [], [], {}, IDX_0730)   # индекс старше решения
+    assert res['opened'] is False and res['reopened'] is False
+    row = res['row']
+    assert row['state'] == 'closed' and row['resolution'] == 'done' and row['reopened'] == 0
+    assert row['index_built_at'] == IDX_0700              # статус не перезаписан устаревшим
+    assert [r['id'] for r in row['receipts']] == [r2, r1]  # приёмку при этом учли
+    assert rs.rows_to_notify(r2) == []
+    # Индекс, собранный после решения, а GTIN всё ещё не на карточке — снова в разбор.
+    later = (clock.value + timedelta(minutes=5)).isoformat(timespec='seconds')
+    res = rs.upsert_review(G1, r2, 'new', [], [], {}, later)
+    assert res['opened'] is True and res['row']['state'] == 'open' and res['row']['reopened'] == 1
+    assert [r['gtin'] for r in rs.rows_to_notify(r2)] == [G1]
+
+
+def test_older_index_does_not_overwrite_status(db, clock):
+    rid = _closed_receipt_with([_ean(G1)])
+    rs.upsert_review(G1, rid, 'similar', [], [dict(_card('c1', 'Жигули'), score=2)], CHZ, IDX_0730)
+    res = rs.upsert_review(G1, rid, 'new', [], [], {}, IDX_0700)
+    assert res['row']['status'] == 'similar' and res['row']['index_built_at'] == IDX_0730
+    done = rs.reclassify_open(G1, 'found', [_card('k1', 'Жигули')], [], index_built_at=IDX_0700)
+    assert done['auto_closed'] is False and done['row']['state'] == 'open'
+    done = rs.reclassify_open(G1, 'found', [_card('k1', 'Жигули')], [], index_built_at=IDX_0730)
+    assert done['auto_closed'] is True and done['row']['resolution'] == 'auto'
+
+
+def test_recheck_done(db, clock):
+    rid = _closed_receipt_with([_ean(G1), _ean(G2)])
+    for g in (G1, G2):
+        rs.upsert_review(g, rid, 'new', [], [], CHZ, IDX_0700)
+        rs.update_review(g, ANNA, state='done')
+    resolved = rs.get_review_item(G1)['resolved_at']
+    assert rs.done_review_gtins() == sorted([G1, G2])
+    # Индекс не новее решения — ничего не меняем.
+    for built in (IDX_0730, resolved, ''):
+        res = rs.recheck_done(G1, 'new', [], [], built)
+        assert res['reopened'] is False and res['row']['state'] == 'closed'
+    later = (clock.value + timedelta(minutes=1)).isoformat(timespec='seconds')
+    ok = rs.recheck_done(G1, 'found', [_card('k1', 'Жигули')], [], later)
+    assert ok['reopened'] is False and ok['row']['resolution'] == 'done' and ok['row']['status'] == 'found'
+    bad = rs.recheck_done(G2, 'new', [], [], later)
+    assert bad['reopened'] is True and bad['row']['state'] == 'open' and bad['row']['reopened'] == 1
+    assert rs.done_review_gtins() == []                    # G1 подтверждён, G2 снова открыт
+    assert rs.rows_to_notify(rid) == []                   # перепроверка «Сделано» не шлёт сообщение
+    with pytest.raises(rs.ReviewItemNotFound):
+        rs.recheck_done(G3, 'new', [], [], later)
+
+
+def test_rows_to_notify_and_mark_notified(db, clock):
+    rid = _closed_receipt_with([_ean(G1), _ean(G2), _ean(G3)])
+    rs.upsert_review(G1, rid, 'new', [], [], CHZ, IDX_0700)
+    rs.upsert_review(G2, rid, 'found', [_card('k2', 'Балтика')], [], {}, IDX_0700)
+    rs.upsert_review(G3, rid, 'restore', [_card('k3', 'Старое', deleted=True)], [], {}, IDX_0700)
+    assert sorted(r['gtin'] for r in rs.rows_to_notify(rid)) == sorted([G1, G3])
+    rs.update_review(G3, ANNA, state='done')
+    assert [r['gtin'] for r in rs.rows_to_notify(rid)] == [G1]
+    assert rs.get_receipt(rid)['notified_at'] is None
+    rs.mark_notified(rid)
+    assert rs.get_receipt(rid)['notified_at'] == clock.iso()
+    with pytest.raises(rs.ReceiptNotFound):
+        rs.mark_notified(999)
+
+
+def test_huge_ids_are_not_found(db, clock):
+    rid = rs.create_receipt(USER)['id']
+    for bad in (2 ** 63, 10 ** 20, 0, -1):
+        with pytest.raises(rs.ReceiptNotFound):
+            rs.get_receipt(bad)
+    with pytest.raises(rs.ScanNotFound):
+        rs.delete_scan(rid, 2 ** 63, USER)
+
+
+def test_existing_db_gets_added_columns(tmp_path, clock):
+    path = str(tmp_path / 'old.db')
+    conn = sqlite3.connect(path)
+    for sql in rs._SCHEMA_V1:
+        conn.execute(sql.replace(',\n      notified_at TEXT', '').replace(',\n      notify_receipt_id INTEGER', ''))
+    conn.execute('PRAGMA user_version = 1')
+    conn.commit()
+    cols = {r[1] for r in conn.execute('PRAGMA table_info(receipts)')}
+    assert 'notified_at' not in cols
+    conn.close()
+    rs.set_db_path(path)
+    try:
+        rid = rs.create_receipt(USER)['id']
+        assert rs.get_receipt(rid)['notified_at'] is None
+        rs.mark_notified(rid)
+    finally:
+        rs.set_db_path(None)
 
 
 def test_upsert_review_validation(db, clock):

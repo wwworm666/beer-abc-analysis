@@ -517,9 +517,14 @@ body.rc-page { background: var(--rc-bg); }
     .rc-hero-actions .rc-btn { flex: 1; }
     .rc-open-row { padding: 12px 14px; }
     .rc-panel-head, .rc-empty { padding-left: 14px; padding-right: 14px; }
-    .rc-counter { padding: 14px 14px 12px; }
-    .rc-units b { font-size: 64px; }
+    /* Телефон 360-412 px: число штук на всю ширину, позиции и «не отправлено» — строкой
+       под ним (иначе плашка накрывала «шт.» и последнюю цифру, ревью 2026-10-03). */
+    .rc-counter { grid-template-columns: minmax(0, 1fr); padding: 14px 14px 12px; }
+    .rc-units { min-width: 0; }
+    .rc-units b { font-size: clamp(44px, 15vw, 64px); }
     .rc-units span { font-size: 16px; }
+    .rc-counter-side { flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: space-between; text-align: left; }
+    .rc-pending { white-space: normal; height: auto; min-height: 26px; }
     .rc-status { font-size: 18px; }
     .rc-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .rc-row { grid-template-columns: 64px auto minmax(0, 1fr); gap: 8px; padding: 7px 14px; }

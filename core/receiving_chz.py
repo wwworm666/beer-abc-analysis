@@ -89,6 +89,9 @@ NIGHTLY_LOCK_FILE = os.path.join(_BASE_DIR, 'chz_test', 'debug', 'refresh.lock')
 NIGHTLY_LOCK_STALE_SEC = 1800
 NIGHTLY_BUSY_ERROR = ('На бар-ПК идёт обновление кэша Честного знака — названия спросим '
                       'при следующей сверке')
+# Уровень упаковки в ответе product/info: «trade-unit» — единица товара, «inner-pack» —
+# групповая упаковка (у неё mainGtin — GTIN единицы, multiplier — сколько единиц).
+PACK_LEVEL = 'inner-pack'
 # Как обновить chz.py на бар-ПК (подсказка в тексте ошибки «устарел»).
 PUSH_HINT = r'python remote_exec.py push chz_test/chz.py C:\chz_test'
 # Текст ошибки из ответа бар-ПК обрезается: это недоверенная строка, на странице
@@ -246,8 +249,14 @@ def normalize_item(raw: dict) -> dict:
     name — name, а если пусто — fullName (как в chz.get_chz_stock_via_search);
     volume — volumeWeight строкой как есть, иначе coreVolume (число -> «<n> мл»,
     в ЧЗ он в миллилитрах), иначе ''.
+    Групповая упаковка (level «inner-pack», спецификация True API product/info):
+    main_gtin — GTIN единицы внутри (mainGtin, 14 цифр), pack_units — сколько единиц
+    (multiplier); у единицы товара («trade-unit») оба пустые. По ним сервис узнаёт
+    мультипак, отсканированный вместо банок (ревью 2026-10-03).
     """
     raw = raw if isinstance(raw, dict) else {}
+    level = _text(raw.get('level'))
+    pack = level == PACK_LEVEL
     return {
         'name': _text(raw.get('name')) or _text(raw.get('fullName')),
         'brand': _text(raw.get('brand')),
@@ -255,7 +264,19 @@ def normalize_item(raw: dict) -> dict:
         'product_group': _text(raw.get('productGroup')),
         'volume': _volume(raw),
         'package_type': _text(raw.get('packageType')),
+        'level': level,
+        'main_gtin': (_gtin14(raw.get('mainGtin')) or '') if pack else '',
+        'pack_units': _pack_units(raw.get('multiplier')) if pack else '',
     }
+
+
+def _pack_units(value) -> str:
+    """multiplier -> целое > 1 строкой ('6'), иначе ''."""
+    try:
+        number = int(str(value).strip())
+    except (TypeError, ValueError):
+        return ''
+    return str(number) if number > 1 else ''
 
 
 def _volume(raw: dict) -> str:
@@ -465,8 +486,13 @@ def _stock_info(item: dict) -> dict:
 
 
 def _cache_info(row: dict) -> dict:
-    return {key: _text(row.get(key)) for key in
+    info = {key: _text(row.get(key)) for key in
             ('name', 'brand', 'full_name', 'product_group', 'volume', 'package_type')}
+    # Уровень упаковки в колонки кэша не вынесен — берётся из сохранённого ответа ЧЗ.
+    packed = normalize_item(row.get('raw') if isinstance(row.get('raw'), dict) else {})
+    for key in ('level', 'main_gtin', 'pack_units'):
+        info[key] = packed[key]
+    return info
 
 
 def _store_row(gtin: str, found: bool, info: dict, raw: dict, source: str, fetched_at: str) -> dict:

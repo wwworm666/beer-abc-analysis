@@ -49,6 +49,11 @@
     // товаре — EAN-8, 8 цифр; запас — для обрезанного чтения, чтобы оно дало
     // «не распознан», а не тишину).
     const MIN_CODE_LEN = 4;
+    // Код без Enter/Tab в конце (сканер без суффикса) считается законченным после паузы
+    // 300 мс: сканер печатает символы через 5-30 мс, 300 мс — уже точно конец кода.
+    const SCAN_IDLE_MS = 300;
+    // Сколько после такого кода глотать запоздавший Enter/Tab сканера (1 с).
+    const SCAN_SWALLOW_MS = 1000;
     // Буфер не растёт бесконечно (зажатая клавиша): длиннее предела разбора
     // (MAX_CODE_LEN = 512) код всё равно «не распознан».
     const MAX_BUFFER = 513;
@@ -157,10 +162,12 @@
         retryIndex: 0,
         busy: {},
         sheet: null,            // открытое окно {kind, onOk, ...}
-        scanner: { buffer: '', last: 0 },
+        scanner: { buffer: '', last: 0, idle: null, swallowUntil: 0 },
+        nav: 0,                 // номер перехода между экранами: ответ про прежний экран не переключает текущий
     };
 
-    const cam = { open: false, stream: null, track: null, detector: null, timer: null, seen: new Map(), torch: false };
+    const cam = { open: false, stream: null, track: null, detector: null, timer: null, seen: new Map(), torch: false,
+        attempt: 0 };
 
     const $ = (id) => document.getElementById(id);
 
@@ -492,6 +499,7 @@
     }
 
     function showStart() {
+        state.nav += 1;
         state.view = 'start';
         state.receipt = null;
         state.stale = false;
@@ -510,6 +518,7 @@
     }
 
     function showDone(receipt) {
+        state.nav += 1;
         state.view = 'done';
         state.done = receipt;
         state.receipt = null;
@@ -544,9 +553,16 @@
     // по снимку из телефона, если он про эту приёмку: сканы копятся в очереди.
     async function loadReceipt(id, options) {
         const quiet = Boolean(options && options.quiet);
+        // Тихая перезагрузка — про текущий экран; открытие — новый переход.
+        const nav = quiet ? state.nav : ++state.nav;
         const ticket = ++state.ticket;
         let res = null;
         try { res = await request('GET', API + '/' + id, undefined, LOAD_TIMEOUT_MS); } catch (error) { res = null; }
+        // Пока ждали ответа, приёмщик ушёл с этого экрана (новая приёмка, «Все приёмки»,
+        // другая приёмка): поздний ответ про прежнюю приёмку экран не переключает и сканы
+        // не уводит в неё (ревью 2026-10-03).
+        if (state.nav !== nav) return false;
+        if (quiet && !(state.view === 'scan' && isCurrent(id))) return false;
 
         if (res && res.ok && res.data && res.data.receipt) {
             state.authRequired = false;
@@ -614,6 +630,7 @@
                 return;
             }
             state.authRequired = false;
+            state.nav += 1;
             const receipt = res.data.receipt;
             applyReceipt({ receipt, lines: [], recent: [], invoices: [], dm_keys: [] }, ++state.ticket, false);
             saveSnapshot();
@@ -761,7 +778,8 @@
             state.retryIndex = 0;
             return onScanSaved(item, res.data || {}, ticket);
         }
-        if (res.status === 409 || res.status === 404) {
+        if (res.status === 409) return rescueClosed(item.receipt_id);
+        if (res.status === 404) {
             dropReceipt(item.receipt_id, res);
             return NEXT;
         }
@@ -845,7 +863,65 @@
         }
     }
 
-    // 409/404 на скан: приёмку закрыли (или её нет) — её сканы больше не записать.
+    // 409 на скан: приёмку закрыли (другой телефон или бухгалтер), а в этом телефоне
+    // остались её неотправленные сканы (приёмщик был без связи). Сканы не выбрасываются:
+    // открывается новая приёмка, и они уходят в неё (ревью 2026-10-03: «сканы не теряются
+    // при обрыве связи»). Новую приёмку открыть не вышло (нет связи) — сканы ждут в
+    // очереди, следующая отправка попробует снова.
+    async function rescueClosed(oldId) {
+        const items = queueOf(oldId).filter((item) => !item.undo);
+        if (!items.length) {
+            dropReceipt(oldId, { status: 409 });
+            return NEXT;
+        }
+        let res = null;
+        try {
+            res = await request('POST', API, { note: 'Сканы после закрытия приёмки №' + oldId }, LOAD_TIMEOUT_MS);
+        } catch (error) {
+            res = null;
+        }
+        if (!res || res.status >= 500) {
+            state.offline = true;
+            render();
+            return STOP;
+        }
+        if (res.status === 401) {
+            state.authRequired = true;
+            render();
+            return STOP;
+        }
+        if (!res.ok || !res.data || !res.data.receipt) {
+            dropReceipt(oldId, { status: 409 });
+            return NEXT;
+        }
+        const fresh = res.data.receipt;
+        for (const item of queueOf(oldId)) {
+            if (item.undo) {
+                const index = state.queue.indexOf(item);
+                if (index !== -1) state.queue.splice(index, 1);
+                state.removed.add(item.client_id);
+            } else {
+                item.receipt_id = fresh.id;
+                item.tries = 0;
+            }
+        }
+        saveQueue();
+        const moved = items.length;
+        if (isCurrent(oldId)) {
+            forgetSnapshot(oldId);
+            state.nav += 1;
+            applyReceipt({ receipt: fresh, lines: [], recent: [], invoices: [], dm_keys: [] }, ++state.ticket, false);
+            saveSnapshot();
+            showScan();
+        }
+        signal('repeat');
+        toast('Приёмку №' + oldId + ' уже закрыли — неотправленные сканы из телефона (' + moved
+            + ') перенесены в новую приёмку №' + fresh.id, true);
+        render();
+        return NEXT;
+    }
+
+    // 404 на скан (и 409 без сканов к переносу): приёмки нет — её сканы больше не записать.
     function dropReceipt(receiptId, res) {
         const items = queueOf(receiptId);
         for (const item of items) {
@@ -937,11 +1013,28 @@
         const code = String(event.code || '');
 
         if (END_CODES.indexOf(code) !== -1 || event.key === 'Enter') {
-            if (!scanner.buffer) return;                             // обычный Enter/Tab по кнопке
-            const text = scanner.buffer;
+            if (!scanner.buffer) {
+                // Код уже ушёл по паузе (сканер без суффикса или Enter опоздал): этот Enter —
+                // хвост сканера, а не нажатие кнопки в фокусе («Отменить последний»).
+                if (now < scanner.swallowUntil) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                }
+                return;
+            }
             const fresh = now - scanner.last <= SCAN_GAP_MS;
-            scanner.buffer = '';
-            if (!fresh || text.length < MIN_CODE_LEN) return;        // набор руками — не скан
+            const text = takeBuffer();
+            // В буфере только быстрые подряд символы (пауза больше SCAN_GAP_MS его сбрасывает),
+            // поэтому код от MIN_CODE_LEN символов — серия сканера, даже если Enter опоздал;
+            // такой Enter не должен нажать кнопку в фокусе (ревью 2026-10-03). Одна буква,
+            // набранная руками, и Enter после паузы — обычное нажатие, его не трогаем.
+            if (text.length < MIN_CODE_LEN) {
+                if (fresh) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                }
+                return;
+            }
             event.preventDefault();
             event.stopPropagation();
             handleCode(text, 'scanner');
@@ -952,12 +1045,41 @@
         if (!isGs && (event.ctrlKey || event.altKey || event.metaKey)) return;   // Ctrl+R и прочее — браузеру
         const ch = isGs ? GS : charFor(event);
         if (ch === null) return;                                     // Shift, стрелки, Escape
-        if (scanner.buffer && now - scanner.last > SCAN_GAP_MS) scanner.buffer = '';
+        if (scanner.buffer && now - scanner.last > SCAN_GAP_MS) takeBuffer();
         if (!scanner.buffer && ch === ' ') return;                   // пробел по кнопке — не начало кода
         if (scanner.buffer.length < MAX_BUFFER) scanner.buffer += ch;
         scanner.last = now;
+        armIdle();
         event.preventDefault();
         event.stopPropagation();
+    }
+
+    // Забрать буфер сканера (и снять таймер паузы).
+    function takeBuffer() {
+        const scanner = state.scanner;
+        const text = scanner.buffer;
+        scanner.buffer = '';
+        clearTimeout(scanner.idle);
+        scanner.idle = null;
+        return text;
+    }
+
+    // Сканер без суффикса Enter/Tab: код заканчивается паузой. Пауза SCAN_IDLE_MS после
+    // быстрой серии от MIN_CODE_LEN символов — код готов; Enter, если всё-таки придёт
+    // позже, проглатывается (SCAN_SWALLOW_MS), чтобы не нажать кнопку в фокусе.
+    function armIdle() {
+        const scanner = state.scanner;
+        clearTimeout(scanner.idle);
+        scanner.idle = setTimeout(() => {
+            scanner.idle = null;
+            if (scanner.buffer.length < MIN_CODE_LEN) {
+                scanner.buffer = '';
+                return;
+            }
+            const text = takeBuffer();
+            scanner.swallowUntil = clock() + SCAN_SWALLOW_MS;
+            handleCode(text, 'scanner');
+        }, SCAN_IDLE_MS);
     }
 
     // ==================== Отменить последний ====================
@@ -1026,6 +1148,10 @@
 
     function requestFinish() {
         if (state.view !== 'scan' || !state.receipt) return false;
+        if (state.busy.undo) {
+            toast('Идёт отмена скана — дождитесь её и завершите ещё раз', true);
+            return false;
+        }
         if (pendingFor(state.receipt.id)) {
             toast('Есть неотправленные сканы — дождитесь связи', true);
             flush();
@@ -1048,6 +1174,11 @@
         if (!state.receipt) return;
         const receiptId = state.receipt.id;
         await act('finish', button, async () => {
+            if (state.busy.undo) {
+                closeSheet();
+                toast('Идёт отмена скана — дождитесь её и завершите ещё раз', true);
+                return;
+            }
             if (pendingFor(receiptId)) {
                 closeSheet();
                 toast('Есть неотправленные сканы — дождитесь связи', true);
@@ -1314,6 +1445,8 @@
             return;
         }
         cam.open = true;
+        const attempt = ++cam.attempt;
+        const alive = () => cam.open && cam.attempt === attempt;
         cam.seen = new Map();
         $('rc-cam-wrap').hidden = false;
         $('rc-torch').hidden = true;
@@ -1321,9 +1454,12 @@
         setCamStatus('Включаю камеру…');
         renderCamera();
         try {
-            cam.detector = await createDetector();
+            const detector = await createDetector();
+            if (!alive()) return;                                    // закрыли, пока грузился детектор
+            cam.detector = detector;
             const stream = await media.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
-            if (!cam.open) {
+            if (!alive()) {
+                // Камеру закрыли (или открыли заново), пока ждали разрешения: этот поток лишний.
                 stream.getTracks().forEach((track) => track.stop());
                 return;
             }
@@ -1337,6 +1473,7 @@
             setCamStatus('Наведите камеру на код');
             tickCamera();
         } catch (error) {
+            if (!alive()) return;
             closeCamera();
             toast(cameraError(error), true);
         }
@@ -1371,6 +1508,7 @@
     function closeCamera() {
         if (!cam.open && !cam.stream) return;
         cam.open = false;
+        cam.attempt += 1;          // незавершённое включение увидит, что его отменили
         clearTimeout(cam.timer);
         cam.timer = null;
         if (cam.stream) cam.stream.getTracks().forEach((track) => { try { track.stop(); } catch (error) { /* уже остановлен */ } });
@@ -1594,11 +1732,20 @@
         window.addEventListener('keydown', onKeyDown, true);
         window.addEventListener('pointerdown', unlockAudio, { passive: true });
         window.addEventListener('touchstart', unlockAudio, { passive: true });
+        // iOS Safari разрешает звук только из обработчика «полного» жеста (touchend, click).
+        window.addEventListener('touchend', unlockAudio, { passive: true, capture: true });
+        window.addEventListener('click', (event) => {
+            unlockAudio();
+            // Кнопка, нажатая пальцем или мышью, не держит фокус: Enter сканера не нажмёт её
+            // ещё раз (клик с клавиатуры, detail 0, фокус сохраняет — для доступности).
+            const button = event.target && event.target.closest ? event.target.closest('button') : null;
+            if (button && event.detail > 0) setTimeout(() => button.blur(), 0);
+        }, true);
 
         $('rc-new').addEventListener('click', () => startNew($('rc-new')));
         $('rc-done-new').addEventListener('click', () => startNew($('rc-done-new')));
         $('rc-back').addEventListener('click', () => { showStart(); });
-        $('rc-camera').addEventListener('click', () => { openCamera(); });
+        $('rc-camera').addEventListener('click', () => { unlockAudio(); openCamera(); });
         $('rc-photo').addEventListener('click', () => $('rc-photo-input').click());
         $('rc-photo-input').addEventListener('change', () => {
             const input = $('rc-photo-input');

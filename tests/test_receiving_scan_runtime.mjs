@@ -352,7 +352,7 @@ function makeEnv(options) {
     const opts = options || {};
     const env = {
         server: opts.server || new FakeServer(),
-        net: { mode: opts.offline ? 'offline' : 'online', calls: [] },   // online | offline | lost (сервер записал, ответ потерян)
+        net: { mode: opts.offline ? 'offline' : 'online', calls: [], hold: opts.hold || null },   // online | offline | lost (сервер записал, ответ потерян)
         timers: { now: 1000, seq: 0, tasks: new Map() },
         tones: [],
         vibrations: [],
@@ -1160,16 +1160,42 @@ await test('без связи после перезагрузки: экран о
     assert.equal(units(env), 2);
 });
 
-await test('409 на скан (приёмку закрыли на сервере): сканы этой приёмки выброшены с сообщением', async () => {
+await test('409 на скан (приёмку закрыли на другом телефоне): сканы переносятся в новую приёмку', async () => {
+    // Ревью 2026-10-03: второй телефон был без связи, первый нажал «Завершить» —
+    // неотправленные сканы второго не выбрасываются, а уходят в новую приёмку.
     const server = new FakeServer();
     const r = server.addReceipt({ id: 60 });
+    server.nextReceipt = 61;
     const env = await boot({ server, search: '?r=60' });
+    env.net.mode = 'offline';
+    scan(env, EAN_A);
+    scan(env, DM_1);
+    await settle(env);
+    assert.equal(env.queue().length, 2);
     r.status = 'closed';
+    env.net.mode = 'online';
+    await advance(env, 30000);
+    assert.deepEqual(env.queue(), [], 'сканы не дошли');
+    const created = env.net.calls.filter((c) => c.method === 'POST' && c.url === '/api/receiving');
+    assert.equal(created.length, 1);
+    assert.match(created[0].body.note, /после закрытия приёмки №60/);
+    const moved = env.scanCalls().filter((c) => c.url === '/api/receiving/61/scan');
+    assert.equal(moved.length, 2, 'сканы не перенесены в новую приёмку');
+    assert.equal(server.receipts.get(61).scans.filter((s) => s.accepted).length, 2);
+    assert.match(env.$('rc-toast').textContent, /Приёмку №60 уже закрыли — неотправленные сканы из телефона \(2\) перенесены в новую приёмку №61/);
+    assert.equal(env.$('rc-title').textContent, 'Приёмка №61');
+    assert.equal(env.sandbox.location.search, '?r=61');
+});
+
+await test('404 на скан (приёмки нет): сканы этой приёмки выброшены с сообщением', async () => {
+    const server = new FakeServer();
+    server.addReceipt({ id: 62 });
+    const env = await boot({ server, search: '?r=62' });
+    server.receipts.delete(62);
     scan(env, EAN_A);
     await settle(env);
     assert.deepEqual(env.queue(), []);
-    assert.match(env.$('rc-toast').textContent, /Приёмка №60 уже закрыта — не записано сканов из телефона: 1/);
-    assert.equal(env.$('rc-start').hidden, false, 'экран закрытой приёмки не ушёл на старт');
+    assert.match(env.$('rc-toast').textContent, /Приёмка №62 не найдена — не записано сканов из телефона: 1/);
 });
 
 await test('другая вкладка: её сканы в localStorage не затираются записью этой вкладки', async () => {
@@ -1343,6 +1369,109 @@ await test('новая приёмка без связи — сообщение, 
     await settle(env);
     assert.equal(env.$('rc-start').hidden, false);
     assert.match(env.$('rc-toast').textContent, /Нет связи — новую приёмку открыть не получилось/);
+});
+
+// ---------------------------------------------------------------- ревью 2026-10-03
+
+await test('опоздавший Enter после кода сканера: код считается, Enter не нажимает кнопку в фокусе', async () => {
+    const server = new FakeServer();
+    server.addReceipt({ id: 120 });
+    const env = await boot({ server, search: '?r=120' });
+    const sent = env.scanCalls().length;
+    for (const ch of EAN_A) press(env, keyFor(ch), 5);
+    const enter = press(env, { code: 'Enter', key: 'Enter' }, 150);
+    await settle(env);
+    assert.equal(env.scanCalls().length, sent + 1, 'код с опоздавшим Enter потерян');
+    assert.equal(enter.defaultPrevented, true, 'Enter сканера нажал бы кнопку в фокусе');
+});
+
+await test('сканер без Enter/Tab: код уходит после паузы 300 мс, поздний Enter проглатывается', async () => {
+    const server = new FakeServer();
+    server.addReceipt({ id: 121 });
+    const env = await boot({ server, search: '?r=121' });
+    const sent = env.scanCalls().length;
+    for (const ch of EAN_A) press(env, keyFor(ch), 5);
+    await advance(env, 299);
+    assert.equal(env.scanCalls().length, sent, 'код ушёл раньше паузы');
+    await advance(env, 2);
+    assert.equal(env.scanCalls().length, sent + 1, 'код без суффикса не ушёл по паузе');
+    const late = press(env, { code: 'Enter', key: 'Enter' }, 100);
+    assert.equal(late.defaultPrevented, true);
+    await settle(env);
+    assert.equal(env.scanCalls().length, sent + 1, 'поздний Enter не должен давать второй скан');
+});
+
+await test('поздний ответ про прежнюю приёмку не переключает экран на неё', async () => {
+    const server = new FakeServer();
+    server.addReceipt({ id: 7 });
+    server.nextReceipt = 30;
+    // Перезагрузка ?r=7 на слабом Wi-Fi: GET 7 висит, приёмщик видит старт и жмёт «Новая приёмка».
+    const env = makeEnv({ server, search: '?r=7',
+        hold: (call) => call.method === 'GET' && call.url === '/api/receiving/7' });
+    await settle(env);                                   // GET 7 «в пути»
+    env.net.hold = null;
+    assert.equal(env.net.calls.filter((c) => c.url === '/api/receiving/7').length, 1);
+    env.$('rc-new').click();
+    await settle(env);
+    assert.equal(env.$('rc-title').textContent, 'Приёмка №30');
+    env.release();                                       // пришёл ответ про №7
+    await settle(env);
+    assert.equal(env.$('rc-title').textContent, 'Приёмка №30', 'экран ушёл на прежнюю приёмку');
+    assert.equal(env.sandbox.location.search, '?r=30');
+    for (const ch of EAN_A) press(env, keyFor(ch), 5);
+    press(env, { code: 'Enter', key: 'Enter' }, 5);
+    await settle(env);
+    assert.equal(env.scanCalls().at(-1).url, '/api/receiving/30/scan');
+});
+
+await test('«Завершить» не идёт, пока отмена скана ещё в пути', async () => {
+    const server = new FakeServer();
+    server.addReceipt({ id: 122 });
+    const env = await boot({ server, search: '?r=122' });
+    scan(env, EAN_A);
+    await settle(env);
+    env.net.hold = (call) => call.method === 'DELETE';
+    env.$('rc-undo').click();
+    await settle(env);
+    env.net.hold = null;
+    env.$('rc-finish').click();
+    await settle(env);
+    assert.equal(env.$('rc-sheet-wrap').hidden, true, 'окно «Завершить?» открылось во время отмены');
+    assert.match(env.$('rc-toast').textContent, /Идёт отмена скана/);
+    env.release();
+    await settle(env);
+    assert.ok(!env.net.calls.some((c) => CLOSE_RE.test(c.url)), 'приёмка закрылась во время отмены');
+});
+
+await test('камера: закрыли и открыли заново, пока ждали разрешения, — первый поток гасится', async () => {
+    const server = new FakeServer();
+    server.addReceipt({ id: 123 });
+    class Detector {
+        static getSupportedFormats() { return Promise.resolve(['data_matrix', 'ean_13']); }
+        constructor() {}
+        detect() { return Promise.resolve([]); }
+    }
+    const stopped = [];
+    const pending = [];
+    const makeStream = (name) => {
+        const track = { stop: () => stopped.push(name), getCapabilities: () => ({}) };
+        return { getTracks: () => [track], getVideoTracks: () => [track] };
+    };
+    const media = { getUserMedia: () => new Promise((resolve) => pending.push(resolve)) };
+    const env = await boot({ server, search: '?r=123', mediaDevices: media, barcodeDetector: Detector });
+    env.$('rc-camera').click();
+    await settle(env);
+    env.$('rc-cam-close').click();
+    env.$('rc-camera').click();
+    await settle(env);
+    assert.equal(pending.length, 2);
+    pending[0](makeStream('first'));
+    await settle(env);
+    assert.deepEqual(stopped, ['first'], 'первый поток камеры остался гореть');
+    pending[1](makeStream('second'));
+    await settle(env);
+    env.$('rc-cam-close').click();
+    assert.deepEqual(stopped, ['first', 'second']);
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

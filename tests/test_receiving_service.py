@@ -80,6 +80,8 @@ class FakeIndexModule:
     class RefreshBusy(Exception):
         pass
 
+    SIMILAR_LIMIT = 5
+
     def __init__(self, index=None):
         self.index = index
         self.next_index = None          # что «соберёт» refresh_index
@@ -120,8 +122,9 @@ class FakeIndexModule:
         self.locks.append(lock)
         return lock
 
-    def refresh_index(self, trigger, *, lock=None, wait=0, fetch=None):
-        self.refresh_calls.append({'trigger': trigger, 'lock': lock, 'wait': wait})
+    def refresh_index(self, trigger, *, lock=None, wait=0, fetch=None, after_save=None):
+        self.refresh_calls.append({'trigger': trigger, 'lock': lock, 'wait': wait,
+                                   'after_save': after_save is not None})
         try:
             if self.busy and lock is None:
                 raise self.RefreshBusy('Индекс iiko уже обновляется')
@@ -129,6 +132,11 @@ class FakeIndexModule:
                 raise self.refresh_error
             if self.next_index is not None:
                 self.index = self.next_index
+            if after_save is not None:
+                try:
+                    after_save(self.index)          # как настоящий: до «готово», сбой не роняет
+                except Exception as error:  # noqa: BLE001
+                    self.after_save_error = error
             return self.index_info(self.index)
         finally:
             if lock is not None:
@@ -182,6 +190,8 @@ class FakeStoreModule:
         self.fail_upsert = None
         self.fail_finish = None
         self.fail_claim = None
+        self.notified = {}
+        self.rechecked = []
 
     # приёмки
     def receipt_lines(self, rid):
@@ -191,7 +201,34 @@ class FakeStoreModule:
 
     def get_receipt(self, rid):
         return {'id': rid, 'status': 'closed', 'closed_at': '2026-10-03T14:05:00+03:00',
-                'closed_by': 'Иван', 'counts': {'units': 10, 'gtins': len(self.lines.get(rid, []))}}
+                'closed_by': 'Иван', 'notified_at': self.notified.get(rid),
+                'counts': {'units': 10, 'gtins': len(self.lines.get(rid, []))}}
+
+    def rows_to_notify(self, rid):
+        return [self._row(g) for g in sorted(self.rows)
+                if self.rows[g]['state'] == 'open' and self.rows[g].get('notify_receipt_id') == rid]
+
+    def mark_notified(self, rid):
+        self.notified[rid] = '2026-10-03T14:06:00+03:00'
+
+    def done_review_gtins(self):
+        return sorted(g for g, r in self.rows.items()
+                      if r['state'] == 'closed' and r['resolution'] == 'done' and r['status'] != 'found')
+
+    def recheck_done(self, gtin, status, cards, candidates, index_built_at):
+        self.rechecked.append({'gtin': gtin, 'status': status, 'index_built_at': index_built_at})
+        if gtin not in self.rows:
+            raise self.ReviewItemNotFound(gtin)
+        row = self.rows[gtin]
+        if (row['state'] != 'closed' or row['resolution'] != 'done'
+                or not index_built_at or index_built_at <= str(row.get('resolved_at') or '')):
+            return {'row': self._row(gtin), 'reopened': False}
+        row.update(status=status, cards=list(cards), candidates=list(candidates))
+        reopened = status != 'found'
+        if reopened:
+            row.update(state='open', resolution='', reopened=row['reopened'] + 1,
+                       notify_receipt_id=None)
+        return {'row': self._row(gtin), 'reopened': reopened}
 
     def finish_processing(self, rid, state, note=''):
         if self.fail_finish is not None:
@@ -227,14 +264,16 @@ class FakeStoreModule:
         if row is None:
             found = status == 'found'
             row = {'gtin': gtin, 'state': 'closed' if found else 'open',
-                   'resolution': 'found' if found else '', 'chz': {}, 'reopened': 0}
+                   'resolution': 'found' if found else '', 'chz': {}, 'reopened': 0,
+                   'notify_receipt_id': None if found else receipt_id}
             self.rows[gtin] = row
             opened = not found
         elif row['state'] == 'open':
             if status == 'found':
                 row.update(state='closed', resolution='auto')
         elif row['resolution'] != 'not_needed' and status != 'found':
-            row.update(state='open', resolution='', reopened=row['reopened'] + 1)
+            row.update(state='open', resolution='', reopened=row['reopened'] + 1,
+                       notify_receipt_id=receipt_id)
             opened = reopened = True
         row.update(status=status, cards=list(cards), candidates=list(candidates),
                    index_built_at=index_built_at)
@@ -267,10 +306,12 @@ class FakeStoreModule:
             raise self.ReviewItemNotFound(gtin)
         return self._row(gtin)
 
-    def add_row(self, gtin, status, state='open', resolution='', cards=(), candidates=(), chz=None):
+    def add_row(self, gtin, status, state='open', resolution='', cards=(), candidates=(), chz=None,
+                resolved_at=None, notify_receipt_id=None):
         self.rows[gtin] = {'gtin': gtin, 'status': status, 'state': state, 'resolution': resolution,
                            'cards': [dict(c) for c in cards], 'candidates': [dict(c) for c in candidates],
-                           'chz': dict(chz or {}), 'reopened': 0}
+                           'chz': dict(chz or {}), 'reopened': 0, 'resolved_at': resolved_at,
+                           'notify_receipt_id': notify_receipt_id}
 
 
 class FakeNotifyModule:
@@ -278,10 +319,11 @@ class FakeNotifyModule:
         self.calls = []
         self.boom = boom
 
-    def notify_receipt_in_background(self, receipt, rows):
+    def notify_receipt(self, receipt, rows):
         if self.boom is not None:
             raise self.boom
         self.calls.append((receipt, rows))
+        return {'sent': 1, 'failed': [], 'skipped': None}
 
 
 class Fakes:
@@ -719,7 +761,8 @@ def test_refresh_button_started_runs_refresh_with_lock(fakes, iiko_creds, monkey
     call = fakes.index.refresh_calls[0]
     assert call['trigger'] == 'button' and call['lock'] is fakes.index.locks[0]
     assert fakes.index.locks[0].released == 1
-    assert [r['gtin'] for r in fakes.store.reclassified] == [G_NEW_BARE]   # пересверка прошла
+    assert {r['gtin'] for r in fakes.store.reclassified} == {G_NEW_BARE}   # пересверка прошла
+    assert call['after_save'] is True                      # быстрый проход — до «готово»
 
 
 def test_refresh_button_real_thread(fakes, iiko_creds):
@@ -772,6 +815,70 @@ def test_refresh_background_failure_is_logged_not_raised(fakes):
     assert lock.released == 1
 
 
+def test_process_decision_newer_than_index_forces_refresh(fakes):
+    """Ревью 2026-10-03: «Сделано» нажато после сборки индекса (индексу 2 минуты) —
+    перед сверкой индекс пересобирается, иначе он не видит заведённую карточку."""
+    fakes.store.lines[3] = _lines(G_NEW_BARE)
+    fakes.store.add_row(G_NEW_BARE, 'new', state='closed', resolution='done',
+                        resolved_at='2026-10-03T07:45:00+03:00')    # индекс — 07:30
+    fakes.index.next_index = make_index(age=0, classes=dict(BASE_CLASSES, **{G_NEW_BARE: ('found', [CARD_A])}),
+                                        built_at='2026-10-03T07:50:00+03:00')
+    res = svc.process_receipt(3)
+    assert [c['trigger'] for c in fakes.index.refresh_calls] == ['close']
+    assert res['statuses'] == {'found': 1} and res['state'] == 'done'
+    assert fakes.store.rows[G_NEW_BARE]['state'] == 'closed'
+
+
+def test_process_notifies_rows_opened_by_failed_run(fakes):
+    """Ревью 2026-10-03: прогон упал после открытия строк, но до сообщения — повтор дошлёт."""
+    fakes.store.lines[4] = _lines(G_NEW_BARE)
+    real_get = fakes.store.get_receipt
+    calls = {'n': 0}
+
+    def flaky_get(rid):
+        calls['n'] += 1
+        if calls['n'] == 1:
+            raise fakes.store.ReceivingUnavailable('База приёмки недоступна: locked')
+        return real_get(rid)
+
+    fakes.store.get_receipt = flaky_get
+    first = svc.process_receipt(4)
+    assert first['opened'] == 1 and first['notified'] is False and fakes.notify.calls == []
+    second = svc.process_receipt(4)                       # повтор обработки (шедулер или кнопка)
+    assert second['opened'] == 0 and second['notified'] is True
+    assert [r['gtin'] for r in fakes.notify.calls[0][1]] == [G_NEW_BARE]
+    third = svc.process_receipt(4)                        # уже сообщили — второй раз не шлём
+    assert third['notified'] is False and len(fakes.notify.calls) == 1
+
+
+def test_reconcile_reopens_done_row_not_found_by_newer_index(fakes):
+    fakes.index.index = make_index(classes=BASE_CLASSES, built_at='2026-10-03T12:00:00+03:00')
+    fakes.store.add_row(G_NEW_BARE, 'new', state='closed', resolution='done',
+                        resolved_at='2026-10-03T10:00:00+03:00')
+    fakes.store.add_row(G_FOUND, 'new', state='closed', resolution='done',
+                        resolved_at='2026-10-03T10:00:00+03:00')
+    res = svc.reconcile_open_rows(fetch_chz=False)
+    assert res['done_checked'] == 2 and res['done_reopened'] == 1
+    assert fakes.store.rows[G_NEW_BARE]['state'] == 'open'        # «Сделано», а GTIN так и не появился
+    assert fakes.store.rows[G_FOUND]['state'] == 'closed' and fakes.store.rows[G_FOUND]['status'] == 'found'
+    assert fakes.chz.calls == []                                   # быстрый проход — без ЧЗ
+
+
+def test_group_pack_points_to_unit_card(fakes):
+    """Ревью 2026-10-03: код на плёнке мультипака — GTIN упаковки в iiko нет, но единица есть:
+    «похожая» с карточкой единицы (пометка pack), а не «новая»."""
+    g_pack = '04600000000073'
+    fakes.store.lines[5] = _lines(g_pack)
+    fakes.chz.names = {g_pack: {'name': 'Пиво Хеллес 6 банок', 'brand': '', 'level': 'inner-pack',
+                                'main_gtin': G_FOUND, 'pack_units': '6'}}
+    res = svc.process_receipt(5)
+    assert res['statuses'] == {'similar': 1}
+    up = _by_gtin(fakes.store.upserts)[g_pack]
+    assert up['candidates'][0]['id'] == CARD_A['id']
+    assert up['candidates'][0]['pack'] is True and up['candidates'][0]['pack_units'] == '6'
+    assert up['candidates'][0]['unit_gtin'] == G_FOUND
+
+
 # ----------------------------------------------------------------- run_index_refresh / пересверка
 
 def test_run_index_refresh_reconciles(fakes):
@@ -779,9 +886,14 @@ def test_run_index_refresh_reconciles(fakes):
                                         built_at='2026-10-03T07:30:05+03:00')
     fakes.store.add_row(G_NEW_BARE, 'new')
     res = svc.run_index_refresh('schedule', wait=600)
-    assert fakes.index.refresh_calls == [{'trigger': 'schedule', 'lock': None, 'wait': 600}]
+    assert fakes.index.refresh_calls == [{'trigger': 'schedule', 'lock': None, 'wait': 600,
+                                          'after_save': True}]
     assert res['index']['built_at'] == '2026-10-03T07:30:05+03:00'
-    assert res['reconcile'] == {'checked': 1, 'auto_closed': 1, 'changed': 1, 'chz_errors': []}
+    # Автозакрытие — в быстром проходе, ещё до отметки «готово» (ревью 2026-10-03).
+    assert res['reconcile_fast'] == {'checked': 1, 'auto_closed': 1, 'changed': 1, 'done_checked': 0,
+                                     'done_reopened': 0, 'chz_errors': []}
+    assert res['reconcile'] == {'checked': 0, 'auto_closed': 0, 'changed': 0, 'done_checked': 0,
+                                'done_reopened': 0, 'chz_errors': []}
     assert res['reconcile_error'] == ''
     assert fakes.store.rows[G_NEW_BARE]['state'] == 'closed'
     assert fakes.store.reclassified[0]['index_built_at'] == '2026-10-03T07:30:05+03:00'
@@ -819,13 +931,15 @@ def test_reconcile_auto_close_similar_upgrade_and_counts(fakes):
     fakes.store.add_row(g4, 'restore', cards=[CARD_DEL])              # без изменений
     fakes.store.add_row(g5, 'new', chz={'name': 'Неизвестное пиво'})  # название есть — ЧЗ не спрашиваем
     fakes.store.add_row(g6, 'duplicate', cards=[CARD_A, CARD_B])      # дубль убрали -> auto
-    fakes.store.add_row('04610000000007', 'new', state='closed', resolution='done')   # закрытая — не трогаем
+    fakes.store.add_row('04610000000007', 'new', state='closed', resolution='done',   # закрытая после
+                        resolved_at='2026-10-03T10:00:00+03:00')                    # индекса — не трогаем
     fakes.chz.names = {g2: {'name': 'Пиво Портер', 'brand': 'Бровари'}}
     fakes.chz.errors = ['Бар-ПК занят']
 
     res = svc.reconcile_open_rows()
 
-    assert res == {'checked': 6, 'auto_closed': 2, 'changed': 4, 'chz_errors': ['Бар-ПК занят']}
+    assert res == {'checked': 6, 'auto_closed': 2, 'changed': 4, 'done_checked': 1,
+                   'done_reopened': 0, 'chz_errors': ['Бар-ПК занят']}
     assert fakes.chz.calls == [[g2]]
     rows = fakes.store.rows
     assert rows[g1]['state'] == 'closed' and rows[g1]['resolution'] == 'auto'
@@ -845,7 +959,8 @@ def test_reconcile_auto_close_similar_upgrade_and_counts(fakes):
 def test_reconcile_without_index_does_nothing(fakes):
     fakes.index.index = None
     fakes.store.add_row(G_NEW_BARE, 'new')
-    assert svc.reconcile_open_rows() == {'checked': 0, 'auto_closed': 0, 'changed': 0, 'chz_errors': []}
+    assert svc.reconcile_open_rows() == {'checked': 0, 'auto_closed': 0, 'changed': 0,
+                                         'done_checked': 0, 'done_reopened': 0, 'chz_errors': []}
     assert fakes.store.reclassified == [] and fakes.chz.calls == []
 
 
@@ -960,7 +1075,7 @@ def test_end_to_end_with_real_store_and_index(real_modules, monkeypatch):
     # Бухгалтер завёл карточку «новой» позиции -> после пересборки строка закрылась сама
     products.append({'id': 'p6', 'name': 'Квас Живой', 'type': 'GOODS', 'barcodes': [{'barcode': g_new}]})
     summary = svc.run_index_refresh('button')
-    assert summary['reconcile']['auto_closed'] == 1, summary
+    assert summary['reconcile_fast']['auto_closed'] == 1, summary
     row = rst.get_review_item(g_new)
     assert row['state'] == 'closed' and row['resolution'] == 'auto'
 

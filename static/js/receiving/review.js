@@ -149,7 +149,7 @@
         receiptDetails: {},   // id -> {open, data}
     };
     // Узлы, которые строятся один раз (вкладки), и элементы строк по GTIN.
-    const nodes = { tabs: null, rows: {} };
+    const nodes = { tabs: null, rows: {}, notes: {} };
 
     // ==================== Помощники ====================
 
@@ -230,10 +230,13 @@
         toastTimer = setTimeout(() => { node.hidden = true; }, bad ? TOAST_BAD_MS : TOAST_MS);
     }
 
+    // Подпись кнопки возвращается к исходной, даже если нажали дважды подряд
+    // (иначе вторая вспышка запоминала «Скопировано» как исходную, ревью 2026-10-03).
     function flash(button, label) {
-        const old = button.textContent;
+        if (!button.dataset.label) button.dataset.label = button.textContent;
+        clearTimeout(button.flashTimer);
         button.textContent = label;
-        setTimeout(() => { button.textContent = old; }, FLASH_MS);
+        button.flashTimer = setTimeout(() => { button.textContent = button.dataset.label; }, FLASH_MS);
     }
 
     function showError(text) {
@@ -301,8 +304,13 @@
         }
         showError('');
         state.loadedAt = Date.now();
+        // Заметка, которую сейчас набирают, переживает автообновление списка (конец
+        // обновления индекса, возврат на вкладку): текст и фокус возвращаются в новую
+        // строку, сохранится она как обычно — по уходу из поля (ревью 2026-10-03).
+        const typing = draftNotes();
         applyData(res.data);
         render();
+        restoreNotes(typing);
         // Индекс обновляет кто-то другой (утреннее обновление, вторая вкладка, закрытие
         // приёмки) — показываем ход и перечитаем список, когда закончится.
         if (state.job && state.job.running) startPolling();
@@ -459,6 +467,7 @@
         const body = $('rvRows');
         clear(body);
         nodes.rows = {};
+        nodes.notes = {};
         if (!state.rows.length) {
             const tr = el('tr', 'rv-tr-empty');
             const td = el('td');
@@ -528,7 +537,8 @@
         const td = el('td', 'rv-td-pos');
         const chz = row.chz || {};
         const name = chz.name || chz.full_name || '';
-        const title = el('div', 'rv-name' + (name ? '' : ' is-none'), name || 'нет данных ЧЗ');
+        const title = el('div', 'rv-name' + (name ? '' : ' is-none'),
+            name || (row.status === 'new' ? 'нет данных ЧЗ — похожие не проверены, сначала найдите в iiko' : 'нет данных ЧЗ'));
         if (name && chz.source) title.title = 'Название из Честного знака: ' + (CHZ_SOURCES[chz.source] || chz.source);
         td.appendChild(title);
         const meta = [chz.brand, chz.product_group, chz.volume].filter(Boolean).join(' · ');
@@ -588,7 +598,14 @@
         const meta = [card.num ? 'арт. ' + card.num : '', card.group,
                       card.supplier ? 'поставщик ' + card.supplier : ''].filter(Boolean).join(' · ');
         if (meta) box.appendChild(el('div', 'rv-card-m', meta));
-        if (scored && card.score) box.appendChild(el('div', 'rv-score', 'совпало слов: ' + card.score));
+        if (scored && card.pack) {
+            // Мультипак: отсканирован код упаковки, а это карточка единицы внутри неё.
+            box.appendChild(el('div', 'rv-score', 'единица этой упаковки'
+                + (card.pack_units ? ' (в упаковке ' + card.pack_units + ' шт.)' : '')
+                + ' — привяжите штрихкод упаковки к ней фасовкой'));
+        } else if (scored && card.score) {
+            box.appendChild(el('div', 'rv-score', 'совпало слов: ' + card.score));
+        }
         return box;
     }
 
@@ -648,9 +665,30 @@
         return td;
     }
 
+    // Незаписанные заметки: {gtin: текст} и в каком поле фокус.
+    function draftNotes() {
+        const out = { values: {}, focused: null };
+        Object.keys(nodes.notes).forEach((gtin) => {
+            const item = nodes.notes[gtin];
+            const value = String(item.input.value || '');
+            if (value.trim() !== (item.row.note || '')) out.values[gtin] = value;
+            if (document.activeElement === item.input) out.focused = gtin;
+        });
+        return out;
+    }
+
+    function restoreNotes(typing) {
+        Object.keys(typing.values).forEach((gtin) => {
+            if (nodes.notes[gtin]) nodes.notes[gtin].input.value = typing.values[gtin];
+        });
+        const item = typing.focused && nodes.notes[typing.focused];
+        if (item && typeof item.input.focus === 'function') item.input.focus();
+    }
+
     function noteCell(row) {
         const td = el('td', 'rv-td-note');
         const input = el('input', 'rv-input rv-input-note');
+        nodes.notes[row.gtin] = { input: input, row: row };
         input.type = 'text';
         input.maxLength = NOTE_LIMIT;
         input.value = row.note || '';
@@ -825,6 +863,8 @@
             ['Объём', chz.volume],
             ['Группа ЧЗ', chz.product_group],
         ];
+        // Мультипак: строка про упаковку (в ЧЗ это групповая упаковка с GTIN единицы).
+        if (chz.main_gtin) lines.push(['Упаковка', (chz.pack_units ? chz.pack_units + ' шт. ' : '') + 'товара GTIN ' + chz.main_gtin]);
         return lines.map((pair) => (pair[0] + ': ' + (pair[1] || '')).trim()).join('\n');
     }
 

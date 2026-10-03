@@ -46,7 +46,7 @@
 
 Коды ошибок: 400 — кривое поле или фильтр (текст по-русски), 404 — нет приёмки,
 скана, фото или строки разбора, 409 `code='receipt_closed'` — сканы закрытой
-приёмки не меняются, 413 — фото больше предела, 503 `code='receiving_unavailable'` —
+приёмки не меняются, 411 — фото без Content-Length, 413 — фото больше предела, 503 `code='receiving_unavailable'` —
 `receiving.db` не читается (файл не трогаем), 503 `code='index_missing'` — индекс
 iiko ещё не собран (поиск карточек).
 
@@ -387,8 +387,12 @@ def receiving_invoice_upload(receipt_id):
 
     Порядок: размер тела -> приёмка есть -> содержимое в памяти -> файл на диск ->
     запись в БД. Запись не легла — файл удаляется, чтобы не осиротел.
+    Тело без Content-Length (chunked) — 411: его размер нельзя проверить до чтения,
+    а Flask разобрал бы форму целиком (браузер и мост MCP длину всегда присылают).
     """
-    if (request.content_length or 0) > receiving_photo_store.MAX_PHOTO_BYTES + UPLOAD_OVERHEAD_BYTES:
+    if request.content_length is None:
+        return _error('Нужен заголовок Content-Length: загрузка частями не принимается', 411)
+    if request.content_length > receiving_photo_store.MAX_PHOTO_BYTES + UPLOAD_OVERHEAD_BYTES:
         mb = receiving_photo_store.MAX_PHOTO_BYTES // (1024 * 1024)
         return _error('Фото больше ' + str(mb) + ' МБ — сделайте снимок меньшего размера', 413)
     receiving_store.get_receipt(receipt_id)

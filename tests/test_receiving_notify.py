@@ -123,9 +123,17 @@ def test_message_qty_of_this_receipt_and_fallbacks():
     rows.append({'gtin': '04600000000123', 'status': 'new', 'chz': None, 'qty': 4})  # без receipts
     text = rn.format_receipt_message(RECEIPT, rows)
     assert '- Портер — новая, 7 шт.' in text
-    assert '- 04600000000109 — новая, 3 шт.' in text
+    # Без названия ЧЗ похожие не искались — бухгалтеру пометка (ревью 2026-10-03).
+    assert '- 04600000000109 — новая (нет названия ЧЗ, похожие не проверены), 3 шт.' in text
     assert '- Полное имя ЧЗ — новая, 2 шт.' in text
-    assert '- 04600000000123 — новая, 4 шт.' in text
+    assert '- 04600000000123 — новая (нет названия ЧЗ, похожие не проверены), 4 шт.' in text
+
+
+def test_message_marks_group_pack():
+    row = _row('04600000000154', 'similar', 'Пиво Хеллес 6 банок', qty=2)
+    row['chz'].update(main_gtin='04600000000011', pack_units='6', level='inner-pack')
+    text = rn.format_receipt_message(RECEIPT, [row])
+    assert '- Пиво Хеллес 6 банок — похожая карточка (групповая упаковка по 6 шт.), 2 шт.' in text
 
 
 def test_message_escapes_html_and_has_no_emoji():

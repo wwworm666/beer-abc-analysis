@@ -35,8 +35,9 @@ REMOTE_TIMEOUT на пакет) и Telegram. gunicorn убивает запро�
 5. missing + название ЧЗ + похожие карточки (similar_cards, счёт совпавших слов >= 2)
    -> similar, иначе new.
 6. Строка разбора каждому GTIN (правила открытия/автозакрытия — в upsert_review).
-7. Среди строк, открытых этой приёмкой, есть new/similar/restore — сообщение
-   бухгалтерии (в фоне).
+7. Среди строк, открытых этой приёмкой (по базе: notify_receipt_id), есть
+   new/similar/restore, а сообщения о ней ещё не было (notified_at) — сообщение
+   бухгалтерии; отметка — после отправки (повтор обработки после падения дошлёт его).
 8. Итог — finish_processing('done', заметка с предупреждениями) или ('error', текст).
 
 Тексты ошибок в process_note и в ответах уходят на страницу, в MCP и Telegram:
@@ -143,10 +144,14 @@ def _age_minutes(index) -> Optional[int]:
     return age if isinstance(age, int) else None
 
 
-def _is_fresh(index) -> bool:
-    """Индекс есть и собран не раньше INDEX_RECHECK_MIN минут назад."""
+def _is_fresh(index, newer_than: str = '') -> bool:
+    """Индекс есть, собран не раньше INDEX_RECHECK_MIN минут назад и (если задано)
+    позже newer_than — решения бухгалтера, которое индекс обязан уже видеть."""
     age = _age_minutes(index)
-    return age is not None and age <= INDEX_RECHECK_MIN
+    if age is None or age > INDEX_RECHECK_MIN:
+        return False
+    built = str((index or {}).get('built_at') or '')
+    return not newer_than or built > newer_than
 
 
 def _chz_name(info) -> tuple:
@@ -175,10 +180,31 @@ def _status_for(index: dict, base: dict, chz_info) -> dict:
     if base_status != 'missing':
         return {'status': base_status, 'cards': cards, 'candidates': []}
     name, brand = _chz_name(chz_info)
-    candidates = receiving_index.similar_cards(name, index, brand) if name else []
+    candidates = _pack_candidates(index, chz_info)
+    if name:
+        seen = {c.get('id') for c in candidates}
+        candidates += [c for c in receiving_index.similar_cards(name, index, brand) or []
+                       if c.get('id') not in seen]
     if candidates:
-        return {'status': 'similar', 'cards': cards, 'candidates': list(candidates)}
+        return {'status': 'similar', 'cards': cards,
+                'candidates': candidates[:receiving_index.SIMILAR_LIMIT]}
     return {'status': 'new', 'cards': cards, 'candidates': []}
+
+
+def _pack_candidates(index: dict, chz_info) -> list:
+    """Групповая упаковка (мультипак) по данным ЧЗ: карточки её единицы — первые кандидаты.
+
+    Приёмщик отсканировал код на плёнке упаковки, а не банки: GTIN упаковки в iiko нет,
+    но единица (main_gtin) обычно есть. Бухгалтеру — «похожая» с карточкой единицы и
+    пометкой pack_units (сколько единиц): привязать штрихкод упаковки к ней фасовкой, а
+    не заводить новую карточку (ревью 2026-10-03). Единицы в индексе нет — [].
+    """
+    if not isinstance(chz_info, dict) or not chz_info.get('main_gtin'):
+        return []
+    unit = receiving_index.classify(chz_info['main_gtin'], index)
+    units = str(chz_info.get('pack_units') or '')
+    return [dict(card, score=0, pack=True, pack_units=units, unit_gtin=chz_info['main_gtin'])
+            for card in (unit.get('cards') or []) if isinstance(card, dict)]
 
 
 def classify_gtins(gtins, index, chz_items) -> dict:
@@ -203,23 +229,31 @@ def status() -> dict:
             'job': receiving_index.read_state()}
 
 
-def reconcile_open_rows(index=None) -> dict:
-    """Пересверить открытые строки разбора с индексом. -> {'checked','auto_closed','changed','chz_errors'}.
+def reconcile_open_rows(index=None, fetch_chz: bool = True) -> dict:
+    """Пересверить строки разбора с индексом.
+    -> {'checked','auto_closed','changed','done_checked','done_reopened','chz_errors'}.
 
-    Каждой открытой строке — classify; карточка нашлась (found) — строка закрывается
-    сама (resolution auto, receiving_store.reclassify_open). missing — статус
-    similar/new по названию ЧЗ: у строки без названия оно запрашивается
-    (receiving_chz.lookup — кэш, chz_stock.json, product/info), так «новая» позиция
+    Открытые строки — classify; карточка нашлась (found) — строка закрывается сама
+    (resolution auto, receiving_store.reclassify_open). missing — статус similar/new по
+    названию ЧЗ: у строки без названия оно запрашивается (fetch_chz=True:
+    receiving_chz.lookup — кэш, chz_stock.json, product/info), так «новая» позиция
     становится «похожей», когда ЧЗ ответил или в iiko завели похожую карточку.
-    checked — сколько строк пересверено; auto_closed — закрыто автоматически;
-    changed — у скольких сменились статус, карточки или кандидаты; chz_errors —
-    тексты сбоев ЧЗ (без секретов). Индекса нет — ничего не делает (нули).
+    fetch_chz=False — быстрый проход без сети (внутри обновления индекса, до отметки
+    «готово»): только то, что видно по индексу и уже известным названиям.
+    Строки «Сделано», ещё не подтверждённые индексом, проверяются индексом, собранным
+    после решения (receiving_store.recheck_done): GTIN так и не появился на актуальной
+    карточке — строка снова открыта (опечатка в штрихкоде, привязали не к той карточке).
+    checked — сколько открытых строк пересверено; auto_closed — закрыто автоматически;
+    changed — у скольких сменились статус, карточки или кандидаты; done_checked /
+    done_reopened — проверено и снова открыто строк «Сделано»; chz_errors — тексты
+    сбоев ЧЗ (без секретов). Индекса нет — ничего не делает (нули).
     """
-    summary = {'checked': 0, 'auto_closed': 0, 'changed': 0, 'chz_errors': []}
+    summary = {'checked': 0, 'auto_closed': 0, 'changed': 0, 'done_checked': 0,
+               'done_reopened': 0, 'chz_errors': []}
     if index is None:
         index = receiving_index.load_index()
     if not index:
-        print(f'{_LOG} пересверка открытых строк: индекса iiko нет — пропуск')
+        print(f'{_LOG} пересверка строк: индекса iiko нет — пропуск')
         return summary
     built_at = str(index.get('built_at') or '')
 
@@ -229,14 +263,12 @@ def reconcile_open_rows(index=None) -> dict:
             rows.append(receiving_store.get_review_item(gtin))
         except receiving_store.ReviewItemNotFound:
             continue   # строку закрыли или удалили между запросами
-    if not rows:
-        return summary
 
     bases = {row['gtin']: receiving_index.classify(row['gtin'], index) for row in rows}
     need_chz = [row['gtin'] for row in rows
                 if bases[row['gtin']].get('status') == 'missing' and not _chz_name(row.get('chz'))[0]]
     fetched = {}
-    if need_chz:
+    if need_chz and fetch_chz:
         try:
             found = receiving_chz.lookup(need_chz) or {}
             fetched = dict(found.get('items') or {})
@@ -261,8 +293,22 @@ def reconcile_open_rows(index=None) -> dict:
         if (result['status'] != row.get('status') or _ids(result['cards']) != _ids(row.get('cards'))
                 or _ids(result['candidates']) != _ids(row.get('candidates'))):
             summary['changed'] += 1
-    print(f'{_LOG} пересверка открытых строк: {summary["checked"]} проверено, '
-          f'{summary["auto_closed"]} закрыто автоматически, {summary["changed"]} изменилось')
+
+    for gtin in receiving_store.done_review_gtins():
+        try:
+            row = receiving_store.get_review_item(gtin)
+            result = _status_for(index, receiving_index.classify(gtin, index), row.get('chz') or {})
+            done = receiving_store.recheck_done(gtin, result['status'], result['cards'],
+                                                result['candidates'], built_at)
+        except receiving_store.ReviewItemNotFound:
+            continue
+        summary['done_checked'] += 1
+        if done.get('reopened'):
+            summary['done_reopened'] += 1
+    print(f'{_LOG} пересверка строк{"" if fetch_chz else " (быстрая)"}: {summary["checked"]} '
+          f'открытых проверено, {summary["auto_closed"]} закрыто автоматически, '
+          f'{summary["changed"]} изменилось; «Сделано»: {summary["done_checked"]} проверено, '
+          f'{summary["done_reopened"]} снова открыто')
     return summary
 
 
@@ -274,10 +320,17 @@ def run_index_refresh(trigger, *, lock=None, wait=0) -> dict:
     wait секунд). Ошибки пересборки (RefreshBusy, IndexSourceError, прочие) —
     пробрасываются, состояние ошибки уже записано индексом. Сбой пересверки индекс
     не отменяет: он — в reconcile_error.
-    -> {'index': index_info, 'reconcile': {...} | None, 'reconcile_error': str}.
+    -> {'index': index_info, 'reconcile_fast': {...} | None (быстрый проход внутри
+    обновления), 'reconcile': {...} | None (полный, с названиями ЧЗ), 'reconcile_error': str}.
     """
-    info = receiving_index.refresh_index(trigger, lock=lock, wait=wait)
-    summary = {'index': info, 'reconcile': None, 'reconcile_error': ''}
+    # Быстрая пересверка (без сети) — внутри обновления, до отметки «готово» и снятия
+    # лока: страница, дождавшись конца обновления, видит уже закрытые по индексу строки
+    # (ревью 2026-10-03). Названия ЧЗ для строк без названия (бар-ПК, минуты) — после.
+    fast = {}
+    info = receiving_index.refresh_index(
+        trigger, lock=lock, wait=wait,
+        after_save=lambda index: fast.update(reconcile_open_rows(index, fetch_chz=False)))
+    summary = {'index': info, 'reconcile_fast': fast or None, 'reconcile': None, 'reconcile_error': ''}
     try:
         summary['reconcile'] = reconcile_open_rows(receiving_index.load_index())
     except Exception as error:  # noqa: BLE001 — индекс уже обновлён
@@ -319,12 +372,13 @@ def start_receiving_index_refresh(trigger='button') -> tuple:
     return {'status': 'started'}, 202
 
 
-def _refresh_for_close() -> Optional[str]:
+def _refresh_for_close(newer_than: str = '') -> Optional[str]:
     """Пересобрать индекс для обработки приёмки. -> текст сбоя или None.
 
     Ждёт чужую пересборку до INDEX_WAIT_SEC и, взяв лок, сперва смотрит, не свежий
     ли индекс уже (его только что собрал другой воркер, кнопка или соседняя
-    приёмка): тогда пересборки нет. Иначе run_index_refresh('close') с этим локом —
+    приёмка) и не старше решения бухгалтера newer_than: тогда пересборки нет. Иначе
+    run_index_refresh('close') с этим локом —
     несколько зависших приёмок, подобранных разом, не пересобирают индекс подряд.
     Без кредов iiko — сразу NO_IIKO_TEXT (лок и состояние обновления не трогаются).
     """
@@ -335,7 +389,7 @@ def _refresh_for_close() -> Optional[str]:
     except Exception as error:  # noqa: BLE001 — RefreshBusy после ожидания и прочее
         return _error_text(error)
     try:
-        fresh = _is_fresh(receiving_index.load_index())
+        fresh = _is_fresh(receiving_index.load_index(), newer_than)
     except Exception:
         lock.release()
         raise
@@ -364,6 +418,46 @@ def _lookup_chz(gtins: list, notes: list) -> dict:
     for text in found.get('errors') or ():
         notes.append('Честный знак: ' + ' '.join(str(text).split()))
     return dict(found.get('items') or {})
+
+
+def _latest_decision(gtins: list) -> str:
+    """Самое позднее «закрыто» (resolved_at) среди закрытых строк этих GTIN, '' — нет таких."""
+    latest = ''
+    for gtin in gtins:
+        try:
+            row = receiving_store.get_review_item(gtin)
+        except receiving_store.ReviewItemNotFound:
+            continue
+        if row.get('state') == 'closed' and row.get('resolution') != 'not_needed':
+            latest = max(latest, str(row.get('resolved_at') or ''))
+    return latest
+
+
+def _notify_once(rid: int, notes: list) -> bool:
+    """Сообщение бухгалтерии о приёмке — один раз, по данным базы. -> ушло ли.
+
+    Строки берутся из базы (открытые этой приёмкой и всё ещё открытые —
+    receiving_store.rows_to_notify), а не из итога одного прогона: прогон, упавший
+    между открытием строк и отправкой, повторится и сообщение дошлёт. Отправка —
+    прямо в потоке обработки (он и так фоновый); отметка notified_at — после неё
+    (недоставленное уходит в очередь досылки внутри notify_receipt). Падение посреди
+    отправки — повтор обработки пошлёт ещё раз: лучше дубль, чем тишина.
+    """
+    try:
+        receipt = receiving_store.get_receipt(rid)
+        if receipt.get('notified_at'):
+            return False
+        rows = receiving_store.rows_to_notify(rid)
+        sent = False
+        if any(row.get('status') in NOTIFY_STATUSES for row in rows):
+            result = receiving_notify.notify_receipt(receipt, rows) or {}
+            sent = bool(result.get('sent')) or bool(result.get('failed'))
+        receiving_store.mark_notified(rid)
+        return sent
+    except Exception as error:  # noqa: BLE001 — строки уже заведены, сообщение вторично
+        _log_error(f'приёмка №{rid}: сообщение бухгалтерии', error)
+        notes.append('Сообщение бухгалтерии не отправлено: ' + _error_text(error))
+        return False
 
 
 def _finish(rid: int, state: str, notes: list, summary: dict) -> dict:
@@ -408,8 +502,11 @@ def process_receipt(receipt_id) -> dict:
                 return _finish(rid, 'error', notes, summary)
 
         result = classify_gtins(gtins, index, {})
-        if any(r['status'] != 'found' for r in result.values()) and not _is_fresh(index):
-            problem = _refresh_for_close()
+        # Решение бухгалтера новее индекса («Сделано» после утренней сборки): такой
+        # индекс не видит заведённую карточку — пересобрать, даже если он моложе 10 минут.
+        decided = _latest_decision([g for g in gtins if result[g]['status'] != 'found'])
+        if any(r['status'] != 'found' for r in result.values()) and not _is_fresh(index, decided):
+            problem = _refresh_for_close(decided)
             if problem:
                 notes.append('Индекс iiko не обновлён, сверено по прежнему: ' + problem)
             index = receiving_index.load_index() or index
@@ -421,7 +518,7 @@ def process_receipt(receipt_id) -> dict:
             result.update(classify_gtins(not_found, index, chz_items))
 
         built_at = str(index.get('built_at') or '')
-        opened_rows = []
+        opened = 0
         for gtin in gtins:
             item = result[gtin]
             summary['statuses'][item['status']] = summary['statuses'].get(item['status'], 0) + 1
@@ -429,17 +526,9 @@ def process_receipt(receipt_id) -> dict:
                                                  item['candidates'], chz_items.get(gtin) or {},
                                                  built_at)
             if done.get('opened'):
-                opened_rows.append(done['row'])
-        summary['opened'] = len(opened_rows)
-
-        if any(row.get('status') in NOTIFY_STATUSES for row in opened_rows):
-            try:
-                receipt = receiving_store.get_receipt(rid)
-                receiving_notify.notify_receipt_in_background(receipt, opened_rows)
-                summary['notified'] = True
-            except Exception as error:  # noqa: BLE001 — строки уже заведены, сообщение вторично
-                _log_error(f'приёмка №{rid}: сообщение бухгалтерии', error)
-                notes.append('Сообщение бухгалтерии не отправлено: ' + _error_text(error))
+                opened += 1
+        summary['opened'] = opened
+        summary['notified'] = _notify_once(rid, notes)
 
         _finish(rid, 'done', notes, summary)
         print(f'{_LOG} приёмка №{rid} обработана: позиций {summary["gtins"]}, '

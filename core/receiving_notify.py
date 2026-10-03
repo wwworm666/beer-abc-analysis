@@ -136,6 +136,23 @@ def _row_qty(row: dict, receipt_id) -> int:
     return _int(row.get('qty'))
 
 
+# «Новая» без названия ЧЗ: похожую карточку искать было не по чему (бар-ПК недоступен,
+# chz.py устарел, в каталоге ЧЗ карточки нет) — бухгалтеру сначала найти в iiko по
+# штрихкоду или поставщику, а не заводить сразу (риск дубля, ревью 2026-10-03).
+NO_NAME_NOTE = 'нет названия ЧЗ, похожие не проверены'
+
+
+def _has_name(row: dict) -> bool:
+    chz = row.get('chz') if isinstance(row.get('chz'), dict) else {}
+    return bool(chz.get('name') or chz.get('full_name'))
+
+
+def _pack_units(row: dict) -> str:
+    """Мультипак (ЧЗ: групповая упаковка) — сколько единиц в ней, иначе ''."""
+    chz = row.get('chz') if isinstance(row.get('chz'), dict) else {}
+    return str(chz.get('pack_units') or '') if chz.get('main_gtin') else ''
+
+
 def _row_title(row: dict) -> str:
     """Название из ЧЗ, иначе GTIN (у позиции без данных ЧЗ другого имени нет)."""
     chz = row.get('chz') if isinstance(row.get('chz'), dict) else {}
@@ -182,8 +199,13 @@ def format_receipt_message(receipt, rows) -> str:
     if listed:
         lines.append('')
     for row in listed[:MAX_LISTED]:
-        lines.append(f'- {html.escape(_row_title(row))} — {STATUS_LABELS[row["status"]]}, '
-                     f'{_row_qty(row, rid)} шт.')
+        label = STATUS_LABELS[row['status']]
+        if row['status'] == 'new' and not _has_name(row):
+            label += ' (' + NO_NAME_NOTE + ')'
+        units = _pack_units(row)
+        if units:
+            label += ' (групповая упаковка по ' + units + ' шт.)'
+        lines.append(f'- {html.escape(_row_title(row))} — {label}, {_row_qty(row, rid)} шт.')
     rest = len(listed) - MAX_LISTED
     if rest > 0:
         lines.append(f'И ещё {rest} — на странице разбора.')

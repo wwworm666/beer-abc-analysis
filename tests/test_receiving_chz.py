@@ -449,13 +449,29 @@ def test_normalize_item_fields_and_fallbacks():
     assert rc.normalize_item(RAW_G1) == {
         'name': 'Пиво светлое FH Helles «ФХ Хеллес»', 'brand': 'Без товарного знака',
         'full_name': RAW_G1['fullName'], 'product_group': 'beer', 'volume': '450 мл',
-        'package_type': 'UNIT'}
+        'package_type': 'UNIT', 'level': '', 'main_gtin': '', 'pack_units': ''}
     info = rc.normalize_item(RAW_G2)
     assert info['name'] == 'Сидр яблочный полусладкий'      # name пуст -> fullName, пробелы схлопнуты
     assert info['volume'] == '0.5'                           # volumeWeight — как есть
-    empty = {'name': '', 'brand': '', 'full_name': '', 'product_group': '', 'volume': '', 'package_type': ''}
+    empty = {'name': '', 'brand': '', 'full_name': '', 'product_group': '', 'volume': '', 'package_type': '',
+             'level': '', 'main_gtin': '', 'pack_units': ''}
     assert rc.normalize_item(None) == empty
     assert rc.normalize_item({'name': None, 'brand': {'x': 1}}) == empty
+
+
+def test_normalize_item_group_pack():
+    """Групповая упаковка (мультипак): GTIN единицы и сколько их — по спецификации product/info."""
+    pack = rc.normalize_item({'name': 'Жигули 6 банок', 'level': 'inner-pack', 'mainGtin': 4610093628430,
+                              'multiplier': 6})
+    assert (pack['level'], pack['main_gtin'], pack['pack_units']) == ('inner-pack', '04610093628430', '6')
+    unit = rc.normalize_item({'name': 'Жигули', 'level': 'trade-unit', 'mainGtin': 4610093628430,
+                              'multiplier': 1})
+    assert (unit['level'], unit['main_gtin'], unit['pack_units']) == ('trade-unit', '', '')
+    odd = rc.normalize_item({'level': 'inner-pack', 'mainGtin': 'abc', 'multiplier': 'x'})
+    assert (odd['main_gtin'], odd['pack_units']) == ('', '')
+    cached = rc._cache_info({'name': 'Жигули 6 банок', 'raw': {'level': 'inner-pack',
+                                                              'mainGtin': '4610093628430', 'multiplier': 6}})
+    assert cached['main_gtin'] == '04610093628430' and cached['pack_units'] == '6'
 
 
 @pytest.mark.parametrize('raw, volume', [
@@ -499,7 +515,7 @@ def test_lookup_order_cache_then_stock_then_remote(monkeypatch, tmp_path):
     assert items[G2]['product_group'] == 'BEER' and items[G2]['volume'] == ''
     assert items[G1]['source'] == 'product_info' and items[G1]['volume'] == '450 мл'
     assert set(items[G1]) == {'name', 'brand', 'full_name', 'product_group', 'volume', 'package_type',
-                              'source', 'fetched_at'}
+                              'level', 'main_gtin', 'pack_units', 'source', 'fetched_at'}
     assert result['missing'] == [G3]
     assert result['errors'] == [] and result['remote_used'] is True
 

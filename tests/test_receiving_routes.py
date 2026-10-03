@@ -421,6 +421,27 @@ def test_close_again_restarts_failed_processing_at_once(env):
     assert r.get_json()['receipt']['process_state'] == 'running'
 
 
+def test_invoice_upload_without_content_length_411(env):
+    """Ревью 2026-10-03: тело частями (chunked) без длины не читается целиком в память."""
+    c = env.client
+    rid = _new_receipt(c)
+    body = (b'--B\r\nContent-Disposition: form-data; name="photo"; filename="p.jpg"\r\n'
+            b'Content-Type: image/jpeg\r\n\r\n' + JPEG + b'\r\n--B--\r\n')
+    r = c.post('/api/receiving/%d/invoice' % rid, input_stream=io.BytesIO(body),
+               headers={'Content-Type': 'multipart/form-data; boundary=B',
+                        'Transfer-Encoding': 'chunked'})
+    assert r.status_code == 411
+    assert c.get('/api/receiving/%d' % rid).get_json()['invoices'] == []
+
+
+def test_huge_ids_are_404_not_500(env):
+    c = env.client
+    assert c.get('/api/receiving/99999999999999999999').status_code == 404
+    rid = _new_receipt(c)
+    r = c.delete('/api/receiving/%d/scans/99999999999999999999' % rid)
+    assert r.status_code == 404
+
+
 def test_close_unknown_receipt_404(env):
     assert env.client.post('/api/receiving/31337/close').status_code == 404
     assert env.service.processing_calls == []
