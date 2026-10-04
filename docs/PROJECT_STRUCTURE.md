@@ -370,7 +370,9 @@ chz_test/
     ├── pg{15,22,23}_csv/ # Скачанные CSV из dispenser API (ZIP)
     ├── token.json        # ЧЗ-токен (~10 часов)
     ├── refresh.log       # Лог последнего refresh
-    └── refresh.lock      # Cross-worker lock для /api/chz/refresh
+    ├── refresh.lock      # Cross-worker lock для /api/chz/refresh (снимает обёртка по завершении)
+    ├── refresh.pid       # pid обёртки текущего refresh (статус в любом worker'е)
+    └── refresh.exit      # Код выхода последнего refresh (пишет обёртка)
 ```
 
 CLI запускается **только на бар-ПК** с CryptoPro CSP + Rutoken. На сервере — через SSH (`remote_exec.py`).

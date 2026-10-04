@@ -26,6 +26,30 @@ _CHZ_REFRESH_LOG = _BASE_DIR / 'chz_test' / 'debug' / 'refresh.log'
 # Cross-worker lock-файл: gunicorn запускает 2 worker'а, у каждого свой _refresh_proc.
 # Без файлового флага оба worker'а могут запустить refresh параллельно (race на refresh.log).
 _CHZ_REFRESH_LOCK = _BASE_DIR / 'chz_test' / 'debug' / 'refresh.lock'
+# Состояние refresh для ЛЮБОГО worker'а (2026-10-04): статус раньше смотрел только свой
+# _refresh_proc, и опрос, попавший во второй worker, отвечал «не идёт, код None» —
+# страница «Сроки годности» писала «Ошибка (exit null)» посреди обновления, а лок
+# снимался, только если статус спросили у worker'а-владельца. Теперь фоновый процесс —
+# обёртка _REFRESH_RUNNER: её pid — в refresh.pid, код выхода она пишет в refresh.exit
+# и сама снимает refresh.lock.
+_CHZ_REFRESH_PID = _BASE_DIR / 'chz_test' / 'debug' / 'refresh.pid'
+_CHZ_REFRESH_EXIT = _BASE_DIR / 'chz_test' / 'debug' / 'refresh.exit'
+# Лок без живого процесса старше этого — висячий (refresh укладывается в 30 минут).
+_CHZ_REFRESH_STALE_SEC = 1800
+_REFRESH_RUNNER = (
+    "import os, subprocess, sys\n"
+    "rc = subprocess.call([sys.executable, sys.argv[1], 'run', 'search-stock'])\n"
+    "print('=== refresh finished, exit %d ===' % rc, flush=True)\n"
+    "try:\n"
+    "    with open(sys.argv[3], 'w') as f:\n"
+    "        f.write(str(rc))\n"
+    "finally:\n"
+    "    try:\n"
+    "        os.remove(sys.argv[2])\n"
+    "    except OSError:\n"
+    "        pass\n"
+    "sys.exit(rc)\n"
+)
 _refresh_proc: subprocess.Popen | None = None
 _refresh_log_file = None
 _refresh_lock = threading.Lock()
@@ -1144,6 +1168,47 @@ def get_chz_stock_api():
                     'total': len(items), 'matched': len(matched), 'q': query, 'limit': limit})
 
 
+def _pid_alive(pid: int) -> bool:
+    """Процесс жив (зомби — уже нет: обёртка перед выходом сняла лок и записала код)."""
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except OSError:
+        return False
+    try:
+        with open(f'/proc/{pid}/stat', encoding='ascii', errors='replace') as f:
+            return f.read().split(')')[-1].split()[0] != 'Z'
+    except (OSError, IndexError):
+        return True
+
+
+def _read_int(path: Path):
+    try:
+        return int(path.read_text(encoding='ascii').strip())
+    except (OSError, ValueError):
+        return None
+
+
+def _refresh_running() -> bool:
+    """Идёт ли refresh — по файлам, одинаково в любом worker'е.
+
+    Лок есть и pid обёртки жив — идёт. Лок есть, pid ещё не записан (миг между
+    созданием лока и Popen) — идёт, пока лок моложе _CHZ_REFRESH_STALE_SEC. Лок есть,
+    а обёртка мертва (убита вместе с контейнером) — не идёт: лок висячий.
+    """
+    try:
+        age = time.time() - _CHZ_REFRESH_LOCK.stat().st_mtime
+    except OSError:
+        return False
+    pid = _read_int(_CHZ_REFRESH_PID)
+    if pid is not None:
+        return _pid_alive(pid)
+    return age <= _CHZ_REFRESH_STALE_SEC
+
+
 def start_chz_refresh() -> tuple[dict, int]:
     """Запустить фоновое обновление кеша ЧЗ через /cises/search. Общая логика.
 
@@ -1176,16 +1241,20 @@ def start_chz_refresh() -> tuple[dict, int]:
             if _refresh_log_file is not None:
                 _refresh_log_file.close()
                 _refresh_log_file = None
-        # Попытка взять file-lock (atomic). Если уже взят — есть шанс что worker'у-владельцу
-        # дали умереть (stale lock). Проверяем mtime: если файл старше 30 минут — снимаем.
+        # Попытка взять file-lock (atomic). Лок есть, а refresh не идёт (обёртка умерла
+        # или лок старше _CHZ_REFRESH_STALE_SEC без pid) — лок висячий, снимаем.
         os.makedirs(_CHZ_REFRESH_LOCK.parent, exist_ok=True)
         try:
             if _CHZ_REFRESH_LOCK.exists():
-                age = time.time() - _CHZ_REFRESH_LOCK.stat().st_mtime
-                if age > 1800:  # 30 минут — refresh всегда укладывается
-                    _CHZ_REFRESH_LOCK.unlink()
-                else:
+                if _refresh_running():
                     return {'status': 'already_running', 'note': 'cross-worker lock'}, 409
+                _CHZ_REFRESH_LOCK.unlink()
+            # pid и код прошлого прогона — до лока: опрос в эту секунду видит «идёт».
+            for stale in (_CHZ_REFRESH_PID, _CHZ_REFRESH_EXIT):
+                try:
+                    stale.unlink()
+                except FileNotFoundError:
+                    pass
             fd = os.open(str(_CHZ_REFRESH_LOCK),
                          os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
             os.write(fd, f'{os.getpid()}\n'.encode())
@@ -1203,11 +1272,16 @@ def start_chz_refresh() -> tuple[dict, int]:
             log_file.write(f'=== refresh started {datetime.now().isoformat()} ===\n')
             log_file.flush()
             _refresh_proc = subprocess.Popen(
-                [sys.executable, remote_exec, 'run', 'search-stock'],
+                [sys.executable, '-c', _REFRESH_RUNNER, remote_exec,
+                 str(_CHZ_REFRESH_LOCK), str(_CHZ_REFRESH_EXIT)],
                 stdout=log_file,
                 stderr=log_file
             )
             _refresh_log_file = log_file
+            try:
+                _CHZ_REFRESH_PID.write_text(f'{_refresh_proc.pid}\n', encoding='ascii')
+            except OSError:
+                pass   # без pid статус решает по возрасту лока
         except OSError as e:
             if log_file is not None:
                 log_file.close()
@@ -1233,24 +1307,25 @@ def refresh_chz_stock():
 
 @stocks_bp.route('/api/chz/refresh/status', methods=['GET'])
 def refresh_chz_status():
-    """Статус последнего/текущего refresh: running/done/idle + хвост лога."""
-    global _refresh_proc
+    """Статус последнего/текущего refresh: running/done/idle + хвост лога.
+
+    Одинаков в любом worker'е gunicorn: идёт ли — по refresh.lock и pid обёртки,
+    код выхода — из refresh.exit, который пишет сама обёртка (см. _REFRESH_RUNNER).
+    """
+    global _refresh_proc, _refresh_log_file
     with _refresh_lock:
+        own_code = None
         if _refresh_proc is not None:
-            poll = _refresh_proc.poll()
-            running = poll is None
-            exit_code = poll
-            # Если процесс завершился — снимаем cross-worker lock, чтобы можно было
-            # запустить следующий refresh. Делаем только в worker'е-владельце процесса.
-            if not running:
-                try:
-                    if _CHZ_REFRESH_LOCK.exists():
-                        _CHZ_REFRESH_LOCK.unlink()
-                except OSError:
-                    pass
-        else:
-            running = False
-            exit_code = None
+            own_code = _refresh_proc.poll()          # заодно забрать завершённый процесс
+            if own_code is not None:
+                _refresh_proc = None
+                if _refresh_log_file is not None:
+                    _refresh_log_file.close()
+                    _refresh_log_file = None
+        running = _refresh_running()
+        exit_code = None if running else _read_int(_CHZ_REFRESH_EXIT)
+        if exit_code is None and not running:
+            exit_code = own_code                     # обёртку убили до записи кода
     log_tail = ''
     try:
         if _CHZ_REFRESH_LOG.exists():
