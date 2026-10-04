@@ -138,7 +138,7 @@ class El {
         if (this.disabled) return null;
         return this.dispatch('click', Object.assign({ button: 0 }, init || {}));
     }
-    focus() { if (El.doc) El.doc.activeElement = this; }
+    focus(opts) { this.focusOpts = opts || null; if (El.doc) El.doc.activeElement = this; }
     blur() { this.blurred++; if (El.doc && El.doc.activeElement === this) El.doc.activeElement = null; }
     select() {}
     scrollIntoView() { this.scrolled++; }
@@ -265,11 +265,18 @@ const RECEIPTS = [
     { id: 12, status: 'closed', note: '', created_at: '2026-10-03T08:00:00+03:00', created_by: 'Пётр',
       closed_at: '2026-10-03T09:00:00+03:00', closed_by: 'Пётр', process_state: 'done',
       processed_at: '2026-10-03T09:01:00+03:00', process_note: '',
-      counts: { units: 340, gtins: 18, rejected: 2, repeats: 5, invoices: 1 } },
+      counts: { units: 340, gtins: 18, rejected: 2, repeats: 5, invoices: 1 },
+      review: { open: 3, closed: 15, missing: 0 }, reviewed: false, can_delete: true },
     { id: 11, status: 'closed', note: 'Машина Бирмаркета', created_at: '2026-10-02T17:00:00+03:00', created_by: 'Пётр',
       closed_at: '2026-10-02T18:00:00+03:00', closed_by: 'Пётр', process_state: 'error',
       processed_at: '2026-10-02T18:01:00+03:00', process_note: 'Нет индекса iiko: Не настроено подключение к iiko',
-      counts: { units: 11, gtins: 3, rejected: 0, repeats: 0, invoices: 0 } },
+      counts: { units: 11, gtins: 3, rejected: 0, repeats: 0, invoices: 0 },
+      review: { open: 0, closed: 0, missing: 3 }, reviewed: false, can_delete: true },
+    { id: 10, status: 'closed', note: '', created_at: '2026-10-01T10:00:00+03:00', created_by: 'Анна',
+      closed_at: '2026-10-01T11:00:00+03:00', closed_by: 'Анна', process_state: 'done',
+      processed_at: '2026-10-01T11:01:00+03:00', process_note: '',
+      counts: { units: 24, gtins: 2, rejected: 0, repeats: 0, invoices: 0 },
+      review: { open: 0, closed: 2, missing: 0 }, reviewed: true, can_delete: false },
 ];
 
 const SUPPLIERS = ['Бирмаркет', 'Пивторг', 'Солодовня'];
@@ -290,6 +297,8 @@ function makeServer() {
         putReply: null,        // принудительный ответ PUT
         deferred: [],          // запросы, ответ на которые тест отдаст сам
         holdNext: null,        // предикат: какой запрос задержать
+        receipts: JSON.parse(JSON.stringify(RECEIPTS)),
+        deleteReply: null,     // принудительный ответ DELETE /api/receiving/<id>
     };
 
     function counts(items) {
@@ -309,16 +318,16 @@ function makeServer() {
         const u = new URL(url, 'http://test');
         const st = u.searchParams.get('state') || 'open';
         const statuses = (u.searchParams.get('status') || '').split(',').filter(Boolean);
-        const rid = u.searchParams.get('receipt_id');
+        const rids = (u.searchParams.get('receipt_id') || '').split(',').filter(Boolean);
         const q = (u.searchParams.get('q') || '').toLowerCase().replace(/ё/g, 'е');
         let items = db.rows;
-        if (rid) items = items.filter((r) => r.receipts.some((x) => String(x.id) === rid));
+        if (rids.length) items = items.filter((r) => r.receipts.some((x) => rids.includes(String(x.id))));
         if (q) items = items.filter((r) => JSON.stringify(r).toLowerCase().replace(/ё/g, 'е').includes(q));
         const selected = items.filter((r) => (st === 'all' || r.state === st)
             && (!statuses.length || statuses.includes(r.status)));
         selected.sort((a, b) => (a.state === b.state ? 0 : a.state === 'open' ? -1 : 1));
         return { rows: selected, total: selected.length + db.totalExtra, counts: counts(items),
-                 index: db.index, job: db.job, suppliers: SUPPLIERS, receipts: RECEIPTS };
+                 index: db.index, job: db.job, suppliers: SUPPLIERS, receipts: db.receipts };
     }
 
     function put(gtin, body) {
@@ -390,6 +399,14 @@ function makeServer() {
         }
         const m = /^\/api\/receiving\/(\d+)$/.exec(url);
         if (method === 'GET' && m) return receipt(m[1]);
+        if (method === 'DELETE' && m) {
+            if (db.deleteReply) return db.deleteReply;
+            const gone = db.receipts.find((r) => String(r.id) === m[1]);
+            if (!gone) return { status: 404, data: { error: 'Приёмка не найдена' } };
+            db.receipts = db.receipts.filter((r) => r !== gone);
+            return { status: 200, data: { deleted: true, receipt: gone, rows_deleted: 2, rows_kept: 1,
+                                          invoices_deleted: gone.counts.invoices } };
+        }
         return { status: 404, data: { error: 'нет маршрута ' + method + ' ' + url } };
     }
 
@@ -408,6 +425,8 @@ function boot(opts) {
     const clipboard = [];
     const urls = [];
     const execCalls = [];
+    const confirms = [];
+    let confirmAnswer = options.confirm !== false;
     let timers = [];
     let timerSeq = 0;
     const body = new El('body');
@@ -455,6 +474,7 @@ function boot(opts) {
             clipboard: { writeText: (text) => { clipboard.push(text); return Promise.resolve(); } },
         },
         fetch: fetchStub,
+        confirm: (text) => { confirms.push(text); return confirmAnswer; },
         setTimeout: (fn, ms) => { const id = ++timerSeq; timers.push({ id, fn, ms }); return id; },
         clearTimeout: (id) => { timers = timers.filter((t) => t.id !== id); },
     };
@@ -465,7 +485,9 @@ function boot(opts) {
     new vm.Script(JS, { filename: 'review.js' }).runInContext(sandbox);
 
     const env = {
-        sandbox, byId, server, db: server.db, calls, clipboard, urls, execCalls, body, docListeners,
+        sandbox, byId, server, db: server.db, calls, clipboard, urls, execCalls, body, docListeners, confirms,
+        setConfirm(value) { confirmAnswer = value; },
+        chip(id) { return byId.rvPickList.children.find((n) => n.dataset.receipt === String(id)); },
         api: sandbox.__rvReview,
         timers: () => timers.slice(),
         async runTimers(ms) {
@@ -504,7 +526,7 @@ await test('при старте один запрос разбора: вклад
     assert.equal(gets.length, 1, 'страница не сходила за данными или сходила дважды');
     assert.equal(gets[0].url, '/api/receiving/review?state=open&limit=200');
     assert.equal(gets[0].method, 'GET');
-    assert.equal(b.rvReceiptChip.hidden, true, 'плашка приёмки без ?receipt=');
+    assert.ok(env.chip('all').classList.contains('is-on'), 'без ?receipt= выбраны «Все приёмки»');
     assert.equal(b.rvError.hidden, true);
 });
 
@@ -639,7 +661,7 @@ await test('кнопки: «Скопировать» у новой и похож
 
 await test('блок «Приёмки»: номер, кто и когда, шт., позиции, сверка, ошибка сверки', () => {
     const items = b.rvReceipts.children;
-    assert.equal(items.length, 2);
+    assert.equal(items.length, 3);
     const first = flat(items[0].textContent);
     assert.match(first, /^№1203\.10 09:00 · Пётрсверена/);
     assert.match(first, /340 шт\. · 18 позиций · отклонено 2 · повторов 5 · фото накладных 1/);
@@ -973,6 +995,9 @@ await test('ключевые слова — те же правила, что у 
     assert.deepEqual([...k('Пиво светлое пастеризованное "Балтика 7 Экспортное" 0,45 бут.')], ['балтика', 'экспортное']);
     assert.deepEqual([...k('Ёлка ёлка  ЁЛКА')], ['елка']);
     assert.deepEqual([...k('ab 12345 IPA')], ['ipa']);
+    // Ревью 2026-10-04: объём одним словом — не слово, описания ЧЗ мужского рода — стоп-слова.
+    assert.deepEqual([...k('КЕГ Варка Лагер 30л. 500мл')], ['варка', 'лагер']);
+    assert.deepEqual([...k('Сидр традиционный газированный Майзельс')], ['сидр', 'майзельс']);
     assert.deepEqual([...k('')], []);
     assert.equal(env.api.searchQueryFor({ chz: { name: 'Напиток пивной Хугарден Вит Бланш' }, barcode: '1' }), 'хугарден вит');
 });
@@ -1108,21 +1133,60 @@ await test('обновление уже идёт при открытии стр�
     assert.equal(e2.byId.rvRefresh.disabled, false);
 });
 
-await test('?receipt=12: фильтр в запросе и плашка; крестик снимает фильтр и чистит адрес', async () => {
+await test('?receipt=12: фильтр в запросе и выбранная приёмка; «Все приёмки» снимает выбор и чистит адрес', async () => {
     const e2 = boot({ search: '?receipt=12' });
     await flush();
     assert.equal(e2.calls[0].url, '/api/receiving/review?state=open&receipt_id=12&limit=200');
-    assert.equal(e2.byId.rvReceiptChip.hidden, false);
-    assert.equal(e2.byId.rvReceiptLabel.textContent, 'Приёмка №12');
+    assert.ok(e2.chip(12).classList.contains('is-on'));
+    assert.equal(e2.chip(12).getAttribute('aria-pressed'), 'true');
+    assert.ok(!e2.chip('all').classList.contains('is-on'));
+    assert.equal(e2.byId.rvPickSub.textContent, 'выбрана приёмка №12 — показаны только её позиции');
     assert.deepEqual(e2.rows().map((r) => r.dataset.gtin), ['04650075420019', '04607043562301', '14600000000005']);
     assert.ok(e2.byId.rvReceipts.children[0].classList.contains('is-current'), 'приёмка не подсвечена в списке');
     e2.clearCalls();
-    e2.byId.rvReceiptClear.click();
+    e2.chip('all').click();
     await flush();
     assert.deepEqual(e2.urls, ['/receiving/review']);
     assert.equal(e2.calls[0].url, '/api/receiving/review?state=open&limit=200');
-    assert.equal(e2.byId.rvReceiptChip.hidden, true);
+    assert.ok(e2.chip('all').classList.contains('is-on'));
     assert.equal(e2.rows().length, 4);
+});
+
+await test('выбор приёмок: неразобранные вверху, щелчок добавляет и убирает, можно несколько', async () => {
+    const e2 = boot();
+    await flush();
+    const chips = e2.byId.rvPickList.children.map((n) => n.dataset.receipt);
+    assert.deepEqual(chips, ['all', '12', '11'], 'разобранная №10 в выбор не попадает');
+    assert.equal(flat(e2.chip(12).textContent), '№12 · 03.103 к разбору');
+    assert.equal(flat(e2.chip(11).textContent), '№11 · 02.10ошибка сверки');
+    assert.match(e2.chip(12).title, /Приёмка №12: 03\.10 09:00, Пётр; 340 шт\., 18 позиций/);
+    assert.equal(e2.byId.rvPickSub.textContent, 'неразобранных 2');
+    e2.clearCalls();
+    e2.chip(12).click();
+    await flush();
+    e2.chip(11).click();
+    await flush();
+    assert.equal(e2.lastGet('/api/receiving/review?').url, '/api/receiving/review?state=open&receipt_id=12,11&limit=200');
+    assert.deepEqual(e2.urls.slice(-1), ['/receiving/review?receipt=12,11']);
+    assert.ok(e2.chip(12).classList.contains('is-on') && e2.chip(11).classList.contains('is-on'));
+    assert.equal(e2.byId.rvPickSub.textContent, 'выбрано приёмок: 2 — показаны только их позиции');
+    assert.equal(e2.rows().length, 4, 'строки обеих приёмок');
+    e2.chip(12).click();
+    await flush();
+    assert.equal(e2.lastGet('/api/receiving/review?').url, '/api/receiving/review?state=open&receipt_id=11&limit=200');
+    assert.ok(!e2.chip(12).classList.contains('is-on'), 'повторный щелчок не снял выбор');
+});
+
+await test('?receipt=12,10,99: выбранные видны, даже разобранная и несуществующая', async () => {
+    const e2 = boot({ search: '?receipt=12,10,99' });
+    await flush();
+    assert.equal(e2.calls[0].url, '/api/receiving/review?state=open&receipt_id=12,10,99&limit=200');
+    assert.deepEqual(e2.byId.rvPickList.children.map((n) => n.dataset.receipt), ['all', '12', '11', '10', '99']);
+    assert.equal(flat(e2.chip(10).textContent), '№10 · 01.10разобрана');
+    assert.equal(flat(e2.chip(99).textContent), '№99не найдена');
+    e2.chip(99).click();
+    await flush();
+    assert.deepEqual(e2.urls.slice(-1), ['/receiving/review?receipt=12,10']);
 });
 
 await test('щелчок по приёмке в строке и «Показать позиции» ставят фильтр без перехода', async () => {
@@ -1135,7 +1199,8 @@ await test('щелчок по приёмке в строке и «Показат
     assert.ok(ev.defaultPrevented, 'ссылка перезагрузила страницу');
     assert.deepEqual(e2.urls, ['/receiving/review?receipt=11']);
     assert.equal(e2.calls[0].url, '/api/receiving/review?state=open&receipt_id=11&limit=200');
-    assert.equal(e2.byId.rvReceiptLabel.textContent, 'Приёмка №11');
+    assert.equal(JSON.stringify(e2.api.state.picked), '[11]');     // массив из другого контекста vm
+    assert.ok(e2.chip(11).classList.contains('is-on'));
     assert.equal(e2.byId.rvTabs.scrolled, 1, 'таблица не прокручена в вид');
     const ctrl = findAll(e2.row('00000046123456'), byTag('a'))[0].click({ ctrlKey: true });
     assert.ok(!ctrl.defaultPrevented, 'Ctrl-щелчок не открыл новую вкладку');
@@ -1145,6 +1210,128 @@ await test('щелчок по приёмке в строке и «Показат
     await flush();
     assert.equal(e2.calls[0].url, '/api/receiving/review?state=open&receipt_id=12&limit=200');
     assert.deepEqual(e2.urls.slice(-1), ['/receiving/review?receipt=12']);
+});
+
+await test('история: прогресс разбора, «Удалить приёмку» только у разобранных не полностью', async () => {
+    const e2 = boot();
+    await flush();
+    const [r12, r11, r10] = e2.byId.rvReceipts.children;
+    assert.equal(findAll(r12, hasClass('rv-rc-prog'))[0].textContent, 'к разбору 3 из 18');
+    assert.equal(findAll(r11, hasClass('rv-rc-prog'))[0].textContent, 'не сверено 3');
+    const done = findAll(r10, hasClass('rv-rc-prog'))[0];
+    assert.equal(done.textContent, 'разобрана');
+    assert.ok(done.classList.contains('is-done'));
+    const del = (box) => findAll(box, (n) => n.dataset.action === 'delete');
+    assert.equal(del(r12).length, 1);
+    assert.equal(del(r12)[0].textContent, 'Удалить приёмку');
+    assert.equal(del(r11).length, 1);
+    assert.equal(del(r10).length, 0, 'у разобранной полностью кнопки нет');
+});
+
+await test('«Удалить приёмку»: подтверждение, DELETE, выбор снят, список перечитан', async () => {
+    const e2 = boot({ search: '?receipt=12,11' });
+    await flush();
+    const button = () => findAll(e2.byId.rvReceipts.children.find((n) => /№12/.test(n.textContent)),
+        (n) => n.dataset.action === 'delete')[0];
+    e2.setConfirm(false);
+    e2.clearCalls();
+    button().click();
+    await flush();
+    assert.equal(e2.calls.length, 0, 'без подтверждения ушёл запрос');
+    assert.equal(e2.confirms.length, 1);
+    assert.match(e2.confirms[0], /^Удалить приёмку №12 \(03\.10 09:00, Пётр\)\?/);
+    assert.match(e2.confirms[0], /340 шт\., 18 позиций, фото накладных 1/);
+    assert.match(e2.confirms[0], /Вернуть нельзя\.$/);
+
+    e2.setConfirm(true);
+    button().click();
+    await flush();
+    assert.equal(e2.calls[0].method, 'DELETE');
+    assert.equal(e2.calls[0].url, '/api/receiving/12');
+    assert.equal(e2.lastGet('/api/receiving/review?').url, '/api/receiving/review?state=open&receipt_id=11&limit=200');
+    assert.deepEqual(e2.urls.slice(-1), ['/receiving/review?receipt=11']);
+    assert.equal(e2.byId.rvToast.textContent, 'Приёмка №12 удалена; убрано из разбора позиций: 2');
+    assert.ok(!e2.byId.rvReceipts.children.some((n) => /№12/.test(n.textContent)), 'удалённая осталась в истории');
+});
+
+await test('«Удалить приёмку»: 409 — текст сервера и перечитанный список; нет связи — сообщение', async () => {
+    const e2 = boot({ setup: (db) => {
+        db.deleteReply = { status: 409, data: { error: 'Приёмка разобрана полностью — она остаётся в истории',
+                                                 code: 'receipt_reviewed' } };
+    } });
+    await flush();
+    const del = () => findAll(e2.byId.rvReceipts.children[0], (n) => n.dataset.action === 'delete')[0];
+    e2.clearCalls();
+    del().click();
+    await flush();
+    assert.equal(e2.byId.rvToast.textContent, 'Приёмка разобрана полностью — она остаётся в истории');
+    assert.ok(e2.byId.rvToast.classList.contains('is-bad'));
+    assert.ok(e2.calls.some((c) => c.method === 'GET' && c.url.startsWith('/api/receiving/review?')), 'список не перечитан');
+    e2.db.network = true;
+    del().click();
+    await flush();
+    e2.db.network = false;
+    assert.equal(e2.byId.rvToast.textContent, 'Нет связи с сервером — приёмка не удалена');
+    assert.equal(del().textContent, 'Удалить приёмку', 'кнопка не вернулась после сбоя');
+});
+
+await test('удаление: приёмка уходит из истории и выбора сразу, даже если перечитать не удалось', async () => {
+    const e2 = boot();
+    await flush();
+    const box = () => e2.byId.rvReceipts.children.find((n) => /№12/.test(n.textContent));
+    e2.db.holdNext = (call) => call.method === 'GET' && call.url.startsWith('/api/receiving/review?');
+    findAll(box(), (n) => n.dataset.action === 'delete')[0].click();
+    await flush();
+    assert.equal(box(), undefined, 'удалённая приёмка ещё в истории до ответа');
+    assert.equal(e2.chip(12), undefined, 'удалённая приёмка ещё в выборе');
+    e2.db.reviewReply = { status: 503, data: { error: 'База приёмки недоступна' } };   // перечитать не удалось
+    await e2.release();
+    assert.equal(box(), undefined, 'после сбоя перечитывания удалённая вернулась');
+    assert.equal(e2.chip(12), undefined);
+});
+
+await test('пустая таблица у выбранных приёмок объясняет, почему: сверяется, не прошла, нет такой', async () => {
+    const e2 = boot({ search: '?receipt=11', setup: (db) => { db.rows = []; } });
+    await flush();
+    assert.equal(e2.byId.rvRows.textContent,
+        'Сверка приёмки №11 с iiko не прошла: Нет индекса iiko: Не настроено подключение к iiko');
+    const e3 = boot({ search: '?receipt=99', setup: (db) => { db.rows = []; } });
+    await flush();
+    assert.equal(e3.byId.rvRows.textContent, 'Приёмки №99 нет — удалена или номер неверный');
+    assert.equal(flat(e3.chip(99).textContent), '№99не найдена');
+    const e4 = boot({ search: '?receipt=12', setup: (db) => {
+        db.rows = [];
+        db.receipts[0] = Object.assign({}, db.receipts[0], { process_state: 'running', can_delete: false });
+    } });
+    await flush();
+    assert.equal(e4.byId.rvRows.textContent, 'Приёмка №12 ещё сверяется с iiko — позиции появятся после сверки');
+    assert.equal(findAll(e4.byId.rvReceipts.children[0], (n) => n.dataset.action === 'delete').length, 0,
+        'у сверяемой приёмки кнопки удаления нет');
+});
+
+await test('выбранная из строки приёмка не «не найдена», пока список перечитывается', async () => {
+    const e2 = boot();
+    await flush();
+    e2.db.holdNext = (call) => call.method === 'GET' && call.url.startsWith('/api/receiving/review?');
+    e2.api.setReceipt(7);
+    await flush();
+    assert.equal(flat(e2.chip(7).textContent), '№7', 'до ответа приёмка помечена «не найдена»');
+    e2.db.reviewReply = { status: 503, data: { error: 'База приёмки недоступна' } };   // загрузка не удалась
+    await e2.release();
+    assert.equal(flat(e2.chip(7).textContent), '№7', 'после сбоя загрузки приёмка помечена «не найдена»');
+});
+
+await test('фокус клавиатуры остаётся на чипе приёмки после щелчка', async () => {
+    const e2 = boot();
+    await flush();
+    e2.chip(11).focus();
+    e2.chip(11).click();
+    await flush();
+    assert.equal(e2.document.activeElement, e2.chip(11), 'фокус ушёл с чипа');
+    assert.ok(e2.chip(11).classList.contains('is-on'));
+    // Ревью 2026-10-04: фокус возвращается без прокрутки — автообновление списка не
+    // уводит страницу от строки, с которой работают, обратно к чипу.
+    assert.equal(JSON.stringify(e2.chip(11).focusOpts), JSON.stringify({ preventScroll: true }));
 });
 
 await test('кривой ?receipt= игнорируется', async () => {

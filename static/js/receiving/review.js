@@ -3,7 +3,9 @@
    Данные — GET /api/receiving/review (routes/receiving.py), решения бухгалтера —
    PUT /api/receiving/review/<gtin>, «Поиск в iiko» — GET /api/receiving/products,
    «Обновить из iiko» — POST /api/receiving/barcodes/refresh и опрос
-   /api/receiving/barcodes/status, подробности приёмки — GET /api/receiving/<id>.
+   /api/receiving/barcodes/status, подробности приёмки — GET /api/receiving/<id>,
+   «Удалить приёмку» — DELETE /api/receiving/<id>. Какие приёмки разбирать — выбор
+   вверху страницы (несколько сразу, адрес ?receipt=12,15).
    Статусы, счётчики вкладок и порядок строк считает сервер
    (core/receiving_store.list_review); здесь только показ и действия — второй копии
    правил на странице нет.
@@ -57,8 +59,12 @@
     const TOAST_BAD_MS = 8000;
     // Сколько держится надпись «Скопировано» на кнопке.
     const FLASH_MS = 1500;
-    // Номер приёмки в ?receipt= — до 9 цифр (как r\d{1,9} в именах фото накладных).
-    const RECEIPT_PARAM_RE = /(?:^\?|&)receipt=(\d{1,9})(?:&|$)/;
+    // Номера приёмок в ?receipt= — до 9 цифр каждый (как r\d{1,9} в именах фото
+    // накладных), несколько через запятую: выбор приёмок для разбора.
+    const RECEIPT_PARAM_RE = /(?:^\?|&)receipt=(\d{1,9}(?:,\d{1,9})*)(?:&|$)/;
+    // Сколько приёмок выбрать разом — REVIEW_RECEIPTS_MAX маршрута (RECEIPT_FILTER_MAX хранилища).
+    const PICK_MAX = 50;
+    const POSITION_WORDS = ['позиция', 'позиции', 'позиций'];
 
     // Стоп-слова «похожей карточки» — копия STOP_WORDS из core/receiving_index.py
     // (паритет проверяет tests/test_receiving_review_render.mjs): общие слова
@@ -68,7 +74,13 @@
         'фильтрованное', 'нефильтрованное', 'пастеризованное', 'непастеризованное',
         'осветленное', 'неосветленное', 'бут', 'бутылка', 'банка', 'кег', 'кега',
         'стекло', 'пэт', 'алк', 'безалкогольное',
+        'светлый', 'темный', 'фильтрованный', 'нефильтрованный', 'пастеризованный',
+        'непастеризованный', 'осветленный', 'неосветленный', 'безалкогольный',
+        'традиционный', 'газированный', 'игристый', 'фруктовый', 'медовуха',
     ]);
+    // Объём одним словом («30л», «500мл»; VOLUME_WORD_RE в индексе) в запрос «Найти в iiko»
+    // не идёт: поиск ищет слова подстрокой, а объём в карточках пишут по-разному («30 л»).
+    const VOLUME_WORD_RE = /^\d+(?:мл|л|ml|l)$/;
 
     // Вкладки: что запросить у сервера (state, status) и какой счётчик показать.
     const TABS = [
@@ -127,7 +139,8 @@
     const state = {
         tab: 'open',
         q: '',
-        receipt: null,        // номер приёмки из ?receipt= (или «Показать позиции»)
+        picked: [],           // выбранные приёмки: ?receipt=12,15, выбор вверху, «Показать позиции»
+        loadedPicked: [],     // выбор, для которого пришёл последний ответ (receipts — по нему)
         data: null,           // последний ответ /api/receiving/review
         rows: [],
         index: null,
@@ -147,6 +160,7 @@
         searchTimer: null,
         iiko: { q: '', seq: 0, cards: null },
         receiptDetails: {},   // id -> {open, data}
+        deleting: {},         // id -> true, пока уходит удаление приёмки
     };
     // Узлы, которые строятся один раз (вкладки), и элементы строк по GTIN.
     const nodes = { tabs: null, rows: {}, notes: {} };
@@ -262,7 +276,7 @@
         const tab = tabById(state.tab);
         const params = ['state=' + tab.state];
         if (tab.status) params.push('status=' + tab.status);
-        if (state.receipt) params.push('receipt_id=' + state.receipt);
+        if (state.picked.length) params.push('receipt_id=' + state.picked.join(','));
         if (state.q) params.push('q=' + encodeURIComponent(state.q));
         params.push('limit=' + LIST_LIMIT);
         return API_REVIEW + '?' + params.join('&');
@@ -281,6 +295,7 @@
     // ответ на устаревший запрос отбрасывается (docs/lessons.md).
     async function load() {
         const seq = ++state.seq;
+        const picked = state.picked.slice();
         state.loading = true;
         renderCount();
         let res;
@@ -309,6 +324,7 @@
         // строку, сохранится она как обычно — по уходу из поля (ревью 2026-10-03).
         const typing = draftNotes();
         applyData(res.data);
+        state.loadedPicked = picked;
         render();
         restoreNotes(typing);
         // Индекс обновляет кто-то другой (утреннее обновление, вторая вкладка, закрытие
@@ -320,8 +336,8 @@
 
     function render() {
         renderIndex();
+        renderPicker();
         renderTabs();
-        renderFilter();
         renderCount();
         renderRows();
         renderReceipts();
@@ -433,9 +449,89 @@
         });
     }
 
-    function renderFilter() {
-        $('rvReceiptChip').hidden = !state.receipt;
-        $('rvReceiptLabel').textContent = state.receipt ? 'Приёмка №' + state.receipt : '';
+    // ==================== Выбор приёмок ====================
+
+    function pickedHas(id) {
+        return state.picked.indexOf(Number(id)) !== -1;
+    }
+
+    // Приёмку есть что разбирать: закрыта, позиции есть, а разобрана не полностью
+    // (сервер: reviewed=false — сверка не прошла, строки не заведены или есть открытые).
+    function needsReview(r) {
+        return Boolean(r) && r.status === 'closed' && !r.reviewed && Number((r.counts || {}).gtins) > 0;
+    }
+
+    // Подпись на приёмке в выборе: сколько её позиций ещё к разбору или почему их не видно.
+    // Приёмку выбрали после последнего ответа сервера (ещё грузится или загрузка не
+    // удалась) — её данных нет не потому, что её нет.
+    function pickedLoaded(id) {
+        return Boolean(state.data) && state.loadedPicked.indexOf(Number(id)) !== -1;
+    }
+
+    function pickNote(r, id) {
+        if (!r) return pickedLoaded(id) ? { text: 'не найдена', cls: 'is-error' } : { text: '', cls: '' };
+        if (r.status !== 'closed') return { text: 'не завершена', cls: 'is-wait' };
+        if (r.process_state === 'error') return { text: 'ошибка сверки', cls: 'is-error' };
+        if (r.process_state !== 'done') return { text: 'сверяется', cls: 'is-wait' };
+        if (r.reviewed || !Number((r.counts || {}).gtins)) return { text: 'разобрана', cls: '' };
+        return { text: fmtInt((r.review || {}).open) + ' к разбору', cls: '' };
+    }
+
+    function pickNode(id, r) {
+        const on = pickedHas(id);
+        const button = el('button', 'rv-chip' + (on ? ' is-on' : ''));
+        button.type = 'button';
+        button.dataset.receipt = String(id);
+        button.setAttribute('aria-pressed', on ? 'true' : 'false');
+        const day = r ? fmtStamp(r.closed_at || r.created_at).slice(0, 5) : '';
+        button.appendChild(el('span', '', '№' + id + (day ? ' · ' + day : '')));
+        const note = pickNote(r, id);
+        button.appendChild(el('span', 'rv-chip-n' + (note.cls ? ' ' + note.cls : ''), note.text));
+        if (r) {
+            const c = r.counts || {};
+            button.title = 'Приёмка №' + id + ': ' + [fmtStamp(r.closed_at || r.created_at), r.closed_by || r.created_by]
+                .filter(Boolean).join(', ') + '; ' + fmtInt(c.units) + ' шт., ' + fmtInt(c.gtins) + ' '
+                + plural(c.gtins, POSITION_WORDS);
+        }
+        button.addEventListener('click', () => togglePick(id));
+        return button;
+    }
+
+    function renderPicker() {
+        const box = $('rvPickList');
+        // Чипы строятся заново: фокус клавиатуры возвращается на тот же чип (как у заметок).
+        const active = document.activeElement;
+        const focusKey = active && active.parentNode === box && active.dataset ? active.dataset.receipt : null;
+        clear(box);
+        const known = {};
+        state.receipts.forEach((r) => { known[Number(r.id)] = r; });
+        const ids = state.receipts.filter((r) => needsReview(r) || pickedHas(r.id)).map((r) => Number(r.id));
+        state.picked.forEach((id) => { if (ids.indexOf(id) === -1) ids.push(id); });
+
+        const all = el('button', 'rv-chip' + (state.picked.length ? '' : ' is-on'), 'Все приёмки');
+        all.type = 'button';
+        all.dataset.receipt = 'all';
+        all.setAttribute('aria-pressed', state.picked.length ? 'false' : 'true');
+        all.addEventListener('click', () => setPicked([]));
+        box.appendChild(all);
+        ids.forEach((id) => box.appendChild(pickNode(id, known[id] || null)));
+        if (focusKey) {
+            const again = box.children ? Array.prototype.find.call(box.children, (n) => n.dataset && n.dataset.receipt === focusKey) : null;
+            // preventScroll: автообновление списка (возврат во вкладку, конец обновления
+            // индекса) не прокручивает страницу обратно к чипу (ревью 2026-10-04).
+            if (again && typeof again.focus === 'function') again.focus({ preventScroll: true });
+        }
+
+        const waiting = state.receipts.filter(needsReview).length;
+        let sub = '';
+        if (state.picked.length === 1) {
+            sub = 'выбрана приёмка №' + state.picked[0] + ' — показаны только её позиции';
+        } else if (state.picked.length) {
+            sub = 'выбрано приёмок: ' + state.picked.length + ' — показаны только их позиции';
+        } else if (state.data) {
+            sub = waiting ? 'неразобранных ' + fmtInt(waiting) : 'неразобранных приёмок нет';
+        }
+        $('rvPickSub').textContent = sub;
     }
 
     function renderCount() {
@@ -451,7 +547,11 @@
     function emptyText() {
         if (!state.data) return state.error ? 'Список не загружен' : 'Загрузка...';
         if (state.q) return 'По запросу «' + state.q + '» ничего не нашлось';
-        const scope = state.receipt ? 'В приёмке №' + state.receipt + ' ' : '';
+        const reason = pickedReason();
+        if (reason) return reason;
+        let scope = '';
+        if (state.picked.length === 1) scope = 'В приёмке №' + state.picked[0] + ' ';
+        else if (state.picked.length > 1) scope = 'В выбранных приёмках ';
         if (state.tab === 'closed') return (scope || 'Пока ') + 'закрытых строк нет';
         if (state.tab === 'all') {
             return scope ? scope + 'строк разбора нет'
@@ -461,6 +561,28 @@
         if (tab.status) return (scope || '') + 'Строк со статусом «' + STATUS_LABELS[tab.status] + '» нет';
         const nothing = 'разбирать нечего: всё принятое есть в iiko';
         return scope ? scope + nothing : 'Р' + nothing.slice(1);
+    }
+
+    // Пустая таблица по выбранным приёмкам: их строк нет, потому что сверка ещё идёт или
+    // не прошла, приёмка не завершена или её нет, — а не потому, что «всё есть в iiko».
+    function pickedReason() {
+        if (!state.picked.length) return '';
+        const known = {};
+        state.receipts.forEach((r) => { known[Number(r.id)] = r; });
+        const notes = [];
+        state.picked.forEach((id) => {
+            const r = known[id];
+            if (!r) {
+                if (pickedLoaded(id)) notes.push('Приёмки №' + id + ' нет — удалена или номер неверный');
+            } else if (r.status !== 'closed') {
+                notes.push('Приёмка №' + id + ' ещё не завершена');
+            } else if (r.process_state === 'error') {
+                notes.push('Сверка приёмки №' + id + ' с iiko не прошла' + (r.process_note ? ': ' + r.process_note : ''));
+            } else if (r.process_state !== 'done') {
+                notes.push('Приёмка №' + id + ' ещё сверяется с iiko — позиции появятся после сверки');
+            }
+        });
+        return notes.join('. ');
     }
 
     function renderRows() {
@@ -894,13 +1016,15 @@
         else toast('Не удалось скопировать: браузер не дал доступ к буферу обмена', true);
     }
 
-    // Значимые слова названия — те же правила, что у «похожей карточки»
-    // (core/receiving_index._name_words): нижний регистр, ё -> е, знаки -> пробел,
-    // от 3 букв, не из одних цифр, без стоп-слов, без повторов.
+    // Значимые слова названия — правила «похожей карточки» (core/receiving_index._name_words):
+    // нижний регистр, ё -> е, знаки -> пробел, от 3 букв, не из одних цифр, без стоп-слов,
+    // без повторов. Два отличия — поиск в iiko ищет слова запроса подстрокой в имени
+    // карточки: объём («30л») не берётся, мягкий и твёрдый знак остаются.
     function keywords(text) {
         const words = [];
         fold(text).replace(/[^\p{L}\p{N}_\s]+/gu, ' ').split(/\s+/).forEach((word) => {
             if (word.length < MIN_WORD_LEN || /^\d+$/.test(word) || STOP_WORDS.has(word)) return;
+            if (VOLUME_WORD_RE.test(word)) return;
             if (words.indexOf(word) === -1) words.push(word);
         });
         return words;
@@ -1092,18 +1216,47 @@
 
     function syncUrl() {
         if (!window.history || typeof window.history.replaceState !== 'function') return;
-        const url = location.pathname + (state.receipt ? '?receipt=' + state.receipt : '');
+        const url = location.pathname + (state.picked.length ? '?receipt=' + state.picked.join(',') : '');
         try { window.history.replaceState(null, '', url); } catch (error) { /* адрес не главное */ }
     }
 
-    function setReceipt(id, scroll) {
-        const number = Number(id);
-        state.receipt = number > 0 ? number : null;
+    // Номера без повторов, только положительные, не больше PICK_MAX.
+    function cleanIds(ids) {
+        const out = [];
+        (ids || []).forEach((id) => {
+            const number = Number(id);
+            if (number > 0 && Number.isInteger(number) && out.indexOf(number) === -1 && out.length < PICK_MAX) {
+                out.push(number);
+            }
+        });
+        return out;
+    }
+
+    // Выбрать приёмки для разбора (пусто — все) и перечитать список.
+    function setPicked(ids, scroll) {
+        state.picked = cleanIds(ids);
         syncUrl();
-        renderFilter();
+        renderPicker();
         renderReceipts();
         if (scroll) scrollToNode($('rvTabs'));
         return load();
+    }
+
+    // Одна приёмка вместо выбора («Показать позиции», ссылка в строке); null — все.
+    function setReceipt(id, scroll) {
+        const number = Number(id);
+        return setPicked(number > 0 ? [number] : [], scroll);
+    }
+
+    // Щелчок по приёмке в выборе: добавить в выбор или убрать из него.
+    function togglePick(id) {
+        const number = Number(id);
+        if (pickedHas(number)) return setPicked(state.picked.filter((x) => x !== number));
+        if (state.picked.length >= PICK_MAX) {
+            toast('Разом можно выбрать не больше ' + PICK_MAX + ' приёмок', true);
+            return Promise.resolve();
+        }
+        return setPicked(state.picked.concat([number]));
     }
 
     function onSearchInput() {
@@ -1117,17 +1270,77 @@
         }, SEARCH_DEBOUNCE_MS);
     }
 
-    function receiptFromUrl() {
+    function receiptsFromUrl() {
         const m = RECEIPT_PARAM_RE.exec(String(location.search || ''));
-        const number = m ? Number(m[1]) : 0;
-        return number > 0 ? number : null;
+        return m ? cleanIds(m[1].split(',')) : [];
     }
 
-    // ==================== Приёмки ====================
+    // ==================== История приёмок ====================
+
+    // Прогресс разбора приёмки (сервер: review — open/closed/missing по её позициям).
+    function receiptProgress(r) {
+        const review = r.review;
+        const total = Number((r.counts || {}).gtins) || 0;
+        if (!review || !total) return '';
+        if (r.reviewed) return 'разобрана';
+        const parts = [];
+        if (review.open) parts.push('к разбору ' + fmtInt(review.open) + ' из ' + fmtInt(total));
+        if (review.missing) parts.push('не сверено ' + fmtInt(review.missing));
+        return parts.join(' · ');
+    }
+
+    function deleteQuestion(r) {
+        const c = r.counts || {};
+        const who = [fmtStamp(r.closed_at || r.created_at), r.closed_by || r.created_by].filter(Boolean).join(', ');
+        const what = [fmtInt(c.units) + ' шт.', fmtInt(c.gtins) + ' ' + plural(c.gtins, POSITION_WORDS)];
+        if (c.invoices) what.push('фото накладных ' + fmtInt(c.invoices));
+        return 'Удалить приёмку №' + Number(r.id) + (who ? ' (' + who + ')' : '') + '?\n\n'
+            + 'Удалятся её сканы (' + what.join(', ') + ') и строки разбора, которых нет в других '
+            + 'приёмках, вместе с решениями по ним. Вернуть нельзя.';
+    }
+
+    // «Удалить приёмку»: подтверждение, DELETE, затем список перечитывается.
+    async function deleteReceipt(r) {
+        const id = Number(r.id);
+        if (state.deleting[id]) return;
+        if (!window.confirm(deleteQuestion(r))) return;
+        state.deleting[id] = true;
+        renderReceipts();
+        let res;
+        try {
+            res = await request('DELETE', API_RECEIPT + id);
+        } catch (error) {
+            delete state.deleting[id];
+            renderReceipts();
+            toast('Нет связи с сервером — приёмка не удалена', true);
+            return;
+        }
+        delete state.deleting[id];
+        if (res.ok || res.status === 404) {
+            const rows = Number(res.data && res.data.rows_deleted) || 0;
+            toast(res.ok ? 'Приёмка №' + id + ' удалена' + (rows ? '; убрано из разбора позиций: ' + fmtInt(rows) : '')
+                : 'Приёмки №' + id + ' уже нет');
+            delete state.receiptDetails[id];
+            // Из списка — сразу: и до ответа на перечитывание, и если оно не удастся.
+            state.receipts = state.receipts.filter((x) => Number(x.id) !== id);
+            if (pickedHas(id)) {
+                await setPicked(state.picked.filter((x) => x !== id));
+                return;
+            }
+            renderPicker();
+            renderReceipts();
+            await load();
+            return;
+        }
+        renderReceipts();
+        toast(errorText(res, 'Не удалось удалить приёмку'), true);
+        // 409: приёмку успели разобрать полностью — перечитать, кнопка пропадёт.
+        if (res.status === 409) await load();
+    }
 
     function receiptNode(r) {
         const c = r.counts || {};
-        const box = el('div', 'rv-rc' + (state.receipt === r.id ? ' is-current' : ''));
+        const box = el('div', 'rv-rc' + (pickedHas(r.id) ? ' is-current' : ''));
         const head = el('div', 'rv-rc-head');
         head.appendChild(el('span', 'rv-rc-no', '№' + Number(r.id)));
         const when = [fmtStamp(r.closed_at || r.created_at), r.closed_by || r.created_by].filter(Boolean).join(' · ');
@@ -1137,11 +1350,13 @@
         box.appendChild(head);
 
         const facts = [fmtInt(c.units) + ' шт.',
-                       fmtInt(c.gtins) + ' ' + plural(c.gtins, ['позиция', 'позиции', 'позиций'])];
+                       fmtInt(c.gtins) + ' ' + plural(c.gtins, POSITION_WORDS)];
         if (c.rejected) facts.push('отклонено ' + fmtInt(c.rejected));
         if (c.repeats) facts.push('повторов ' + fmtInt(c.repeats));
         if (c.invoices) facts.push('фото накладных ' + fmtInt(c.invoices));
         box.appendChild(el('div', 'rv-rc-facts', facts.join(' · ')));
+        const progress = receiptProgress(r);
+        if (progress) box.appendChild(el('div', 'rv-rc-prog' + (r.reviewed ? ' is-done' : ''), progress));
         if (r.process_note) {
             box.appendChild(el('div', 'rv-rc-note' + (r.process_state === 'error' ? ' is-bad' : ''), r.process_note));
         }
@@ -1167,6 +1382,16 @@
                 details.hidden = false;
                 renderReceiptDetails(details, entry.data);
             }
+        }
+        // Удалить — только завершённую, разобранную не полностью (решает сервер: can_delete).
+        if (r.can_delete) {
+            const busy = Boolean(state.deleting[Number(r.id)]);
+            const del = el('button', 'rv-link rv-link-bad', busy ? 'Удаляем...' : 'Удалить приёмку');
+            del.type = 'button';
+            del.dataset.action = 'delete';
+            del.disabled = busy;
+            del.addEventListener('click', () => deleteReceipt(r));
+            actions.appendChild(del);
         }
         box.appendChild(actions);
         box.appendChild(details);
@@ -1245,9 +1470,8 @@
     // ==================== Старт ====================
 
     function init() {
-        state.receipt = receiptFromUrl();
+        state.picked = receiptsFromUrl();
         $('rvSearch').addEventListener('input', onSearchInput);
-        $('rvReceiptClear').addEventListener('click', () => setReceipt(null));
         $('rvRefresh').addEventListener('click', startRefresh);
         $('rvIikoForm').addEventListener('submit', (event) => {
             event.preventDefault();
@@ -1267,6 +1491,9 @@
         load: load,
         setTab: setTab,
         setReceipt: setReceipt,
+        setPicked: setPicked,
+        togglePick: togglePick,
+        deleteReceipt: deleteReceipt,
         startRefresh: startRefresh,
         searchIiko: searchIiko,
         findInIiko: findInIiko,

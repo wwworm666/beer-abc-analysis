@@ -32,6 +32,7 @@
     GET    /api/receiving?status=open|closed|all&limit=     — список приёмок
     POST   /api/receiving                                   — {note?} новая приёмка (201)
     GET    /api/receiving/<id>                              — приёмка: позиции, сканы, фото, разбор
+    DELETE /api/receiving/<id>                              — удалить закрытую, разобранную не полностью
     POST   /api/receiving/<id>/scan                         — {code, client_id, source?, client_time?}
     DELETE /api/receiving/<id>/scans/<scan_id>              — отменить скан (мягкое удаление)
     POST   /api/receiving/<id>/invoice                      — multipart photo: фото накладной (201)
@@ -46,7 +47,11 @@
 
 Коды ошибок: 400 — кривое поле или фильтр (текст по-русски), 404 — нет приёмки,
 скана, фото или строки разбора, 409 `code='receipt_closed'` — сканы закрытой
-приёмки не меняются, 411 — фото без Content-Length, 413 — фото больше предела, 503 `code='receiving_unavailable'` —
+приёмки не меняются (удалённой — `code='receipt_deleted'`: телефон переносит сканы
+в новую приёмку), 409 `code='receipt_open'` / `code='receipt_reviewed'` /
+`code='receipt_processing'` — удалить можно только закрытую приёмку, разобранную не
+полностью и не сверяемую в эту минуту,
+411 — фото без Content-Length, 413 — фото больше предела, 503 `code='receiving_unavailable'` —
 `receiving.db` не читается (файл не трогаем), 503 `code='index_missing'` — индекс
 iiko ещё не собран (поиск карточек).
 
@@ -62,6 +67,9 @@ SSH) и Telegram; gunicorn убивает запрос дольше 180 с (ур
 ## Changelog
 
 - 2026-10-03 — модуль создан (приёмка на РЦ, первый этап).
+- 2026-10-04 — DELETE /api/receiving/<id> (удалить приёмку, разобранную не
+  полностью); разбор: receipt_id — несколько номеров через запятую, receipts —
+  неразобранные приёмки в любом возрасте, последние закрытые и выбранные.
 """
 import re
 from functools import wraps
@@ -89,8 +97,11 @@ RECEIPTS_LIMIT_MAX = 200
 # потолок — общий предел списков хранилища (1000).
 REVIEW_LIMIT_DEFAULT = 200
 REVIEW_LIMIT_MAX = receiving_store.LIST_LIMIT_MAX
-# В ответ разбора — последние 20 закрытых приёмок для блока «Приёмки».
+# В ответ разбора — для выбора приёмок и «Истории приёмок»: все неразобранные с позициями,
+# последние 20 закрытых (история) и выбранные (core/receiving_store.review_receipts).
 REVIEW_RECENT_RECEIPTS = 20
+# Сколько приёмок разом в фильтре разбора (?receipt_id=2,3) — предел хранилища.
+REVIEW_RECEIPTS_MAX = receiving_store.RECEIPT_FILTER_MAX
 # Поиск карточек: от 2 символов (одна буква находит пол-номенклатуры), 20 по
 # умолчанию, не больше 100 — глазами больше не сравнивают.
 PRODUCTS_MIN_Q = 2
@@ -162,12 +173,26 @@ def _store_guard(view):
             return _error(str(e), 503, code='receiving_unavailable')
         except receiving_store.ReceiptNotFound:
             return _error('Приёмка не найдена', 404)
+        except receiving_store.ReceiptDeleted:
+            # Раньше ReceiptClosed (это его наследник): скан в удалённую приёмку — 409, и
+            # телефон переносит неотправленные сканы в новую приёмку, а не выбрасывает.
+            return _error('Приёмку удалили в «Разборе приёмок» — сканы в неё не записываются', 409,
+                          code='receipt_deleted')
         except receiving_store.ReceiptClosed:
             return _error('Приёмка уже закрыта — сканы в ней не меняются', 409, code='receipt_closed')
         except receiving_store.ScanNotFound:
             return _error('Скан не найден', 404)
         except receiving_store.ReviewItemNotFound:
             return _error('Позиции с таким GTIN нет в разборе', 404)
+        except receiving_store.ReceiptOpen:
+            return _error('Приёмка ещё не завершена — удалить можно только завершённую', 409,
+                          code='receipt_open')
+        except receiving_store.ReceiptReviewed:
+            return _error('Приёмка разобрана полностью — она остаётся в истории', 409,
+                          code='receipt_reviewed')
+        except receiving_store.ReceiptProcessing:
+            return _error('Приёмку сейчас сверяют с iiko — удалить можно, когда сверка закончится', 409,
+                          code='receipt_processing')
         except ValueError as e:
             return _error(str(e), 400)
     return wrapper
@@ -309,6 +334,29 @@ def receiving_get(receipt_id):
         'dm_keys': receiving_store.dm_keys(receipt_id) if is_open else [],
         'rows': rows,
     })
+
+
+@receiving_bp.route('/api/receiving/<int:receipt_id>', methods=['DELETE'])
+@_store_guard
+def receiving_delete(receipt_id):
+    """«Удалить приёмку» в «Истории приёмок» на разборе: закрытую, разобранную не полностью.
+
+    Правила и что удаляется — core/receiving_store.delete_receipt. 200 — {'deleted': True,
+    'receipt' (какой она была), 'rows_deleted', 'rows_kept', 'invoices_deleted'};
+    409 receipt_open — приёмку ещё сканируют; 409 receipt_reviewed — разобрана
+    полностью и остаётся в истории; 409 receipt_processing — её сверяют в эту минуту;
+    404 — нет приёмки (повтор удаления тоже 404). Скан в удалённую — 409 receipt_deleted.
+    Файлы фото накладных удаляются после записи в базе (best-effort, как одно фото).
+    """
+    result = receiving_store.delete_receipt(receipt_id, current_user())
+    for name in result['invoices']:
+        receiving_photo_store.delete(name)
+    print(f'[RECEIVING] приёмка №{receipt_id} удалена ({result["deleted_by"] or "без входа"}): '
+          f'строк разбора удалено {result["rows_deleted"]}, общих осталось {result["rows_kept"]}, '
+          f'фото {len(result["invoices"])}')
+    return jsonify({'deleted': True, 'receipt': result['receipt'],
+                    'rows_deleted': result['rows_deleted'], 'rows_kept': result['rows_kept'],
+                    'invoices_deleted': len(result['invoices'])})
 
 
 @receiving_bp.route('/api/receiving/<int:receipt_id>/scan', methods=['POST'])
@@ -453,9 +501,12 @@ def receiving_review():
     """Очередь бухгалтерии: строки разбора + индекс iiko + справочник поставщиков.
 
     Фильтры: ?state=open|closed|all (по умолчанию open), ?status=new,similar (через
-    запятую из found, restore, duplicate, similar, new), ?receipt_id= (GTIN одной
-    приёмки), ?q= (GTIN, штрихкод, название ЧЗ, карточки, поставщик, заметка),
-    ?limit=1..1000. Кривой фильтр — 400. counts — счётчики вкладок без state и status.
+    запятую из found, restore, duplicate, similar, new), ?receipt_id=12 или 12,15
+    (GTIN этих приёмок, до REVIEW_RECEIPTS_MAX номеров), ?q= (GTIN, штрихкод, название
+    ЧЗ, карточки, поставщик, заметка), ?limit=1..1000. Кривой фильтр — 400. counts —
+    счётчики вкладок без state и status. receipts — приёмки для выбора и «Истории
+    приёмок»: все неразобранные с позициями, последние REVIEW_RECENT_RECEIPTS закрытых и
+    выбранные.
     """
     state = (request.args.get('state') or 'open').strip()
     if state not in REVIEW_STATES:
@@ -466,17 +517,24 @@ def receiving_review():
     if unknown:
         return _error('status — через запятую из: ' + ', '.join(REVIEW_STATUSES))
     receipt_raw = (request.args.get('receipt_id') or '').strip()
-    if receipt_raw and not RECEIPT_ID_RE.match(receipt_raw):
-        return _error('receipt_id — номер приёмки')
+    parts = [p.strip() for p in receipt_raw.split(',')] if receipt_raw else []
+    if any(not RECEIPT_ID_RE.match(p) for p in parts):
+        return _error('receipt_id — номер приёмки или номера через запятую')
+    receipt_ids = []
+    for part in parts:
+        if int(part) not in receipt_ids:
+            receipt_ids.append(int(part))
+    if len(receipt_ids) > REVIEW_RECEIPTS_MAX:
+        return _error('receipt_id — не больше ' + str(REVIEW_RECEIPTS_MAX) + ' приёмок')
     q = _search_text(request.args.get('q'))
     limit = _parse_limit(request.args.get('limit'), REVIEW_LIMIT_DEFAULT, REVIEW_LIMIT_MAX)
 
     data = receiving_store.list_review(state=state, statuses=statuses,
-                                       receipt_id=int(receipt_raw) if receipt_raw else None,
-                                       q=q, limit=limit)
+                                       receipt_id=receipt_ids or None, q=q, limit=limit)
     data.update(receiving_service.status())
     data['suppliers'] = _supplier_names()
-    data['receipts'] = receiving_store.list_receipts(status='closed', limit=REVIEW_RECENT_RECEIPTS)
+    data['receipts'] = receiving_store.review_receipts(recent=REVIEW_RECENT_RECEIPTS,
+                                                       selected=receipt_ids)
     return jsonify(data)
 
 

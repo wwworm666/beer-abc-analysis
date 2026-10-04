@@ -809,7 +809,7 @@
             state.retryIndex = 0;
             return onScanSaved(item, res.data || {}, ticket);
         }
-        if (res.status === 409) return rescueClosed(item.receipt_id);
+        if (res.status === 409) return rescueClosed(item.receipt_id, res.data && res.data.code === 'receipt_deleted');
         if (res.status === 404) {
             dropReceipt(item.receipt_id, res);
             return NEXT;
@@ -896,20 +896,21 @@
         }
     }
 
-    // 409 на скан: приёмку закрыли (другой телефон или бухгалтер), а в этом телефоне
-    // остались её неотправленные сканы (приёмщик был без связи). Сканы не выбрасываются:
+    // 409 на скан: приёмку закрыли (другой телефон или бухгалтер) или удалили в «Разборе
+    // приёмок» (code receipt_deleted), а в этом телефоне остались её неотправленные сканы
+    // (приёмщик был без связи). Сканы не выбрасываются:
     // открывается новая приёмка, и они уходят в неё (ревью 2026-10-03: «сканы не теряются
     // при обрыве связи»). Новую приёмку открыть не вышло (нет связи) — сканы ждут в
     // очереди, следующая отправка попробует снова.
-    async function rescueClosed(oldId) {
+    async function rescueClosed(oldId, deleted) {
         const items = queueOf(oldId).filter((item) => !item.undo);
         if (!items.length) {
-            dropReceipt(oldId, { status: 409 });
+            dropReceipt(oldId, { status: 409, deleted: deleted });
             return NEXT;
         }
         let res = null;
         try {
-            res = await request('POST', API, { note: 'Сканы после закрытия приёмки №' + oldId }, LOAD_TIMEOUT_MS);
+            res = await request('POST', API, { note: (deleted ? 'Сканы после удаления приёмки №' : 'Сканы после закрытия приёмки №') + oldId }, LOAD_TIMEOUT_MS);
         } catch (error) {
             res = null;
         }
@@ -924,7 +925,7 @@
             return STOP;
         }
         if (!res.ok || !res.data || !res.data.receipt) {
-            dropReceipt(oldId, { status: 409 });
+            dropReceipt(oldId, { status: 409, deleted: deleted });
             return NEXT;
         }
         const fresh = res.data.receipt;
@@ -948,7 +949,7 @@
             showScan();
         }
         signal('repeat');
-        toast('Приёмку №' + oldId + ' уже закрыли — неотправленные сканы из телефона (' + moved
+        toast('Приёмку №' + oldId + (deleted ? ' удалили' : ' уже закрыли') + ' — неотправленные сканы из телефона (' + moved
             + ') перенесены в новую приёмку №' + fresh.id, true);
         render();
         return NEXT;
@@ -964,7 +965,7 @@
         }
         saveQueue();
         const lost = items.filter((item) => !item.undo).length;
-        const why = res.status === 409 ? 'уже закрыта' : 'не найдена';
+        const why = res.deleted ? 'удалена' : (res.status === 409 ? 'уже закрыта' : 'не найдена');
         const tail = lost ? ' — не записано сканов из телефона: ' + lost : '';
         signal('bad');
         toast('Приёмка №' + receiptId + ' ' + why + tail, true);
@@ -992,10 +993,9 @@
             render();
             return STOP;
         }
-        if (res.status === 409) {
-            dropReceipt(item.receipt_id, res);
-            return NEXT;
-        }
+        // 409: приёмку закрыли или удалили — отмену не применить, а неотправленные сканы
+        // этой приёмки (они могут стоять в очереди после отмены) переносятся в новую.
+        if (res.status === 409) return rescueClosed(item.receipt_id, res.data && res.data.code === 'receipt_deleted');
         // 200 — удалён; 404 — уже удалён (или приёмки нет); прочее — повторять бессмысленно.
         removeItem(item);
         if (isCurrent(item.receipt_id)) {

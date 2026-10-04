@@ -18,6 +18,8 @@ from datetime import datetime, timedelta
 
 CHZ_BASE_URL = "https://markirovka.crpt.ru/api/v3/true-api"
 CHZ_BASE_URL_V4 = "https://markirovka.crpt.ru/api/v4/true-api"
+# Версия файла (дата ISO): kep_setup не заменяет chz.py на компьютере более старым с флешки.
+CHZ_VERSION = "2026-10-04"
 CSP_PATH = r"C:\Program Files\Crypto Pro\CSP\csptest.exe"
 # Отпечаток сертификата КЭП, которым подписывается вход в ЧЗ. Перевыпустили КЭП или
 # поставили новый Рутокен — отпечаток другой: КриптоПро CSP -> Сервис -> Просмотреть
@@ -32,6 +34,9 @@ INN_ORG = "7801630649"               # ООО "ИНВЕСТАГРО"
 ORG_NAME = 'ООО "ИНВЕСТАГРО"'
 # Сколько ждать csptest. Если КриптоПро ждёт человека (выбор носителя, PIN), подпись
 # не придёт вовсе — через CSP_TIMEOUT_SEC команда сообщает ошибку, а не висит.
+# csptest запускается без оболочки (список аргументов): с shell=True по таймауту
+# завершался только cmd.exe, а csptest.exe держал каналы вывода, и run() ждал его
+# до закрытия окна КриптоПро (ревью 2026-10-04).
 CSP_TIMEOUT_SEC = 60
 _HEX_DIGITS = "0123456789abcdefABCDEF"
 
@@ -308,15 +313,13 @@ def get_token():
     thumbprint = cert_thumbprint()
     if len(thumbprint) != 40:
         print(f"[WARN] отпечаток CERT_THUMBPRINT: {len(thumbprint)} hex-символов вместо 40")
-    cmd = (f'"{CSP_PATH}" -sfsign -sign '
-           f'-my "{thumbprint}" '
-           f'-in "{data_file}" -out "{sig_file}" '
-           f'-base64 -cades_strict -add')
+    cmd = [CSP_PATH, '-sfsign', '-sign', '-my', thumbprint, '-in', data_file,
+           '-out', sig_file, '-base64', '-cades_strict', '-add']
 
     print(f"  [auth] Подпись...", end=" ")
     try:
-        result = subprocess.run(cmd, shell=True, capture_output=True,
-                                timeout=CSP_TIMEOUT_SEC, encoding='cp866',
+        result = subprocess.run(cmd, capture_output=True,
+                                timeout=CSP_TIMEOUT_SEC, encoding='cp866', errors='replace',
                                 creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
     except subprocess.TimeoutExpired:
         print(f"[ERR] csptest не ответил за {CSP_TIMEOUT_SEC} с")

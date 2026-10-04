@@ -183,8 +183,9 @@ def _status_for(index: dict, base: dict, chz_info) -> dict:
     candidates = _pack_candidates(index, chz_info)
     if name:
         seen = {c.get('id') for c in candidates}
-        # Кега по ЧЗ (кеги есть с DataMatrix, а штрихкод в iiko — у малой доли кеговых
-        # карточек): при равном счёте её карточка «КЕГ …» — выше бутылки того же сорта.
+        # Тара по ЧЗ (кеги есть с DataMatrix, а штрихкод в iiko — у малой доли кеговых
+        # карточек): при равном счёте карточка той же тары выше — «КЕГ …» для кеги,
+        # бутылка и банка для остального.
         keg = receiving_index.is_keg_text(name, chz_info.get('full_name'), chz_info.get('package_type'),
                                           chz_info.get('volume'))
         candidates += [c for c in receiving_index.similar_cards(name, index, brand, keg=keg) or []
@@ -459,6 +460,9 @@ def _notify_once(rid: int, notes: list) -> bool:
         receiving_store.mark_notified(rid)
         return sent
     except Exception as error:  # noqa: BLE001 — строки уже заведены, сообщение вторично
+        not_found = getattr(receiving_store, 'ReceiptNotFound', None)
+        if isinstance(not_found, type) and isinstance(error, not_found):
+            raise       # приёмку удалили — process_receipt тихо остановится, без «не отправлено»
         _log_error(f'приёмка №{rid}: сообщение бухгалтерии', error)
         notes.append('Сообщение бухгалтерии не отправлено: ' + _error_text(error))
         return False
@@ -476,10 +480,13 @@ def process_receipt(receipt_id) -> dict:
     """Обработать закрытую приёмку синхронно (алгоритм — докстринг модуля).
 
     Зовётся из потока start_receipt_processing (и тестами напрямую) после
-    claim_processing. -> {'receipt_id', 'state': 'done'|'error', 'note', 'gtins',
+    claim_processing. -> {'receipt_id', 'state': 'done'|'error'|'deleted', 'note', 'gtins',
     'statuses': {status: n}, 'opened': n, 'notified': bool}. Любое исключение ->
     finish_processing('error', текст без секретов); не удалось и это — только лог
     (обработка останется running, шедулер перехватит её через PROCESS_STALE_SEC).
+    Приёмку удалили во время обработки (receiving_store.delete_receipt; хранилище
+    отвечает ReceiptNotFound) — обработка тихо останавливается, state 'deleted': строки,
+    которые она успела завести, удаление уже убрало, писать итог некуда.
     """
     rid = int(receipt_id)
     notes = []
@@ -540,6 +547,12 @@ def process_receipt(receipt_id) -> dict:
               + (f'; {summary["note"]}' if summary['note'] else ''))
         return summary
     except Exception as error:  # noqa: BLE001 — итог обработки обязан записаться
+        not_found = getattr(receiving_store, 'ReceiptNotFound', None)
+        if isinstance(not_found, type) and isinstance(error, not_found):
+            print(f'{_LOG} приёмка №{rid} удалена во время обработки — обработка остановлена')
+            summary['state'] = 'deleted'
+            summary['note'] = NOTE_SEP.join(n for n in notes if n)
+            return summary
         _log_error(f'приёмка №{rid}: обработка упала', error)
         notes.append(_error_text(error))
         try:

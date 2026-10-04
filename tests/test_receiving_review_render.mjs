@@ -112,7 +112,7 @@ test('id в шаблоне уникальны, все id, которые ище�
 });
 
 test('скрытые изначально узлы помечены hidden, а скрывающее правило есть в CSS', () => {
-    for (const id of ['rvJob', 'rvReceiptChip', 'rvError', 'rvMore', 'rvIikoMsg', 'rvToast']) {
+    for (const id of ['rvJob', 'rvError', 'rvMore', 'rvIikoMsg', 'rvToast']) {
         assert.match(html, new RegExp(`id="${id}"[^>]*\\shidden`), `${id} виден до загрузки`);
     }
     assert.match(html, /<body class="rv-page rv-scope">/);
@@ -144,6 +144,7 @@ test('модификаторы, которые ставит JS, описаны �
         'rv-row.is-closed', 'rv-row.is-busy', 'rv-btn.is-busy', 'rv-name.is-none', 'rv-index.is-missing',
         'rv-job.is-bad', 'rv-msg.is-bad', 'rv-saved.is-bad', 'rv-toast.is-bad', 'rv-rc.is-current',
         'rv-rc-note.is-bad', 'rv-flag.is-plain', 'rv-rc-proc.is-done', 'rv-rc-proc.is-wait', 'rv-rc-proc.is-error',
+        'rv-chip.is-on', 'rv-chip-n.is-wait', 'rv-chip-n.is-error', 'rv-rc-prog.is-done',
     ];
     const missing = pairs.filter((p) => !body.includes('.' + p));
     assert.deepEqual(missing, [], `нет правил: ${missing.join(', ')}`);
@@ -266,6 +267,8 @@ test('пути API — из раздела 7 спецификации, друг�
     assert.match(js, /request\('POST', API_REFRESH\)/);
     assert.match(js, /request\('GET', API_STATUS\)/);
     assert.match(js, /request\('GET', API_RECEIPT \+ Number\(id\)\)/);
+    assert.match(js, /request\('DELETE', API_RECEIPT \+ id\)/);
+    assert.match(js, /window\.confirm\(deleteQuestion\(r\)\)/, 'удаление без подтверждения');
     assert.match(js, /API_PRODUCTS \+ '\?q=' \+ encodeURIComponent\(q\) \+ '&limit=' \+ IIKO_LIMIT/);
 });
 
@@ -278,6 +281,7 @@ test('маршруты, которые зовёт страница, объявл
         ["'/api/receiving/barcodes/refresh'", "'POST'"],
         ["'/api/receiving/barcodes/status'", "'GET'"],
         ["'/api/receiving/<int:receipt_id>'", "'GET'"],
+        ["'/api/receiving/<int:receipt_id>'", "'DELETE'"],
         ["'/api/receiving/invoice/<name>'", "'GET'"],
     ];
     for (const [route, method] of want) {
@@ -336,6 +340,8 @@ test('пределы совпадают с маршрутом и хранили�
         }
     }
     if (storePy) assert.equal(jsConst('NOTE_LIMIT'), pyConst(storePy, 'NOTE_LIMIT'), 'NOTE_LIMIT');
+    if (storePy) assert.equal(jsConst('PICK_MAX'), pyConst(storePy, 'RECEIPT_FILTER_MAX'), 'PICK_MAX');
+    if (routes) assert.equal(pyConst(routes, 'REVIEW_RECEIPTS_MAX'), 'receiving_store.RECEIPT_FILTER_MAX');
     assert.equal(jsConst('POLL_MS'), '4000', 'опрос — каждые 4 с (раздел 9)');
 });
 
@@ -343,13 +349,17 @@ test('стоп-слова и длина слова «Найти в iiko» — к
     const jsWords = /const STOP_WORDS = new Set\(\[([\s\S]*?)\]\);/.exec(js);
     assert.ok(jsWords, 'нет STOP_WORDS в JS');
     const mine = [...jsWords[1].matchAll(/'([^']+)'/g)].map((m) => m[1]).sort();
-    assert.equal(mine.length, 21, 'список стоп-слов не из спецификации (21 слово)');
+    assert.equal(mine.length, 35, 'список стоп-слов не из спецификации (35 слов, ревью 2026-10-04)');
     if (indexPy) {
         const py = /STOP_WORDS = frozenset\(\{([\s\S]*?)\}\)/.exec(indexPy);
         assert.ok(py, 'нет STOP_WORDS в core/receiving_index.py');
         const theirs = [...py[1].matchAll(/'([^']+)'/g)].map((m) => m[1]).sort();
         assert.deepEqual(mine, theirs, 'стоп-слова разошлись с core/receiving_index.py');
         assert.equal(jsConst('MIN_WORD_LEN'), pyConst(indexPy, 'MIN_WORD_LEN'), 'MIN_WORD_LEN');
+        const pyVolume = /VOLUME_WORD_RE = re\.compile\(r'(.*?)\\Z'\)/.exec(indexPy);
+        const jsVolume = /const VOLUME_WORD_RE = \/\^(.*?)\$\/;/.exec(js);
+        assert.ok(pyVolume && jsVolume, 'нет VOLUME_WORD_RE');
+        assert.equal(jsVolume[1], pyVolume[1], 'объём-слово разошлось с core/receiving_index.py');
     }
 });
 
@@ -357,9 +367,9 @@ test('стоп-слова и длина слова «Найти в iiko» — к
 
 test('пояснения свёрнуты в «Как считается» у каждого блока, на экране — только числа', () => {
     const how = [...html.matchAll(/<details class="rv-how[^"]*">\s*<summary>Как считается<\/summary>/g)];
-    assert.equal(how.length, 4, 'у шапки, таблицы, поиска в iiko и приёмок — по раскрывашке');
+    assert.equal(how.length, 5, 'у шапки, выбора приёмок, таблицы, поиска в iiko и истории — по раскрывашке');
     const sections = [...html.matchAll(/<section[\s\S]*?<\/section>/g)].map((m) => m[0]);
-    assert.equal(sections.length, 4);
+    assert.equal(sections.length, 5);
     sections.forEach((s, i) => assert.match(s, /<details class="rv-how/, `секция ${i + 1} без пояснения`));
     const loose = visibleHtml.replace(/<details[\s\S]*?<\/details>/g, '');
     assert.ok(!/<ul>|<li>/.test(loose), 'правила висят на экране вне раскрывашки');

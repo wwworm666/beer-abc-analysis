@@ -52,6 +52,10 @@ CHECK_GTIN = "04610093628430"     # FH Helles — есть в каталоге �
 SENTINEL = "@@CHZ_JSON@@"         # маркер ответа chz.py product-info
 THUMB_LINE_RE = re.compile(r'^CERT_THUMBPRINT\s*=\s*"[^"\n]*"', re.MULTILINE)
 HEX40_RE = re.compile(r"[0-9a-f]{40}")
+# Строка версии в chz.py: CHZ_VERSION = "2026-10-04" (дата ISO, сравнивается строкой).
+CHZ_VERSION_RE = re.compile(r'^CHZ_VERSION\s*=\s*["\']([0-9-]+)["\']', re.M)
+# Копия прежнего chz.py, сделанная в этом запуске (copy_chz), — её называет итог при сбое.
+LAST_BACKUP = ""
 
 # Сколько ждать: подпись КриптоПро (csptest в chz.py ждёт 60 с, столько же есть на
 # ввод PIN) плюс сеть до Честного знака.
@@ -97,24 +101,34 @@ def parse_store(text) -> list:
     return certs
 
 
-def pick_thumbprint(certs, expected=EXPECTED_THUMBPRINT, today=None) -> tuple:
+def pick_thumbprint(certs, expected=EXPECTED_THUMBPRINT, today=None, exclude=()) -> tuple:
     """Какой сертификат ставить в chz.py: (отпечаток | None, как найден).
 
-    Ожидаемый отпечаток есть в хранилище — он ('expected'). Нет — самый новый (по дате
-    начала) действующий сертификат с KEY_OWNER_INN или INN_ORG в субъекте, сертификаты
-    со ссылкой на ключ раньше ('by_inn'). Ничего — (None, 'none').
+    Ожидаемый отпечаток есть в хранилище, действует и нет более нового действующего
+    сертификата с ключом по ИНН — он ('expected'). Иначе — самый новый (по дате начала)
+    действующий сертификат с KEY_OWNER_INN или INN_ORG в субъекте, сертификаты со ссылкой
+    на ключ раньше ('by_inn'). Ничего — (None, 'none'). exclude — отпечатки, которые уже
+    не подошли (повтор после установки с Рутокена не выбирает их снова).
+    Ревью 2026-10-04: прежде ожидаемый отпечаток выигрывал всегда — при следующем
+    перевыпуске КЭП старый сертификат (он остаётся в хранилище) выбирался снова, и
+    kep_setup не мог уйти с него, даже поставив новый.
     """
     today = today or datetime.date.today().isoformat()
     expected = normalize_thumbprint(expected)
-    for cert in certs:
-        if cert["thumb"] == expected:
-            return expected, "expected"
+    skip = {normalize_thumbprint(t) for t in exclude}
     ours = [c for c in certs
-            if (KEY_OWNER_INN in c["subject"] or INN_ORG in c["subject"])
+            if c["thumb"] not in skip
+            and (KEY_OWNER_INN in c["subject"] or INN_ORG in c["subject"])
             and c["not_after"] >= today]
+    ours.sort(key=lambda c: (c["has_key"], c["not_before"]), reverse=True)
+    exp = next((c for c in certs if c["thumb"] == expected and expected not in skip), None)
+    if exp is not None and exp["not_after"] >= today:
+        newer = [c for c in ours if c["thumb"] != expected and c["has_key"]
+                 and c["not_before"] > exp["not_before"]]
+        if not newer:
+            return expected, "expected"
     if not ours:
         return None, "none"
-    ours.sort(key=lambda c: (c["has_key"], c["not_before"]), reverse=True)
     return ours[0]["thumb"], "by_inn"
 
 
@@ -233,26 +247,62 @@ def check_signature() -> tuple:
     return code == 0 and "[ERR]" not in out and "[OK]" in out, out
 
 
+def chz_version(path: str) -> str:
+    """CHZ_VERSION из файла chz.py ('' — нет строки или файла): дата ISO, сравнивается строкой."""
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            match = CHZ_VERSION_RE.search(f.read())
+    except OSError:
+        return ""
+    return match.group(1) if match else ""
+
+
 def copy_chz(here: str) -> bool:
+    """Скопировать chz.py с флешки в CHZ_DIR; прежний — всегда копией chz_backup_<время>.py.
+
+    Копия делается и когда файл остаётся (скрипт запущен из CHZ_DIR или на компьютере
+    chz.py новее): дальше в него пишется отпечаток, и прежний должен остаться целым (ревью
+    2026-10-04: без копии сообщение «старый файл лежит копией» было неправдой). На
+    компьютере chz.py новее (CHZ_VERSION больше, его обновил сервер) — не копирует: старая
+    флешка не откатывает код. Имя копии — в LAST_BACKUP.
+    """
+    global LAST_BACKUP
+    LAST_BACKUP = ""
     source = os.path.join(here, "chz.py")
     target = os.path.join(CHZ_DIR, "chz.py")
     if not os.path.isdir(CHZ_DIR):
         say("[!] Нет папки " + CHZ_DIR + " — это не тот компьютер?")
         return False
-    if os.path.abspath(source).lower() == os.path.abspath(target).lower():
-        say("1. chz.py уже в " + CHZ_DIR + " — копировать не нужно.")
-        return True
-    if not os.path.exists(source):
+    same = os.path.abspath(source).lower() == os.path.abspath(target).lower()
+    if not same and not os.path.exists(source):
         say("[!] Рядом со скриптом нет chz.py — положите его в ту же папку на флешке.")
         return False
     if os.path.exists(target):
         stamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         backup = os.path.join(CHZ_DIR, "chz_backup_" + stamp + ".py")
         shutil.copy2(target, backup)
-        say("1. Прежний chz.py сохранён как " + os.path.basename(backup))
+        LAST_BACKUP = os.path.basename(backup)
+        say("1. Прежний chz.py сохранён как " + LAST_BACKUP)
+    if same:
+        say("   chz.py уже в " + CHZ_DIR + " — копировать не нужно.")
+        return True
+    if os.path.exists(target) and chz_version(target) > chz_version(source):
+        say("   На компьютере chz.py новее (версия " + chz_version(target) + "), чем на флешке ("
+            + (chz_version(source) or "без версии") + ") — оставляю его.")
+        return True
     shutil.copy2(source, target)
     say("   Новый chz.py скопирован в " + CHZ_DIR)
     return True
+
+
+def file_thumbprint() -> str:
+    """Отпечаток из строки CERT_THUMBPRINT в chz.py на компьютере ('' — строки или файла нет)."""
+    try:
+        with open(os.path.join(CHZ_DIR, "chz.py"), encoding="utf-8", errors="replace") as f:
+            match = THUMB_LINE_RE.search(f.read())
+    except OSError:
+        return ""
+    return match.group(0).split('"')[1] if match else ""
 
 
 def write_thumbprint(thumb: str) -> bool:
@@ -306,14 +356,16 @@ def main() -> int:
     say("2. Ищу сертификат КЭП в Windows...")
     thumb, how, installed = find_thumbprint(allow_install=True)
     if not thumb:
-        # Хранилище не прочиталось (PowerShell запрещён и т. п.) — отпечаток с фото уже
-        # в chz.py; проверка подписи ниже покажет, подходит ли он.
+        # Хранилище не прочиталось (PowerShell запрещён и т. п.) — остаётся отпечаток, что
+        # уже в chz.py на компьютере (ревью 2026-10-04: писался EXPECTED_THUMBPRINT поверх
+        # него, хотя экран говорил «оставляю»); проверка подписи ниже покажет, подходит ли он.
         say("   [!] Сертификат в Windows не найден — оставляю отпечаток из файла.")
-        thumb, how = EXPECTED_THUMBPRINT, "file"
+        thumb, how = file_thumbprint() or EXPECTED_THUMBPRINT, "file"
     if how == "expected":
         say("   [OK] Найден сертификат с отпечатком " + thumb)
     elif how == "by_inn":
-        say("   [!] Ожидаемого отпечатка нет; беру самый новый сертификат по ИНН: " + thumb)
+        say("   [!] Беру самый новый действующий сертификат по ИНН: " + thumb)
+        say("       (ожидаемого в Windows нет, он истёк или есть новее)")
     if not write_thumbprint(thumb):
         return 1
 
@@ -327,16 +379,26 @@ def main() -> int:
         say("   Подпись не прошла — ставлю сертификат с Рутокена заново и пробую ещё раз...")
         if install_from_containers():
             installed = True
-            thumb2, _how2 = pick_thumbprint(store_certs())
+            thumb2, _how2 = pick_thumbprint(store_certs(), exclude={thumb})
             if thumb2 and thumb2 != thumb and write_thumbprint(thumb2):
                 thumb = thumb2
+            ok, out = check_signature()
+    if not ok and how == "file" and thumb != EXPECTED_THUMBPRINT:
+        # Хранилище не прочиталось, а отпечаток из файла не подошёл (в chz.py остался
+        # прежний КЭП) — пробуем ожидаемый из этого скрипта, как до 2026-10-04.
+        say("   Отпечаток из файла не подошёл — пробую ожидаемый " + EXPECTED_THUMBPRINT + "...")
+        if write_thumbprint(EXPECTED_THUMBPRINT):
+            thumb = EXPECTED_THUMBPRINT
             ok, out = check_signature()
     if not ok:
         say("   [!] Подпись не прошла. Хвост вывода chz.py:")
         show_tail(out)
         say()
-        say("НЕ ПОЛУЧИЛОСЬ. Сфотографируйте это окно и пришлите. Старый файл не тронут:")
-        say("   он лежит рядом копией chz_backup_*.py.")
+        say("НЕ ПОЛУЧИЛОСЬ. Сфотографируйте это окно и пришлите.")
+        if LAST_BACKUP:
+            say("   Прежний chz.py лежит рядом копией " + LAST_BACKUP + ".")
+        else:
+            say("   Копии прежнего chz.py нет: в " + CHZ_DIR + " его не было.")
         return 1
     say("   [OK] Подпись прошла, токен Честного знака получен.")
 

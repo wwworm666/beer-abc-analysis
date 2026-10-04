@@ -284,6 +284,7 @@ Selectel VPS (139.100.200.92, beerkultura.ru)
    - `GEMINI_API_KEY` - ключ Google Gemini API
    - `REMOTE_PASS` - пароль SSH к бар-ПК (обязателен для POST /api/chz/refresh)
    - `REMOTE_USER` - пользователь SSH на бар-ПК (по умолчанию: Администратор)
+   - `CHZ_AUTO_UPDATE=0` - не приводить `chz.py` на бар-ПК к серверному перед обновлением данных ЧЗ (по умолчанию приводит, если код отличается)
    - `API_BASE_URL=https://beerkultura.ru`, `APP_DOMAIN=beerkultura.ru`
    - `CHZ_REFRESH_URL=http://127.0.0.1:10000/api/chz/refresh`
    - `PERSISTENT_DATA_DIR=/kultura`

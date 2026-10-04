@@ -62,6 +62,8 @@ EXPECTED_DESTRUCTIVE = {
     'stocks_yml_feed_save',
     # приёмка на РЦ: закрытие не отменить (и уходит сообщение бухгалтерии), скан и фото — удаление
     'stocks_receiving_close', 'stocks_receiving_scan_delete', 'stocks_receiving_invoice_delete',
+    # удаление приёмки, разобранной не полностью: сканы, фото и строки разбора не вернуть
+    'stocks_receiving_delete',
 }
 EXPECTED_OPEN_WORLD = {
     'stocks_chz_live', 'stocks_chz_refresh', 'stocks_nomenclature_update', 'stocks_yml_feed_save',
@@ -219,6 +221,10 @@ def _fallback_check(schema, value, where='args'):
                 errors.append(where + ': лишнее поле ' + key)
             elif isinstance(extra, dict):
                 errors += _fallback_check(extra, item, where + '.' + key)
+    variants = schema.get('anyOf')
+    if isinstance(variants, list) and variants:
+        if not any(not _fallback_check(sub, value, where) for sub in variants):
+            errors.append(where + ': не подходит ни под один вариант anyOf')
     return errors
 
 
@@ -509,6 +515,9 @@ def test_bad_args_rejected_by_schema():
         ('stocks_menu_item_create', {'vols': ['05', '10', '04', '025']}),
         ('stocks_menu_item_create', {'ratings': {'gor': 6}}),
         ('stocks_menu_export_pdf', {'filter': 'taps'}),
+        ('stocks_receiving_review', {'receipt_id': '12,x'}),
+        ('stocks_receiving_review', {'receipt_id': 0}),
+        ('stocks_receiving_delete', {'receipt_id': '12'}),               # номер — число
         ('stocks_receiving_list', {'status': 'done'}),
         ('stocks_receiving_list', {'limit': 500}),
         ('stocks_receiving_get', {'receipt_id': '12'}),                  # номер — число
@@ -671,6 +680,17 @@ def test_receiving_constants_match_code():
     assert stocks.SEARCH_Q_MAX == rr.SEARCH_Q_MAX
     assert stocks.INVOICE_MAX_MB * 1024 * 1024 == rphotos.MAX_PHOTO_BYTES
     assert int('9' * 9) == stocks.RECEIPT_ID_MAX
+    assert stocks.REVIEW_RECEIPTS_MAX == rr.REVIEW_RECEIPTS_MAX == rstore.RECEIPT_FILTER_MAX
+    # Несколько приёмок в разборе: схема пускает ровно то, что маршрут (до 50 номеров через запятую).
+    rid = _prop('stocks_receiving_review', 'receipt_id')
+    assert [v['type'] for v in rid['anyOf']] == ['integer', 'string']
+    assert rid['anyOf'][0]['maximum'] == stocks.RECEIPT_ID_MAX
+    pattern = rid['anyOf'][1]['pattern']
+    ids = lambda n: ','.join(str(i) for i in range(1, n + 1))  # noqa: E731
+    for ok in ('12', '12,15', '999999999,1', ids(rr.REVIEW_RECEIPTS_MAX)):
+        assert re.fullmatch(pattern, ok), ok
+    for bad in ('', '12,', ',12', '12;15', '1234567890', '12,x', ids(rr.REVIEW_RECEIPTS_MAX + 1)):
+        assert not re.fullmatch(pattern, bad), bad
 
     # схемы действительно используют эти значения
     assert _prop('stocks_receiving_list', 'status')['enum'] == list(rr.RECEIPT_FILTERS)

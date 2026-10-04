@@ -121,7 +121,64 @@ STOP_WORDS = frozenset({
     'фильтрованное', 'нефильтрованное', 'пастеризованное', 'непастеризованное',
     'осветленное', 'неосветленное', 'бут', 'бутылка', 'банка', 'кег', 'кега',
     'стекло', 'пэт', 'алк', 'безалкогольное',
+    # Ревью 2026-10-04: формы пивных напитков и сидров (мужской род и описания ЧЗ) —
+    # без них «Пивной напиток непастеризованный нефильтрованный неосветленный …» у
+    # карточки набирал счёт с любым пивным напитком ЧЗ. «Медовуха» — вид товара в
+    # названии ЧЗ, как «пиво»: слово карточки «Мёд» («Мёд и Абрикос») совпадало с ней
+    # началом у любой медовухи.
+    'светлый', 'темный', 'фильтрованный', 'нефильтрованный', 'пастеризованный',
+    'непастеризованный', 'осветленный', 'неосветленный', 'безалкогольный',
+    'традиционный', 'газированный', 'игристый', 'фруктовый', 'медовуха',
 })
+# Мягкий и твёрдый знак в словах для сравнения не пишутся: «Майзелс» в iiko и «Майзельс»
+# в ЧЗ — одно слово (ревью 2026-10-04).
+_SIGNS_RE = re.compile('[ьъ]')
+# Слово с объёмом («30л», «500мл») совпадает у всех кег одного объёма («КЕГ Варка Лагер
+# 30л.» и «… КЕГ 30л» другой пивоварни), поэтому идёт в счёт, только если слово названия
+# или пивоварни совпало целиком (STRONG_WORD_LEN букв и больше): у «КЕГ ЛеФорт Трипель,
+# 20л» и «"Трипл ЛеФорт" 20л.» в ЧЗ кроме «лефорт» совпадает только объём. Совпадение
+# началом или по «звучанию» объём в счёт не пускает: «Баптист Вит 20л» иначе находил
+# «КЕГ Лимбургс Витте 20л», «Cidre de Bretagne 30л» — «КЕГ Вита Сид Том 2 30л». В долю
+# совпавших слов объём не входит (ревью 2026-10-04).
+VOLUME_WORD_RE = re.compile(r'\d+(?:мл|л|ml|l)\Z')
+STRONG_WORD_LEN = 4
+# Общие слова пива — стиль, цвет, тип, «пивоварня», «премиум»: совпадают у десятков
+# карточек разных пивоварен. Счёт «похожей» они повышают, но кандидатом карточка
+# становится, только если совпало и хотя бы одно другое слово (название, пивоварня):
+# «Премиум Лагер» ЧЗ иначе находил «Bakalar Premium lager», «Ириш Стаут» — «Dorothy
+# Black Irish Stout» (ревью 2026-10-04). Обе записи — кириллица и латиница.
+GENERIC_WORDS = frozenset({
+    'lager', 'pils', 'pilsner', 'pilsener', 'helles', 'ipa', 'apa', 'neipa', 'dipa', 'ale',
+    'pale', 'stout', 'porter', 'irish', 'black', 'red', 'white', 'amber', 'dark', 'light',
+    'gold', 'golden', 'blonde', 'blond', 'blanche', 'witbier', 'weizen', 'weiss', 'weisse',
+    'hefe', 'hefeweizen', 'dunkel', 'bock', 'doppelbock', 'tripel', 'dubbel', 'quadrupel',
+    'saison', 'gose', 'sour', 'cider', 'cherry', 'double', 'triple', 'imperial', 'premium',
+    'classic', 'original', 'export', 'special', 'craft', 'beer', 'brewery', 'brewing', 'hop',
+    'hops', 'hoppy', 'juicy', 'hazy', 'nitro', 'milk', 'oatmeal', 'session', 'west', 'coast',
+    'new', 'england', 'wild', 'fruit', 'berry', 'keller', 'kellerbier', 'zwickel', 'marzen',
+    'rauch', 'smoked', 'extra', 'strong', 'bitter', 'lambic', 'kriek', 'radler', 'brut',
+    'лагер', 'пилс', 'пилснер', 'пилзнер', 'хеллес', 'ипа', 'апа', 'эль', 'пейл', 'стаут',
+    'портер', 'ириш', 'айриш', 'блэк', 'блек', 'ред', 'вайт', 'амбер', 'дарк', 'лайт', 'голд',
+    'голден', 'блонд', 'бланш', 'вайцен', 'вайс', 'хефе', 'хефевайцен', 'дункель', 'бок',
+    'доппельбок', 'трипель', 'дуббель', 'сезон', 'гозе', 'саур', 'черри', 'чэри', 'дабл',
+    'трипл', 'империал', 'имперский', 'премиум', 'классик', 'классический', 'ориджинал',
+    'экспорт', 'крафт', 'бир', 'пивоварня', 'хоп', 'хоппи', 'джуси', 'нитро', 'милк',
+    'сешн', 'вест', 'кост', 'нью', 'фрут', 'берри', 'келлер', 'цвикель', 'марцен', 'раух',
+    'экстра', 'биттер', 'ламбик', 'крик', 'радлер', 'брют', 'пшеничное', 'пшеничный',
+    'вишневый', 'вишневое', 'медовое', 'медовый', 'живое', 'живой', 'разливное',
+    'сидр', 'sider', 'sidra', 'сидра', 'сайдер', 'мед', 'brew', 'пэйл', 'india', 'индиа', 'индийский',
+    'american', 'американ', 'американский', 'english', 'английский', 'belgian', 'бельгийский',
+    'german', 'немецкий', 'czech', 'чешский', 'bavarian', 'баварский',
+    # Те же слова кириллицей, как их пишет ЧЗ (ревью 2026-10-04: «Брюмен ипа» находил
+    # «Брю Дог Punk IPA» по «брю» + «ипа»).
+    'брю', 'бревери', 'брюери', 'дипа', 'неипа', 'нейпа', 'хейзи', 'стронг', 'вайлд',
+    'спешл', 'витбир', 'квадрупель', 'келлербир', 'ингланд', 'вайссе', 'сауэр', 'сауер',
+    'вайсбир', 'хефевайсбир', 'сэшн', 'сессионная', 'сессионный',
+    # Сладость сидра: сама карточку похожей не делает, но различает варианты одного
+    # сидра («Бульви Рустик полусухой» и «… полусладкий»), поэтому не стоп-слово.
+    'сухой', 'полусухой', 'полусладкий', 'сладкий',
+})
+GENERIC_WORDS = frozenset(_SIGNS_RE.sub('', w) for w in GENERIC_WORDS)
 
 # Таймауты запросов к iiko (соединение, чтение), с. Чтение 120 с: товары с удалёнными —
 # ~9 тыс. карточек; ниже gunicorn --timeout 180 (урок 21), хотя обновление и так идёт
@@ -214,7 +271,10 @@ def _name_words(name) -> list:
     """
     words = []
     for word in _NON_WORD_RE.sub(' ', _fold(name)).split():
-        if len(word) < MIN_WORD_LEN or word.isdigit() or word in STOP_WORDS:
+        if word in STOP_WORDS:
+            continue
+        word = _SIGNS_RE.sub('', word)
+        if len(word) < MIN_WORD_LEN or word.isdigit():
             continue
         if word not in words:
             words.append(word)
@@ -240,11 +300,13 @@ def is_keg_text(*texts) -> bool:
 
 
 def _text_words(text) -> list:
-    """Слова текста ЧЗ для сравнения с карточкой: как _name_words, но со стоп-словами
-    (они всё равно не совпадут — у карточек их нет) и с повторами (каждое слово ЧЗ
-    засчитывается один раз)."""
-    return [w for w in _NON_WORD_RE.sub(' ', _fold(text)).split()
-            if len(w) >= MIN_WORD_LEN and not w.isdigit()]
+    """Слова текста ЧЗ для сравнения с карточкой: как _name_words (без стоп-слов), но с
+    повторами — каждое слово ЧЗ засчитывается один раз. Стоп-слова убраны и здесь: слово
+    карточки иначе совпадало бы с ними началом («пивоварня» — «пиво», «бан» — «банка»;
+    ревью 2026-10-04)."""
+    words = [_SIGNS_RE.sub('', w) for w in _NON_WORD_RE.sub(' ', _fold(text)).split()
+             if w not in STOP_WORDS]
+    return [w for w in words if len(w) >= MIN_WORD_LEN and not w.isdigit()]
 
 
 def _parse_iso(value) -> Optional[datetime]:
@@ -579,6 +641,9 @@ def _candidate_words(index) -> list:
 # выгрузке ЧЗ. Короткий костяк («way»/«вэй» -> v) не сравнивается: совпадал бы с чем угодно.
 # Сравнение только между разными алфавитами — слова одного алфавита сравниваются как
 # раньше (одно начинается с другого).
+# Ревью 2026-10-04: латинское j после гласной и в конце слова — «й» (Polnochnyj — Полночный,
+# Project — Проект), «ц» — s (как c перед e/i: Sicilian — Сицилиан, Placebo — Плацебо),
+# «тх» — t, как латинское th (Festhaus — Фестхаус).
 TRANSLIT_MIN_SKELETON = 3
 TRANSLIT_MIN_RATIO = 0.7
 # «Звучание» короче трёх букв тоже не сравнивается («ооо» -> o).
@@ -586,9 +651,10 @@ TRANSLIT_MIN_KEY = 3
 _CYR_TO_LAT = {
     'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd', 'е': 'e', 'ё': 'e', 'ж': 'zh', 'з': 'z',
     'и': 'i', 'й': 'i', 'к': 'k', 'л': 'l', 'м': 'm', 'н': 'n', 'о': 'o', 'п': 'p', 'р': 'r',
-    'с': 's', 'т': 't', 'у': 'u', 'ф': 'f', 'х': 'h', 'ц': 'ts', 'ч': 'ch', 'ш': 'sh',
+    'с': 's', 'т': 't', 'у': 'u', 'ф': 'f', 'х': 'h', 'ц': 's', 'ч': 'ch', 'ш': 'sh',
     'щ': 'sch', 'ъ': '', 'ы': 'i', 'ь': '', 'э': 'e', 'ю': 'iu', 'я': 'ia',
 }
+_LAT_J_RE = re.compile(r'(?<=[aeiouy])j|j\Z')
 _LAT_RULES = (('ph', 'f'), ('th', 't'), ('ck', 'k'), ('qu', 'kv'), ('q', 'k'), ('x', 'ks'),
               ('w', 'v'))
 _LAT_C_RE = re.compile(r'c(?!h)(?=[eiy])')
@@ -608,10 +674,10 @@ def _translit_key(word: str) -> Optional[tuple]:
     """
     if _ONLY_CYR_RE.fullmatch(word):
         script = 'cyr'
-        text = ''.join(_CYR_TO_LAT.get(ch, ch) for ch in word.replace('дж', 'j'))
+        text = ''.join(_CYR_TO_LAT.get(ch, ch) for ch in word.replace('дж', 'j')).replace('th', 't')
     elif _ONLY_LATIN_RE.fullmatch(word):
         script = 'lat'
-        text = word
+        text = _LAT_J_RE.sub('i', word)
         for old, new in _LAT_RULES:
             text = text.replace(old, new)
         text = _LAT_K_RE.sub('k', _LAT_C_RE.sub('s', text))
@@ -670,12 +736,19 @@ def similar_cards(name: str, index: dict, brand: str = '', limit: int = SIMILAR_
     давал «pale» и «ale» из одного «Pale» — счёт 2 у любой карточки «… Pale Ale»
     (ревью 2026-10-03). Слово другого алфавита совпало, если совпало «звучание»
     («Собер» = «Sober», см. _translit_key). Счёт — сколько разных слов карточки совпало; кандидат —
-    счёт >= SIMILAR_MIN_SCORE. Кандидаты — карточки SEARCH_TYPES любые: актуальные,
-    удалённые, архивные (пометки видны в сводке). Порядок: счёт по убыванию, при
-    keg=True (товар ЧЗ — кега, см. is_keg_text) кеги раньше бутылок того же счёта,
-    затем актуальные раньше, имя. «Кег» — стоп-слово, в счёт не идёт: без keg бутылка
-    и кега одного сорта набирают одинаково, и кега (имя «КЕГ …») оказывалась ниже.
-    Возврат: [card_summary + {'score': n}] не больше limit.
+    счёт >= SIMILAR_MIN_SCORE и среди совпавших есть слово не из GENERIC_WORDS и не объём
+    (VOLUME_WORD_RE): стиль, цвет, тип и «30л» не делают карточку похожей сами; объём идёт
+    в счёт, только если слово названия совпало целиком (см. VOLUME_WORD_RE). Кандидаты — карточки SEARCH_TYPES любые:
+    актуальные, удалённые, архивные (пометки видны в сводке). Порядок: счёт по убыванию;
+    при равном счёте карточки той же тары раньше: для кеги (keg=True, см. is_keg_text) —
+    кеги, для остального — бутылки и банки: их в ЧЗ большинство (в выгрузке остатков ЧЗ
+    у названий с известной карточкой 353 бутылки и банки на 26 кег), а кега без слова
+    «кег» и объёма в тексте неотличима; без этого «КЕГ Джоус Ищу Человека» вставала над
+    бутылкой — слов у кеги меньше, доля совпавших выше (ревью 2026-10-04). Затем доля
+    совпавших слов карточки: у «Парадокс Неон Филдс ж/б» совпали все три, у «Парадокс Неон
+    Филдс 2 (маракуйя, малина)» — три из пяти. Затем актуальные раньше, имя. «Кег» —
+    стоп-слово, в счёт не идёт: бутылка и кега одного сорта набирают одинаково, и порядок
+    между ними решает тара. Возврат: [card_summary + {'score': n}] не больше limit.
     """
     tokens = _text_words(_clean(name) + ' ' + _clean(brand))
     if not tokens:
@@ -687,7 +760,8 @@ def similar_cards(name: str, index: dict, brand: str = '', limit: int = SIMILAR_
     scored = []
     for card, words in _candidate_words(index):
         used = set()
-        score = 0
+        score = plain = volume = 0
+        distinct = strong = False
         for word in words:
             hit = None
             for i in by_head.get(word[:MIN_WORD_LEN], ()):
@@ -696,13 +770,23 @@ def similar_cards(name: str, index: dict, brand: str = '', limit: int = SIMILAR_
                     break
             if hit is None:
                 hit = _translit_match(word, by_sound, used)
-            if hit is not None:
-                used.add(hit)
-                score += 1
-        if score >= SIMILAR_MIN_SCORE:
-            scored.append((score, card))
-    scored.sort(key=lambda item: (-item[0], bool(keg) and not item[1].get('keg')) + _order_key(item[1]))
-    return [dict(card_summary(card), score=score) for score, card in scored[:max(0, int(limit))]]
+            if hit is None:
+                continue
+            used.add(hit)
+            if VOLUME_WORD_RE.match(word):
+                volume += 1
+                continue
+            plain += 1
+            if word not in GENERIC_WORDS:
+                distinct = True
+                strong = strong or (tokens[hit] == word and len(word) >= STRONG_WORD_LEN)
+        score = plain + (volume if strong else 0)
+        if score >= SIMILAR_MIN_SCORE and distinct:
+            share = plain / (sum(1 for w in words if not VOLUME_WORD_RE.match(w)) or 1)
+            scored.append((score, share, card))
+    scored.sort(key=lambda item: (-item[0], bool(item[2].get('keg')) != bool(keg), -item[1])
+                + _order_key(item[2]))
+    return [dict(card_summary(card), score=score) for score, _share, card in scored[:max(0, int(limit))]]
 
 
 def search_cards(q: str, index: dict, limit: int = 20) -> list:

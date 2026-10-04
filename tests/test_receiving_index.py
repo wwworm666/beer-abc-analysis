@@ -359,11 +359,13 @@ def test_similar_scores_and_order():
     idx = _similar_index()
     found = ri.similar_cards('Пиво светлое пастеризованное Konix Pale Ale Session', idx, brand='Konix')
     ids = [c['id'] for c in found]
-    # 4 слова у c-four; по 3 — актуальная раньше удалённой; по 2 — по имени
-    # (c-repeat: «ale ale pale» — повтор слова не считается дважды).
-    assert ids == ['c-four', 'c-pale', 'c-pale-old', 'c-repeat', 'c-prepared']
-    assert [c['score'] for c in found] == [4, 3, 3, 2, 2]
+    # 4 слова у c-four; по 3 — c-pale (совпали все слова, актуальная) раньше удалённой;
+    # по 2 — c-prepared. c-repeat («Ale Ale Pale») совпал только общими словами стиля —
+    # не кандидат (ревью 2026-10-04); повтор слова в карточке не считается дважды.
+    assert ids == ['c-four', 'c-pale', 'c-pale-old', 'c-prepared']
+    assert [c['score'] for c in found] == [4, 3, 3, 2]
     assert found[2]['deleted'] is True
+    assert ri._name_words('Ale Ale Pale') == ['ale', 'pale']
     assert set(found[0]) == {'id', 'name', 'num', 'group', 'supplier', 'unit', 'deleted',
                              'archived', 'keg', 'score'}
     assert 'c-pale-dish' not in ids    # DISH — не кандидат
@@ -406,8 +408,9 @@ def test_similar_yo_digits_brand_limit():
     assert [c['id'] for c in zhig] == ['c-zhig'] and zhig[0]['score'] == 2
     # Цифры не слово: у c-digits остаётся одно слово lager.
     assert ri.similar_cards('1516 Lager', idx) == []
-    # Бренд участвует в тексте ЧЗ.
-    assert [c['id'] for c in ri.similar_cards('Pale Ale', idx, brand='Konix')][:2] == ['c-four', 'c-pale']
+    # Бренд участвует в тексте ЧЗ; при равном счёте (3) выше c-pale — у неё совпали все
+    # слова, у c-four — три из четырёх.
+    assert [c['id'] for c in ri.similar_cards('Pale Ale', idx, brand='Konix')][:2] == ['c-pale', 'c-four']
     assert len(ri.similar_cards('Konix Pale Ale Session', idx, limit=2)) == 2
     assert ri.similar_cards('Konix Pale Ale Session', idx, limit=0) == []
     assert ri.similar_cards('', idx) == []
@@ -463,6 +466,101 @@ def test_translit_key_rules():
     # Смесь алфавитов, цифры, короткое — не сравниваются.
     assert key('idaho7') is None and key('ко-ко') is None and key('ооо') is None
     assert ri.TRANSLIT_MIN_SKELETON == 3 and ri.TRANSLIT_MIN_RATIO == 0.7
+
+
+def test_translit_review_2026_10_04():
+    """Ревью 2026-10-04 (выгрузка остатков ЧЗ): латинское j после гласной и в конце — «й»,
+    «ц» — s (как c перед e/i), «тх» — t (как th)."""
+    key = ri._translit_key
+    assert key('polnochnyj')[1] == key('полночный')[1] == 'polnochni'
+    assert key('sicilian')[1] == key('сицилиан')[1] == 'sisilian'
+    assert key('placebo')[1] == key('плацебо')[1] == 'plasebo'
+    assert key('festhaus')[1] == key('фестхаус')[1] == 'festaus'
+    assert key('juicy')[1] == 'juisi'                                # j в начале слова — как было
+
+
+def _review_index(*products):
+    return ri.build_index(list(products), GROUPS, built_at='2026-10-04T07:30:05+03:00')
+
+
+def test_similar_generic_words_alone_are_not_enough():
+    """Ревью 2026-10-04: стиль, цвет и тип («лагер», «стаут», «премиум», «сидр») совпадают у
+    десятков карточек разных пивоварен — сами карточку похожей не делают. Примеры — из
+    выгрузки остатков ЧЗ и номенклатуры iiko."""
+    idx = _review_index(
+        _product('c-dorothy', 'Dorothy Black Irish Stout Nitro 0,44 ж/б'),
+        _product('c-bakalar', 'Bakalar Premium lager 0,5 бут.'),
+        _product('c-sidra', 'Sidra Mayador полусладкий 0,75 л бут.'),
+        _product('c-andreev', 'Andreev Белые Ночи Анархия 0.375'),
+    )
+    assert ri.similar_cards('Пиво темное "Ивентайд Ириш Стаут"', idx) == []
+    assert ri.similar_cards('Пиво светлое "Премиум Лагер"', idx) == []
+    # Общее слово идёт в счёт, когда совпало и своё: здесь своих нет у Sidra Mayador.
+    found = ri.similar_cards('Традиционный сидр полусладкий "Белые ночи"', idx, brand='Отсутствует')
+    assert [(c['id'], c['score']) for c in found] == [('c-andreev', 2)]
+    assert 'stout' in ri.GENERIC_WORDS and 'стаут' in ri.GENERIC_WORDS
+    assert not ri.GENERIC_WORDS & ri.STOP_WORDS
+
+
+def test_similar_stop_volume_and_sign_words():
+    """Ревью 2026-10-04: стоп-слова убраны и из текста ЧЗ («пивоварня» карточки совпадала
+    началом с «пиво»); объём «30л» идёт в счёт, но кандидата сам не делает (совпадал у кег
+    разных пивоварен одного объёма), а вместе с пивоварней делает («КЕГ ЛеФорт Трипель,
+    20л» — единственная верная карточка); мягкий знак не пишется («Майзельс» в ЧЗ =
+    «Майзелс» в iiko); общие слова кириллицей («брю») — тоже общие."""
+    idx = _review_index(
+        _product('c-varka', 'КЕГ Варка Лагер 30л.', parent=G_KEG),
+        _product('c-lefort', 'КЕГ ЛеФорт Трипель, 20л', parent=G_KEG),
+        _product('c-volk', 'Пивоварня Волк Лагер'),
+        _product('c-maisel', 'Майзелс Вайс Ориджинал 0,5 бут.'),
+        _product('c-brewdog', 'Брю Дог Punk IPA 0,500 ж/б'),
+    )
+    assert ri.similar_cards('Пиво "Нишко пиво LAGER" (NISKO LAGER PIVO) 4,7% об., КЕГ 30л', idx,
+                            keg=True) == []
+    lefort = ri.similar_cards('Пиво LeFort "Трипл ЛеФорт" 20л. светлое', idx, brand='LeFort', keg=True)
+    assert [(c['id'], c['score']) for c in lefort] == [('c-lefort', 2)]
+    assert ri.similar_cards('Пиво Волк светлое', idx) == []
+    assert ri.similar_cards('Пиво светлое "Брюмен ипа 6" 0,45л', idx, brand='Гас') == []
+    found = ri.similar_cards('Пиво светлое "Майзельс Вайссе Ориджинал"', idx)
+    assert [(c['id'], c['score']) for c in found] == [('c-maisel', 3)]
+    assert ri._name_words('КЕГ Варка Лагер 30л.') == ['варка', 'лагер', '30л']
+    assert ri._name_words('Майзельс') == ['майзелс']
+
+
+def test_similar_order_tara_then_share():
+    """При равном счёте: сначала тара (кега для кеги по ЧЗ, иначе бутылки и банки), затем
+    доля совпавших слов карточки (ревью 2026-10-04)."""
+    idx = _review_index(
+        _product('c-keg', 'КЕГ Джоус Ищу Человека', parent=G_KEG),
+        _product('c-bottle', 'Джоус Вихтенаар Ищу человека, 0,500 бут.'),
+        _product('c-neon', 'Парадокс Неон Филдс ж/б. 0,450 .'),
+        _product('c-neon2', 'Парадокс Неон Филдс 2(маракуйя, малина) ж/б. 0,500 .'),
+    )
+    # Не кега: бутылка выше, хотя у кеги совпала большая доля слов (2 из 3 против 2 из 4).
+    bottle = ri.similar_cards('Ищу человека 5,2% пиво темное', idx, brand='"Jaws"')
+    assert [(c['id'], c['score']) for c in bottle] == [('c-bottle', 2), ('c-keg', 2)]
+    keg = ri.similar_cards('Ищу человека 5,2% пиво темное 30л', idx, brand='"Jaws"', keg=True)
+    assert [c['id'] for c in keg] == ['c-keg', 'c-bottle']
+    neon = ri.similar_cards('Пивной напиток «Неон Филдс»', idx, brand='PARADOX')
+    assert [(c['id'], c['score']) for c in neon] == [('c-neon', 3), ('c-neon2', 3)]
+
+
+def test_similar_cider_sweetness_and_mead():
+    """Сладость сидра — общее слово: различает варианты одного сидра, но сама не делает
+    кандидата. «Медовуха» — стоп-слово: «Мёд» карточки совпадал с ней началом у любой
+    медовухи (ревью 2026-10-04)."""
+    idx = _review_index(
+        _product('c-dry', 'Бульви Рустик полусухой, бут. 0,45л'),
+        _product('c-sweet', 'Бульви Рустик полусладкий, бут. 0,45л'),
+        _product('c-newton', 'Закон Ньютона Сидр полусухой традиционный 0,45 ж/б'),
+        _product('c-boshe', 'Степь И Ветер Боше Blackberry Black Currant , ж/б, 0,330'),
+        _product('c-apricot', 'КЕГ Степь и Ветер Мёд и Абрикос', parent=G_KEG),
+    )
+    rustic = ri.similar_cards('Сидр традиционный газированный полусухой "Бюльви рустик"', idx,
+                              brand='Bullevie')
+    assert [(c['id'], c['score']) for c in rustic] == [('c-dry', 3), ('c-sweet', 2)]
+    mead = ri.similar_cards('Медовуха нефильтрованная, осветленная «Боше 1»', idx, brand='Степь и Ветер')
+    assert [(c['id'], c['score']) for c in mead] == [('c-boshe', 3), ('c-apricot', 2)]
 
 
 def test_similar_words_cache_follows_index():
