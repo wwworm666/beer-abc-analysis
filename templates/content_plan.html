@@ -114,44 +114,52 @@
             <span class="gh-banner-a"><button type="button" class="gh-btn gh-btn-sm" id="cpRetry">Повторить</button></span>
         </div>
 
-        <!-- Сводка месяца (числа сервера) и вторичные действия. Рядом со сводкой —
-             материалы ИИ-агента (MCP): чип-фильтр «Только от ИИ» (?origin=agent) и
-             «Удалить черновики ИИ»; блок виден, когда в месяце есть материалы агента
-             или фильтр включён (content_plan.js, renderOrigin). -->
+        <!-- Сводка месяца (числа сервера) и два меню: «ИИ-агент» (задания агенту
+             в Claude, бриф, фильтр «Только от ИИ», удаление черновиков ИИ) и
+             «Ещё» (каналы и отправка, копирование месяца, пауза). Решение
+             владельца 2026-10-04: на виду — план, редкое и служебное — в меню.
+             Пункты «Попросить агента» рисует content_plan.js (renderAgentMenu). -->
         <div class="gh-cp-bar">
             <div class="gh-sumline gh-cp-sum" id="cpSum"></div>
-            <div class="gh-cp-origin" id="cpOrigin" hidden>
-                <button type="button" class="gh-chip gh-cp-originchip" id="cpOriginBtn" aria-pressed="false"
-                        data-tip="Показать только материалы, которые создал ИИ-агент (по MCP). Число — такие материалы в плане. Нажмите ещё раз, чтобы показать все.">
-                    <span class="gh-cp-ai" aria-hidden="true">ИИ</span>Только от ИИ<b class="gh-cp-originchip-n" id="cpOriginN">0</b>
-                </button>
-                <button type="button" class="gh-btn gh-btn-sm gh-btn-danger gh-btn-outline" id="cpAgentDelBtn" hidden>Удалить черновики ИИ</button>
-            </div>
-            <!-- Порядок кнопок важен для телефона (сетка в две колонки, см.
-                 content_plan.css): «Бриф» и «Попросить агента» — первой строкой,
-                 «Каналы и отправка» и «Пауза» — второй, длинная «Скопировать
-                 прошлый месяц» — своей строкой. -->
             <div class="gh-cp-bar-acts">
-                <button type="button" class="gh-btn gh-btn-sm gh-cp-briefbtn" id="cpBriefBtn"
-                        data-tip="Постоянные правила сети для ИИ-агента: тон, рубрики, ритм, табу, реклама алкоголя, фото, бары, примеры постов. Агент читает бриф перед каждым черновиком.">Бриф для агента</button>
-                <!-- «Попросить агента»: меню из трёх заданий. Пункт открывает Claude
-                     (claude.ai/new?q=<задание>) в новой вкладке и копирует задание в
-                     буфер; пункты и подсказку о коннекторе рисует content_plan.js. -->
                 <div class="gh-cp-menuwrap">
                     <button type="button" class="gh-btn gh-btn-sm" id="cpAgentBtn" aria-haspopup="true" aria-expanded="false">
-                        Попросить агента
+                        <span class="gh-cp-ai" aria-hidden="true">ИИ</span>ИИ-агент
                         <svg class="gh-chev" width="9" height="9" viewBox="0 0 10 10" aria-hidden="true"><path d="M2 3.5 5 6.5 8 3.5" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
                     </button>
-                    <div class="gh-menu gh-cp-agentmenu" id="cpAgentMenu" hidden></div>
+                    <div class="gh-menu is-right gh-cp-agentmenu" id="cpAgentMenu" hidden>
+                        <div class="gh-menu-grab" aria-hidden="true"></div>
+                        <div class="gh-menu-cap">Попросить агента</div>
+                        <div id="cpAgentTasks"></div>
+                        <div class="gh-menu-sep"></div>
+                        <button type="button" class="gh-menu-item" id="cpBriefBtn"
+                                data-tip="Постоянные правила сети для ИИ-агента: тон, рубрики, ритм, табу, реклама алкоголя, фото, бары, примеры постов. Агент читает бриф перед каждым черновиком.">
+                            <span>Бриф для агента</span><span class="gh-menu-hint">правила сети</span>
+                        </button>
+                        <button type="button" class="gh-menu-item" id="cpOriginBtn" aria-pressed="false"
+                                data-tip="Показать только материалы, которые создал ИИ-агент (по MCP). Число — такие материалы в плане. Нажмите ещё раз, чтобы показать все.">
+                            <span>Только от ИИ</span><span class="gh-menu-hint" id="cpOriginN">0</span>
+                        </button>
+                        <button type="button" class="gh-menu-item is-danger" id="cpAgentDelBtn" hidden>Удалить черновики ИИ</button>
+                    </div>
                 </div>
-                <button type="button" class="gh-btn gh-btn-sm" id="cpChanBtn"
-                        data-tip="Куда и как уходят утверждённые публикации: каналы баров в Telegram, напоминания для Instagram, рассылки гостям через бота; главный выключатель автоматической отправки.">Каналы и отправка</button>
-                <button type="button" class="gh-btn gh-btn-sm gh-cp-copybtn" id="cpCopyBtn">Скопировать прошлый месяц</button>
                 <div class="gh-cp-menuwrap">
-                    <button type="button" class="gh-btn gh-btn-sm" id="cpPauseBtn" aria-haspopup="true" aria-expanded="false">
-                        Пауза
+                    <button type="button" class="gh-btn gh-btn-sm" id="cpMoreBtn" aria-haspopup="true" aria-expanded="false">
+                        Ещё
                         <svg class="gh-chev" width="9" height="9" viewBox="0 0 10 10" aria-hidden="true"><path d="M2 3.5 5 6.5 8 3.5" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
                     </button>
+                    <div class="gh-menu is-right gh-cp-moremenu" id="cpMoreMenu" hidden>
+                        <div class="gh-menu-grab" aria-hidden="true"></div>
+                        <button type="button" class="gh-menu-item" id="cpChanBtn"
+                                data-tip="Куда и как уходят утверждённые публикации: каналы баров в Telegram, напоминания для Instagram, рассылки гостям через бота; главный выключатель автоматической отправки.">
+                            <span>Каналы и отправка</span><span class="gh-menu-hint">Telegram, Instagram, бот</span>
+                        </button>
+                        <button type="button" class="gh-menu-item" id="cpCopyBtn"><span>Скопировать прошлый месяц</span></button>
+                        <!-- «Пауза» открывает своё меню (бар или вся сеть) на месте этого. -->
+                        <button type="button" class="gh-menu-item" id="cpPauseBtn" data-gh-keep>
+                            <span>Пауза</span><span class="gh-menu-hint">бар или вся сеть</span>
+                        </button>
+                    </div>
                     <div class="gh-menu is-right gh-cp-pausemenu" id="cpPauseMenu" hidden></div>
                 </div>
             </div>
@@ -171,6 +179,7 @@
     <!-- Массовые действия над отмеченными строками таблицы. -->
     <div class="gh-cp-bulk" id="cpBulk" hidden role="region" aria-label="Действия с выбранными">
         <span class="gh-cp-bulk-n" id="cpBulkN"></span>
+        <button type="button" class="gh-btn gh-btn-sm gh-btn-primary" data-bulk="approve" id="cpBulkApprove">Утвердить</button>
         <button type="button" class="gh-btn gh-btn-sm" data-bulk="shift">Сдвинуть на N дней</button>
         <button type="button" class="gh-btn gh-btn-sm" data-bulk="cancel">Отменить размещения</button>
         <button type="button" class="gh-btn gh-btn-sm gh-btn-danger gh-btn-outline" data-bulk="delete">Удалить</button>
@@ -230,6 +239,26 @@
             <div class="gh-modal-foot" id="cpCopyFoot">
                 <button type="button" class="gh-btn" data-gh-close>Отмена</button>
                 <button type="button" class="gh-btn gh-btn-primary" id="cpCopyGo">Скопировать</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Диалог «Новый материал»: название и сразу где и когда он выйдет —
+         площадка, бары, дата, время (раньше спрашивалось только название, а
+         размещение добавлялось потом в карточке). Поля рисует content_plan.js
+         (renderNew). -->
+    <div class="gh-modal" id="cpNewModal" hidden aria-labelledby="cpNewTitle">
+        <div class="gh-modal-box">
+            <div class="gh-modal-head">
+                <h2 class="gh-modal-t" id="cpNewTitle">Новый материал</h2>
+                <button type="button" class="gh-x" data-gh-close aria-label="Закрыть">
+                    <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7" stroke-width="1.6" stroke-linecap="round"/></svg>
+                </button>
+            </div>
+            <div class="gh-modal-body" id="cpNewBody"></div>
+            <div class="gh-modal-foot">
+                <button type="button" class="gh-btn" data-gh-close>Отмена</button>
+                <button type="button" class="gh-btn gh-btn-primary" id="cpNewGo">Создать</button>
             </div>
         </div>
     </div>
