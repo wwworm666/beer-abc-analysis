@@ -349,13 +349,17 @@ test('стоп-слова и длина слова «Найти в iiko» — к
     const jsWords = /const STOP_WORDS = new Set\(\[([\s\S]*?)\]\);/.exec(js);
     assert.ok(jsWords, 'нет STOP_WORDS в JS');
     const mine = [...jsWords[1].matchAll(/'([^']+)'/g)].map((m) => m[1]).sort();
-    assert.equal(mine.length, 21, 'список стоп-слов не из спецификации (21 слово)');
+    assert.equal(mine.length, 35, 'список стоп-слов не из спецификации (35 слов, ревью 2026-10-04)');
     if (indexPy) {
         const py = /STOP_WORDS = frozenset\(\{([\s\S]*?)\}\)/.exec(indexPy);
         assert.ok(py, 'нет STOP_WORDS в core/receiving_index.py');
         const theirs = [...py[1].matchAll(/'([^']+)'/g)].map((m) => m[1]).sort();
         assert.deepEqual(mine, theirs, 'стоп-слова разошлись с core/receiving_index.py');
         assert.equal(jsConst('MIN_WORD_LEN'), pyConst(indexPy, 'MIN_WORD_LEN'), 'MIN_WORD_LEN');
+        const pyVolume = /VOLUME_WORD_RE = re\.compile\(r'(.*?)\\Z'\)/.exec(indexPy);
+        const jsVolume = /const VOLUME_WORD_RE = \/\^(.*?)\$\/;/.exec(js);
+        assert.ok(pyVolume && jsVolume, 'нет VOLUME_WORD_RE');
+        assert.equal(jsVolume[1], pyVolume[1], 'объём-слово разошлось с core/receiving_index.py');
     }
 });
 
