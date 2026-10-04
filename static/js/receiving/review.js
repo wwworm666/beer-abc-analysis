@@ -516,7 +516,9 @@
         ids.forEach((id) => box.appendChild(pickNode(id, known[id] || null)));
         if (focusKey) {
             const again = box.children ? Array.prototype.find.call(box.children, (n) => n.dataset && n.dataset.receipt === focusKey) : null;
-            if (again && typeof again.focus === 'function') again.focus();
+            // preventScroll: автообновление списка (возврат во вкладку, конец обновления
+            // индекса) не прокручивает страницу обратно к чипу (ревью 2026-10-04).
+            if (again && typeof again.focus === 'function') again.focus({ preventScroll: true });
         }
 
         const waiting = state.receipts.filter(needsReview).length;

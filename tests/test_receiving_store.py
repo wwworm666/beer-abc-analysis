@@ -1433,6 +1433,76 @@ def test_reviewed_sticks_when_shared_row_reopened_later(db, clock):
     assert rs.get_receipt(r2)['reviewed'] is False
 
 
+def test_reviewed_cleared_when_own_decision_is_reverted(db, clock):
+    # Ревью 2026-10-04: «Вернуть в разбор» и «Сделано», не подтверждённое индексом
+    # (опечатка в штрихкоде), — пересмотр решения: приёмка снова не разобрана — в выборе
+    # приёмок и удаляется; чужие отметки не трогаются.
+    rid = _closed_receipt_with([_ean(G2)])
+    rs.upsert_review(G2, rid, 'new', [], [], CHZ, IDX_0700)
+    _processed(rid)
+    later = _closed_receipt_with([_ean(G1)])                              # новее: в recent=1 — она
+    rs.upsert_review(G1, later, 'found', [_card('k1', 'Жигули')], [], {}, IDX_0700)
+    _processed(later)
+
+    def picked():
+        return [r['id'] for r in rs.review_receipts(recent=1)]
+
+    rs.update_review(G2, USER, state='not_needed')
+    assert rs.get_receipt(rid)['reviewed'] is True and picked() == [later]
+    clock.move(minutes=1)
+    rs.update_review(G2, USER, state='open')                              # «Вернуть в разбор»
+    back = rs.get_receipt(rid)
+    assert (back['reviewed'], back['reviewed_at'], back['can_delete']) == (False, None, True)
+    assert picked() == [later, rid]
+    rs.update_review(G2, USER, state='done')
+    assert rs.get_receipt(rid)['reviewed'] is True and picked() == [later]
+    clock.move(hours=1)
+    assert rs.recheck_done(G2, 'new', [], [], clock.iso())['reopened'] is True
+    again = rs.get_receipt(rid)
+    assert (again['reviewed'], again['can_delete']) == (False, True)
+    assert picked() == [later, rid]
+    assert rs.get_receipt(later)['reviewed'] is True
+    rs.update_review(G2, USER, state='open')                              # уже открыта — ничего
+    assert rs.get_receipt(later)['reviewed'] is True
+
+
+def test_revert_keeps_stamps_of_previous_cycle(db, clock):
+    # R1 разобрана («Сделано»); через 20 дней R2 переоткрыла общую строку, бухгалтер решил
+    # её снова и вернул в разбор: отметку теряет только R2 — R1 разобрана в прошлом круге.
+    r1 = _closed_receipt_with([_ean(G1)])
+    rs.upsert_review(G1, r1, 'new', [], [], CHZ, IDX_0700)
+    _processed(r1)
+    rs.update_review(G1, USER, state='done')
+    clock.move(days=20)
+    r2 = _closed_receipt_with([_ean(G1)])
+    rs.upsert_review(G1, r2, 'restore', [_card('k1', 'Жигули', archived=True)], [], {}, clock.iso())
+    _processed(r2)
+    clock.move(minutes=5)
+    rs.update_review(G1, USER, state='done')
+    assert rs.get_receipt(r2)['reviewed'] is True
+    clock.move(minutes=5)
+    rs.update_review(G1, USER, state='open')
+    assert rs.get_receipt(r1)['reviewed'] is True
+    assert rs.get_receipt(r2)['reviewed'] is False
+
+
+def test_v1_copy_restored_on_the_fly_does_not_break_receipt_lists(db, clock, tmp_path):
+    # Ревью 2026-10-04: файл БД заменили копией до v3 (без reviewed_at), не перезапуская
+    # сервис: списки приёмок не падают, а схема догоняется при первом запросе к колонке.
+    rid = _closed_receipt_with([_ean(G1)])
+    path = rs.db_path()
+    conn = sqlite3.connect(path)
+    conn.execute('ALTER TABLE receipts DROP COLUMN reviewed_at')
+    conn.execute('PRAGMA user_version = 1')
+    conn.commit()
+    conn.close()
+    assert [r['id'] for r in rs.list_receipts()] == [rid]
+    assert rs.get_receipt(rid)['reviewed_at'] is None
+    with pytest.raises(rs.ReceivingUnavailable):
+        rs.review_receipts()                         # «no such column» — схема догоняется
+    assert [r['id'] for r in rs.review_receipts()] == [rid]
+
+
 def test_reviewed_stamped_by_auto_close_and_found_on_finish(db, clock):
     allfound = _closed_receipt_with([_ean(G1)])
     rs.upsert_review(G1, allfound, 'found', [_card('k1', 'Жигули')], [], {}, IDX_0700)

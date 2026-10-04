@@ -56,7 +56,10 @@ counts.gtins. Строка одна на GTIN, поэтому GTIN, общий �
 в обеих. «Разобрана полностью» (reviewed) — закрыта, сверка done, позиций больше
 нуля, open = missing = 0; момент, когда это впервые стало так, запоминается
 (reviewed_at), и приёмка остаётся разобранной, даже если общую строку потом
-переоткроет другая приёмка (это работа новой приёмки). Удалить (delete_receipt,
+переоткроет другая приёмка (это работа новой приёмки). Отметку снимает пересмотр
+решения по строке — «Вернуть в разбор» или «Сделано», не подтверждённое индексом
+(_unstamp_reviewed): приёмки, ставшие разобранными с этим решением, снова не
+разобраны (ревью 2026-10-04). Удалить (delete_receipt,
 can_delete) можно закрытую приёмку, разобранную не полностью и не сверяемую в эту
 минуту; открытую ещё сканируют, а разобранная — запись о сделанной работе и остаётся
 в истории.
@@ -601,7 +604,11 @@ def _receipt_dict(row, counts: dict, progress: dict) -> dict:
     сверяется в эту минуту (правила — докстринг модуля)."""
     closed = row['status'] == 'closed'
     review = dict(progress) if closed else None
-    reviewed = bool(closed and (row['reviewed_at'] or _fully_reviewed(row, counts, progress)))
+    # Колонки нет — файл БД заменили на ходу копией до v3 (восстановление): sqlite3.Row
+    # бросил бы IndexError, и списки приёмок отвечали бы 500, пока схему не догонит
+    # запрос, где колонка названа явно (ревью 2026-10-04).
+    reviewed_at = row['reviewed_at'] if 'reviewed_at' in row.keys() else None
+    reviewed = bool(closed and (reviewed_at or _fully_reviewed(row, counts, progress)))
     return {
         'id': row['id'],
         'status': row['status'],
@@ -617,7 +624,7 @@ def _receipt_dict(row, counts: dict, progress: dict) -> dict:
         'counts': counts,
         'review': review,
         'reviewed': reviewed,
-        'reviewed_at': row['reviewed_at'],
+        'reviewed_at': reviewed_at,
         'can_delete': closed and not reviewed and not _processing_now(row),
     }
 
@@ -628,7 +635,8 @@ def _stamp_reviewed(conn, gtins=None, receipt_ids=None) -> None:
     Кандидаты — receipt_ids и закрытые приёмки со сверкой done, где есть эти gtins.
     Зовётся в той же записи, что закрывает строки разбора (решение бухгалтера,
     автозакрытие по индексу, строка «есть в iiko», конец сверки) и при миграции v3.
-    Отметку ничто не снимает: переоткрытая позже общая строка — работа новой приёмки.
+    Общая строка, переоткрытая позже новой приёмкой, отметку не снимает — это работа
+    новой приёмки; снимает пересмотр решения по строке (_unstamp_reviewed).
     """
     ids = set(receipt_ids or ())
     wanted = [g for g in (gtins or ()) if g]
@@ -653,6 +661,25 @@ def _stamp_reviewed(conn, gtins=None, receipt_ids=None) -> None:
         if _fully_reviewed(row, counts[row['id']], progress[row['id']]):
             conn.execute('UPDATE receipts SET reviewed_at = ? WHERE id = ? AND reviewed_at IS NULL',
                          (now, row['id']))
+
+
+def _unstamp_reviewed(conn, gtin: str, resolved_at) -> None:
+    """Снять reviewed_at у приёмок с этим GTIN, ставших разобранными с решением по строке.
+
+    Зовётся, когда закрытую строку возвращает в разбор не новая приёмка, а пересмотр
+    решения: бухгалтер — «Вернуть в разбор», индекс — «Сделано» не подтвердилось
+    (recheck_done). Отметку теряют приёмки, отмеченные не раньше этого решения
+    (resolved_at строки; отметка ставится в той же записи, что решение, и не раньше его):
+    они стали разобранными с ним. Отметки раньше — работа прежнего круга строки (её
+    переоткрыла новая приёмка, решение приняли заново) — остаются. Нет resolved_at —
+    снимаются все отметки приёмок с этим GTIN: лучше показать работу лишний раз, чем
+    спрятать. Ревью 2026-10-04: без этого приёмка с возвращённой в разбор строкой
+    оставалась «разобрана», уходила из выбора приёмок и не удалялась.
+    """
+    conn.execute(
+        'UPDATE receipts SET reviewed_at = NULL WHERE reviewed_at IS NOT NULL AND reviewed_at >= ?'
+        ' AND id IN (SELECT receipt_id FROM receipt_scans WHERE gtin = ? AND accepted = 1'
+        ' AND deleted_at IS NULL)', (str(resolved_at or ''), gtin))
 
 
 def _scan_dict(row) -> dict:
@@ -1424,6 +1451,8 @@ def recheck_done(gtin, status, cards, candidates, index_built_at) -> dict:
                         " resolved_by_login = '', resolved_by_name = '', reopened = reopened + 1,"
                         ' notify_receipt_id = NULL')
         conn.execute('UPDATE review_items SET ' + ', '.join(sets) + ' WHERE gtin = :gtin', params)
+        if reopened:
+            _unstamp_reviewed(conn, gtin, row['resolved_at'])
         return {'row': _load_review(conn, gtin), 'reopened': reopened}
 
 
@@ -1568,11 +1597,15 @@ def update_review(gtin, user, supplier=None, state=None, note=None) -> dict:
         sets.append("state = 'closed', resolution = :resolution, resolved_at = :now,"
                     ' resolved_by_login = :login, resolved_by_name = :name')
     with _write() as conn:
+        before = conn.execute('SELECT state, resolved_at FROM review_items WHERE gtin = ?',
+                              (gtin,)).fetchone()
         cur = conn.execute('UPDATE review_items SET ' + ', '.join(sets) + ' WHERE gtin = :gtin', params)
         if cur.rowcount != 1:
             raise ReviewItemNotFound(gtin)
         if state in ('done', 'not_needed'):
             _stamp_reviewed(conn, gtins=[gtin])
+        elif state == 'open' and before['state'] == 'closed':
+            _unstamp_reviewed(conn, gtin, before['resolved_at'])
         return _load_review(conn, gtin)
 
 

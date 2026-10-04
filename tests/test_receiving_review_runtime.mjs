@@ -138,7 +138,7 @@ class El {
         if (this.disabled) return null;
         return this.dispatch('click', Object.assign({ button: 0 }, init || {}));
     }
-    focus() { if (El.doc) El.doc.activeElement = this; }
+    focus(opts) { this.focusOpts = opts || null; if (El.doc) El.doc.activeElement = this; }
     blur() { this.blurred++; if (El.doc && El.doc.activeElement === this) El.doc.activeElement = null; }
     select() {}
     scrollIntoView() { this.scrolled++; }
@@ -1329,6 +1329,9 @@ await test('фокус клавиатуры остаётся на чипе пр�
     await flush();
     assert.equal(e2.document.activeElement, e2.chip(11), 'фокус ушёл с чипа');
     assert.ok(e2.chip(11).classList.contains('is-on'));
+    // Ревью 2026-10-04: фокус возвращается без прокрутки — автообновление списка не
+    // уводит страницу от строки, с которой работают, обратно к чипу.
+    assert.equal(JSON.stringify(e2.chip(11).focusOpts), JSON.stringify({ preventScroll: true }));
 });
 
 await test('кривой ?receipt= игнорируется', async () => {
