@@ -255,7 +255,7 @@ test('«Как считается» свёрнуто у счётчика, а п�
         assert.ok(details[1].includes(text), 'в пояснении нет «' + text + '»');
     }
     const tick = Number(js.match(/const CAMERA_TICK_MS = (\d+);/)[1]);
-    assert.ok(details[1].includes((1000 / tick) + ' раз в'), 'частота детектора в пояснении не совпадает с JS');
+    assert.ok(details[1].includes('пауза ' + tick + ' мс'), 'пауза между проверками кадра в пояснении не совпадает с JS');
     assert.ok(!/<details(?![^>]*class="rc-how")/.test(html), 'раскрывашка без своего класса');
 });
 

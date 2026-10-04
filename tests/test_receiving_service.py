@@ -1125,5 +1125,34 @@ def test_classify_keg_by_chz_name_puts_keg_card_first():
 def test_is_keg_text_matches_chz_keg_names():
     for text in ('кега 20 л ПЭТ', '30л. КЕГ (ПЭТ)', 'пластиковый кег', 'KEG 30L', 'Кега'):
         assert real_index.is_keg_text('Пиво', text) is True, text
+    # Настоящие названия ЧЗ кег без слова «кег» — только объём (выгрузка остатков ЧЗ).
+    for name in ('Пиво L. Huyghe "Делириум Тременс" 30л. светлое пастеризованное фильтрованное',
+                 'Олд Спеклд Хэн 20 л Пиво темное пастеризованное фильтрованное',
+                 'Франц дЭсте Лагер (30л) Пиво светлое пастеризованное фильтрованное солодовое',
+                 'Пиво "Борнем Дубль" 20л темное непастеризованное фильтрованное'):
+        assert real_index.is_keg_text(name) is True, name
+    assert real_index.is_keg_text('Пиво', '', '', '30000 мл') is True       # volume из product/info
+    for name in ('Пиво светлое 0,45 л', 'Пиво 1,5 л ПЭТ', 'Делириум Рэд 5 л бочонок',
+                 'Пиво светлое объемная доля этилового спирта 4,5%', 'Пиво 750 мл'):
+        assert real_index.is_keg_text(name) is False, name
+    assert real_index.is_keg_text('Пиво', '', '', '30') is False            # объём без единицы — не берём
     assert real_index.is_keg_text('Пиво светлое 0,45 л', None, '') is False
     assert real_index.is_keg_text() is False
+    assert real_index.KEG_MIN_LITERS == 10
+
+
+def test_classify_keg_by_volume_only_name():
+    """«Делириум Тременс» 30л. без слова «кег» (из выгрузки остатков ЧЗ: full_name и
+    package_type пустые) — кега: карточка «КЕГ …» выше бутылок «Делириум Тременс, … бут.»."""
+    groups = [{'id': 'g-beer', 'name': 'Пиво бутылочное', 'parent': None, 'deleted': False},
+              {'id': real_index.KEG_GROUP_ID, 'name': 'Kеги', 'parent': None, 'deleted': False}]
+    index = real_index.build_index([
+        _real_card('b033', 'Делириум Тременс, 0,330 бут.', 'g-beer'),
+        _real_card('b075', 'Делириум Тременс, 0,75 бут.', 'g-beer'),
+        _real_card('keg', 'КЕГ Делириум Тременс', real_index.KEG_GROUP_ID),
+    ], groups, built_at='2026-10-03T07:30:00+03:00')
+    gtin = '05412858000302'
+    result = svc.classify_gtins([gtin], index, {gtin: {
+        'name': 'Пиво L. Huyghe "Делириум Тременс" 30л. светлое пастеризованное фильтрованное',
+        'brand': '', 'full_name': '', 'package_type': '', 'volume': ''}})
+    assert [c['id'] for c in result[gtin]['candidates']][0] == 'keg'

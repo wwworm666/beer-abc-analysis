@@ -82,10 +82,17 @@ ARCHIVE_GROUP_NAMES = ('старое и неактуальное', 'архив �
 # поэтому кеги узнаём по GUID, а не по имени (docs/keg-catalog.md).
 KEG_GROUP_ID = '4a5b2a76-8f86-4365-b8e6-5c9aeecd3323'
 # Кеговая фасовка в карточке: «кег(30)», «кега 20», «KEG 30L» — как keg_reason
-# в scripts/export_keg_catalog.py. Тем же словом кегу узнаём в названии ЧЗ: в
-# выгрузке остатков ЧЗ так названы все кеги («кега 20 л ПЭТ», «30л. КЕГ (ПЭТ)»,
-# «пластиковый кег»), см. is_keg_text.
+# в scripts/export_keg_catalog.py. Тем же словом кегу узнаём в названии ЧЗ (см.
+# is_keg_text): «кега 20 л ПЭТ», «30л. КЕГ (ПЭТ)», «пластиковый кег».
 KEG_CONTAINER_RE = re.compile(r'кег|keg', re.IGNORECASE)
+# Второй признак кеги в ЧЗ — объём от KEG_MIN_LITERS: половина кег в выгрузке остатков
+# ЧЗ названа без слова «кег», только объёмом («Делириум Тременс" 30л. светлое»; 17 со
+# словом и 19 только с объёмом из 36). Бутылки и ПЭТ — до 3 л, кеги — 20, 24, 30 л;
+# 5-литровые бочонки кегой не считаем (в iiko они не в «Kеги»). Объём — число с
+# единицей «л» или «мл» (так приходит и поле volume из product/info: «30000 мл»);
+# число без единицы не берём — неизвестно, литры это или миллилитры.
+KEG_MIN_LITERS = 10
+VOLUME_RE = re.compile(r'(\d+(?:[.,]\d+)?)\s*(мл|л)(?![а-яёa-z])', re.IGNORECASE)
 # Глубина цепочки групп: в дереве iiko единицы уровней; 50 — защита от кривых данных
 # (цикл в parent), как _MAX_GROUP_DEPTH в core/nomenclature_xml.py.
 MAX_GROUP_DEPTH = 50
@@ -213,8 +220,21 @@ def _name_words(name) -> list:
 
 
 def is_keg_text(*texts) -> bool:
-    """Текст ЧЗ (название, полное название, вид упаковки) говорит, что товар — кега."""
-    return any(KEG_CONTAINER_RE.search(_clean(text)) for text in texts if text)
+    """Тексты ЧЗ (название, полное название, вид упаковки, объём) говорят, что товар —
+    кега: есть слово «кег»/«keg» или объём от KEG_MIN_LITERS литров."""
+    for text in texts:
+        value = _clean(text)
+        if not value:
+            continue
+        if KEG_CONTAINER_RE.search(value):
+            return True
+        for number, unit in VOLUME_RE.findall(value):
+            liters = float(number.replace(',', '.'))
+            if unit.casefold() == 'мл':
+                liters /= 1000
+            if liters >= KEG_MIN_LITERS:
+                return True
+    return False
 
 
 def _text_words(text) -> list:

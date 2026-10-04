@@ -495,6 +495,7 @@ function makeEnv(options) {
         },
     };
     if (opts.barcodeDetector) sandbox.BarcodeDetector = opts.barcodeDetector;
+    if (opts.noWebAssembly) sandbox.WebAssembly = undefined;
     sandbox.window = sandbox;
     vm.createContext(sandbox);
     if (!opts.noCodes) {
@@ -1533,12 +1534,14 @@ await test('камера: штрихкод, за которым через 0,4 �
     rig.frame = [EAN_B];
     await advance(env, 1000);
     assert.deepEqual(env.scanCalls().map((c) => c.body.code), [DM_1, EAN_B]);
-    // Код ЧЗ того же товара уже ушёл из кадра больше 2,5 с назад — его штрихкод снова в счёт.
+    // У товара A в приёмке уже есть код ЧЗ: его штрихкод не считается и через 2,5 с —
+    // маркированный товар считается только по кодам ЧЗ, на экране камеры подсказка.
     rig.frame = [];
     await advance(env, 2600);
     rig.frame = [EAN_A];
     await advance(env, 1000);
-    assert.deepEqual(env.scanCalls().map((c) => c.body.code), [DM_1, EAN_B, EAN_A]);
+    assert.deepEqual(env.scanCalls().map((c) => c.body.code), [DM_1, EAN_B]);
+    assert.match(env.$('rc-cam-status').textContent, /Штрихкод не считается: у товара есть код Честного знака/);
 });
 
 await test('камера: штрихкод без сигнала не считается, если камеру закрыли раньше 0,8 с', async () => {
@@ -1600,7 +1603,7 @@ await test('камера: экран не гаснет, пока она откр
     assert.equal(env2.$('rc-cam-wrap').hidden, false);
 });
 
-await test('камера: браузер без DataMatrix и без полифила — понятная ошибка про Safari/Chrome и ввод вручную', async () => {
+await test('камера: полифил не загрузился (ни своя копия, ни CDN) — ошибка про интернет, без «сканера»', async () => {
     const server = new FakeServer();
     server.addReceipt({ id: 135 });
     class EanOnly {
@@ -1608,12 +1611,126 @@ await test('камера: браузер без DataMatrix и без полиф�
         detect() { return Promise.resolve([]); }
     }
     const rig = cameraRig();
+    // В песочнице vm import() не работает — как недоступные своя копия и CDN.
     const env = await boot({ server, search: '?r=135', mediaDevices: rig.media, barcodeDetector: EanOnly });
     env.$('rc-camera').click();
     await settle(env);
     assert.equal(env.$('rc-cam-wrap').hidden, true);
-    assert.match(env.$('rc-toast').textContent, /обновите Safari или Chrome либо введите код вручную/);
-    assert.ok(!/используйте сканер/.test(env.$('rc-toast').textContent));
+    assert.match(env.$('rc-toast').textContent, /Не загрузился модуль распознавания кодов — проверьте интернет/);
+    assert.ok(!/сканер/.test(env.$('rc-toast').textContent));
+    // Браузер без WebAssembly полифил не потянет — тогда совет обновить браузер.
+    const old = await boot({ server, search: '?r=135', mediaDevices: rig.media, barcodeDetector: EanOnly,
+        noWebAssembly: true });
+    old.$('rc-camera').click();
+    await settle(old);
+    assert.match(old.$('rc-toast').textContent, /обновите Safari или Chrome либо введите код вручную/);
+});
+
+await test('камера: штрихкод посчитан, а код ЧЗ той же бутылки прочитан через 1,6 с — штрихкод отозван', async () => {
+    const server = new FakeServer();
+    server.addReceipt({ id: 136 });
+    const rig = cameraRig();
+    const env = await boot({ server, search: '?r=136', mediaDevices: rig.media, barcodeDetector: rig.Detector });
+    env.$('rc-camera').click();
+    await settle(env);
+    rig.frame = [EAN_A];                     // крупный штрихкод читается издалека
+    await advance(env, 1600);
+    await settle(env);
+    assert.deepEqual(env.scanCalls().map((c) => c.body.code), [EAN_A]);
+    assert.equal(units(env), 1);
+    rig.frame = [EAN_A, DM_1];               // поднесли ближе — прочитался DataMatrix
+    await advance(env, 200);
+    await settle(env);
+    await advance(env, 200);
+    await settle(env);
+    assert.deepEqual(env.scanCalls().map((c) => c.body.code), [EAN_A, DM_1]);
+    const deletes = env.net.calls.filter((c) => c.method === 'DELETE' && SCAN_DELETE_RE.test(c.url));
+    assert.equal(deletes.length, 1, 'штрихкод не удалён на сервере');
+    assert.equal(units(env), 1, 'одна бутылка посчитана дважды');
+    assert.equal(env.$('rc-cam-units').textContent, '1 шт.');
+});
+
+await test('камера: штрихкод отозван, пока нет связи — на сервере остаётся только код ЧЗ', async () => {
+    const server = new FakeServer();
+    server.addReceipt({ id: 137 });
+    const rig = cameraRig();
+    const env = await boot({ server, search: '?r=137', mediaDevices: rig.media, barcodeDetector: rig.Detector });
+    env.$('rc-camera').click();
+    await settle(env);
+    env.net.mode = 'offline';
+    rig.frame = [EAN_A];
+    await advance(env, 1000);                // штрихкод посчитан в телефоне, отправка не дошла
+    await settle(env);
+    assert.equal(units(env), 1);
+    rig.frame = [DM_1];
+    await advance(env, 200);
+    await settle(env);
+    assert.equal(units(env), 1, 'штрихкод не отозван');
+    assert.deepEqual(env.queue().filter((i) => !i.undo).map((i) => i.code), [DM_1]);
+    env.$('rc-cam-close').click();
+    env.net.mode = 'online';
+    await advance(env, 31000);
+    await settle(env);
+    assert.equal(env.queue().length, 0, 'очередь не опустела');
+    assert.equal(units(env), 1);
+    assert.equal(server.counts(server.receipts.get(137)).units, 1, 'на сервере не одна штука');
+});
+
+await test('камера: плёнка упаковки (штрихкод другого GTIN) рядом с кодом ЧЗ банки — не считается', async () => {
+    const server = new FakeServer();
+    server.addReceipt({ id: 138 });
+    const rig = cameraRig();
+    const env = await boot({ server, search: '?r=138', mediaDevices: rig.media, barcodeDetector: rig.Detector });
+    env.$('rc-camera').click();
+    await settle(env);
+    rig.frame = [EAN_B, DM_1];               // штрихкод упаковки раньше в ответе детектора
+    for (let i = 0; i < 10; i++) await advance(env, 200);
+    rig.frame = [EAN_B, DM_2];               // следующая банка, плёнка всё ещё в кадре
+    for (let i = 0; i < 10; i++) await advance(env, 200);
+    await settle(env);
+    assert.deepEqual(env.scanCalls().map((c) => c.body.code), [DM_1, DM_2]);
+    assert.equal(units(env), 2);
+    // Немаркированный товар отдельно (кода ЧЗ в кадре нет 0,8 с) — считается.
+    rig.frame = [];
+    await advance(env, 2600);
+    rig.frame = [EAN_B];
+    await advance(env, 1000);
+    assert.deepEqual(env.scanCalls().map((c) => c.body.code), [DM_1, DM_2, EAN_B]);
+});
+
+await test('камера: штрихкод упаковки посчитан один, а потом попал в кадр с кодом ЧЗ банки — отозван', async () => {
+    const server = new FakeServer();
+    server.addReceipt({ id: 140 });
+    const rig = cameraRig();
+    const env = await boot({ server, search: '?r=140', mediaDevices: rig.media, barcodeDetector: rig.Detector });
+    env.$('rc-camera').click();
+    await settle(env);
+    rig.frame = [EAN_B];                     // плёнка упаковки видна одна больше 0,8 с
+    await advance(env, 1200);
+    await settle(env);
+    assert.deepEqual(env.scanCalls().map((c) => c.body.code), [EAN_B]);
+    rig.frame = [EAN_B, DM_1];               // а это банка под плёнкой
+    await advance(env, 200);
+    await settle(env);
+    await advance(env, 200);
+    await settle(env);
+    assert.deepEqual(env.scanCalls().map((c) => c.body.code), [EAN_B, DM_1]);
+    assert.equal(units(env), 1);
+});
+
+await test('камера: разбор кадра всё время с ошибкой (модуль распознавания сломан) — подсказка на экране камеры', async () => {
+    const server = new FakeServer();
+    server.addReceipt({ id: 139 });
+    const rig = cameraRig();
+    class Broken {
+        static getSupportedFormats() { return Promise.resolve(['data_matrix', 'ean_13']); }
+        detect() { return Promise.reject(new Error('Aborted(wasm)')); }
+    }
+    const env = await boot({ server, search: '?r=139', mediaDevices: rig.media, barcodeDetector: Broken });
+    env.$('rc-camera').click();
+    await settle(env);
+    for (let i = 0; i < 16; i++) await advance(env, 200);
+    assert.match(env.$('rc-cam-status').textContent, /Камера не читает коды — закройте её и откройте снова/);
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

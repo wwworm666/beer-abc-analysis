@@ -9,8 +9,8 @@
    На РЦ сканируют только телефоном (решение владельца 2026-10-03): камера — основной
    путь. Детектор кодов — встроенный BarcodeDetector или библиотека-полифил из
    static/libs (своя копия: склад не зависит от доступности CDN). Камера видит в
-   кадре сразу и DataMatrix, и обычный штрихкод той же бутылки — штрихкод ждёт
-   CAMERA_EAN_WAIT_MS и не считается, если рядом прочитан код ЧЗ того же товара.
+   кадре сразу и DataMatrix, и обычный штрихкод той же бутылки или упаковки — правила
+   «штрихкод не дублирует код ЧЗ» у onCameraCode.
 
    Ручной сканер печатает «как клавиатура», а поля ввода на экране нет (поле в
    фокусе открыло бы клавиатуру телефона). Поэтому код собирается из keydown на
@@ -94,17 +94,24 @@
     // Видео с камеры: 1920x1080 «желательно» — мелкий DataMatrix на крышке читается
     // с 15-20 см; телефон без такого режима отдаст ближайший.
     const CAMERA_VIDEO = { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } };
-    // Детектор спрашиваем 5 раз в секунду: чаще телефон греется, реже — заметная задержка.
+    // Пауза между проверками кадра: не чаще 5 раз в секунду — чаще телефон греется, реже —
+    // заметная задержка. Следующий кадр берётся после разбора текущего, поэтому на
+    // медленном телефоне проверок меньше (разбор 1920x1080 занимает десятки мс).
     const CAMERA_TICK_MS = 200;
     // Код в кадре виден много кадров подряд: тот же код считается снова, только если
     // его не было видно 2,5 с (окно скользит, пока код в кадре — иначе EAN, который
     // считается каждый раз, насчитал бы бутылку несколько раз).
     const CAMERA_REPEAT_MS = 2500;
     // Обычный штрихкод (EAN) и DataMatrix одной бутылки часто попадают в кадр вместе.
-    // Штрихкод с камеры ждёт 0,8 с (4 кадра детектора): прочитан за это время код ЧЗ
-    // того же GTIN — штрихкод не считается (бутылка уже посчитана по коду ЧЗ). Код ЧЗ
-    // этого GTIN, виденный за последние CAMERA_REPEAT_MS, тоже гасит штрихкод.
+    // Штрихкод с камеры ждёт 0,8 с: прочитан за это время код ЧЗ того же товара или
+    // любой код ЧЗ в одном кадре с ним — штрихкод не считается (та же бутылка или
+    // плёнка упаковки поверх банок). Правила целиком — у onCameraCode.
     const CAMERA_EAN_WAIT_MS = 800;
+    // Модуль распознавания полифила (.wasm, 0,9 МБ) грузится при первом включении камеры:
+    // по медленной сети 3G — до 20 с. Не загрузился за 30 с — следующий источник.
+    const CAMERA_POLYFILL_LOAD_MS = 30000;
+    // Столько разборов кадра подряд с ошибкой — и на экране камеры подсказка (около 3 с).
+    const CAMERA_FAILS_HINT = 15;
 
     // Сигналы: высокий короткий — принято; два коротких — уже посчитана; низкий
     // длинный — не распознан. Частоты в Гц, at и ms — в миллисекундах.
@@ -188,7 +195,10 @@
     };
 
     const cam = { open: false, stream: null, track: null, detector: null, timer: null, seen: new Map(), torch: false,
-        attempt: 0, dm: new Map(), eans: new Map(), wake: null };
+        attempt: 0, dm: new Map(), eans: new Map(), counted: new Map(), wake: null, fails: 0 };
+    // Загруженный полифил: {Detector, formats}. Один на страницу — повторная настройка
+    // модуля распознавания перезагрузила бы .wasm при каждом включении камеры.
+    let polyfill = null;
 
     const $ = (id) => document.getElementById(id);
 
@@ -836,6 +846,8 @@
             return NEXT;
         }
         removeItem(item);
+        // Камера может отозвать этот скан позже (retractCameraEan) — нужен id на сервере.
+        if (data.result === 'accepted' && data.scan_id) item.saved_scan_id = data.scan_id;
         if (current) {
             if (data.result === 'accepted' && data.gtin) state.gtins.add(data.gtin);
             rememberRecent(item, data);
@@ -1242,7 +1254,7 @@
         openSheet({
             kind: 'manual',
             title: 'Ввести цифры штрихкода',
-            text: 'Цифры под полосками штрихкода (EAN, 8-14 цифр). Код Честного знака руками не вводится — для него сканер или камера.',
+            text: 'Цифры под полосками штрихкода (EAN, 8-14 цифр). Код Честного знака руками не вводится — сканируйте его камерой.',
             ok: 'Добавить',
             input: true,
             onOk: submitManual,
@@ -1425,13 +1437,14 @@
         const name = error && error.name;
         if (name === 'NotAllowedError' || name === 'SecurityError') return 'Нет доступа к камере — разрешите его в настройках браузера';
         if (name === 'NotFoundError' || name === 'OverconstrainedError') return 'Камера не найдена';
+        if (error && error.code === 'polyfill_failed') return 'Не загрузился модуль распознавания кодов — проверьте интернет и откройте камеру ещё раз (или введите код вручную)';
         if (error && error.code === 'no_detector') return 'Этот браузер не читает коды с камеры — обновите Safari или Chrome либо введите код вручную';
         return 'Камера не включилась' + (error && error.message ? ': ' + error.message : '');
     }
 
     // Детектор кодов: встроенный BarcodeDetector (Chrome на Android), а если он не
     // умеет DataMatrix (iPhone, Chrome на компьютере) — библиотека-полифил с тем же API
-    // (загружается при первом включении камеры: своя копия, затем CDN).
+    // (loadPolyfill: своя копия, затем CDN).
     async function createDetector() {
         let Detector = window.BarcodeDetector;
         let formats = [];
@@ -1442,22 +1455,9 @@
             } catch (error) { formats = []; }
         }
         if (!Detector || formats.indexOf('data_matrix') === -1) {
-            for (const source of CAMERA_POLYFILLS) {
-                try {
-                    const module = await import(source.url);
-                    if (!module || !module.BarcodeDetector) continue;
-                    if (source.wasm && typeof module.setZXingModuleOverrides === 'function') {
-                        // Движок распознавания (.wasm) — рядом со своей копией, а не с CDN.
-                        const wasm = source.wasm;
-                        module.setZXingModuleOverrides({
-                            locateFile: (file, prefix) => (/\.wasm$/.test(file) ? wasm : prefix + file),
-                        });
-                    }
-                    Detector = module.BarcodeDetector;
-                    formats = CAMERA_FORMATS.slice();
-                    break;
-                } catch (error) { /* не загрузился — следующий источник; нет ни одного — встроенный, если есть */ }
-            }
+            const loaded = await loadPolyfill();
+            Detector = loaded.Detector;
+            formats = loaded.formats;
         }
         if (!Detector || !formats.length) {
             const error = new Error('no detector');
@@ -1465,6 +1465,57 @@
             throw error;
         }
         return new Detector({ formats });
+    }
+
+    // Полифил по очереди из CAMERA_POLYFILLS. Модуль распознавания (.wasm) полифил
+    // грузит лениво, при первом разборе кадра, и его сбой виден только как ошибка
+    // detect(): поэтому сразу разбираем пустую картинку — не загрузился .wasm, значит
+    // источник не годится и пробуем следующий (иначе камера молча ничего не читала бы).
+    // Удачный полифил запоминается на страницу; неудачный — нет: следующее включение
+    // камеры заново настроит модуль, и .wasm скачается ещё раз.
+    async function loadPolyfill() {
+        if (polyfill) return polyfill;
+        let failed = typeof WebAssembly === 'object' && WebAssembly !== null;
+        if (!failed) {
+            // Старый браузер без WebAssembly: полифил в нём не работает, интернет ни при чём.
+            const error = new Error('no webassembly');
+            error.code = 'no_detector';
+            throw error;
+        }
+        failed = false;
+        for (const source of CAMERA_POLYFILLS) {
+            try {
+                const module = await import(source.url);
+                if (!module || !module.BarcodeDetector) continue;
+                if (source.wasm && typeof module.setZXingModuleOverrides === 'function') {
+                    // Движок распознавания (.wasm) — рядом со своей копией, а не с CDN.
+                    const wasm = source.wasm;
+                    module.setZXingModuleOverrides({
+                        locateFile: (file, prefix) => (/\.wasm$/.test(file) ? wasm : prefix + file),
+                    });
+                }
+                setCamStatus('Загружаю модуль распознавания…');
+                await probeDetector(module.BarcodeDetector);
+                polyfill = { Detector: module.BarcodeDetector, formats: CAMERA_FORMATS.slice() };
+                return polyfill;
+            } catch (error) {
+                failed = true;       // не загрузился — следующий источник
+            }
+        }
+        const error = new Error('polyfill');
+        error.code = failed ? 'polyfill_failed' : 'no_detector';
+        throw error;
+    }
+
+    function probeDetector(Detector) {
+        if (typeof ImageData !== 'function') return Promise.resolve();
+        const probe = new Detector({ formats: ['data_matrix'] });
+        return new Promise((resolve, reject) => {
+            const timer = setTimeout(() => reject(new Error('polyfill timeout')), CAMERA_POLYFILL_LOAD_MS);
+            Promise.resolve()
+                .then(() => probe.detect(new ImageData(1, 1)))
+                .then(() => { clearTimeout(timer); resolve(); }, (error) => { clearTimeout(timer); reject(error); });
+        });
     }
 
     async function openCamera() {
@@ -1480,6 +1531,8 @@
         cam.seen = new Map();
         cam.dm = new Map();
         cam.eans = new Map();
+        cam.counted = new Map();
+        cam.fails = 0;
         $('rc-cam-wrap').hidden = false;
         $('rc-torch').hidden = true;
         document.documentElement.classList.add('rc-lock', 'rc-cam-on');
@@ -1519,40 +1572,84 @@
         new Promise((resolve) => resolve(ready ? cam.detector.detect(video) : []))
             .then((found) => {
                 if (!cam.open) return;
-                for (const item of found || []) {
-                    if (item && item.rawValue) onCameraCode(String(item.rawValue));
-                }
+                cam.fails = 0;
+                const codes = (found || []).filter((item) => item && item.rawValue).map((item) => String(item.rawValue));
+                const frameHasDm = codes.some((code) => {
+                    const parsed = parseLocal(code);
+                    return Boolean(parsed && parsed.ok && parsed.kind === 'datamatrix');
+                });
+                for (const code of codes) onCameraCode(code, frameHasDm);
                 settleCameraEans();
             })
-            .catch(() => { /* кадр не прочитался — следующий */ })
+            .catch(() => {
+                // Кадр не разобрался — следующий. Много подряд — модуль распознавания сломан
+                // (оборвалась загрузка, телефон выгрузил память): подсказать, а не молчать.
+                cam.fails += 1;
+                if (cam.open && cam.fails === CAMERA_FAILS_HINT) {
+                    setCamStatus('Камера не читает коды — закройте её и откройте снова');
+                }
+            })
             .then(() => {
                 if (cam.open) cam.timer = setTimeout(tickCamera, CAMERA_TICK_MS);
             });
     }
 
-    function onCameraCode(raw) {
+    // Код с камеры. Камера видит сразу всё, что в кадре: DataMatrix и штрихкод (EAN)
+    // одной бутылки, плёнку упаковки поверх банок. Правила, чтобы одна бутылка не стала
+    // двумя штуками (frameHasDm — в этом же кадре прочитан хоть один код ЧЗ):
+    // 1. Код, который не уходит из кадра, считается один раз (CAMERA_REPEAT_MS).
+    // 2. Код ЧЗ (DataMatrix) считается сразу.
+    // 3. Штрихкод не считается, если: он в одном кадре с любым кодом ЧЗ (та же бутылка
+    //    или плёнка упаковки поверх банок); код ЧЗ того же GTIN виден за последние
+    //    CAMERA_REPEAT_MS; у товара в этой приёмке уже есть коды ЧЗ (маркированный товар
+    //    считается только по ним — подсказка на экране камеры).
+    // 4. Иначе штрихкод ждёт CAMERA_EAN_WAIT_MS (settleCameraEans): за это время появился
+    //    код ЧЗ того же GTIN или код ЧЗ в одном кадре с ним — не считается, нет — считается.
+    //    Немаркированный товар после бутылки считается: кода ЧЗ рядом с ним нет.
+    // 5. Штрихкод уже посчитан, а не позже CAMERA_REPEAT_MS прочитан код ЧЗ того же GTIN
+    //    или код ЧЗ в одном кадре с ним — штрихкод отзывается (retractCameraEan): малый
+    //    DataMatrix читается позже крупного штрихкода, а это та же бутылка.
+    function onCameraCode(raw, frameHasDm) {
         const now = clock();
         const parsed = parseLocal(raw);
         const gtin = parsed && parsed.ok && parsed.gtin ? parsed.gtin : '';
+        const isEan = Boolean(gtin) && parsed.kind === 'ean';
         if (gtin && parsed.kind === 'datamatrix') {
-            // Код ЧЗ в кадре: штрихкод того же товара — это та же бутылка, не считаем.
             cam.dm.set(gtin, now);
             for (const [code, pending] of cam.eans) if (pending.gtin === gtin) cam.eans.delete(code);
+            retractCounted(gtin, now);
+        }
+        if (isEan && frameHasDm) {
+            cam.eans.delete(raw);                               // ждал — но рядом код ЧЗ
+            retractCounted(gtin, now);
         }
         for (const [key, at] of cam.dm) if (now - at > CAMERA_REPEAT_MS) cam.dm.delete(key);
+        for (const [key, counted] of cam.counted) if (now - counted.at > CAMERA_REPEAT_MS) cam.counted.delete(key);
         const seenAt = cam.seen.get(raw);
         cam.seen.set(raw, now);     // окно скользит, пока код в кадре
         for (const [code, at] of cam.seen) if (now - at > CAMERA_REPEAT_MS) cam.seen.delete(code);
         if (seenAt !== undefined && now - seenAt < CAMERA_REPEAT_MS) return;
-        if (gtin && parsed.kind === 'ean') {
-            if (cam.dm.has(gtin)) return;                       // код ЧЗ этого товара только что был в кадре
+        if (isEan) {
+            if (frameHasDm || cam.dm.has(gtin)) return;         // рядом код ЧЗ — это не отдельная штука
+            if (markedInReceipt(gtin)) {
+                setCamStatus('Штрихкод не считается: у товара есть код Честного знака — наведите на него');
+                return;
+            }
             cam.eans.set(raw, { gtin, at: now });               // решится в settleCameraEans
             return;
         }
         handleCode(raw, 'camera');
     }
 
-    // Штрихкоды, прождавшие CAMERA_EAN_WAIT_MS без кода ЧЗ того же GTIN, — в счёт.
+    // Посчитанный камерой штрихкод этого GTIN не старше CAMERA_REPEAT_MS — отозвать.
+    function retractCounted(gtin, now) {
+        const counted = cam.counted.get(gtin);
+        if (!counted) return;
+        cam.counted.delete(gtin);
+        if (now - counted.at <= CAMERA_REPEAT_MS) retractCameraEan(counted.item);
+    }
+
+    // Штрихкоды, прождавшие CAMERA_EAN_WAIT_MS без кода ЧЗ рядом, — в счёт.
     function settleCameraEans() {
         if (!cam.open || !cam.eans.size) return;
         const now = clock();
@@ -1560,9 +1657,41 @@
             if (now - pending.at < CAMERA_EAN_WAIT_MS) continue;
             cam.eans.delete(code);
             if (cam.dm.has(pending.gtin)) continue;
-            handleCode(code, 'camera');
+            const item = handleCode(code, 'camera');
+            if (item && item.local === 'accepted') cam.counted.set(pending.gtin, { item, at: clock() });
             if (!cam.open) return;                               // скан закрыл камеру (приёмку закрыли)
         }
+    }
+
+    // В этой приёмке уже есть принятые коды ЧЗ этого GTIN (ключ DataMatrix — «GTIN|серия»).
+    function markedInReceipt(gtin) {
+        const prefix = gtin + '|';
+        for (const key of state.dmKeys) if (String(key).indexOf(prefix) === 0) return true;
+        return false;
+    }
+
+    // Отозвать штрихкод, посчитанный камерой (правило 5 у onCameraCode): как «Отменить
+    // последний», но для этого скана. Ещё в очереди — убрать (или пометить отменённым,
+    // если запрос уже уходил); уже на сервере — в очередь задание удалить его там.
+    function retractCameraEan(item) {
+        if (!item || item.undo) return;
+        if (state.queue.indexOf(item) !== -1) {
+            if (item.tries > 0) {
+                item.undo = true;
+                saveQueue();
+            } else {
+                removeItem(item);
+            }
+        } else if (item.saved_scan_id) {
+            state.queue.push(Object.assign({}, item, {
+                client_id: newClientId(), undo: true, scan_id: item.saved_scan_id, tries: 1, at: Date.now(),
+            }));
+            saveQueue();
+        } else {
+            return;                  // сервер этот скан не посчитал — отзывать нечего
+        }
+        render();
+        flush();
     }
 
     // Экран не гаснет, пока открыта камера (Wake Lock; где его нет — как раньше).
@@ -1598,6 +1727,7 @@
         cam.torch = false;
         cam.eans.clear();          // штрихкод без сигнала «принято» не посчитан — приёмщик видел это
         cam.dm.clear();
+        cam.counted.clear();
         releaseWake();
         const video = $('rc-video');
         if (video) video.srcObject = null;
@@ -1922,7 +2052,7 @@
         charFor,
         constants: {
             QUEUE_KEY, SNAPSHOT_KEY, SCAN_GAP_MS, MIN_CODE_LEN, RETRY_DELAYS_MS, CAMERA_REPEAT_MS, CAMERA_EAN_WAIT_MS,
-            CAMERA_VIDEO, CAMERA_POLYFILLS,
+            CAMERA_VIDEO, CAMERA_POLYFILLS, CAMERA_POLYFILL_LOAD_MS, CAMERA_FAILS_HINT,
             PHOTO_MAX_SIDE, PHOTO_QUALITY, TONES, VIBRATION,
         },
     };
