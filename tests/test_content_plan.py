@@ -1145,7 +1145,9 @@ def test_render_live_ok_and_stop_rules():
     assert codes(r) == ['unverified', 'unverified']
     assert [p['text'] for p in r['problems']] == ['Кран 4: Нет проверенной связи с Untappd',
                                                    'Кран 5: Уточните сорт на кране']
-    assert '4. КЕГ Неизвестное\n' in r['text'] and '6. Пивоварня А Пилзнер — чешский пилснер, 5%' in r['text']
+    # кран без карточки — имя кеги из iiko без «КЕГ» и объёма (core/taplist_post.iiko_display)
+    assert '4. Неизвестное\n5. Без карточки\n' in r['text']
+    assert '6. Пивоварня А Пилзнер — чешский пилснер, 5%' in r['text']
     # у крана без карточки Untappd ссылки нет
     assert [e['url'] for e in r['entities']] == ['https://untappd.com/b/beer/101']
     r = _render('varshavskaya', template='{таплист} {цена}')

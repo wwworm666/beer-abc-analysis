@@ -146,13 +146,8 @@ BARS = [
 TELEGRAM_BOT_ENABLED = False
 try:
     import telegram_webhook
-    beer_mapping_file = os.path.join(os.path.dirname(__file__), 'data', 'beer_info_mapping.json')
-    beer_mapping_for_bot = {}
-    if os.path.exists(beer_mapping_file):
-        with open(beer_mapping_file, 'r', encoding='utf-8') as f:
-            beer_mapping_for_bot = json.load(f)
-        print(f"[TELEGRAM] Загружен маппинг пива: {len(beer_mapping_for_bot)} записей")
-    telegram_webhook.set_data_sources(taps_manager, beer_mapping_for_bot)
+    # Данные о пиве — только реестр Untappd (core/taplist_post), справочника по названиям нет.
+    telegram_webhook.set_data_sources(taps_manager)
     TELEGRAM_BOT_ENABLED = True
     print("[TELEGRAM] Бот инициализирован (webhook режим)")
 except Exception as e:

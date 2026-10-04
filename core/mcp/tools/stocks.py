@@ -960,16 +960,8 @@ TOOLS: List[ToolSpec] = [
         path='/api/taps/<bar_id>/stats', path_params=['bar_id'], examples=[{'bar_id': 'bar1'}],
     ),
     _tool(
-        'stocks_taps_export_csv', 'Таплист CSV (простой)',
-        'Кнопка «Таплист» на странице бара: CSV-текст «Бар, Номер крана, Название пива» по всем кранам '
-        '(пустой — «(пусто)»); бар подписан названием из менеджера кранов. Лёгкий способ увидеть '
-        'расстановку кранов без истории.',
-        _obj({'bar_id': _bar_id('Бар; не передавать — все бары.')}),
-        path='/api/taps/export-taplist', query_params=['bar_id'], examples=[{'bar_id': 'bar4'}],
-    ),
-    _tool(
-        'stocks_taplist_full', 'Таплист V2 (с ценами)',
-        'Проверенный таплист («Таплист V2»). Начинай с compact=1: на каждый кран bar, bar_id, '
+        'stocks_taplist_full', 'Таплист (с ценами)',
+        'Проверенный таплист — единственный (первая версия удалена 2026-10-04). Начинай с compact=1: на каждый кран bar, bar_id, '
         'tap_number, beer_name, brewery, style, abv (%), ibu, mapped и mapping_status, price_status, '
         'price_0_5 (цена 0,5 л, руб.; null — нет такой порции или у неё несколько цен), prices — все '
         'порции [{l — литры, rub — цена}]; бар целиком — несколько тысяч знаков. Без compact — полная '
@@ -987,8 +979,8 @@ TOOLS: List[ToolSpec] = [
         also_in=ALSO_CONTENT, examples=[{'bar_id': 'bar1', 'compact': '1'}],
     ),
     _tool(
-        'stocks_taplist_full_csv', 'Таплист V2 CSV',
-        'То же, что stocks_taplist_full, в виде CSV «Таплист V2» (UTF-8 с BOM, все поля в кавычках, '
+        'stocks_taplist_full_csv', 'Таплист CSV',
+        'То же, что stocks_taplist_full, в виде CSV — кнопка «Таплист CSV» на странице бара (UTF-8 с BOM, все поля в кавычках, '
         'строка на каждую порцию каждого крана): название, цена руб., порция л, пивоварня, фото, '
         'описание, бар, кран, позиция iiko, Untappd, стиль, ABV, IBU, статусы связи, цены и контента. '
         'Тяжёлый: живой прайс iiko.',

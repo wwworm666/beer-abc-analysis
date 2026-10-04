@@ -3,10 +3,8 @@ import time
 import json
 import os
 import csv
-import re
 from io import StringIO
 from urllib.parse import quote
-from difflib import SequenceMatcher
 from extensions import taps_manager
 from core.untappd_registry import load_registry
 from core.taplist import product_catalog, tap_details, full_taplist, BAR_NAMES
@@ -186,146 +184,6 @@ def get_statistics():
     except Exception as e:
         print(f"[ERROR] Oshibka v /api/taps/statistics: {e}")
         return jsonify({'error': str(e)}), 500
-
-@taps_bp.route('/api/taps/export-taplist', methods=['GET'])
-def export_taplist():
-    """Экспортировать текущий таплист в CSV формате"""
-    try:
-        # Опциональный параметр bar_id для фильтрации по конкретному бару
-        bar_id_filter = request.args.get('bar_id', None)
-
-        # Получаем список всех баров
-        bars = taps_manager.get_bars()
-
-        # Фильтруем по конкретному бару, если указан
-        if bar_id_filter:
-            bars = [bar for bar in bars if bar['bar_id'] == bar_id_filter]
-
-        # Создаём CSV в памяти
-        output = StringIO()
-        writer = csv.writer(output, delimiter=',', quoting=csv.QUOTE_MINIMAL)
-
-        # Заголовок
-        writer.writerow(['Бар', 'Номер крана', 'Название пива'])
-
-        # Собираем данные по всем барам (или по одному, если bar_id_filter указан)
-        for bar in bars:
-            bar_id = bar['bar_id']
-            bar_name = bar['name']
-
-            # Получаем краны бара
-            bar_data = taps_manager.get_bar_taps(bar_id)
-            if 'error' in bar_data:
-                continue
-
-            # Добавляем все краны (активные и пустые)
-            for tap in bar_data.get('taps', []):
-                beer_name = tap['current_beer'] if tap['current_beer'] else '(пусто)'
-                writer.writerow([
-                    bar_name,
-                    tap['tap_number'],
-                    beer_name
-                ])
-
-        # Готовим ответ
-        output.seek(0)
-        csv_content = output.getvalue()
-        output.close()
-
-        # Формируем имя файла
-        if bar_id_filter and bars:
-            # Используем bar_id вместо имени для безопасности
-            filename = f"taplist_{bar_id_filter}.csv"
-        else:
-            filename = "taplist.csv"
-
-        # Создаём response с правильными заголовками
-        response = make_response(csv_content)
-        response.headers['Content-Type'] = 'text/csv; charset=utf-8'
-        # Используем RFC 5987 для корректной работы с кириллицей
-        response.headers['Content-Disposition'] = f"attachment; filename={filename}; filename*=UTF-8''{quote(filename)}"
-
-        return response
-
-    except Exception as e:
-        print(f"[ERROR] Oshibka v /api/taps/export-taplist: {e}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({'error': str(e)}), 500
-
-
-def load_beer_info_mapping():
-    """Загружает маппинг информации о пиве из JSON файла"""
-    mapping_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'beer_info_mapping.json')
-    if os.path.exists(mapping_file):
-        try:
-            with open(mapping_file, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        except Exception as e:
-            print(f"[ERROR] Ошибка загрузки beer_info_mapping.json: {e}")
-    return {}
-
-
-def find_beer_info(beer_name, mapping):
-    """
-    Ищет информацию о пиве в маппинге с fuzzy matching.
-    Использует difflib для нечёткого сравнения строк.
-    """
-    if not beer_name or not mapping:
-        return None
-
-    def normalize(name):
-        """Нормализует название для сравнения"""
-        name = name.lower()
-        # Убираем "кег "
-        name = name.replace('кег ', '')
-        # Заменяем тире на пробел
-        name = name.replace(' — ', ' ').replace('—', ' ').replace('-', ' ')
-        # Убираем запятые и точки
-        name = name.replace(',', '').replace('.', '')
-        # Убираем объёмы и единицы измерения
-        name = re.sub(r'\d+\s*(л|l|кг|kg|ml|мл)', '', name)
-        # Убираем типичные суффиксы
-        for suffix in ['светлое', 'темное', 'тёмное', 'нефильтрованное', 'фильтрованное', 'пшеничное', 'полусухой', 'полусладкий']:
-            name = name.replace(suffix, '')
-        # Убираем лишние пробелы
-        name = ' '.join(name.split())
-        return name.strip()
-
-    def similarity(a, b):
-        """Возвращает степень схожести двух строк (0-1)"""
-        return SequenceMatcher(None, a, b).ratio()
-
-    # Прямое совпадение
-    if beer_name in mapping:
-        return mapping[beer_name]
-
-    # Нормализуем искомое название
-    normalized_search = normalize(beer_name)
-
-    # Ищем лучшее совпадение
-    best_match = None
-    best_score = 0
-    threshold = 0.75  # Минимальная схожесть 75%
-
-    for key in mapping:
-        normalized_key = normalize(key)
-
-        # Точное совпадение после нормализации
-        if normalized_search == normalized_key:
-            return mapping[key]
-
-        # Fuzzy matching
-        score = similarity(normalized_search, normalized_key)
-        if score > best_score:
-            best_score = score
-            best_match = key
-
-    # Возвращаем лучшее совпадение если оно выше порога
-    if best_match and best_score >= threshold:
-        return mapping[best_match]
-
-    return None
 
 
 def selected_product(data, required=False):

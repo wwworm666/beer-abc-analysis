@@ -1,16 +1,20 @@
-"""«Таплист пятницы»: строка крана, ссылка на Untappd, новинки, свежесть кранов.
+"""Таплист текстом: строка крана, ссылка на Untappd, новинки, свежесть кранов.
 
-Формат утвердил владелец 2026-10-04 — пост только текстом, без цен:
+Одна строка для всех, кто показывает краны гостям: «Таплист пятницы» в каналах
+баров (core/content_plan.render_live) и гостевой бот @kult_taplist_bot
+(bar_message_html). Формат утвердил владелец 2026-10-04 — только текст, без цен:
 
     {кран}. {пивоварня и название} — {стиль}, {крепость}%[, новинка]
 
-«Пивоварня и название» — ссылка на карточку Untappd (в Telegram — сущность
-text_link: адрес не виден, название кликается). Имена и стили — из словаря
-resources/taplist_post_names.json. Правила с примерами — docs/content-plan.md,
-раздел «Живые данные (таплист)».
+«Пивоварня и название» — ссылка на карточку Untappd (в посте — сущность Telegram
+text_link, в боте — <a href> разметки HTML). Данные о пиве — только реестр Untappd
+(core/untappd_registry, связь по GUID товара iiko) — единственный источник правды с
+2026-10-04; имена и стили — из словаря resources/taplist_post_names.json. Правила с
+примерами — docs/content-plan.md, раздел «Живые данные (таплист)».
 
 Модуль без I/O при импорте: словарь читается при первом вызове load_names().
 """
+import html
 import json
 import re
 from datetime import datetime, timedelta
@@ -20,7 +24,8 @@ from pathlib import Path
 from typing import Callable, Dict, List, Optional, Set, Tuple
 
 from core import msk_time
-from core.untappd_registry import resolve_beer
+from core.taplist import full_taplist, product_catalog
+from core.untappd_registry import load_registry, resolve_beer
 
 NAMES_PATH = Path(__file__).resolve().parents[1] / 'resources/taplist_post_names.json'
 
@@ -39,6 +44,10 @@ STALE_TAPS_DAYS = 14
 
 HISTORY_ACTIONS = ('start', 'replace', 'stop')
 _BRACKETS_RE = re.compile(r'\s*\([^)]*\)')
+# Имя кеги из iiko у крана без карточки Untappd: приставка «КЕГ»/«KEG» и объём в
+# конце («30 л», «20л.», «, 20 л», одинокое «л») — служебные, гостю ничего не говорят.
+_KEG_PREFIX_RE = re.compile(r'^(?:КЕГ|KEG)\s+', re.IGNORECASE)
+_VOLUME_TAIL_RE = re.compile(r'(?:[\s,]*\d+(?:[.,]\d+)?\s*|\s+)(?:л|l)\.?$', re.IGNORECASE)
 
 
 def format_abv(value) -> Optional[str]:
@@ -62,6 +71,24 @@ def utf16_len(text: str) -> int:
 def _clean(text) -> str:
     """Пробелы схлопнуты (в том числе неразрывные из карточек Untappd)."""
     return ' '.join(str(text or '').split())
+
+
+def iiko_display(name) -> str:
+    """Имя кеги из iiko для гостя: «КЕГ Вудбридж ИПА 30 л» -> «Вудбридж ИПА»,
+    «КЕГ Джоус Мюних Хеллес, светлое,» -> «Джоус Мюних Хеллес, светлое». Ничего не
+    осталось — имя как есть."""
+    text = _KEG_PREFIX_RE.sub('', _clean(name))
+    text = _VOLUME_TAIL_RE.sub('', text).strip(' ,')
+    return text or _clean(name)
+
+
+def tap_order(row: dict):
+    """Порядок кранов: номера по возрастанию, затем нечисловые."""
+    number = row.get('tap_number')
+    try:
+        return (0, int(number), '')
+    except (TypeError, ValueError):
+        return (1, 0, str(number))
 
 
 # ---------------------------------------------------------------------------
@@ -97,7 +124,8 @@ def post_name(row: dict, names: dict) -> str:
        её имя без скобок. Пивоварню не пишем, если короткое имя пустое (марка уже
        в названии: Black Sheep) или уже есть в названии без учёта регистра
        («Palm Spéciale», а не «Palm Palm Spéciale»).
-    Без карточки Untappd — имя из iiko как есть (такой кран и так останавливает пост)."""
+    Без карточки Untappd — имя кеги из iiko без «КЕГ» и объёма (iiko_display): такой
+    кран останавливает «Таплист пятницы», а бот показывает его этим именем."""
     bid = row.get('untappd_beer_id')
     own = names['beers'].get(str(bid)) if bid not in (None, '') else None
     if own:
@@ -105,7 +133,7 @@ def post_name(row: dict, names: dict) -> str:
     name = _clean(row.get('beer_name') or row.get('iiko_name'))
     brewery = row.get('brewery')
     if not _clean(brewery):
-        return name
+        return name if bid not in (None, '') else iiko_display(name)
     short = names['breweries'].get(brewery)
     if short is None:
         short = names['breweries'].get(_clean(brewery))
@@ -309,3 +337,51 @@ def stale_problem(bar: dict, moment: datetime, date_text: Callable[[datetime], s
     days = (moment - changed).days
     return (f'краны бара не обновлялись {days} {days_word(days)} (последнее изменение '
             f'{date_text(changed)}) — список мог устареть')
+
+
+# ---------------------------------------------------------------------------
+# Краны бара: строки для поста и гостевого бота
+# ---------------------------------------------------------------------------
+
+def bar_rows(snapshot: dict, registry: dict, bar_id: str, moment: datetime) -> Tuple[List[dict], List[bool]]:
+    """Активные краны бара по порядку и пометка «новинка» для каждого.
+
+    Строки — core.taplist.full_taplist: карточка Untappd только по проверенной связи
+    GUID товара (реестр). Бара нет в снимке — KeyError (как у full_taplist)."""
+    rows = sorted(full_taplist(snapshot, registry, bar_id, active_only=True), key=tap_order)
+    fresh = new_beer_keys(snapshot[bar_id], registry, moment)
+    key = beer_key_fn(registry)
+    return rows, [key(row.get('iiko_product_id'), row.get('iiko_name')) in fresh for row in rows]
+
+
+def line_html(line: str, span: Optional[Tuple[int, int]], url: Optional[str]) -> str:
+    """Строка крана для Telegram с parse_mode HTML: имя — <a href> на Untappd, текст
+    экранирован (в названии пива бывают «&» и «<»). Без ссылки — только экранирование."""
+    if not span or not url:
+        return html.escape(line, quote=False)
+    begin, end = span
+    return (html.escape(line[:begin], quote=False) + f'<a href="{html.escape(url, quote=True)}">'
+            + html.escape(line[begin:end], quote=False) + '</a>' + html.escape(line[end:], quote=False))
+
+
+def bar_message_html(manager, bar_id: str, title: str, moment: Optional[datetime] = None,
+                     registry: Optional[dict] = None, names: Optional[dict] = None) -> str:
+    """Таплист бара для гостевого бота: заголовок с баром и те же строки, что в
+    «Таплисте пятницы» (HTML). Пустой бар — «<бар>: нет активных кранов».
+
+    manager — менеджер кранов (снимок читается на каждый вызов: страница кранов пишет
+    файл, а бот живёт сутками); registry и names — для тестов, по умолчанию реестр
+    Untappd и словарь имён; moment — для «новинки», по умолчанию сейчас по Москве."""
+    registry = load_registry() if registry is None else registry
+    names = names or load_names()
+    moment = moment or msk_time.now().replace(tzinfo=None)
+    snapshot = manager.get_snapshot(product_catalog(registry))
+    rows, news = bar_rows(snapshot, registry, bar_id, moment)
+    head = html.escape(title, quote=False)
+    if not rows:
+        return f'{head}: нет активных кранов'
+    lines = []
+    for row, is_new in zip(rows, news):
+        line, span = tap_line(row, names, is_new)
+        lines.append(line_html(line, span, row.get('untappd_url')))
+    return f'<b>{head}</b>\n\n' + '\n'.join(lines)

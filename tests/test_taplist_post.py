@@ -111,8 +111,8 @@ def test_post_name_rules():
     # пивоварни нет в словаре — её имя без скобок; неразрывные пробелы схлопнуты
     assert tp.post_name(row(beer_name='Apricot\xa0Mead', brewery='Steppe & Wind (Степь и Ветер)'), names) == \
         'Steppe & Wind Apricot Mead'
-    # без карточки Untappd — имя iiko
-    assert tp.post_name(row(iiko_name='КЕГ Неизвестное'), names) == 'КЕГ Неизвестное'
+    # без карточки Untappd — имя кеги iiko без «КЕГ» и объёма
+    assert tp.post_name(row(iiko_name='КЕГ Неизвестное 30 л'), names) == 'Неизвестное'
 
 
 def test_tap_line_parts_and_link_span():
@@ -228,3 +228,54 @@ def test_entities_offsets_in_utf16_and_every_occurrence():
         assert encoded[start:start + entity['length'] * 2].decode('utf-16-le') == 'Festhaus Helles'
         assert entity == dict(entity, type='text_link', url='https://untappd.com/b/beer/201')
     assert r['entities'][0]['offset'] == tp.utf16_len('\U0001D504 Варшавская\n1. ')
+
+
+# --------------------------------------------------------------------------- гостевой бот
+
+class FakeManager:
+    """Менеджер кранов для bar_message_html: снимок как у TapsManager.get_snapshot."""
+
+    def __init__(self, snapshot):
+        self.snapshot = snapshot
+        self.catalogs = []
+
+    def get_snapshot(self, catalog=None):
+        self.catalogs.append(catalog)
+        return self.snapshot
+
+
+def test_iiko_display_and_tap_order():
+    assert tp.iiko_display('КЕГ Вудбридж ИПА 30 л') == 'Вудбридж ИПА'
+    assert tp.iiko_display('КЕГ Бульви Семи Драй л') == 'Бульви Семи Драй'
+    assert tp.iiko_display('КЕГ Джоус Мюних Хеллес, светлое,') == 'Джоус Мюних Хеллес, светлое'
+    assert tp.iiko_display('KEG Saldens Double IPA 30л.') == 'Saldens Double IPA'
+    assert tp.iiko_display('нишко') == 'нишко' and tp.iiko_display('КЕГ') == 'КЕГ'
+    rows = [{'tap_number': 10}, {'tap_number': 'B'}, {'tap_number': 2}]
+    assert [r['tap_number'] for r in sorted(rows, key=tp.tap_order)] == [2, 10, 'B']
+
+
+def test_line_html_escapes_and_links():
+    line, span = tp.tap_line({'tap_number': 1, 'beer_name': 'Ale <&> Co', 'untappd_url': 'https://untappd.com/b/x/1'},
+                             NAMES)
+    assert tp.line_html(line, span, 'https://untappd.com/b/x/1?a="1"') == (
+        '1. <a href="https://untappd.com/b/x/1?a=&quot;1&quot;">Ale &lt;&amp;&gt; Co</a>')
+    assert tp.line_html('1. A & B — 5%', None, None) == '1. A &amp; B — 5%'
+
+
+def test_bot_message_from_registry():
+    """Бот берёт сорт по GUID из реестра (не по похожему названию): строки «Таплиста пятницы» в HTML."""
+    snapshot = {'bar2': {'name': 'Лиговский', 'taps': [
+        tap(5, GUID_X, '2026-09-20T12:00:00+03:00', [ev('2026-09-20T12:00:00+03:00', 'start', GUID_X)]),
+        tap(6, GUID_Y, '2026-10-06T12:00:00+03:00', [ev('2026-10-06T12:00:00+03:00', 'start', GUID_Y)]),
+        dict(tap(7, None), status='active', current_beer='КЕГ Вудбридж ИПА 30 л', started_at='2026-09-20T12:00:00+03:00'),
+        tap(8)]}}
+    manager = FakeManager(snapshot)
+    text = tp.bar_message_html(manager, 'bar2', 'Лиговский', moment=POST, registry=REGISTRY)
+    assert text == ('<b>Лиговский</b>\n\n'
+                    '5. <a href="https://untappd.com/b/beer/201">Festhaus Helles</a> — светлый лагер, 4,5%\n'
+                    '6. <a href="https://untappd.com/b/beer/202">Festhaus Weissbier</a> — светлый лагер, 4,5%, новинка\n'
+                    '7. Вудбридж ИПА')
+    assert manager.catalogs and GUID_X in manager.catalogs[0]          # снимок с каталогом реестра
+    empty = FakeManager({'bar2': {'name': 'Лиговский', 'taps': [tap(1)]}})
+    assert tp.bar_message_html(empty, 'bar2', 'Лиговский & Ко', moment=POST, registry=REGISTRY) == \
+        'Лиговский &amp; Ко: нет активных кранов'

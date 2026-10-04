@@ -1499,14 +1499,6 @@ def load_live_data(registry=None):
     return snapshot, registry
 
 
-def _tap_sort_key(row: dict):
-    number = row.get('tap_number')
-    try:
-        return (0, int(number), '')
-    except (TypeError, ValueError):
-        return (1, 0, str(number))
-
-
 def render_live(source, bar, template, pub_date=None, snapshot=None, registry=None, now=None,
                 channel=None, has_media=None, names=None) -> dict:
     """Подставить живые данные в шаблон и проверить правила остановки.
@@ -1555,14 +1547,10 @@ def render_live(source, bar, template, pub_date=None, snapshot=None, registry=No
                     loaded_snapshot, loaded_registry = load_live_data(registry)
                     snapshot = loaded_snapshot if snapshot is None else snapshot
                     registry = loaded_registry if registry is None else registry
-                from core.taplist import full_taplist
                 bar_id = TAPLIST_BAR_IDS[bar]
-                rows = sorted(full_taplist(snapshot, registry, bar_id, active_only=True), key=_tap_sort_key)
+                rows, news = taplist_post.bar_rows(snapshot, registry, bar_id, moment)
                 if names is None:
                     names = taplist_post.load_names()
-                fresh = taplist_post.new_beer_keys(snapshot[bar_id], registry, moment)
-                key = taplist_post.beer_key_fn(registry)
-                news = [key(row.get('iiko_product_id'), row.get('iiko_name')) in fresh for row in rows]
                 changed = taplist_post.last_change(snapshot[bar_id])
                 stale = taplist_post.stale_problem(snapshot[bar_id], moment, fmt_date_ru)
             except KeyError:

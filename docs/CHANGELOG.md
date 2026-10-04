@@ -1,5 +1,40 @@
 ﻿# Changelog
 
+### 2026-10-04 (4) — Один таплист и один справочник о пиве (реестр Untappd)
+
+- **Что.** Таплист V1 удалён: `GET /api/taps/export-taplist` (CSV «Бар, Номер крана, Название
+  пива»), MCP-инструмент `stocks_taps_export_csv` и мёртвые `find_beer_info` /
+  `load_beer_info_mapping` в `routes/taps.py`; «Таплист CSV» (бывший V2) — единственный, в
+  названиях MCP-инструментов «V2» убрано. Реестр Untappd (связь по GUID товара iiko) —
+  единственный источник правды о пиве: гостевой бот @kult_taplist_bot (long-polling
+  `core/taplist_polling.py` и webhook-вариант `telegram_webhook.py`) берёт сорта из него теми же
+  строками, что «Таплист пятницы» (`core/taplist_post.bar_message_html`: имя — ссылка на
+  Untappd, стиль по-русски, крепость, «новинка»), граф знаний — тоже
+  (`knowledge_graph/etl/registry_beers.py`: узел на карточку Untappd, кеги — по точному
+  имени товара). Старый справочник `data/beer_info_mapping.json` и подбор по похожести
+  (difflib, порог 75%) не читает ни один модуль; в сборке реестра его подсказки
+  необязательны. Кран без карточки — именем кеги без «КЕГ» и объёма («Вудбридж ИПА»).
+  Сбой данных в боте — «Не удалось получить данные о кранах», а не молчание.
+- **Почему.** Владелец 2026-10-04: «удаляем вообще таплист 1, остаётся только вторая версия;
+  справочник, который мы добавили вручную, — единственный источник правды, бот и всё
+  остальное привязываем к нему». Проверка в тот же день: у 11 из 31 крана ВО и Лиговского
+  бот показывал не то, что сайт — «Мёд и Абрикос» как «Мёд и Виноград», Red Button
+  Noiseless как Matilde, Schneider TAP4 Festweisse как TAP4 Mein Grünes, Зубр как польский
+  Dojlidy Żubr, Festhaus Helles со ссылкой на карточку Festhaus Weissbier; ещё у 6 — без
+  данных.
+- **Не сделано.** Файлы `templates/taps.html` (мёртвый шаблон с кнопками V1) и
+  `data/beer_info_mapping.json` остались: удаление файлов в этой сессии запрещено правами,
+  ждёт разрешения владельца. Код на них не ссылается.
+- **Файлы.** `routes/taps.py`, `core/mcp/tools/stocks.py`, `core/taplist_post.py`
+  (`iiko_display`, `tap_order`, `bar_rows`, `line_html`, `bar_message_html`),
+  `core/content_plan.py` (`render_live` на `bar_rows`), `core/taplist_polling.py`,
+  `telegram_webhook.py`, `extensions.py`, `knowledge_graph/etl/loader.py`,
+  `knowledge_graph/etl/registry_beers.py` (новый), `knowledge_graph/models/nodes.py`,
+  `scripts/build_untappd_registry.py`, тесты (`tests/test_registry_consumers.py` новый,
+  `test_taplist_polling.py`, `test_taplist_post.py`, `test_content_plan.py`), документация
+  (`taps.md`, `taplist-v2.md`, `untappd-links.md`, `content-plan.md`,
+  `guides/TELEGRAM_BOT_GUIDE.md`, `PROJECT_STRUCTURE.md`), `.claude/INDEX.md`.
+
 ### 2026-10-04 (3) — Контент-план: формат «Таплиста пятницы» (текст, ссылки на Untappd, новинки)
 
 - **Что.** Строка крана в живом таплисте: «{кран}. {пивоварня и название} — {стиль}, {крепость}%[,
