@@ -134,6 +134,43 @@ def pull(remote_path, local_dir):
         client.close()
 
 
+REMOTE_STOCK_JSON = REMOTE_CHZ_DIR + r"\debug\chz_stock.json"
+TOKEN_FAIL_TEXT = (
+    "Токен ЧЗ на бар-ПК не получен (подпись КриптоПро не прошла: тот ли Рутокен "
+    "вставлен, тот ли CERT_THUMBPRINT в chz.py). Остатки не собираются, старый "
+    "chz_stock.json не скачивается.")
+
+
+def remote_mtime(remote_path):
+    """Время изменения файла на бар-ПК (sftp stat) или None, если файла нет."""
+    client = connect()
+    try:
+        sftp = client.open_sftp()
+        try:
+            return sftp.stat(remote_path).st_mtime
+        except OSError:
+            return None
+        finally:
+            sftp.close()
+    finally:
+        client.close()
+
+
+def pull_stock_if_rewritten(before, command):
+    """Скачать chz_stock.json, только если команда его перезаписала (время файла сменилось).
+
+    Иначе — RuntimeError: старый файл со свежим временем выглядел бы новыми данными
+    (урок «тихий сбой подписи», docs/lessons.md). Ревью 2026-10-04: chz.py stock и
+    csv-auto при пустом результате ничего не пишут и маркера [WARN] не печатают.
+    """
+    after = remote_mtime(REMOTE_STOCK_JSON)
+    if after is None or after == before:
+        raise RuntimeError(
+            f"chz.py {command} не обновил chz_stock.json на бар-ПК — старый файл не скачивается.")
+    print("\nСкачивание chz_stock.json...")
+    pull(REMOTE_STOCK_JSON, str(REPO_DIR / "chz_test" / "debug"))
+
+
 def refresh_token_or_fail():
     """Обновить токен ЧЗ на бар-ПК; не получилось — RuntimeError (код выхода 1).
 
@@ -142,16 +179,18 @@ def refresh_token_or_fail():
     chz_stock.json скачивался заново — время файла обновлялось, и сроки годности
     выглядели свежими, хотя данные ЧЗ стояли с августа 2026 (КЭП перевыпустили на новый
     Рутокен, отпечаток в chz.py остался старым). «[ERR]» — ASCII: кириллица вывода
-    бар-ПК по SSH приходит кракозябрами, маркер — нет.
+    бар-ПК по SSH приходит кракозябрами, маркер — нет. С 2026-10-04 chz.py token при сбое
+    выходит с кодом 1 — run_cmd бросает общее «Remote command failed», его заменяет
+    понятный текст (последняя строка журнала, её и показывает страница).
     """
     print("Обновление токена...")
     token_cmd = f'cd /d {REMOTE_CHZ_DIR} && "{REMOTE_PYTHON}" chz.py token'
-    out, _err = run_cmd(token_cmd, timeout=120)
+    try:
+        out, _err = run_cmd(token_cmd, timeout=120)
+    except RuntimeError as exc:
+        raise RuntimeError(TOKEN_FAIL_TEXT) from exc
     if "[ERR]" in (out or ""):
-        raise RuntimeError(
-            "Токен ЧЗ на бар-ПК не получен (подпись КриптоПро не прошла: тот ли Рутокен "
-            "вставлен, тот ли CERT_THUMBPRINT в chz.py). Остатки не собираются, старый "
-            "chz_stock.json не скачивается.")
+        raise RuntimeError(TOKEN_FAIL_TEXT)
 
 
 def _stock_not_written(out) -> bool:
@@ -203,40 +242,51 @@ def main():
         if subcmd == "stock":
             # Special: refresh token, run stock, pull result
             refresh_token_or_fail()
+            before = remote_mtime(REMOTE_STOCK_JSON)
             print("\nЗапуск сбора остатков (таймаут 600с)...")
             stock_cmd = f'cd /d {REMOTE_CHZ_DIR} && "{REMOTE_PYTHON}" chz.py stock'
             run_cmd(stock_cmd, timeout=600)
-            print("\nСкачивание результата...")
-            remote_json = REMOTE_CHZ_DIR + r"\debug\chz_stock.json"
-            pull(remote_json, str(REPO_DIR / "chz_test" / "debug"))
+            pull_stock_if_rewritten(before, "stock")
         elif subcmd == "csv-auto":
             # Special: refresh token, run csv-auto через dispenser API,
             # перестроить chz_stock.json, скачать на локалку.
             refresh_token_or_fail()
+            before = remote_mtime(REMOTE_STOCK_JSON)
             print("\nАвтовыгрузка CSV через dispenser API (beer + water + nabeer, таймаут 1200с)...")
             csv_cmd = f'cd /d {REMOTE_CHZ_DIR} && "{REMOTE_PYTHON}" chz.py csv-auto'
             run_cmd(csv_cmd, timeout=1200)
-            print("\nСкачивание chz_stock.json...")
-            remote_json = REMOTE_CHZ_DIR + r"\debug\chz_stock.json"
-            pull(remote_json, str(REPO_DIR / "chz_test" / "debug"))
+            pull_stock_if_rewritten(before, "csv-auto")
         elif subcmd == "search-stock":
             # Special (с 2026-06): обновить токен, собрать остатки через
             # синхронный /cises/search (коды теперь сразу RETIRED/OWN_USE,
             # dispenser-выгрузка по RETIRED виснет), скачать chz_stock.json.
             # 0) Список нужных GTIN из iiko (фасовка на остатке) → точечная выгрузка.
-            #    Запускается в контейнере прода, где есть iiko и баркоды. Если не
-            #    собралось (дев/нет iiko) — chz.py уйдёт в брод-режим.
+            #    Запускается в контейнере прода, где есть iiko и баркоды. Не собрался
+            #    (исключение: дев, нет iiko) — на бар-ПК остаётся прежний список.
+            #    ПУСТОЙ список (iiko не дал остатки, compute_needed_gtins отвечает []) — стоп:
+            #    chz.py принял бы его за «списка нет» и в брод-режиме (~20 GTIN) заменил бы
+            #    полный chz_stock.json урезанным, с кодом 0 (ревью 2026-10-04).
             try:
                 from core.chz_needed_gtins import compute_needed_gtins
                 needed = compute_needed_gtins()
-                needed_local = REPO_DIR / "chz_test" / "debug" / "needed_gtins.json"
-                needed_local.parent.mkdir(parents=True, exist_ok=True)
-                needed_local.write_text(json.dumps(needed), encoding="utf-8")
-                print(f"Нужных GTIN из iiko (фасовка на остатке): {len(needed)}")
-                push(str(needed_local), REMOTE_CHZ_DIR + r"\debug")
             except Exception as e:
-                print(f"[WARN] список GTIN не собран ({e}) — брод-режим на бар-ПК")
+                needed = None
+                print(f"[WARN] список GTIN не собран ({e}) — на бар-ПК прежний список")
+            if needed is not None:
+                if not needed:
+                    raise RuntimeError(
+                        "Список нужных GTIN из iiko пуст (iiko недоступен или не отдал остатки) — "
+                        "обновление ЧЗ не запускается, прежние данные остаются.")
+                print(f"Нужных GTIN из iiko (фасовка на остатке): {len(needed)}")
+                try:
+                    needed_local = REPO_DIR / "chz_test" / "debug" / "needed_gtins.json"
+                    needed_local.parent.mkdir(parents=True, exist_ok=True)
+                    needed_local.write_text(json.dumps(needed), encoding="utf-8")
+                    push(str(needed_local), REMOTE_CHZ_DIR + r"\debug")
+                except Exception as e:
+                    print(f"[WARN] список GTIN не отправлен ({e}) — на бар-ПК прежний список")
             refresh_token_or_fail()
+            before = remote_mtime(REMOTE_STOCK_JSON)
             print("\nОстатки через /cises/search (таймаут 1800с)...")
             search_cmd = f'cd /d {REMOTE_CHZ_DIR} && "{REMOTE_PYTHON}" chz.py search-stock'
             search_out, _err = run_cmd(search_cmd, timeout=1800)
@@ -244,9 +294,7 @@ def main():
                 raise RuntimeError(
                     "chz.py search-stock не обновил chz_stock.json (пустой результат) — "
                     "старый файл не скачивается.")
-            print("\nСкачивание chz_stock.json...")
-            remote_json = REMOTE_CHZ_DIR + r"\debug\chz_stock.json"
-            pull(remote_json, str(REPO_DIR / "chz_test" / "debug"))
+            pull_stock_if_rewritten(before, "search-stock")
         else:
             # Запустить chz.py на бар-ПК из C:\chz_test
             ALLOWED_SUBCMDS = {"token", "stock", "report", "status", "mods", "csv-auto", "search-stock"}

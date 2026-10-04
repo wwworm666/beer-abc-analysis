@@ -70,6 +70,46 @@ def test_parse_store_and_pick():
     assert ks.pick_thumbprint(foreign, expected='0' * 40, today='2026-10-04') == (None, 'none')
 
 
+def test_pick_next_renewal_prefers_newer_cert_over_expected():
+    # Ревью 2026-10-04: перевыпуск КЭП в 2027-м. Старый сертификат (EXPECTED_THUMBPRINT
+    # 2026 года) остаётся в хранилище — выбирать надо новый, а не ожидаемый из кода.
+    inn = 'CN=Иванов, ИНН=781421365746'
+    old2026 = {'thumb': NEW.lower(), 'not_before': '2026-08-07', 'not_after': '2027-11-07',
+               'has_key': True, 'subject': inn}
+    new2027 = {'thumb': '3' * 40, 'not_before': '2027-08-01', 'not_after': '2028-11-01',
+               'has_key': True, 'subject': inn}
+    assert ks.pick_thumbprint([old2026, new2027], today='2027-09-01') == ('3' * 40, 'by_inn')
+    assert ks.pick_thumbprint([old2026, new2027], today='2027-12-01') == ('3' * 40, 'by_inn')
+    # Новый ещё без ссылки на ключ (сертификат не поставлен с Рутокена) — пока ожидаемый.
+    nokey = dict(new2027, has_key=False)
+    assert ks.pick_thumbprint([old2026, nokey], today='2027-09-01') == (NEW.lower(), 'expected')
+    # Ожидаемый истёк, другого нет — нечего ставить.
+    assert ks.pick_thumbprint([old2026], today='2028-01-01') == (None, 'none')
+    # Повтор после установки с Рутокена не выбирает уже не подошедший отпечаток.
+    assert ks.pick_thumbprint([old2026, nokey], today='2027-09-01',
+                              exclude={NEW}) == ('3' * 40, 'by_inn')
+
+
+def test_copy_chz_does_not_downgrade(tmp_path, monkeypatch):
+    here = tmp_path / 'flash'
+    here.mkdir()
+    dst = tmp_path / 'chz_test'
+    dst.mkdir()
+    monkeypatch.setattr(ks, 'CHZ_DIR', str(dst))
+    (here / 'chz.py').write_text('CHZ_VERSION = "2026-10-04"\nCERT_THUMBPRINT = "x"\n', encoding='utf-8')
+    (dst / 'chz.py').write_text('CHZ_VERSION = "2026-12-01"\nCERT_THUMBPRINT = "y"\n', encoding='utf-8')
+    with contextlib.redirect_stdout(io.StringIO()) as buf:
+        assert ks.copy_chz(str(here)) is True
+    assert '2026-12-01' in (dst / 'chz.py').read_text(encoding='utf-8')     # новее — не тронут
+    assert 'оставляю его' in buf.getvalue() and not list(dst.glob('chz_backup_*.py'))
+    (dst / 'chz.py').write_text('CERT_THUMBPRINT = "y"\n', encoding='utf-8')  # старый, без версии
+    with contextlib.redirect_stdout(io.StringIO()):
+        assert ks.copy_chz(str(here)) is True
+    assert '2026-10-04' in (dst / 'chz.py').read_text(encoding='utf-8')
+    assert len(list(dst.glob('chz_backup_*.py'))) == 1
+    assert ks.chz_version(os.path.join(_REPO, 'chz_test', 'chz.py')) >= '2026-10-04'
+
+
 def test_normalize_thumbprint_drops_invisible_and_spaces():
     assert ks.normalize_thumbprint('\u200e7A 4C cc') == '7a4ccc'
     assert ks.normalize_thumbprint(None) == ''
@@ -261,6 +301,28 @@ def test_chz_get_token_csptest_timeout(monkeypatch, tmp_path):
     assert 'ждёт человека' in buf.getvalue()
 
 
+def test_chz_get_token_runs_csptest_without_shell(monkeypatch, tmp_path):
+    # Ревью 2026-10-04: с shell=True таймаут завершал только cmd.exe, а csptest.exe держал
+    # каналы вывода — run() ждал его до закрытия окна КриптоПро. Теперь — список аргументов.
+    monkeypatch.setattr(chz, 'DEBUG_DIR', str(tmp_path))
+    monkeypatch.setattr(chz, 'make_request', lambda *a, **k: (200, {'uuid': 'u' * 36, 'data': 'd' * 30}))
+    seen = {}
+
+    def fake(cmd, **kwargs):
+        seen['cmd'], seen['kwargs'] = cmd, kwargs
+        raise subprocess.TimeoutExpired(cmd='csptest', timeout=kwargs.get('timeout'))
+
+    monkeypatch.setattr(chz.subprocess, 'run', fake)
+    with contextlib.redirect_stdout(io.StringIO()):
+        chz.get_token()
+    cmd = seen['cmd']
+    assert isinstance(cmd, list) and cmd[0] == chz.CSP_PATH
+    assert not seen['kwargs'].get('shell')
+    assert seen['kwargs']['timeout'] == chz.CSP_TIMEOUT_SEC
+    assert cmd[cmd.index('-my') + 1] == chz.cert_thumbprint()
+    assert cmd[-3:] == ['-base64', '-cades_strict', '-add']
+
+
 def test_chz_product_info_answers_when_token_raises(monkeypatch):
     def boom():
         raise subprocess.TimeoutExpired(cmd='csptest', timeout=60)
@@ -283,25 +345,41 @@ def test_chz_token_command_exits_1_on_failure(monkeypatch):
 
 # ----------------------------------------------------------------- remote_exec
 
-def _remote(monkeypatch, token_out, search_out):
-    calls = []
+class _CallLog(list):
+    """Список вызовов run_cmd; pushed — что ушло на бар-ПК через push."""
+    pushed = ()
+
+
+def _remote(monkeypatch, token_out, search_out, needed=('04610093628430',), mtimes=(100.0, 200.0),
+            command='search-stock', token_exit=0):
+    """remote_exec без сети: run_cmd, push, pull и время chz_stock.json на бар-ПК — подделки.
+
+    token_exit=1 — chz.py token выходит с кодом 1, как настоящий run_cmd: RuntimeError.
+    mtimes — время файла до и после команды (одинаковое — файл не перезаписан).
+    """
+    calls = _CallLog()
 
     def fake_run_cmd(cmd, verbose=True, timeout=None):
         calls.append(cmd)
         if cmd.endswith('chz.py token'):
+            if token_exit:
+                raise RuntimeError('Remote command failed (exit %d): %r' % (token_exit, cmd))
             return token_out, ''
-        if cmd.endswith('chz.py search-stock'):
+        if cmd.endswith('chz.py ' + command):
             return search_out, ''
         return '', ''
 
-    pulled = []
+    pulled, pushed = [], []
+    times = list(mtimes)
     monkeypatch.setattr(remote_exec, 'run_cmd', fake_run_cmd)
-    monkeypatch.setattr(remote_exec, 'push', lambda *a, **k: None)
+    monkeypatch.setattr(remote_exec, 'push', lambda *a, **k: pushed.append(a))
     monkeypatch.setattr(remote_exec, 'pull', lambda *a, **k: pulled.append(a))
+    monkeypatch.setattr(remote_exec, 'remote_mtime', lambda path: times.pop(0) if times else None)
     fake = types.ModuleType('core.chz_needed_gtins')
-    fake.compute_needed_gtins = lambda: ['04610093628430']
+    fake.compute_needed_gtins = lambda: list(needed)
     monkeypatch.setitem(sys.modules, 'core.chz_needed_gtins', fake)
-    monkeypatch.setattr(sys, 'argv', ['remote_exec.py', 'run', 'search-stock'])
+    monkeypatch.setattr(sys, 'argv', ['remote_exec.py', 'run', command])
+    calls.pushed = pushed
     return calls, pulled
 
 
@@ -328,6 +406,44 @@ def test_remote_search_stock_stops_on_empty_result(monkeypatch, tmp_path):
 def test_remote_search_stock_ok_pulls(monkeypatch, tmp_path):
     monkeypatch.setattr(remote_exec, 'REPO_DIR', tmp_path)
     _calls, pulled = _remote(monkeypatch, '  [OK] Token', '[OK] 312 GTIN\n[WARN] needed_gtins.json old')
+    with contextlib.redirect_stdout(io.StringIO()):
+        remote_exec.main()
+    assert len(pulled) == 1
+
+
+def test_remote_search_stock_stops_on_empty_needed_list(monkeypatch, tmp_path):
+    # iiko не отдал остатки: пустой список не уходит на бар-ПК (брод-режим заменил бы
+    # полный кэш урезанным), сбор не запускается, файл не скачивается.
+    monkeypatch.setattr(remote_exec, 'REPO_DIR', tmp_path)
+    calls, pulled = _remote(monkeypatch, '  [OK] Token', '[OK] 20 GTIN', needed=())
+    with contextlib.redirect_stdout(io.StringIO()):
+        with pytest.raises(RuntimeError) as exc:
+            remote_exec.main()
+    assert 'пуст' in str(exc.value)
+    assert calls.pushed == [] and pulled == []
+    assert not any(c.endswith('chz.py token') or c.endswith('search-stock') for c in calls)
+
+
+def test_remote_token_exit_1_gives_readable_error(monkeypatch, tmp_path):
+    monkeypatch.setattr(remote_exec, 'REPO_DIR', tmp_path)
+    calls, pulled = _remote(monkeypatch, '', 'x', token_exit=1)
+    with contextlib.redirect_stdout(io.StringIO()):
+        with pytest.raises(RuntimeError) as exc:
+            remote_exec.main()
+    assert str(exc.value) == remote_exec.TOKEN_FAIL_TEXT
+    assert 'exit 1' in str(exc.value.__cause__)
+    assert pulled == [] and not any(c.endswith('search-stock') for c in calls)
+
+
+@pytest.mark.parametrize('command', ['search-stock', 'stock', 'csv-auto'])
+def test_remote_does_not_pull_file_that_was_not_rewritten(monkeypatch, tmp_path, command):
+    monkeypatch.setattr(remote_exec, 'REPO_DIR', tmp_path)
+    _calls, pulled = _remote(monkeypatch, '  [OK] Token', 'Нет данных', mtimes=(100.0, 100.0), command=command)
+    with contextlib.redirect_stdout(io.StringIO()):
+        with pytest.raises(RuntimeError) as exc:
+            remote_exec.main()
+    assert 'не обновил chz_stock.json' in str(exc.value) and pulled == []
+    _calls, pulled = _remote(monkeypatch, '  [OK] Token', '[OK]', mtimes=(100.0, 250.0), command=command)
     with contextlib.redirect_stdout(io.StringIO()):
         remote_exec.main()
     assert len(pulled) == 1
