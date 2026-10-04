@@ -617,10 +617,23 @@ def test_process_store_unavailable_text_is_shown(fakes):
     assert res['note'] == 'База приёмки недоступна: database is locked'
 
 
-def test_process_unknown_receipt_is_error(fakes):
+def test_process_unknown_receipt_stops_quietly(fakes):
+    # Приёмки нет (удалили между взятием обработки и её началом): обработка тихо
+    # останавливается, итог не пишется — писать его некуда.
     res = svc.process_receipt(404)
-    assert res['state'] == 'error'
-    assert fakes.store.finished == [(404, 'error', 'Приёмка не найдена')]
+    assert res['state'] == 'deleted'
+    assert fakes.store.finished == []
+
+
+def test_process_receipt_deleted_midway_stops_without_finish(fakes):
+    # Приёмку удалили посреди обработки: хранилище не заводит ей строку разбора
+    # (ReceiptNotFound) — обработка останавливается без итога и без сообщения.
+    fakes.store.lines[16] = _lines(G_NEW_BARE)
+    fakes.store.fail_upsert = fakes.store.ReceiptNotFound('16')
+    res = svc.process_receipt(16)
+    assert res['state'] == 'deleted'
+    assert fakes.store.finished == []
+    assert fakes.store.notified == {}
 
 
 def test_process_finish_failure_does_not_raise(fakes):

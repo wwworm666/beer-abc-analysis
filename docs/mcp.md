@@ -681,7 +681,8 @@ common 1.
 `stocks_tap_stop`, `stocks_tap_replace`, `stocks_yml_feed_save` (правка публичного прайса на
 Яндекс Картах), `stocks_menu_item_delete`, `stocks_receiving_close` (закрытая приёмка не
 открывается, уходит сообщение бухгалтерии), `stocks_receiving_scan_delete`,
-`stocks_receiving_invoice_delete`; аналитика — `analytics_plan_delete`,
+`stocks_receiving_invoice_delete`, `stocks_receiving_delete` (удаляет приёмку с её сканами, фото
+и строками разбора); аналитика — `analytics_plan_delete`,
 `analytics_daily_plan_reset_weight`, `analytics_explorer_saved_delete`; сотрудники — `staff_kpi_targets_save`,
 `staff_salary_handover_penalty`, `staff_salary_export_gsheet`, `staff_salary_sync_gsheet`,
 `staff_schedule_employees_sync`, `staff_schedule_cash_register_set`, `staff_schedule_shift_delete`,
@@ -908,8 +909,8 @@ blueprint'ами сервиса (`routes.register_blueprints` + mcp + mcp_oauth)
 один инструмент не ведёт на `/api/admin/mcp`, `/mcp` или `/oauth`; в `PUBLIC_ENDPOINTS` есть 7
 MCP-эндпоинтов, а `mcp_oauth.authorize` — нет.
 
-На 2026-10-03 (`py -3 -m core.mcp.coverage`): 241 пара — 224 инструментами и 17 исключениями;
-инструментов всего 239 (7 служебных без маршрута и 8 инструментов редактора меню на
+На 2026-10-04 (`py -3 -m core.mcp.coverage`): 242 пары — 225 инструментами и 17 исключениями;
+инструментов всего 240 (7 служебных без маршрута и 8 инструментов редактора меню на
 `/menu/api/*`, которые описаны добровольно: этот префикс в обязательный охват не входит). Из
 27 записей `EXCLUDED` в охват попадают 17, остальные 10 — маршруты `/telegram/*` (см.
 «Исключения»).
@@ -1289,6 +1290,13 @@ py -3 scripts/mcp_eval.py          # сухой план эталонного п
 - **Удалить `mcp.db`** — пропадут все токены, OAuth-подключения, журнал и настройки.
 
 ## Changelog
+
+- **2026-10-04 (удаление приёмки)** — `stocks_receiving_delete` (`DELETE /api/receiving/<id>`,
+  [receiving.md](receiving.md), «Выбор приёмок и удаление неразобранной»): удаляет закрытую
+  приёмку, разобранную не полностью; опасный, в «чтении» и «черновиках» не виден. Описания
+  `stocks_receiving_list`, `_create`, `_review` — прогресс разбора приёмки (`review`, `reviewed`,
+  `can_delete`), в `receipts` разбора — все неразобранные. Числа: 240 инструментов (stocks 71),
+  охват 242 пары — 225 инструментами и 17 исключениями; `/mcp` 240 / 153 / 145.
 
 - **2026-10-03 (приёмка на РЦ)** — 14 инструментов `stocks_receiving_*` на все маршруты
   `routes/receiving.py` ([receiving.md](receiving.md)): список, карточка и создание приёмки, скан и его

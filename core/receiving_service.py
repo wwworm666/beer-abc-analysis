@@ -476,10 +476,13 @@ def process_receipt(receipt_id) -> dict:
     """Обработать закрытую приёмку синхронно (алгоритм — докстринг модуля).
 
     Зовётся из потока start_receipt_processing (и тестами напрямую) после
-    claim_processing. -> {'receipt_id', 'state': 'done'|'error', 'note', 'gtins',
+    claim_processing. -> {'receipt_id', 'state': 'done'|'error'|'deleted', 'note', 'gtins',
     'statuses': {status: n}, 'opened': n, 'notified': bool}. Любое исключение ->
     finish_processing('error', текст без секретов); не удалось и это — только лог
     (обработка останется running, шедулер перехватит её через PROCESS_STALE_SEC).
+    Приёмку удалили во время обработки (receiving_store.delete_receipt; хранилище
+    отвечает ReceiptNotFound) — обработка тихо останавливается, state 'deleted': строки,
+    которые она успела завести, удаление уже убрало, писать итог некуда.
     """
     rid = int(receipt_id)
     notes = []
@@ -540,6 +543,12 @@ def process_receipt(receipt_id) -> dict:
               + (f'; {summary["note"]}' if summary['note'] else ''))
         return summary
     except Exception as error:  # noqa: BLE001 — итог обработки обязан записаться
+        not_found = getattr(receiving_store, 'ReceiptNotFound', None)
+        if isinstance(not_found, type) and isinstance(error, not_found):
+            print(f'{_LOG} приёмка №{rid} удалена во время обработки — обработка остановлена')
+            summary['state'] = 'deleted'
+            summary['note'] = NOTE_SEP.join(n for n in notes if n)
+            return summary
         _log_error(f'приёмка №{rid}: обработка упала', error)
         notes.append(_error_text(error))
         try:

@@ -62,6 +62,8 @@ EXPECTED_DESTRUCTIVE = {
     'stocks_yml_feed_save',
     # приёмка на РЦ: закрытие не отменить (и уходит сообщение бухгалтерии), скан и фото — удаление
     'stocks_receiving_close', 'stocks_receiving_scan_delete', 'stocks_receiving_invoice_delete',
+    # удаление приёмки, разобранной не полностью: сканы, фото и строки разбора не вернуть
+    'stocks_receiving_delete',
 }
 EXPECTED_OPEN_WORLD = {
     'stocks_chz_live', 'stocks_chz_refresh', 'stocks_nomenclature_update', 'stocks_yml_feed_save',

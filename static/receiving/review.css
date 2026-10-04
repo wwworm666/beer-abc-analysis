@@ -172,6 +172,9 @@
     cursor: pointer;
 }
 .rv-link:hover { color: var(--rv-accent-h); }
+.rv-link:disabled { opacity: .6; cursor: default; }
+.rv-link-bad { color: var(--rv-bad-ink); }
+.rv-link-bad:hover { color: var(--rv-bad); }
 
 .rv-input, .rv-sel {
     height: var(--rv-ctl-h);
@@ -273,21 +276,29 @@
 }
 .rv-search input:focus { outline: none; border-color: var(--rv-accent); box-shadow: var(--rv-focus); }
 
-.rv-filter {
-    display: inline-flex; align-items: center; gap: 4px;
-    height: 32px; padding: 0 4px 0 12px;
-    font-size: 12px; font-weight: 600;
-    color: var(--rv-accent-ink); background: var(--rv-accent-soft);
-    border-radius: var(--rv-r-pill);
-}
-.rv-filter-x {
-    width: 24px; height: 24px; border: none; background: transparent;
-    border-radius: var(--rv-r-pill); cursor: pointer; color: inherit;
-    display: inline-flex; align-items: center; justify-content: center;
-}
-.rv-filter-x:hover { background: var(--rv-card); }
-.rv-filter-x svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; }
 .rv-count { font-size: 12px; color: var(--rv-ink4); margin-left: auto; }
+
+/* Выбор приёмок для разбора: чипы, выбранные — акцентом (как фильтр, а не вкладка:
+   выбрать можно несколько). */
+.rv-pick .rv-sec-head { margin-bottom: 10px; }
+.rv-pick-list { display: flex; gap: 6px; flex-wrap: wrap; }
+.rv-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    height: 32px; padding: 0 12px;
+    font: inherit; font-size: 12px; font-weight: 500;
+    color: var(--rv-ink2);
+    background: var(--rv-card);
+    border: 1px solid var(--rv-line);
+    border-radius: var(--rv-r-pill);
+    cursor: pointer;
+    transition: border-color .15s ease, color .15s ease;
+}
+.rv-chip:hover { border-color: var(--rv-accent); color: var(--rv-ink); }
+.rv-chip.is-on { color: var(--rv-accent-ink); background: var(--rv-accent-soft); border-color: var(--rv-accent); }
+.rv-chip-n { font-weight: 600; color: var(--rv-ink3); font-variant-numeric: tabular-nums; }
+.rv-chip.is-on .rv-chip-n { color: var(--rv-accent-ink); }
+.rv-chip-n.is-wait { color: var(--rv-warn-ink); }
+.rv-chip-n.is-error { color: var(--rv-bad-ink); }
 
 .rv-msg { margin: 0 0 12px; font-size: 13px; color: var(--rv-ink3); }
 .rv-msg.is-bad {
@@ -409,6 +420,8 @@
 .rv-rc-proc.is-wait { color: var(--rv-warn-ink); }
 .rv-rc-proc.is-error { color: var(--rv-bad-ink); }
 .rv-rc-facts { margin-top: 2px; color: var(--rv-ink2); font-variant-numeric: tabular-nums; }
+.rv-rc-prog { margin-top: 2px; font-weight: 600; color: var(--rv-accent-ink); font-variant-numeric: tabular-nums; }
+.rv-rc-prog.is-done { color: var(--rv-ok-ink); }
 .rv-rc-note { margin-top: 2px; color: var(--rv-ink3); }
 .rv-rc-note.is-bad { color: var(--rv-bad-ink); }
 .rv-rc-act { margin-top: 6px; display: flex; gap: 14px; flex-wrap: wrap; }
@@ -445,6 +458,9 @@
     .rv-input-note { height: 44px; }
     .rv-tabs { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 2px; }
     .rv-tab { flex: none; }
+    /* Приёмки — в одну строку с прокруткой, как вкладки; чип повыше под палец. */
+    .rv-pick-list { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 2px; }
+    .rv-chip { flex: none; height: 36px; }
     /* Поиск во всю ширину, счётчик строк — под ним, а не сжатый рядом. */
     .rv-search { flex: 1 1 100%; max-width: none; }
     .rv-count { margin-left: 0; }
