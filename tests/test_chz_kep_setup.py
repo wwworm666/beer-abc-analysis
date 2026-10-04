@@ -18,10 +18,14 @@ Windows, КриптоПро и SSH не нужны: команды (PowerShell, 
   отвечает строкой-маркером; «chz.py token» при сбое — код выхода 1;
 - remote_exec: сбой токена ([ERR]) и пустой результат search-stock — RuntimeError, старый
   chz_stock.json не скачивается; удачный прогон скачивает;
+- remote_exec: chz.py на бар-ПК обновляется с сервера, только если здесь CHZ_VERSION новее,
+  с отпечатком КЭП с бар-ПК и копией прежнего файла; сбой — прежний файл на месте, а
+  обновление ЧЗ идёт дальше; chz.py изменился без новой CHZ_VERSION — тест падает;
 - kep_setup.bat с CRLF; без эмодзи; синтаксис Python 3.10.
 """
 import ast
 import contextlib
+import hashlib
 import io
 import os
 import shutil
@@ -371,6 +375,7 @@ def _remote(monkeypatch, token_out, search_out, needed=('04610093628430',), mtim
 
     pulled, pushed = [], []
     times = list(mtimes)
+    monkeypatch.setattr(remote_exec, 'sync_chz_script', lambda: calls.append('sync') or 'current')
     monkeypatch.setattr(remote_exec, 'run_cmd', fake_run_cmd)
     monkeypatch.setattr(remote_exec, 'push', lambda *a, **k: pushed.append(a))
     monkeypatch.setattr(remote_exec, 'pull', lambda *a, **k: pulled.append(a))
@@ -447,6 +452,173 @@ def test_remote_does_not_pull_file_that_was_not_rewritten(monkeypatch, tmp_path,
     with contextlib.redirect_stdout(io.StringIO()):
         remote_exec.main()
     assert len(pulled) == 1
+
+
+def test_remote_sync_runs_before_token_only_for_refresh_commands(monkeypatch, tmp_path):
+    monkeypatch.setattr(remote_exec, 'REPO_DIR', tmp_path)
+    calls, _pulled = _remote(monkeypatch, '  [OK] Token', '[OK] 312 GTIN')
+    with contextlib.redirect_stdout(io.StringIO()):
+        remote_exec.main()
+    assert calls[0] == 'sync' and calls[1].endswith('chz.py token')
+    calls, _pulled = _remote(monkeypatch, '  [OK] Token', '', command='token')
+    with contextlib.redirect_stdout(io.StringIO()):
+        remote_exec.main()
+    assert 'sync' not in calls
+
+
+# ----------------------------------------------------------------- chz.py с сервера на бар-ПК
+
+OTHER = 'abcdef0123456789abcdef0123456789abcdef01'
+LOCAL_CHZ = ('# chz\nCHZ_VERSION = "2026-10-04"\nCERT_THUMBPRINT = "' + NEW.lower() + '"\n'
+             'print("new")\n')
+REMOTE_OLD = '# old\nCERT_THUMBPRINT = "' + OTHER + '"\nprint("old")\n'
+REMOTE_PY = remote_exec.REMOTE_CHZ_PY
+
+
+class _FakeSftp:
+    """SFTP бар-ПК в памяти: files — {путь: bytes}. fail_renames — сколько переименований
+    в chz.py подряд падает; corrupt — отправленный chz.py.new доходит без последнего байта."""
+
+    def __init__(self, files=None, fail_renames=0, corrupt=False):
+        self.files = {k: v.encode('utf-8') for k, v in (files or {}).items()}
+        self.fail_renames = fail_renames
+        self.corrupt = corrupt
+        self.ops = []
+
+    def open(self, path, mode='r'):
+        assert mode == 'rb'
+        if path not in self.files:
+            raise FileNotFoundError(2, 'No such file')
+        return io.BytesIO(self.files[path])
+
+    def putfo(self, fl, path):
+        data = fl.read()
+        self.files[path] = data[:-1] if self.corrupt and path.endswith('.new') else data
+        self.ops.append(('put', path))
+
+    def rename(self, old, new):
+        if new == REMOTE_PY and self.fail_renames:
+            self.fail_renames -= 1
+            raise IOError('rename failed')
+        assert new not in self.files, 'SFTP на Windows не переименовывает поверх файла'
+        self.files[new] = self.files.pop(old)
+        self.ops.append(('rename', old, new))
+
+    def remove(self, path):
+        if path not in self.files:
+            raise FileNotFoundError(2, 'No such file')
+        del self.files[path]
+        self.ops.append(('remove', path))
+
+    def close(self):
+        pass
+
+
+def _sync(monkeypatch, tmp_path, sftp, local=LOCAL_CHZ, connect_error=None):
+    (tmp_path / 'chz_test').mkdir(exist_ok=True)
+    (tmp_path / 'chz_test' / 'chz.py').write_bytes(local.encode('utf-8'))
+    monkeypatch.setattr(remote_exec, 'REPO_DIR', tmp_path)
+    monkeypatch.delenv(remote_exec.AUTO_UPDATE_ENV, raising=False)
+    client = types.SimpleNamespace(open_sftp=lambda: sftp, close=lambda: None)
+
+    def fake_connect(timeout=15):
+        if connect_error:
+            raise connect_error
+        return client
+
+    monkeypatch.setattr(remote_exec, 'connect', fake_connect)
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out):
+        result = remote_exec.sync_chz_script()
+    return result, out.getvalue()
+
+
+def _backups(sftp):
+    return [p for p in sftp.files if p.startswith(remote_exec.REMOTE_CHZ_DIR + '\\chz_backup_')]
+
+
+def test_sync_updates_old_file_and_keeps_bar_pc_thumbprint(monkeypatch, tmp_path):
+    sftp = _FakeSftp({REMOTE_PY: REMOTE_OLD})
+    result, out = _sync(monkeypatch, tmp_path, sftp)
+    assert result == 'updated'
+    expected = LOCAL_CHZ.replace(NEW.lower(), OTHER).encode('utf-8')
+    assert sftp.files[REMOTE_PY] == expected                      # код новый, отпечаток — с бар-ПК
+    [backup] = _backups(sftp)
+    assert sftp.files[backup] == REMOTE_OLD.encode('utf-8')       # прежний — копией рядом
+    assert REMOTE_PY + '.new' not in sftp.files
+    assert 'без версии -> 2026-10-04' in out and 'отпечаток КЭП с бар-ПК' in out
+
+
+@pytest.mark.parametrize('remote_version', ['2026-10-04', '2026-12-01', '2026-10-04-2'])
+def test_sync_leaves_same_or_newer_version(monkeypatch, tmp_path, remote_version):
+    remote = REMOTE_OLD.replace('# old\n', '# old\nCHZ_VERSION = "' + remote_version + '"\n')
+    sftp = _FakeSftp({REMOTE_PY: remote})
+    result, out = _sync(monkeypatch, tmp_path, sftp)
+    assert result == 'current' and sftp.ops == []
+    assert remote_version in out
+
+
+def test_sync_puts_file_when_bar_pc_has_none(monkeypatch, tmp_path):
+    sftp = _FakeSftp({})
+    result, _out = _sync(monkeypatch, tmp_path, sftp)
+    assert result == 'updated'
+    assert sftp.files[REMOTE_PY] == LOCAL_CHZ.encode('utf-8') and _backups(sftp) == []
+
+
+@pytest.mark.parametrize('fault', ['rename', 'rename-twice', 'corrupt'])
+def test_sync_failure_restores_previous_file(monkeypatch, tmp_path, fault):
+    # rename-twice: не вернулось и переименование копии — прежние байты пишутся заново.
+    sftp = _FakeSftp({REMOTE_PY: REMOTE_OLD}, fail_renames={'rename': 1, 'rename-twice': 2}.get(fault, 0),
+                     corrupt=fault == 'corrupt')
+    result, out = _sync(monkeypatch, tmp_path, sftp)
+    assert result == 'failed' and '[WARN]' in out
+    assert sftp.files[REMOTE_PY] == REMOTE_OLD.encode('utf-8')    # прежний chz.py на месте
+    assert REMOTE_PY + '.new' not in sftp.files
+    assert len(_backups(sftp)) == (1 if fault == 'rename-twice' else 0)
+
+
+def test_sync_errors_never_stop_refresh(monkeypatch, tmp_path):
+    result, out = _sync(monkeypatch, tmp_path, _FakeSftp({}), connect_error=OSError('timed out'))
+    assert result == 'failed' and '[WARN]' in out and 'timed out' in out
+    sftp = _FakeSftp({REMOTE_PY: REMOTE_OLD})
+    result, out = _sync(monkeypatch, tmp_path, sftp, local='print("без версии")\n')
+    assert result == 'no-local' and sftp.ops == []
+
+
+def test_sync_switched_off(monkeypatch, tmp_path):
+    sftp = _FakeSftp({REMOTE_PY: REMOTE_OLD})
+    (tmp_path / 'chz_test').mkdir()
+    (tmp_path / 'chz_test' / 'chz.py').write_text(LOCAL_CHZ, encoding='utf-8')
+    monkeypatch.setattr(remote_exec, 'REPO_DIR', tmp_path)
+    monkeypatch.setenv(remote_exec.AUTO_UPDATE_ENV, '0')
+    monkeypatch.setattr(remote_exec, 'connect', lambda timeout=15: pytest.fail('connect при CHZ_AUTO_UPDATE=0'))
+    with contextlib.redirect_stdout(io.StringIO()):
+        assert remote_exec.sync_chz_script() == 'off'
+    assert sftp.ops == []
+
+
+def test_sync_regexes_match_kep_setup():
+    assert remote_exec.CHZ_VERSION_RE.pattern == ks.CHZ_VERSION_RE.pattern
+    assert remote_exec.THUMB_LINE_RE.pattern == ks.THUMB_LINE_RE.pattern
+    assert remote_exec.with_remote_thumbprint(LOCAL_CHZ, 'нет строки') == LOCAL_CHZ
+
+
+# Выпуск chz.py для бар-ПК: CHZ_VERSION и SHA-256 текста без строки CERT_THUMBPRINT (её
+# пишет kep_setup на бар-ПК, она при обновлении не меняется). sync_chz_script сравнивает
+# только версии: изменили chz.py, не подняв CHZ_VERSION, — сервер его на бар-ПК не положит.
+CHZ_RELEASE = ('2026-10-04', 'a88c9cf53c8eac0ef8b3b1a26e1b6b2cc5a655fc7360cefff9224f0db68a6177')
+
+
+def test_chz_version_bumped_with_code():
+    with open(os.path.join(_REPO, 'chz_test', 'chz.py'), encoding='utf-8', newline='') as f:
+        text = f.read().replace('\r\n', '\n')
+    body = remote_exec.THUMB_LINE_RE.sub('CERT_THUMBPRINT = ""', text)
+    release = (remote_exec.chz_version(text), hashlib.sha256(body.encode('utf-8')).hexdigest())
+    assert release == CHZ_RELEASE, (
+        'chz.py изменился: поднимите CHZ_VERSION (дата выпуска; второй за день — «…-2») и '
+        'впишите в CHZ_RELEASE новую пару ' + repr(release) + ' — иначе сервер не обновит '
+        'chz.py на бар-ПК')
+    assert remote_exec.chz_version(text) == chz.CHZ_VERSION
 
 
 # ----------------------------------------------------------------- файлы

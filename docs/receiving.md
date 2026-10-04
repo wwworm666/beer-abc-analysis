@@ -608,8 +608,11 @@ DataMatrix, последние сканы) — `localStorage['rc.receipt.v1']`: 
 | `RECEIVING_NOTIFY` | включено | `0` — не слать сообщения о разборе |
 
 Сделать владельцу после выкладки:
-1. Обновить `chz.py` на бар-ПК: `python remote_exec.py push chz_test/chz.py C:\chz_test`
-   (до этого названия из ЧЗ берутся только из кэша и выгрузки остатков).
+1. Обновить `chz.py` на бар-ПК: с 2026-10-04 сервер кладёт новый сам перед обновлением
+   данных ЧЗ (ночью или кнопкой «Обновить данные ЧЗ»; `remote_exec.sync_chz_script`,
+   [chz_test/README.md](../chz_test/README.md)); вручную —
+   `python remote_exec.py push chz_test/chz.py C:\chz_test`. До этого названия из ЧЗ
+   берутся только из кэша и выгрузки остатков.
 2. Бухгалтеру открыть бота `kulturaopenclosed` и нажать /start; его chat id вписать в
    `RECEIVING_NOTIFY_CHAT_IDS` и пересоздать контейнер (`docs/guides/deploy.md`).
 3. Шаг подготовки «проверить на 10 новинках»: `python -m core.receiving_chz <GTIN> ...`
