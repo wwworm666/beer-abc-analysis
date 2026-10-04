@@ -649,7 +649,7 @@ test('диалог копирования: правила дат — с серв
 
 // ---------------------------------------------------------------- ИИ-агент (MCP)
 
-test('ИИ-агент: пометка «ИИ» в таблице, плашках календаря, шапке карточки и окне утверждения', () => {
+test('ИИ-агент: пометка «ИИ» — в шапке карточки и окне утверждения; в строках таблицы и плашках её нет', () => {
     const { cp } = loadPage();
     const mark = cp.aiMark({ origin: 'agent' }, true);
     assert.match(mark, /class="gh-cp-ai"/, 'пометка без своего класса');
@@ -658,8 +658,10 @@ test('ИИ-агент: пометка «ИИ» в таблице, плашках
     assert.equal(cp.aiMark({ origin: 'human' }, true), '', 'материал людей помечен «ИИ»');
     assert.equal(cp.aiMark({}, true), '', 'материал без origin (старые данные) помечен «ИИ»');
     assert.ok(!/data-tip=/.test(cp.aiMark({ origin: 'agent' }, false)), 'в плашке календаря у метки своя подсказка');
-    assert.match(fnBody('rowHtml'), /aiMark\(m, true\)/, 'в строке таблицы нет пометки «ИИ»');
-    assert.match(fnBody('pillHtml'), /aiMark\(x\.m, false\)/, 'в плашке календаря нет пометки «ИИ»');
+    // Решение владельца 2026-10-04: от агента почти весь план — метка в каждой
+    // строке и плашке ничего не различала и съедала место названия.
+    assert.ok(!/aiMark\(/.test(fnBody('rowHtml')), 'в строке таблицы снова пометка «ИИ»');
+    assert.ok(!/aiMark\(/.test(fnBody('pillHtml')), 'в плашке календаря снова пометка «ИИ»');
     assert.match(fnBody('drawerHead'), /aiMark\(m, true\)/, 'в шапке карточки нет пометки «ИИ»');
     assert.match(fnBody('apRow'), /aiMark\(g, true\)/, 'в окне утверждения посты агента не помечены');
     assert.match(fnBody('pillTip'), /ИИ: материал создал агент/, 'подсказка плашки не говорит, что это агент');
@@ -669,11 +671,15 @@ test('ИИ-агент: пометка «ИИ» в таблице, плашках
         'клиент отправляет origin материала на сервер');
 });
 
-test('ИИ-агент: «Почему этот пост» и «Что снять» — автосохранение полей материала, предел как в ядре', () => {
-    assert.match(fnBody('renderDrawer'), /secMain\(m\) \+ secWhy\(m\) \+ secContent\(m\) \+ secShots\(m\)/,
-        'разделы агента не на своих местах в карточке');
-    assert.match(fnBody('secWhy'), /agentFieldHtml\(m, 'agent_rationale'/, '«Почему этот пост» не из agent_rationale');
-    assert.match(fnBody('secShots'), /agentFieldHtml\(m, 'shot_list'/, '«Что снять» не из shot_list');
+test('ИИ-агент: «Почему этот пост» и «Что снять» — свёрнуты в «От агента», автосохранение, предел как в ядре', () => {
+    // Порядок карточки (2026-10-04): куда и когда, пост; служебное агента, «Ещё»
+    // и история — свёрнутыми разделами.
+    assert.match(fnBody('renderDrawer'), /secWhere\(m\) \+ secPost\(m\) \+ secAgent\(m\) \+ secMore\(m\) \+ secLog\(m\)/,
+        'разделы карточки не на своих местах');
+    const agent = fnBody('secAgent');
+    assert.match(agent, /agentFieldHtml\(m, 'agent_rationale'/, '«Почему этот пост» не из agent_rationale');
+    assert.match(agent, /agentFieldHtml\(m, 'shot_list'/, '«Что снять» не из shot_list');
+    assert.match(agent, /foldHtml\('fold:agent'/, '«От агента» не свёрнут');
     const field = fnBody('agentFieldHtml');
     assert.match(field, /var key = 'm:' \+ m\.id \+ ':' \+ field;/, 'ключ автосохранения не материала');
     assert.match(field, /data-save-key="' \+\s*esc\(key\)/, 'поле без автосохранения (data-save-key)');
@@ -1087,8 +1093,15 @@ test('«Каналы и отправка»: выдвижная карточка,
     assert.match(fnBody('openChannels'), /GH\.openDrawer\(el\.chanDrawer/);
     assert.match(fnBody('openChannels'), /GH\.api\('GET', API \+ '\/channels'\)|loadChannels\(\)/);
     assert.match(fnBody('loadChannels'), /GH\.api\('GET', API \+ '\/channels'\)/);
-    // Телефон: сетка в две колонки, длинная кнопка — своей строкой.
-    assert.match(css, /\.gh-cp-bar-acts > \.gh-cp-copybtn \{ grid-column: 1 \/ -1; \}/);
+    // Кнопки — пункты двух меню: «ИИ-агент» (бриф, задания) и «Ещё» (каналы, копия
+    // месяца, пауза); на телефоне меню — две кнопки поровну во всю ширину.
+    const more = html.slice(html.indexOf('id="cpMoreMenu"'), html.indexOf('id="cpPauseMenu"'));
+    for (const id of ['cpChanBtn', 'cpCopyBtn', 'cpPauseBtn']) assert.ok(more.includes(`id="${id}"`), `#${id} не в меню «Ещё»`);
+    const agentMenu = html.slice(html.indexOf('id="cpAgentMenu"'), html.indexOf('id="cpMoreBtn"'));
+    for (const id of ['cpAgentTasks', 'cpBriefBtn', 'cpOriginBtn', 'cpAgentDelBtn']) {
+        assert.ok(agentMenu.includes(`id="${id}"`), `#${id} не в меню «ИИ-агент»`);
+    }
+    assert.match(css, /\.gh-cp-bar-acts \{ display: grid; grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/);
 });
 
 test('«Попросить агента»: три задания, Claude в новой вкладке с текстом, копия в буфер, подсказка про коннектор', () => {
@@ -1289,6 +1302,182 @@ test('счётчик длины считает как сервер: Telegram и 
     // сервер считает так же (core/content_plan.text_units)
     const core = read('core/content_plan.py');
     assert.match(core, /def text_units\(/, 'нет серверной функции text_units');
+});
+
+// ---------------------------------------------------------------- переделка экрана (2026-10-04)
+// Решение владельца: «открываешь день, чтобы поправить пост, — там ужас: проверки,
+// поля для ИИ-агента». Карточка: куда и когда (дата и время прямо в строке), пост;
+// служебное агента, «Ещё» и история — свёрнуты. Верх страницы: два меню вместо
+// семи кнопок. Чипы и плашки одного материала на нескольких барах — склеены.
+
+test('карточка: дата и время — прямо в строке размещения, главное действие на виду, остальное — по «⋯»', () => {
+    const { cp } = loadReal();
+    const f = adminFixture(cp);
+    const m = { id: 'm1', kind: 'fixed', media: [], placements: [] };
+    const ready = { ...f.ready, display_state: 'ready', display_label: 'Готово к утверждению', missing: [] };
+    const row = cp.placementHtml(m, ready);
+    assert.match(row, /<input type="date" class="gh-input" data-dt="date" data-pf="date" data-pid="pr" data-fk="pd:pr"/,
+        'дата размещения не правится в строке (или без правил «дата и время»)');
+    assert.match(row, /<input type="time" class="gh-input" data-dt="time" data-pf="time" data-pid="pr" data-fk="ptm:pr"/);
+    assert.match(row, /data-act="pl-approve"/, 'у готового черновика нет «Утвердить» в строке');
+    assert.ok(!/gh-cp-stbadge/.test(row), 'у готового бейдж повторяет кнопку «Утвердить»');
+    assert.ok(!/data-act="pl-cancel"|data-pf="bar"/.test(row), 'действия и настройки не спрятаны за «⋯»');
+    assert.match(row, /data-act="toggle-pl"/, 'нет «⋯»');
+    cp.state.expanded.pr = true;
+    const open = cp.placementHtml(m, ready);
+    assert.match(open, /data-act="pl-cancel"/, '«⋯» не показывает остальные действия');
+    assert.match(open, /data-pf="bar"/, '«⋯» не показывает настройки размещения');
+    assert.equal(open.match(/data-act="pl-approve"/g).length, 1, 'главное действие продублировано под «⋯»');
+    // Неготовый — без бейджа «Не хватает данных», строкой ниже — чего именно.
+    const draft = { ...f.ready, id: 'pi', ready: false, display_state: 'incomplete', display_label: 'Не хватает: нет фото',
+                    missing: [{ code: 'x', text: 'нет фото' }] };
+    const inc = cp.placementHtml(m, draft);
+    assert.match(inc, /class="gh-cp-pl-miss"[^>]*>Нет фото</);
+    assert.ok(!/gh-cp-stbadge|data-act="pl-approve"/.test(inc), 'у неготового бейдж или «Утвердить»');
+    // Вышедшее не правится: дата и время — текстом.
+    const pub = { ...f.approved, id: 'pp2', status: 'published', display_state: 'published', display_label: 'Вышло' };
+    assert.ok(!/type="date"/.test(cp.placementHtml(m, pub)), 'у вышедшего размещения поле даты');
+});
+
+test('карточка: главное действие строки — по состоянию размещения', () => {
+    const { cp } = loadReal();
+    const f = adminFixture(cp);
+    assert.equal(cp.primaryAction({ ...f.ready, display_state: 'ready' }), 'approve');
+    assert.equal(cp.primaryAction({ ...f.ready, ready: false, display_state: 'incomplete' }), '', 'неготовый — «Утвердить»');
+    assert.equal(cp.primaryAction({ ...f.failed, display_state: 'failed' }), 'retry');
+    assert.equal(cp.primaryAction({ ...f.paused, display_state: 'paused' }), 'resume');
+    assert.equal(cp.primaryAction({ ...f.ready, status: 'cancelled', display_state: 'cancelled' }), 'restore');
+    assert.equal(cp.primaryAction({ ...f.approved, display_state: 'scheduled' }), '', 'у запланированного главное действие');
+    // Время вышло: площадка подключена — «Отправить сейчас», иначе — «Отметить вышедшим».
+    assert.equal(cp.primaryAction({ ...f.approved, display_state: 'overdue' }), 'send_now');
+    assert.equal(cp.primaryAction({ ...f.approved, bar: 'ligovskiy', display_state: 'overdue' }), 'mark_published');
+    assert.equal(cp.primaryAction(f.partial), 'retry_failed');
+});
+
+test('карточка: служебное свёрнуто — «От агента», «Ещё», «История»; внизу — «Утвердить» все готовые', () => {
+    const { cp } = loadReal();
+    const closed = cp.foldHtml('fold:x', 'Ещё', 'тип', '<p>в</p>');
+    assert.match(closed, /^<details class="gh-cp-fold" data-how="fold:x"><summary>/, 'раздел раскрыт по умолчанию');
+    cp.state.howOpen['fold:x'] = true;
+    assert.match(cp.foldHtml('fold:x', 'Ещё', 'тип', '<p>в</p>'), /^<details class="gh-cp-fold" data-how="fold:x" open>/,
+        'раскрытое сворачивается при перерисовке');
+    assert.match(fnBody('secMore'), /foldHtml\('fold:more'/);
+    assert.match(fnBody('secMore'), /data-kind-seg/, 'тип материала не в «Ещё»');
+    assert.match(fnBody('secMore'), /data-act="delete">Удалить материал/, 'удаление материала не в «Ещё»');
+    assert.match(fnBody('secLog'), /foldHtml\('fold:log'/, 'история не свёрнута');
+    assert.ok(!/data-act="delete"/.test(fnBody('drawerFoot')), '«Удалить материал» снова внизу каждой карточки');
+    assert.match(fnBody('drawerFoot'), /data-act="approve-all"/);
+    assert.match(fnBody('approveMaterial'), /readyPlacements\(m\)/, '«Утвердить» берёт не готовые размещения');
+    assert.match(fnBody('approveMaterial'), /audienceReady\(/, 'рассылка утверждается без подтверждения аудитории');
+    // Дата темы — только у темы без размещений (у остальных дата — у размещений).
+    assert.match(fnBody('secWhere'), /if \(!pls\.length\) \{[\s\S]*?data-mf="planned_date"[\s\S]*?\} else \{/);
+    // Легенда цветов свёрнута.
+    cp.state.data = { states: [] };
+    assert.match(cp.legendHtml(), /^<details class="gh-cp-legendbox" data-how="legend"><summary>Цвета состояний/);
+});
+
+test('таблица и календарь: одинаковые размещения на нескольких барах — один чип и одна плашка', () => {
+    const { cp } = loadReal();
+    cp.state.data = { materials: [] };
+    const pl = (id, bar, extra = {}) => ({ id, channel: 'telegram', bar, date: '2026-10-09', time: '16:00',
+                                          display_state: 'ready', ...extra });
+    const m = { id: 'm1', title: 'Таплист пятницы', placements: [
+        pl('a', 'bolshoy'), pl('b', 'ligovskiy'), pl('c', 'kremenchugskaya'), pl('d', 'varshavskaya'),
+        { ...pl('e', 'all'), channel: 'instagram' }, pl('f', 'bolshoy', { time: '19:00' })] };
+    const groups = [...cp.chipGroups(m)];
+    assert.deepEqual(groups.map((g) => [...g.bars].join(',')),
+        ['bolshoy,ligovskiy,kremenchugskaya,varshavskaya', 'all', 'bolshoy']);
+    assert.equal(cp.barsLabel(['bolshoy', 'ligovskiy', 'kremenchugskaya', 'varshavskaya']), 'все бары');
+    assert.equal(cp.barsLabel(['bolshoy', 'ligovskiy', 'kremenchugskaya', 'varshavskaya'], true), 'все');
+    assert.equal(cp.barsLabel(['bolshoy', 'varshavskaya']), 'ВО, Вар');
+    // Разное состояние — разные чипы.
+    m.placements[1].display_state = 'scheduled';
+    assert.equal([...cp.chipGroups(m)].length, 4);
+    // Плашки календаря: склейка по материалу, площадке, времени и состоянию; темы — как есть.
+    const items = [{ m, p: pl('a', 'bolshoy') }, { m, p: pl('b', 'ligovskiy') }, { m: { id: 't' }, theme: true }];
+    const pills = [...cp.pillGroups(items)];
+    assert.equal(pills.length, 2);
+    assert.deepEqual([...pills[0].bars], ['bolshoy', 'ligovskiy']);
+    assert.equal(pills[1].theme, true);
+    // dayStats по-прежнему считает по пунктам до склейки (плотность — по материалам).
+    assert.equal(cp.dayStats(items).placements, 2);
+});
+
+test('плашка календаря: название без приставки «<бар>, <дата> — » (бар и время уже в плашке)', () => {
+    const { cp } = loadReal();
+    assert.equal(cp.pillTitle('ВО, 10 окт — Гозе: стиль, который вернули из архива'), 'Гозе: стиль, который вернули из архива');
+    assert.equal(cp.pillTitle('Лиг, 13 окт — Как Мюнхен сдался светлому'), 'Как Мюнхен сдался светлому');
+    assert.equal(cp.pillTitle('Вар, 15 окт — Amarillo'), 'Amarillo');
+    // «Бот» и «Сеть» плашка показывает сама (площадка, «все»): приставка снимается.
+    assert.equal(cp.pillTitle('Бот, 22 окт — Рассылка «Краны не ждут»'), 'Рассылка «Краны не ждут»');
+    assert.equal(cp.pillTitle('Сеть, 10 окт — Фламандский красный'), 'Фламандский красный');
+    for (const keep of ['Кухня, 14 окт — Брискет и ирландский стаут', 'Таплист пятницы (октябрь) — живой список кранов',
+                        'Хэллоуин, 31 окт — анонс', 'вАРШ, 4 окт — 5 октября', 'крем', 'ВО — ']) {
+        const got = cp.pillTitle(keep);
+        assert.ok(got === keep || keep === 'ВО — ', `«${keep}» обрезано до «${got}»`);
+    }
+    assert.equal(cp.pillTitle('ВО — '), 'ВО — ', 'название из одной приставки стало пустым');
+    assert.ok(!/aiMark\(/.test(fnBody('pillHtml')));
+    assert.match(fnBody('pillHtml'), /esc\(pillTitle\(x\.m\.title\)\)/);
+    assert.match(fnBody('pillTip'), /x\.m\.title/, 'в подсказке плашки нет полного названия');
+});
+
+test('новый материал одной формой: название, площадка, бары, дата и время — сразу', () => {
+    const { cp } = loadReal();
+    const base = { title: 'Осенний сидр', channel: 'telegram', bars: ['bolshoy', 'ligovskiy'], bar: 'all', audience: '',
+                   date: '2026-10-12', time: '19:30' };
+    assert.equal(cp.newProblem(base), '');
+    assert.deepEqual(plain(cp.newPlacementBody(base)),
+        { channel: 'telegram', date: '2026-10-12', time: '19:30', bars: ['bolshoy', 'ligovskiy'] });
+    assert.deepEqual(plain(cp.newPlacementBody({ ...base, channel: 'bot', bar: 'all', audience: 'bot_all' })),
+        { channel: 'bot', date: '2026-10-12', time: '19:30', bars: ['all'], audience: { segment: 'bot_all' } });
+    assert.deepEqual(plain(cp.newPlacementBody({ ...base, channel: 'instagram', bars: [] })).bars, ['all']);
+    assert.match(cp.newProblem({ ...base, title: '   ' }), /Название обязательно/);
+    assert.match(cp.newProblem({ ...base, bars: [] }), /хотя бы один бар/);
+    assert.match(cp.newProblem({ ...base, channel: 'bot', audience: '' }), /аудиторию/);
+    assert.equal(cp.newProblem({ ...base, channel: 'none', bars: [] }), '', 'тема без площадки не создаётся');
+    assert.match(cp.newProblem({ ...base, date: '0202-10-12' }), /год от 2020 до 2100/);
+    const add = fnBody('addMaterial');
+    assert.match(add, /GH\.api\('POST', withMonth\(API \+ '\/materials'\)/);
+    assert.match(add, /'\/materials\/' \+ enc\(created\.id\) \+ '\/placements'/, 'размещения не создаются вместе с материалом');
+    assert.match(add, /openMaterial\(mat\.id\)/, 'после создания не открывается карточка');
+    assert.match(html, /id="cpNewModal"/);
+    for (const call of ["if (a === 'add') { openNew(null); return; }", "openNew(addDay.getAttribute('data-add-day'))"]) {
+        assert.ok(js.includes(call), `нет вызова диалога: ${call}`);
+    }
+});
+
+test('утвердить отмеченные: панель выбора -> окно утверждения только по этим материалам', () => {
+    const { cp } = loadReal();
+    assert.match(html, /data-bulk="approve"/, 'в панели выбора нет «Утвердить»');
+    assert.match(fnBody('bulkAction'), /if \(kind === 'approve'\) \{ openApprove\(ids\); return; \}/);
+    const res = { month: '2026-10',
+        will_approve: [{ placement_id: 'p1', material_id: 'a' }, { placement_id: 'p2', material_id: 'b' }],
+        bot: [{ placement_id: 'p3', material_id: 'b' }], stays_draft: [{ placement_id: 'p4', material_id: 'c' }] };
+    const got = plain(cp.onlySelected(res, { b: true, c: true }));
+    assert.deepEqual(got.will_approve.map((x) => x.placement_id), ['p2']);
+    assert.deepEqual(got.bot.map((x) => x.placement_id), ['p3']);
+    assert.deepEqual(got.stays_draft.map((x) => x.placement_id), ['p4']);
+    // Без отмеченных — всё готовое под фильтрами, как раньше.
+    assert.match(fnBody('openApprove'), /if \(only\) res = onlySelected\(res, only\);/);
+    assert.match(js, /el\.approveBtn\.addEventListener\('click', function \(\) \{ openApprove\(\); \}\)/,
+        'кнопка «Утвердить готовые» передаёт событие клика вместо списка');
+});
+
+test('каналы: «Подключить»; удачное тестовое сообщение само подключает канал', () => {
+    const { cp } = loadReal();
+    cp.state.chan = { data: { channels: { telegram: { bolshoy: { chat: '@kult_vo' } }, instagram: {}, bot: {} } },
+                      busy: {}, tests: {} };
+    assert.equal(cp.chanBarStatus('bolshoy').label, 'Не подключён');
+    assert.match(cp.chanBarStatus('bolshoy').note, /«Подключить»/);
+    assert.equal(cp.barChecked('bolshoy'), false);
+    cp.state.chan.data.channels.telegram.bolshoy.check = { ok: true, can_post: true, chat: '@kult_vo' };
+    assert.equal(cp.barChecked('bolshoy'), true);
+    cp.state.chan.data.channels.telegram.bolshoy.check.chat = '@old';
+    assert.equal(cp.barChecked('bolshoy'), false, 'проверка другого адреса считается подключением');
+    assert.match(fnBody('chanBarHtml'), /barChecked\(b\.key\) \? 'Проверить снова' : 'Подключить'/);
+    // Регрессия 2026-10-04: тест дошёл, а «Проверить» не нажали — канал оставался не подключён.
+    assert.match(fnBody('testChannel'), /if \(sent && !barChecked\(bar\)\) checkChannel\(bar\);/);
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

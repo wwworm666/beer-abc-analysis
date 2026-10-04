@@ -4,10 +4,11 @@
    выдвижная карточка, диалоги, тосты, подсказки) живут в hub.css. Здесь —
    только то, что есть на этой странице: таблица месяца, календарь, карточка
    материала (размещения, предпросмотр, файлы), диалоги утверждения и
-   копирования, панель массовых действий, всё для ИИ-агента (пометка «ИИ»,
-   чип «Только от ИИ», карточка «Бриф для агента», меню «Попросить агента»),
+   копирования и «Новый материал», панель массовых действий, всё для ИИ-агента
+   (пометка «ИИ», меню «ИИ-агент», карточка «Бриф для агента»),
    отправка (баннер состояния, строка «как ушло» у размещения, выключатели,
-   карточка «Каналы и отправка») и свёрнутые пояснения «Как считается».
+   карточка «Каналы и отправка»), свёрнутые пояснения «Как считается» и
+   свёрнутые разделы карточки («От агента», «Ещё», «История»).
 
    Правила: префикс gh-cp- у каждого класса; цвета — только токены --gh-* из
    hub.css (ни одного HEX: тёмная тема работает сама); без эмодзи.
@@ -44,9 +45,13 @@ button.gh-cp-sum-i:focus-visible { outline: 2px solid var(--gh-accent-ink); outl
     border-color: color-mix(in srgb, var(--gh-accent) 55%, var(--gh-card));
     color: var(--gh-ink2);
 }
-/* margin-left: auto — если сводка с чипом «Только от ИИ» заняла строку и
-   действия перенеслись, они стоят справа, а не прилипают к левому краю. */
+/* Два меню справа от сводки: «ИИ-агент» и «Ещё». margin-left: auto — если
+   сводка заняла строку и меню перенеслись, они стоят справа. */
 .gh-cp-bar-acts { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; flex: none; margin-left: auto; }
+.gh-cp-bar-acts .gh-cp-ai { margin-right: -2px; }
+@media (min-width: 769px) {
+    .gh-menu.gh-cp-moremenu { width: 300px; }
+}
 .gh-cp-menuwrap { position: relative; display: inline-flex; }
 /* Меню паузы длиннее обычного (две группы по пять пунктов и пояснение):
    на широком экране ему можно больше высоты, чтобы пояснение не пряталось. */
@@ -136,18 +141,8 @@ button.gh-cp-sum-i:focus-visible { outline: 2px solid var(--gh-accent-ink); outl
 }
 .gh-cp-mt:hover { color: var(--gh-accent-ink); }
 .gh-cp-mt:focus-visible { outline: 2px solid var(--gh-accent-ink); outline-offset: 2px; border-radius: 4px; }
-.gh-cp-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.gh-cp-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
 .gh-cp-tags .gh-badge { cursor: help; }
-.gh-cp-ex {
-    display: -webkit-box;
-    margin-top: 5px;
-    overflow: hidden;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    font: 400 12.5px/1.45 var(--gh-sans);
-    color: var(--gh-ink4);
-    overflow-wrap: anywhere;
-}
 
 /* Чип размещения: «TG Вар 16:00», цвет — состояние. */
 .gh-cp-chip { gap: 5px; padding: 0 9px 0 8px; }
@@ -187,6 +182,32 @@ button.gh-cp-sum-i:focus-visible { outline: 2px solid var(--gh-accent-ink); outl
 }
 .gh-cp-rvnote { font: 500 11px/1 var(--gh-mono); color: var(--gh-ink5); }
 .gh-cp-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+/* Легенда свёрнута: «Цвета состояний» со стрелкой, образцы — по раскрытию. */
+.gh-cp-legendbox > summary {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    list-style: none;
+    border-radius: 6px;
+    font: 500 11px/1.4 var(--gh-mono);
+    color: var(--gh-ink4);
+    cursor: pointer;
+}
+.gh-cp-legendbox > summary::-webkit-details-marker { display: none; }
+.gh-cp-legendbox > summary::before {
+    content: '';
+    width: 5px;
+    height: 5px;
+    margin-left: 2px;
+    border-right: 1.5px solid currentColor;
+    border-bottom: 1.5px solid currentColor;
+    transform: rotate(-45deg);
+    transition: transform .15s ease;
+}
+.gh-cp-legendbox[open] > summary::before { transform: rotate(45deg); }
+.gh-cp-legendbox > summary:hover { color: var(--gh-ink); }
+.gh-cp-legendbox > summary:focus-visible { outline: 2px solid var(--gh-accent-ink); outline-offset: 2px; }
+.gh-cp-legendbox[open] > .gh-cp-legend { margin-top: 8px; }
 .gh-cp-legend-i {
     display: inline-flex;
     align-items: center;
@@ -311,6 +332,8 @@ button.gh-cp-sum-i:focus-visible { outline: 2px solid var(--gh-accent-ink); outl
 .gh-cp-pill:hover { background: color-mix(in srgb, var(--gh-t) 20%, var(--gh-card)); }
 .gh-cp-pill:focus-visible { outline: 2px solid var(--gh-accent-ink); outline-offset: 1px; }
 .gh-cp-pill-t { font: 600 11px/1 var(--gh-mono); color: var(--gh-t-ink); }
+/* Где выходит: бары («все») или площадка — мелко, перед названием. */
+.gh-cp-pill-w { font: 600 10px/1 var(--gh-mono); color: var(--gh-ink4); }
 .gh-cp-pill-n { color: var(--gh-ink); }
 .gh-cp-pill.is-theme {
     border: 1px dashed var(--gh-line2);
@@ -433,17 +456,68 @@ button.gh-cp-sum-i:focus-visible { outline: 2px solid var(--gh-accent-ink); outl
 .gh-cp-sec > .gh-sub:first-child { margin-top: 2px; }
 .gh-field-cap .gh-help { margin-left: 4px; letter-spacing: 0; }
 
-.gh-cp-main { gap: 14px; }
-.gh-cp-kind { display: flex; flex-direction: column; }
-.gh-cp-kind-hints { display: flex; flex-direction: column; gap: 3px; margin-top: 8px; }
-.gh-cp-kind-hints p { margin: 0; font: 400 12px/1.45 var(--gh-sans); color: var(--gh-ink5); }
-.gh-cp-kind-hints p.is-on { color: var(--gh-ink2); }
-.gh-cp-kind-hints b { font-weight: 600; color: inherit; }
-.gh-cp-main-row { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 14px 18px; }
-.gh-cp-pdate { flex: 0 1 190px; }
-.gh-cp-main-row > .gh-field:last-child { flex: 1 1 220px; }
-.gh-cp-state { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; min-height: var(--gh-ctl-h); }
-.gh-cp-datenote { font: 500 11.5px/1.3 var(--gh-mono); color: var(--gh-ink5); }
+/* Свёрнутые разделы карточки («От агента», «Ещё», «История»): <details> со
+   стрелкой; справа от названия — что внутри, одной строкой. */
+.gh-cp-sec + .gh-cp-fold { margin-top: 24px; }
+.gh-cp-fold { border-top: 1px solid var(--gh-hair); padding-top: 12px; font-family: var(--gh-sans); }
+.gh-cp-fold + .gh-cp-fold { margin-top: 12px; }
+.gh-cp-fold > summary {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 28px;
+    list-style: none;
+    border-radius: 6px;
+    cursor: pointer;
+}
+.gh-cp-fold > summary::-webkit-details-marker { display: none; }
+.gh-cp-fold > summary::before {
+    content: '';
+    flex: none;
+    width: 6px;
+    height: 6px;
+    margin: 0 2px 0 3px;
+    border-right: 1.5px solid var(--gh-ink4);
+    border-bottom: 1.5px solid var(--gh-ink4);
+    transform: rotate(-45deg);
+    transition: transform .15s ease;
+}
+.gh-cp-fold[open] > summary::before { transform: rotate(45deg); }
+.gh-cp-fold > summary:focus-visible { outline: 2px solid var(--gh-accent-ink); outline-offset: 2px; }
+.gh-cp-fold-t { flex: none; font: 600 13.5px/1.3 var(--gh-sans); color: var(--gh-ink2); }
+.gh-cp-fold > summary:hover .gh-cp-fold-t { color: var(--gh-ink); }
+.gh-cp-fold-s {
+    min-width: 0;
+    overflow: hidden;
+    font: 400 12px/1.3 var(--gh-sans);
+    color: var(--gh-ink5);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.gh-cp-fold-in { display: flex; flex-direction: column; gap: 14px; margin-top: 14px; }
+.gh-cp-fold-in > .gh-btn,
+.gh-cp-fold-in .gh-field > .gh-seg { align-self: flex-start; }
+.gh-cp-moredel { padding-top: 2px; }
+
+/* Под названием — одна строка: пометка «ИИ» и сводка (тон сервера). */
+.gh-cp-heads { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; }
+.gh-cp-headst { font: 600 12px/1.35 var(--gh-sans); color: var(--gh-t-ink); cursor: help; }
+.gh-cp-headnote { font: 500 11px/1.35 var(--gh-mono); color: var(--gh-ink5); cursor: help; }
+
+/* Заголовок раздела («Куда и когда», «Пост»): название и справа подпись или
+   переключатель. Крупнее подзаголовков-подписей: это опорные точки карточки. */
+.gh-cp-sh {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    min-height: 30px;
+}
+.gh-cp-sh-t { font: 600 14.5px/1.3 var(--gh-sans); color: var(--gh-ink); }
+.gh-cp-sh-s { font: 500 11px/1.3 var(--gh-mono); color: var(--gh-ink5); }
+.gh-cp-pdate { flex: 0 1 200px; }
+.gh-form-row > .gh-field.gh-cp-pdate { flex: 0 1 200px; }
 
 .gh-cp-text { min-height: 150px; }
 .gh-cp-textfoot {
@@ -464,32 +538,25 @@ button.gh-cp-sum-i:focus-visible { outline: 2px solid var(--gh-accent-ink); outl
     font: 400 12.5px/1.45 var(--gh-sans);
     color: var(--gh-ink2);
 }
+/* Предупреждение тихой строкой (в карточке у утверждённого оно видно всегда). */
+.gh-cp-warn.is-quiet {
+    padding: 0 0 0 10px;
+    border: none;
+    border-left: 2px solid var(--gh-warn);
+    border-radius: 0;
+    background: transparent;
+    font-size: 12px;
+    color: var(--gh-ink3);
+}
 .gh-cp-explain { margin: 0; font: 400 12.5px/1.5 var(--gh-sans); color: var(--gh-ink4); }
 
-.gh-cp-live { display: flex; flex-direction: column; gap: 12px; }
 .gh-cp-src { max-width: 280px; }
 .gh-cp-token { font-size: 12px; }
-.gh-cp-livebox {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    padding: 14px;
-    border: 1px solid var(--gh-line);
-    border-radius: var(--gh-r-in);
-    background: var(--gh-soft);
-}
-.gh-cp-livebar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; }
-.gh-cp-livebar .gh-field { flex: 1 1 200px; }
-.gh-cp-liveres { display: flex; flex-direction: column; gap: 8px; }
-.gh-cp-liveres-h {
-    display: flex;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 6px 10px;
-    font: 500 11px/1.3 var(--gh-mono);
-    color: var(--gh-ink5);
-}
-.gh-cp-liveres-h .gh-counter { cursor: help; }
+.gh-cp-tokens { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; }
+.gh-cp-tokens-t { font: 500 12px/1 var(--gh-sans); color: var(--gh-ink4); }
+.gh-cp-owntag { font: 500 11px/1.3 var(--gh-mono); color: var(--gh-ink4); cursor: help; }
+/* «Текст | Как увидят гости» в заголовке раздела «Пост». */
+.gh-cp-postseg .gh-seg-btn { padding: 0 12px; }
 .gh-cp-stop {
     padding: 9px 12px;
     border: 1px solid color-mix(in srgb, var(--gh-bad) 30%, var(--gh-card));
@@ -500,24 +567,20 @@ button.gh-cp-sum-i:focus-visible { outline: 2px solid var(--gh-accent-ink); outl
     overflow-wrap: anywhere;
 }
 .gh-cp-stop b { font-weight: 600; color: var(--gh-bad-ink); }
-.gh-cp-go { font: 500 12.5px/1.45 var(--gh-sans); color: var(--gh-ok-ink); }
-.gh-cp-rendered {
-    max-height: 280px;
-    overflow: auto;
-    padding: 10px 12px;
-    border: 1px solid var(--gh-line);
-    border-radius: var(--gh-r-tile);
-    background: var(--gh-card);
-    font: 400 13px/1.55 var(--gh-sans);
-    color: var(--gh-ink);
-    overflow-wrap: anywhere;
-}
 
-/* Фото и видео материала. */
+/* Фото и видео материала: плитки, последняя — «добавить» (на неё же можно
+   перетащить файлы — зона data-drop у всей сетки). */
 .gh-cp-media {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
-    gap: 10px;
+    grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+    gap: 8px;
+    padding: 2px;
+    border-radius: var(--gh-r-in);
+    transition: background .15s ease, box-shadow .15s ease;
+}
+.gh-cp-media.is-drag {
+    background: color-mix(in srgb, var(--gh-accent) 7%, var(--gh-card));
+    box-shadow: 0 0 0 2px var(--gh-accent);
 }
 .gh-cp-media-i {
     position: relative;
@@ -541,26 +604,15 @@ button.gh-cp-sum-i:focus-visible { outline: 2px solid var(--gh-accent-ink); outl
     color: var(--gh-tip-ink);
     font: 600 10px/1.3 var(--gh-mono);
 }
-.gh-cp-media-cap {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    min-width: 0;
-    padding: 6px 8px 7px;
-    font: 400 11px/1.3 var(--gh-sans);
-    color: var(--gh-ink3);
-}
-.gh-cp-media-nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.gh-cp-media-sz { font: 500 10.5px/1.2 var(--gh-mono); color: var(--gh-ink5); }
 .gh-cp-media-x {
     position: absolute;
-    top: 6px;
-    right: 6px;
+    top: 5px;
+    right: 5px;
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 26px;
-    height: 26px;
+    width: 24px;
+    height: 24px;
     min-height: 0;
     padding: 0;
     border: 1px solid var(--gh-line);
@@ -572,32 +624,39 @@ button.gh-cp-sum-i:focus-visible { outline: 2px solid var(--gh-accent-ink); outl
 .gh-cp-media-x svg { stroke: currentColor; fill: none; }
 .gh-cp-media-x:hover { border-color: var(--gh-bad); color: var(--gh-bad-ink); }
 .gh-cp-media-x:focus-visible { outline: 2px solid var(--gh-accent-ink); outline-offset: 1px; }
-.gh-cp-drop {
+.gh-cp-media-add {
     display: flex;
-    flex-wrap: wrap;
+    flex-direction: column;
     align-items: center;
-    gap: 8px 12px;
-    padding: 14px 16px;
+    justify-content: center;
+    gap: 6px;
+    min-width: 0;
+    min-height: 0;
+    aspect-ratio: 1 / 1;
+    padding: 8px;
     border: 1px dashed var(--gh-line2);
-    border-radius: var(--gh-r-in);
+    border-radius: var(--gh-r-tile);
     background: var(--gh-chip);
-    transition: border-color .15s ease, background .15s ease;
+    color: var(--gh-ink3);
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .15s ease, background .15s ease, color .15s ease;
 }
-.gh-cp-drop.is-drag {
-    border-color: var(--gh-accent);
-    background: color-mix(in srgb, var(--gh-accent) 7%, var(--gh-card));
-}
-.gh-cp-drop.is-busy { color: var(--gh-ink3); }
-.gh-cp-drop-t { font: 500 13px/1.4 var(--gh-sans); color: var(--gh-ink2); }
-.gh-cp-drop-s { flex-basis: 100%; font: 400 11.5px/1.45 var(--gh-sans); color: var(--gh-ink5); }
-.gh-cp-upload { cursor: pointer; }
+button.gh-cp-media-add:hover { border-color: var(--gh-accent); color: var(--gh-accent-ink); }
+.gh-cp-media-add:focus-visible { outline: 2px solid var(--gh-accent-ink); outline-offset: 1px; }
+.gh-cp-media-add svg { stroke: currentColor; fill: none; }
+.gh-cp-media-add.is-busy { cursor: default; }
+/* Файлов ещё нет: вместо квадратной плитки — полоса во всю ширину. */
+.gh-cp-media.is-empty { display: block; }
+.gh-cp-media-add.is-wide { flex-direction: row; width: 100%; aspect-ratio: auto; min-height: 44px; }
+.gh-cp-drop-t { font: 500 11.5px/1.3 var(--gh-sans); }
 .gh-cp-req { display: flex; align-items: center; gap: 8px; }
-.gh-cp-note { margin-top: 4px; }
 .gh-cp-notearea { min-height: 64px; }
 
-/* Размещения. */
+/* Размещения («Куда и когда»). */
+.gh-cp-pls { display: flex; flex-direction: column; gap: 8px; }
 .gh-cp-pl {
-    padding: 12px 14px;
+    padding: 10px 12px 12px;
     border: 1px solid var(--gh-line);
     border-radius: var(--gh-r-in);
     background: var(--gh-card);
@@ -610,38 +669,38 @@ button.gh-cp-sum-i:focus-visible { outline: 2px solid var(--gh-accent-ink); outl
 .gh-cp-pl.is-cancel .gh-cp-pl-ch,
 .gh-cp-pl.is-cancel .gh-cp-pl-bar,
 .gh-cp-pl.is-cancel .gh-cp-pl-when { text-decoration: line-through; color: var(--gh-ink5); }
-.gh-cp-pl-h { display: flex; align-items: flex-start; gap: 10px; }
-.gh-cp-pl-info {
-    display: flex;
-    flex: 1;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 6px 10px;
-    min-width: 0;
-    min-height: 30px;
-}
-.gh-cp-pl-info .gh-badge { cursor: help; }
+.gh-cp-pl-h { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; min-height: 22px; }
+.gh-cp-pl-h .gh-badge { margin-left: auto; cursor: help; }
 .gh-cp-pl-ch { font: 600 13.5px/1.3 var(--gh-sans); color: var(--gh-ink); }
 .gh-cp-pl-bar { font: 500 13px/1.3 var(--gh-sans); color: var(--gh-ink2); }
-.gh-cp-pl-when { font: 500 12px/1.3 var(--gh-mono); color: var(--gh-ink4); white-space: nowrap; }
-.gh-cp-pl-tg { flex: none; margin-left: auto; }
-.gh-cp-pl-miss { margin-top: 7px; font: 500 12.5px/1.45 var(--gh-sans); color: var(--gh-warn-ink); }
-.gh-cp-pl-meta { margin-top: 5px; font: 400 12px/1.45 var(--gh-sans); color: var(--gh-ink4); }
-.gh-cp-pl-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px; }
-.gh-cp-acthint { font: 400 11.5px/1.3 var(--gh-sans); color: var(--gh-ink5); }
-.gh-cp-del { color: var(--gh-bad-ink); }
-.gh-cp-ed {
+.gh-cp-pl-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.gh-cp-pl-dt { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; min-width: 0; }
+.gh-cp-pl-dt .gh-input { width: auto; height: 32px; padding: 0 8px; font-size: 13px; }
+.gh-cp-pl-dt input[type="date"] { width: 148px; }
+.gh-cp-pl-dt input[type="time"] { width: 116px; }
+.gh-cp-pl-when { font: 500 12.5px/1.3 var(--gh-mono); color: var(--gh-ink3); white-space: nowrap; }
+.gh-cp-pl-btns { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+.gh-cp-pl-tg svg circle { fill: currentColor; stroke: none; }
+.gh-cp-pl-tg[aria-expanded="true"] { background: var(--gh-soft); color: var(--gh-ink); }
+.gh-cp-pl-miss { margin-top: 7px; font: 500 12.5px/1.45 var(--gh-sans); color: var(--gh-warn-ink); cursor: help; }
+.gh-cp-pl-meta { margin-top: 6px; font: 400 12px/1.45 var(--gh-sans); color: var(--gh-ink4); }
+.gh-cp-pl-x {
     display: flex;
     flex-direction: column;
     gap: 12px;
-    margin-top: 12px;
-    padding-top: 12px;
+    margin-top: 10px;
+    padding-top: 10px;
     border-top: 1px solid var(--gh-hair);
 }
+.gh-cp-pl-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.gh-cp-acthint { font: 400 11.5px/1.3 var(--gh-sans); color: var(--gh-ink5); }
+.gh-cp-del { color: var(--gh-bad-ink); }
+.gh-cp-ed { display: flex; flex-direction: column; gap: 12px; }
 .gh-cp-own { align-self: flex-start; }
 .gh-cp-owntext { min-height: 110px; }
 .gh-cp-mediasel { margin-top: 8px; }
 .gh-cp-mediasel .gh-check span { max-width: 200px; overflow: hidden; text-overflow: ellipsis; }
+.gh-cp-addpl { align-self: flex-start; }
 
 .gh-cp-add {
     display: flex;
@@ -652,11 +711,11 @@ button.gh-cp-sum-i:focus-visible { outline: 2px solid var(--gh-accent-ink); outl
     border-radius: var(--gh-r-in);
 }
 .gh-cp-add-h { font: 600 13px/1.2 var(--gh-sans); color: var(--gh-ink); }
-.gh-cp-add > .gh-seg,
-.gh-cp-add > .gh-btn { align-self: flex-start; }
-.gh-cp-botnote { margin: 0; font: 400 11.5px/1.45 var(--gh-sans); color: var(--gh-ink5); }
+.gh-cp-add > .gh-seg { align-self: flex-start; }
+.gh-cp-add-btns { display: flex; flex-wrap: wrap; gap: 6px; }
 
-/* Предпросмотр. */
+/* Предпросмотр (раздел «Пост», «Как увидят гости»). */
+.gh-cp-pvwrap { display: flex; flex-direction: column; gap: 10px; }
 .gh-cp-ptabs { display: flex; flex-wrap: wrap; gap: 6px; }
 .gh-cp-ptab {
     height: 28px;
@@ -823,7 +882,8 @@ button.gh-cp-sum-i:focus-visible { outline: 2px solid var(--gh-accent-ink); outl
 /* Повтор и перенос, история. */
 .gh-cp-rep-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; }
 .gh-cp-days { flex: 0 1 170px; }
-.gh-cp-rep-days { margin-top: 6px; }
+.gh-cp-rep-days .gh-checks { margin-top: 2px; }
+.gh-cp-rep-go { margin-top: 8px; }
 .gh-cp-sec > .gh-btn { align-self: flex-start; }
 .gh-cp-series { font: 500 11.5px/1.4 var(--gh-mono); color: var(--gh-ink4); cursor: help; }
 .gh-cp-log { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
@@ -892,6 +952,9 @@ button.gh-cp-sum-i:focus-visible { outline: 2px solid var(--gh-accent-ink); outl
     color: var(--gh-ink3);
 }
 .gh-cp-copyopt { margin-top: 12px; }
+/* Диалог «Новый материал». */
+.gh-cp-newform { display: flex; flex-direction: column; gap: 14px; }
+.gh-cp-newseg { flex-wrap: wrap; align-self: flex-start; max-width: 100%; }
 .gh-modal-body .gh-cp-warn { margin: 10px 0 4px; }
 .gh-modal-body .gh-field-hint { margin-top: 6px; }
 
@@ -1068,26 +1131,11 @@ button.gh-chip.gh-cp-st-failed:hover { border-color: var(--gh-ink); }
     vertical-align: 1px;
     cursor: help;
 }
-.gh-cp-c-mat > .gh-cp-ai { margin-right: 7px; }
-.gh-drawer-s .gh-cp-ai { margin-right: 6px; vertical-align: 0; }
-.gh-cp-ai-t { font-weight: 600; color: var(--gh-ink3); }
+.gh-drawer-s .gh-cp-ai { vertical-align: 0; }
 .gh-cp-ap-what .gh-cp-ai,
 .gh-cp-ap-bot .gh-cp-ai { margin-right: 6px; }
-/* В плашке календаря — меньше и без своей подсказки (она у всей плашки). */
-.gh-cp-pill .gh-cp-ai {
-    height: 14px;
-    margin-right: 4px;
-    padding: 0 4px;
-    font-size: 8.5px;
-    cursor: inherit;
-}
-/* На залитой плашке (время вышло, вышло, ошибка) — наоборот, светлая. */
-.gh-cp-pill.gh-cp-st-overdue .gh-cp-ai,
-.gh-cp-pill.gh-cp-st-published .gh-cp-ai,
-.gh-cp-pill.gh-cp-st-failed .gh-cp-ai { background: var(--gh-on-status); color: var(--gh-t-ink); }
 
-/* Чип «Только от ИИ» и «Удалить черновики ИИ» рядом со сводкой. */
-.gh-cp-origin { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; flex: none; }
+/* Включённый фильтр «Только от ИИ» — снимаемый чип над планом (renderStateBar). */
 .gh-cp-originchip {
     gap: 7px;
     height: 30px;
@@ -1105,8 +1153,8 @@ button.gh-cp-originchip:hover { border-color: var(--gh-ink6); }
 }
 button.gh-cp-originchip.is-on:hover { border-color: var(--gh-accent); }
 .gh-cp-originchip .gh-cp-ai { vertical-align: 0; cursor: inherit; }
-.gh-cp-originchip-n { font: 600 12px/1 var(--gh-mono); font-variant-numeric: tabular-nums; color: var(--gh-ink); }
-.gh-cp-originchip.is-on .gh-cp-originchip-n { color: inherit; }
+/* Пункт меню «Только от ИИ», когда фильтр включён. */
+.gh-menu-item.is-on .gh-menu-hint { color: var(--gh-accent-ink); }
 
 /* «Почему этот пост» и «Что снять» в карточке материала. */
 .gh-cp-agentarea { min-height: 76px; }
@@ -1388,21 +1436,17 @@ button.gh-cp-originchip.is-on:hover { border-color: var(--gh-accent); }
 @media (max-width: 768px) {
     .gh-cp-bar { flex-direction: column; align-items: stretch; gap: 10px; }
     .gh-cp-sum { margin-left: -6px; }
-    /* Действия — сеткой в две колонки во всю ширину (в колонке автоотступ сжал
-       бы блок до ширины кнопок): «Бриф» | «Попросить агента», «Каналы и
-       отправка» | «Пауза»; «Скопировать прошлый месяц» в 360px рядом с другой
-       кнопкой не помещается — своей строкой (dense ставит «Паузу» на место). */
-    .gh-cp-bar-acts {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        grid-auto-flow: row dense;
-        gap: 8px;
-        margin-left: 0;
-    }
-    .gh-cp-bar-acts > .gh-btn,
+    /* Первый экран телефона — ближе к плану: «Утвердить готовые» и «Добавить
+       материал» — в одну строку, в сводке — только состояния (их можно нажать),
+       без «Материалов» и «Размещений». */
+    .gh-cp-wrap .gh-filters-actions { flex-wrap: nowrap; }
+    .gh-cp-wrap .gh-filters-actions .gh-btn { flex: 1 1 0; min-width: 0; padding: 0 10px; }
+    span.gh-cp-sum-i { display: none; }
+    .gh-cp-dbanner .gh-banner-t { font-size: 12.5px; line-height: 1.45; }
+    /* Два меню — поровну во всю ширину (меню на телефоне — лист снизу). */
+    .gh-cp-bar-acts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-left: 0; }
     .gh-cp-menuwrap { min-width: 0; }
     .gh-cp-bar-acts .gh-btn { width: 100%; padding: 0 10px; }
-    .gh-cp-bar-acts > .gh-cp-copybtn { grid-column: 1 / -1; }
 
     /* Таблица -> карточки: строка раскладывается сеткой, страница не
        прокручивается вбок. */
