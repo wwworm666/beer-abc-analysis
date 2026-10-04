@@ -226,7 +226,7 @@ def test_real_wrapper_writes_exit_and_removes_lock(tmp_path):
     fake_remote = tmp_path / 'remote_exec.py'
     fake_remote.write_text(
         'import sys\n'
-        'assert sys.argv[1:] == ["run", "search-stock"], sys.argv\n'
+        'assert sys.argv[1:] == ["run", "search-stock", "--sync-chz"], sys.argv\n'
         'print("remote output")\n'
         'sys.exit(3)\n', encoding='utf-8')
     lock = tmp_path / 'refresh.lock'

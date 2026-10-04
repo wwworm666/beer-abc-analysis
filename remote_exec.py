@@ -10,8 +10,9 @@
     python remote_exec.py run stock                 - обновить токен, запустить chz.py stock, скачать chz_stock.json
     python remote_exec.py run report 2026-03-01     - выполнить chz.py report
 
-Перед run stock, csv-auto и search-stock chz.py на бар-ПК обновляется из репозитория, если
-здесь версия новее (sync_chz_script; выключатель — CHZ_AUTO_UPDATE=0 в окружении).
+run stock, csv-auto и search-stock с флагом --sync-chz (так их зовёт обновление ЧЗ на сервере)
+сначала приводят chz.py на бар-ПК к серверному (sync_chz_script; выключатель —
+CHZ_AUTO_UPDATE=0 в окружении).
 """
 
 import io
@@ -201,30 +202,42 @@ def refresh_token_or_fail():
 
 # ----- chz.py на бар-ПК: обновление с сервера ------------------------------------------
 #
-# Решение владельца 2026-10-04: новый chz.py на бар-ПК кладёт сервер — тем же путём, которым
-# ходит туда каждую ночь (Tailscale + SSH), а не человек командой push. Версия — строка
-# CHZ_VERSION в chz.py (дата ISO, сравнивается строкой, как в chz_test/kep_setup.py; второй
-# выпуск за день — «2026-10-04-2»). Строку CERT_THUMBPRINT на бар-ПК пишет kep_setup.bat
-# под вставленный Рутокен — она переносится в новый файл: иначе после следующего
-# перевыпуска КЭП обновление вернуло бы отпечаток из репозитория, и ночной вход в ЧЗ
-# сломался бы.
+# Решение владельца 2026-10-04: chz.py на бар-ПК кладёт сервер — тем же путём, которым ходит
+# туда каждую ночь (Tailscale + SSH), а не человек командой push. Правило: на бар-ПК тот же
+# chz.py, что выложен на сервере, но со своей строкой CERT_THUMBPRINT — её пишет
+# kep_setup.bat под вставленный Рутокен, и после следующего перевыпуска КЭП отпечаток из
+# репозитория сломал бы ночной вход в ЧЗ. Файлы сравниваются целиком без этой строки и без
+# разницы в переводах строк: отличаются — файл на бар-ПК заменяется серверным, в том числе
+# если там версия «новее» (откат выпуска на сервере доезжает до бар-ПК, а случайно залитый
+# с другого компьютера файл не остаётся). Заменяет только обёртка обновления ЧЗ на сервере
+# (флаг SYNC_FLAG у run, его передаёт routes/stocks.py): ручной запуск из другой копии
+# репозитория свой chz.py на бар-ПК не кладёт (ревью 2026-10-04).
 CHZ_VERSION_RE = re.compile(r'^CHZ_VERSION\s*=\s*["\']([0-9-]+)["\']', re.M)
 THUMB_LINE_RE = re.compile(r'^CERT_THUMBPRINT\s*=\s*"[^"\n]*"', re.M)
 REMOTE_CHZ_PY = REMOTE_CHZ_DIR + r"\chz.py"
+# Копии прежнего chz.py: то же имя, что у копий kep_setup (chz_backup_<время>.py) — по
+# имени они сортируются по времени.
+BACKUP_PREFIX = "chz_backup_"
+SYNC_FLAG = "--sync-chz"
 # CHZ_AUTO_UPDATE=0 в окружении сервера — chz.py на бар-ПК не трогать (только вручную push).
 AUTO_UPDATE_ENV = "CHZ_AUTO_UPDATE"
 
 
 def chz_version(text) -> str:
-    """CHZ_VERSION из текста chz.py; '' — строки нет (файлы до 2026-10-04)."""
+    """CHZ_VERSION из текста chz.py (для журнала); '' — строки нет (файлы до 2026-10-04)."""
     match = CHZ_VERSION_RE.search(text or "")
     return match.group(1) if match else ""
 
 
-def with_remote_thumbprint(local_text: str, remote_text: str) -> str:
-    """Текст chz.py из репозитория со строкой CERT_THUMBPRINT из файла на бар-ПК.
+def _body(text) -> str:
+    """Текст chz.py для сравнения: без строки CERT_THUMBPRINT, переводы строк — LF."""
+    return THUMB_LINE_RE.sub('CERT_THUMBPRINT = ""', (text or "").replace("\r\n", "\n"))
 
-    На бар-ПК строки нет (файла нет, файл чужой) — текст из репозитория как есть.
+
+def with_remote_thumbprint(local_text: str, remote_text: str) -> str:
+    """Текст chz.py с сервера со строкой CERT_THUMBPRINT из текста с бар-ПК.
+
+    В тексте с бар-ПК строки нет — текст с сервера как есть.
     """
     found = THUMB_LINE_RE.search(remote_text or "")
     if not found:
@@ -250,46 +263,68 @@ def _quiet_remove(sftp, path):
         pass
 
 
-def _replace_remote_chz(sftp, new_bytes: bytes, old_bytes) -> str:
-    """Заменить chz.py на бар-ПК: новый — через chz.py.new, прежний — в chz_backup_<время>.py.
+def _latest_backup_text(sftp) -> str:
+    """Текст самой новой копии chz_backup_<время>.py на бар-ПК ('' — копий нет).
 
-    SFTP на Windows не переименовывает поверх существующего файла, поэтому прежний сначала
-    уходит в копию. Сбой на любом шаге или файл не совпал с отправленным — прежний
-    возвращается на место (переименованием, а не вышло — записью старых байтов), ошибка —
-    наружу. old_bytes=None — на бар-ПК файла не было. Возврат: имя копии прежнего или ''.
+    Источник отпечатка КЭП, когда в chz.py на бар-ПК строки нет или самого файла нет
+    (связь оборвалась посреди прошлой замены).
+    """
+    try:
+        names = sorted(n for n in sftp.listdir(REMOTE_CHZ_DIR)
+                       if n.startswith(BACKUP_PREFIX) and n.endswith(".py"))
+    except IOError:
+        return ""
+    if not names:
+        return ""
+    data = _sftp_read(sftp, REMOTE_CHZ_DIR + "\\" + names[-1])
+    return data.decode("utf-8", errors="replace") if data else ""
+
+
+def _replace_remote_chz(sftp, new_bytes: bytes, old_bytes) -> str:
+    """Заменить chz.py на бар-ПК так, чтобы файл не пропадал. -> имя копии прежнего или ''.
+
+    1. Прежний — копией chz_backup_<время>.py (запись байтов; сам chz.py не трогается).
+    2. Новый — в chz.py.new и posix-rename поверх chz.py: OpenSSH заменяет файл одной
+       операцией. Сервер без posix-rename (обычное переименование на Windows поверх файла
+       не идёт) — chz.py удаляется, chz.py.new переименовывается; оборвись связь между
+       этими шагами — chz.py не будет до следующего обновления, отпечаток тогда берётся из
+       копии (_latest_backup_text).
+    3. chz.py читается обратно и сверяется побайтно.
+    Сбой на шагах 2–3 — прежние байты пишутся в chz.py обратно, ошибка — наружу.
+    old_bytes=None — файла на бар-ПК не было.
     """
     temp_path = REMOTE_CHZ_PY + ".new"
-    backup_name = "chz_backup_" + time.strftime("%Y%m%d_%H%M%S") + ".py"
-    backup_path = REMOTE_CHZ_DIR + "\\" + backup_name
-    moved = False
+    backup_name = ""
+    if old_bytes is not None:
+        backup_name = BACKUP_PREFIX + time.strftime("%Y%m%d_%H%M%S") + ".py"
+        sftp.putfo(io.BytesIO(old_bytes), REMOTE_CHZ_DIR + "\\" + backup_name)
     try:
         sftp.putfo(io.BytesIO(new_bytes), temp_path)
-        if old_bytes is not None:
-            sftp.rename(REMOTE_CHZ_PY, backup_path)
-            moved = True
-        sftp.rename(temp_path, REMOTE_CHZ_PY)
+        try:
+            sftp.posix_rename(temp_path, REMOTE_CHZ_PY)
+        except IOError:
+            if old_bytes is not None:
+                sftp.remove(REMOTE_CHZ_PY)
+            sftp.rename(temp_path, REMOTE_CHZ_PY)
         if _sftp_read(sftp, REMOTE_CHZ_PY) != new_bytes:
             raise IOError("chz.py на бар-ПК не совпал с отправленным")
     except Exception:
-        if moved:
-            try:
-                _quiet_remove(sftp, REMOTE_CHZ_PY)
-                sftp.rename(backup_path, REMOTE_CHZ_PY)
-            except Exception:
-                sftp.putfo(io.BytesIO(old_bytes), REMOTE_CHZ_PY)
+        if old_bytes is not None:
+            sftp.putfo(io.BytesIO(old_bytes), REMOTE_CHZ_PY)
         _quiet_remove(sftp, temp_path)
         raise
-    return backup_name if moved else ""
+    return backup_name
 
 
 def sync_chz_script() -> str:
-    """Положить на бар-ПК chz.py из репозитория, если здесь CHZ_VERSION новее.
+    """Привести chz.py на бар-ПК к серверному, сохранив строку отпечатка КЭП бар-ПК.
 
-    На бар-ПК версия та же или новее — файл не трогается (как kep_setup: старое не
-    откатывает новое). Иначе новый текст (с отпечатком КЭП с бар-ПК) заменяет chz.py, а
-    прежний остаётся рядом копией chz_backup_<время>.py. Любая ошибка — строка [WARN] в
-    журнале, а обновление ЧЗ идёт на прежнем chz.py: свежий файл полезен, но не стоит ночи
-    без данных. Возврат: 'off' | 'no-local' | 'current' | 'updated' | 'failed'.
+    Совпадает (без строки CERT_THUMBPRINT и разницы в переводах строк) — файл не
+    трогается. Иначе — _replace_remote_chz. Строка CERT_THUMBPRINT — из chz.py на бар-ПК,
+    нет её там (или файла) — из самой новой копии chz_backup_*.py, нет и копий — с сервера.
+    Любая ошибка — строка [WARN] в журнале, а обновление ЧЗ идёт дальше: свежий файл
+    полезен, но не стоит ночи без данных. Возврат: 'off' | 'no-local' | 'current' |
+    'updated' | 'failed'.
     """
     if os.environ.get(AUTO_UPDATE_ENV, "1").strip() == "0":
         print(f"chz.py на бар-ПК: автообновление выключено ({AUTO_UPDATE_ENV}=0)")
@@ -297,38 +332,43 @@ def sync_chz_script() -> str:
     try:
         local_text = (REPO_DIR / "chz_test" / "chz.py").read_bytes().decode("utf-8")
     except (OSError, UnicodeDecodeError) as e:
-        print(f"[WARN] chz.py: файл репозитория не прочитан ({e}) — бар-ПК не обновляется")
+        print(f"[WARN] chz.py на сервере не прочитан ({e}) — бар-ПК не обновляется")
         return "no-local"
-    local_version = chz_version(local_text)
-    if not local_version:
-        print("[WARN] chz.py: в репозитории нет CHZ_VERSION — бар-ПК не обновляется")
+    if not THUMB_LINE_RE.search(local_text):
+        print("[WARN] chz.py на сервере без строки CERT_THUMBPRINT — бар-ПК не обновляется")
         return "no-local"
     try:
         client = connect()
     except Exception as e:
-        print(f"[WARN] chz.py на бар-ПК не проверен ({e}) — работает прежний")
+        print(f"[WARN] chz.py на бар-ПК не проверен ({e})")
         return "failed"
     try:
         sftp = client.open_sftp()
         try:
             remote_bytes = _sftp_read(sftp, REMOTE_CHZ_PY)
-            remote_text = remote_bytes.decode("utf-8", errors="replace") if remote_bytes else ""
-            remote_version = chz_version(remote_text)
-            if remote_bytes is not None and remote_version >= local_version:
-                print(f"chz.py на бар-ПК: версия {remote_version} — обновлять не нужно")
+            remote_text = remote_bytes.decode("utf-8", errors="replace") if remote_bytes is not None else ""
+            if remote_bytes is not None and _body(remote_text) == _body(local_text):
+                print(f"chz.py на бар-ПК совпадает с сервером (версия {chz_version(local_text) or 'без версии'})")
                 return "current"
-            new_bytes = with_remote_thumbprint(local_text, remote_text).encode("utf-8")
+            if THUMB_LINE_RE.search(remote_text):
+                thumb_text, thumb_from = remote_text, "с бар-ПК"
+            else:
+                thumb_text, thumb_from = _latest_backup_text(sftp), "из копии на бар-ПК"
+                if not THUMB_LINE_RE.search(thumb_text):
+                    thumb_from = "с сервера"
+            new_bytes = with_remote_thumbprint(local_text, thumb_text).encode("utf-8")
             backup = _replace_remote_chz(sftp, new_bytes, remote_bytes)
         finally:
             sftp.close()
     except Exception as e:
-        print(f"[WARN] chz.py на бар-ПК не обновлён ({e}) — работает прежний")
+        print(f"[WARN] chz.py на бар-ПК не обновлён ({e})")
         return "failed"
     finally:
         client.close()
-    thumb = "отпечаток КЭП с бар-ПК" if THUMB_LINE_RE.search(remote_text) else "отпечаток КЭП из репозитория"
+    was = "файла не было" if remote_bytes is None else (chz_version(remote_text) or "без версии")
     kept = f"; прежний — {backup}" if backup else ""
-    print(f"chz.py на бар-ПК обновлён: {remote_version or 'без версии'} -> {local_version} ({thumb}{kept})")
+    print(f"chz.py на бар-ПК обновлён: {was} -> {chz_version(local_text) or 'без версии'} "
+          f"(отпечаток КЭП {thumb_from}{kept})")
     return "updated"
 
 
@@ -378,7 +418,7 @@ def main():
 
     elif action == "run":
         subcmd = sys.argv[2] if len(sys.argv) > 2 else ""
-        if subcmd in ("stock", "csv-auto", "search-stock"):
+        if subcmd in ("stock", "csv-auto", "search-stock") and SYNC_FLAG in sys.argv[3:]:
             sync_chz_script()
         if subcmd == "stock":
             # Special: refresh token, run stock, pull result

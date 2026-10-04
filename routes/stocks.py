@@ -41,10 +41,12 @@ _CHZ_REFRESH_STALE_SEC = 1800
 # заканчивается раньше, чем её лок признают висячим: два обновления не идут разом.
 _CHZ_REFRESH_RUN_TIMEOUT_SEC = 2 * 3600
 _CHZ_REFRESH_MAX_SEC = 3 * 3600
+# --sync-chz: перед сбором остатков chz.py на бар-ПК приводится к серверному
+# (remote_exec.sync_chz_script; решение владельца 2026-10-04).
 _REFRESH_RUNNER = (
     "import os, subprocess, sys\n"
     "try:\n"
-    "    rc = subprocess.call([sys.executable, sys.argv[1], 'run', 'search-stock'],\n"
+    "    rc = subprocess.call([sys.executable, sys.argv[1], 'run', 'search-stock', '--sync-chz'],\n"
     "                         timeout=float(sys.argv[4]))\n"
     "except subprocess.TimeoutExpired:\n"
     "    rc = 124\n"
