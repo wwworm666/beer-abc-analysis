@@ -3,9 +3,12 @@ import time
 import json
 import os
 import csv
+from functools import wraps
 from io import StringIO
 from urllib.parse import quote
 from extensions import taps_manager
+from core import taplist_post, untappd_live
+from core.auth_guard import current_user
 from core.untappd_registry import load_registry
 from core.taplist import product_catalog, tap_details, full_taplist, BAR_NAMES
 from core.taplist_pricing import enrich_prices
@@ -20,7 +23,7 @@ taps_bp = Blueprint('taps', __name__)
 def add_taps_no_cache(response):
     """Запрет кэширования для API кранов — Safari на iOS агрессивно кэширует GET-ответы,
     из-за чего сотрудники видят устаревшие данные кранов"""
-    if request.path.startswith('/api/taps') or request.path == '/api/beers/draft':
+    if request.path.startswith(('/api/taps', '/api/untappd')) or request.path == '/api/beers/draft':
         response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
         response.headers['Pragma'] = 'no-cache'
         response.headers['Expires'] = '0'
@@ -515,6 +518,150 @@ def get_draft_beers():
     except Exception as error:
         print(f'[ERROR] Draft catalog: {error}')
         return jsonify({'error': 'Не удалось загрузить список кег'}), 503
+
+# ---------------------------------------------------------------------------
+# Связи с Untappd без деплоя: ИИ-агент предлагает, администратор подтверждает
+# (core/untappd_live, docs/untappd-links.md). Предложение — черновик; «Верно» сразу
+# меняет таплист, «Таплист пятницы», гостевого бота, фиды Яндекса и граф знаний.
+# ---------------------------------------------------------------------------
+
+class UntappdAdminOnly(Exception):
+    """Подтвердить, отклонить или отменить связь может только администратор (403)."""
+
+
+def _untappd_admin(what):
+    if not (current_user() or {}).get('is_admin'):
+        raise UntappdAdminOnly(f'Только администратор может {what}')
+
+
+def _untappd_guard(view):
+    """Ошибки связей -> 400 / 403 / 404 / 409 / 503 (не 500 и не запись поверх битого файла)."""
+    @wraps(view)
+    def wrapper(*args, **kwargs):
+        try:
+            return view(*args, **kwargs)
+        except UntappdAdminOnly as error:
+            return jsonify({'error': str(error), 'code': 'admin_required'}), 403
+        except untappd_live.UntappdLinksUnavailable as error:
+            return jsonify({'error': str(error), 'code': 'untappd_links_unavailable'}), 503
+        except untappd_live.UntappdLinksError as error:
+            status = {'not_found': 404, 'conflict': 409}.get(error.code, 400)
+            return jsonify({'error': str(error), 'code': error.code}), status
+        except ValueError as error:
+            return jsonify({'error': str(error)}), 400
+    return wrapper
+
+
+def _proposal_rows(items, registry, snapshot=None):
+    """Предложения для ответа: + status_name, preview (как сорт будет в таплисте) и
+    on_tap (где кега стоит сейчас; без snapshot — пусто)."""
+    names = taplist_post.load_names()
+    on_tap = untappd_live.taps_by_product(snapshot, BAR_NAMES)[0] if snapshot is not None else {}
+    return [dict(item, status_name=untappd_live.STATUS_NAMES[item['status']],
+                 preview=untappd_live.preview(item, names, registry),
+                 on_tap=on_tap.get(item['iiko_product_id'], [])) for item in items]
+
+
+@taps_bp.route('/api/untappd/queue', methods=['GET'])
+@_untappd_guard
+def untappd_queue():
+    """Кеги без проверенной связи с Untappd — работа для ИИ-агента и страницы
+    /taps/untappd (core/untappd_live.queue).
+
+    ?scope=urgent (по умолчанию) — стоят на кране сейчас (приоритет 1) и новые
+    карточки iiko (2); all — и остальные нерешённые (3). ?q= — подстрока в имени кеги
+    iiko, ?limit= — не больше N после поиска (1..1000). counts — по всей очереди,
+    до q и limit; matched — сколько подошло под q."""
+    query, limit = search_args()
+    registry = load_registry()
+    catalog = product_catalog(registry)
+    snapshot = taps_manager.get_snapshot(catalog)
+    result = untappd_live.queue(registry, catalog, snapshot, untappd_live.get_store().load(),
+                                scope=request.args.get('scope') or 'urgent', bar_names=BAR_NAMES)
+    items = result['items']
+    if query is not None:
+        items = [row for row in items if query in _search_key(row['iiko_name'])]
+    result['matched'] = len(items)
+    result['items'] = items[:limit] if limit else items
+    return jsonify(result)
+
+
+@taps_bp.route('/api/untappd/proposals', methods=['GET'])
+@_untappd_guard
+def untappd_proposals():
+    """Предложения связей, новые первыми. ?status= proposed (по умолчанию: ждут
+    решения), verified, rejected, superseded, revoked или all. ?q= — подстрока в
+    имени кеги iiko, названии сорта или пивоварни; ?limit= — не больше N (1..1000).
+    counts — число предложений по статусам; can_review — может ли текущий
+    пользователь подтверждать (администратор)."""
+    query, limit = search_args()
+    status = request.args.get('status') or 'proposed'
+    if status != 'all' and status not in untappd_live.STATUSES:
+        raise ValueError('status: ' + ', '.join(untappd_live.STATUSES + ('all',)))
+    store = untappd_live.get_store()
+    everything = store.proposals()
+    counts = {name: sum(1 for item in everything if item['status'] == name) for name in untappd_live.STATUSES}
+    items = everything if status == 'all' else [item for item in everything if item['status'] == status]
+    if query is not None:
+        items = [item for item in items if query in _search_key(' '.join(
+            str(value or '') for value in (item.get('iiko_name'), (item.get('card') or {}).get('beer_name'),
+                                           (item.get('card') or {}).get('brewery'))))]
+    matched = len(items)
+    items = items[:limit] if limit else items
+    registry = load_registry()
+    snapshot = taps_manager.get_snapshot(product_catalog(registry))
+    return jsonify({'status': status, 'items': _proposal_rows(items, registry, snapshot),
+                    'matched': matched, 'counts': counts,
+                    'can_review': bool((current_user() or {}).get('is_admin'))})
+
+
+@taps_bp.route('/api/untappd/proposals', methods=['POST'])
+@_untappd_guard
+def untappd_propose():
+    """Предложить связь кеги iiko (GUID из очереди) с карточкой пива Untappd. Черновик:
+    до «Верно» администратора ни на что не влияет; прежнее предложение для той же
+    кеги заменяется. Поля и проверки — core/untappd_live.UntappdLinksStore.propose. 201."""
+    data = request.get_json(silent=True) or {}
+    registry = load_registry()
+    item = untappd_live.get_store().propose(data, current_user(), registry, product_catalog(registry))
+    return jsonify(_proposal_rows([item], registry)[0]), 201
+
+
+@taps_bp.route('/api/untappd/proposals/<proposal_id>/confirm', methods=['POST'])
+@_untappd_guard
+def untappd_confirm(proposal_id):
+    """«Верно»: связь проверена и действует сразу. Только администратор. Тело
+    (необязательно): style_ru и brewery_short — стиль по-русски и короткое имя
+    пивоварни для поста, если их нет в словаре репозитория."""
+    _untappd_admin('подтверждать связи с Untappd')
+    data = request.get_json(silent=True) or {}
+    names = {'style_ru': data.get('style_ru'), 'brewery_short': data.get('brewery_short')}
+    item = untappd_live.get_store().confirm(proposal_id, current_user(), load_registry(), names)
+    return jsonify(_proposal_rows([item], load_registry())[0])
+
+
+@taps_bp.route('/api/untappd/proposals/<proposal_id>/reject', methods=['POST'])
+@_untappd_guard
+def untappd_reject(proposal_id):
+    """«Не то»: предложение отклонено, кега остаётся в очереди; note — что не так
+    (агент читает её в очереди и ищет снова). Только администратор."""
+    _untappd_admin('отклонять предложения связей с Untappd')
+    data = request.get_json(silent=True) or {}
+    item = untappd_live.get_store().reject(proposal_id, current_user(), data.get('note'))
+    return jsonify(_proposal_rows([item], load_registry())[0])
+
+
+@taps_bp.route('/api/untappd/proposals/<proposal_id>/revoke', methods=['POST'])
+@_untappd_guard
+def untappd_revoke(proposal_id):
+    """Отменить связь, подтверждённую на сайте: кега снова в очереди, ссылка из
+    таплиста пропадает сразу. Связи встроенного реестра меняет только деплой.
+    note — причина (необязательно). Только администратор."""
+    _untappd_admin('отменять связи с Untappd')
+    data = request.get_json(silent=True) or {}
+    item = untappd_live.get_store().revoke(proposal_id, current_user(), data.get('note'))
+    return jsonify(_proposal_rows([item], load_registry())[0])
+
 
 @taps_bp.route('/api/update-nomenclature', methods=['POST'])
 def update_nomenclature():

@@ -93,6 +93,9 @@
         return {
             active: tap.status === 'active' && Boolean(tap.current_beer),
             verified,
+            // кега из iiko выбрана, но карточки Untappd у неё ещё нет — это не дело бармена:
+            // связь предлагает ИИ-агент, подтверждает администратор (/taps/untappd)
+            noCard: beer.mapping_status === 'unverified',
             title: verified ? beer.beer_name : (tap.current_beer || ''),
             brewery: verified ? (beer.brewery || '') : '',
             facts: facts.join(' · '),
@@ -216,9 +219,9 @@
         };
         cell(c.active, 'Активных кранов', 'из ' + c.all);
         cell(c.empty, 'Пустых', null, c.empty ? { onClick: () => setFilter('empty'), title: 'Показать пустые краны' } : null);
-        cell(c.unverified, 'Сорт не уточнён', null, c.unverified ? {
+        cell(c.unverified, 'Без карточки Untappd', null, c.unverified ? {
             warn: true, onClick: () => setFilter('unverified'),
-            title: 'Краны без проверенной карточки сорта: их нет в таплисте и в фиде Яндекса',
+            title: 'Краны без проверенной карточки Untappd: в таплисте без ссылки и стиля, в фид Яндекса не попадают',
         } : null);
         const activity = state.stats && typeof state.stats.activity_7d === 'number' ? state.stats.activity_7d.toFixed(1).replace('.', ',') + '%' : '—';
         cell(activity, 'Активность за 7 дней', null, {
@@ -231,7 +234,7 @@
         { key: 'all', label: 'Все' },
         { key: 'active', label: 'Активные' },
         { key: 'empty', label: 'Пустые' },
-        { key: 'unverified', label: 'Сорт не уточнён', warn: true },
+        { key: 'unverified', label: 'Без карточки Untappd', warn: true },
     ];
 
     function matchesFilter(tap, filter) {
@@ -297,7 +300,7 @@
             node.appendChild(el('span', 'tp-card-title', view.title));
             const sub = [view.brewery, view.facts].filter(Boolean).join(' · ');
             if (sub) node.appendChild(el('span', 'tp-card-sub', sub));
-            if (!view.verified) node.appendChild(el('span', 'tp-badge is-warn', 'Уточните сорт'));
+            if (!view.verified) node.appendChild(el('span', 'tp-badge is-warn', view.noCard ? 'Нет карточки Untappd' : 'Уточните сорт'));
             if (view.verified) node.appendChild(el('span', 'tp-card-keg', view.keg));
             node.setAttribute('aria-label', `Кран ${tap.tap_number}: ${view.title}`);
         } else {
@@ -447,17 +450,27 @@
 
     function renderView(body, tap, view) {
         body.appendChild(beerBlock(view));
-        if (!view.verified) {
+        if (view.noCard) {
+            const note = el('div', 'tp-note is-warn',
+                'У этой кеги ещё нет проверенной карточки Untappd: в таплисте она без ссылки и стиля, '
+                + 'а «Таплист пятницы» бара не уйдёт. Карточку подбирает ИИ-агент, подтверждает администратор — ');
+            const more = el('a', null, 'Связи с Untappd');
+            more.href = '/taps/untappd';
+            note.appendChild(more);
+            note.appendChild(document.createTextNode('.'));
+            body.appendChild(note);
+        } else if (!view.verified) {
             body.appendChild(el('div', 'tp-note is-warn',
                 'Сорт не сопоставлен с проверенной карточкой: этого пива нет в таплисте и в фиде Яндекса. '
                 + 'Выберите точную кегу из iiko — время подключения сохранится.'));
         }
+        const needsKeg = !view.verified && !view.noCard;
         const actions = el('div', 'tp-actions');
-        if (!view.verified) actions.appendChild(button('Уточнить сорт', 'tp-btn-primary tp-btn-block', () => setMode('identify')));
+        if (needsKeg) actions.appendChild(button('Уточнить сорт', 'tp-btn-primary tp-btn-block', () => setMode('identify')));
         actions.appendChild(button('Заменить кегу', (view.verified ? 'tp-btn-primary ' : '') + 'tp-btn-block', () => setMode('replace')));
         actions.appendChild(button('Кега закончилась', 'tp-btn-danger tp-btn-block', () => setMode('confirm-stop')));
         body.appendChild(actions);
-        if (view.verified) {
+        if (!needsKeg) {
             const fix = el('button', 'tp-link-btn', 'Сорт указан неверно? Уточнить без замены кеги');
             fix.type = 'button';
             fix.addEventListener('click', () => setMode('identify'));

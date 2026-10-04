@@ -100,8 +100,22 @@ def load_names(path=None) -> dict:
 
     styles — стиль Untappd -> по-русски; breweries — пивоварня Untappd -> короткое
     имя; beers — id Untappd -> название в посте целиком. Файл в репозитории и
-    меняется только деплоем, поэтому читается один раз на путь."""
-    return _load_names(str(path or NAMES_PATH))
+    меняется только деплоем, поэтому читается один раз на путь. Без path к нему
+    добавляются имена из связей, подтверждённых на сайте (core/untappd_live.live_names):
+    стиль и пивоварня новой кеги, которых нет в словаре, — словарь главнее."""
+    base = _load_names(str(path or NAMES_PATH))
+    if path is not None:
+        return base
+    from core import untappd_live
+    extra = untappd_live.live_names()
+    if not extra['styles'] and not extra['breweries']:
+        return base
+    styles, breweries = dict(base['styles']), dict(base['breweries'])
+    for key, value in extra['styles'].items():
+        styles.setdefault(key, value)
+    for key, value in extra['breweries'].items():
+        breweries.setdefault(key, value)
+    return {'styles': styles, 'breweries': breweries, 'beers': base['beers']}
 
 
 @lru_cache(maxsize=4)
@@ -134,15 +148,21 @@ def post_name(row: dict, names: dict) -> str:
     brewery = row.get('brewery')
     if not _clean(brewery):
         return name if bid not in (None, '') else iiko_display(name)
+    short = brewery_short(brewery, names)
+    if not short or short.casefold() in name.casefold():
+        return name
+    return f'{short} {name}'
+
+
+def brewery_short(brewery, names: dict) -> str:
+    """Пивоварня в посте: короткое имя из словаря (пустое — пивоварню не пишем), иначе
+    её имя Untappd без скобок («Pivovar Tri Čuni (Tri Chuni)» -> «Pivovar Tri Čuni»)."""
     short = names['breweries'].get(brewery)
     if short is None:
         short = names['breweries'].get(_clean(brewery))
     if short is None:
-        short = _BRACKETS_RE.sub('', str(brewery))
-    short = _clean(short)
-    if not short or short.casefold() in name.casefold():
-        return name
-    return f'{short} {name}'
+        short = _BRACKETS_RE.sub('', str(brewery or ''))
+    return _clean(short)
 
 
 def style_ru(style, names: dict) -> str:
@@ -156,6 +176,26 @@ def style_ru(style, names: dict) -> str:
     return _clean(found)
 
 
+def _beer_info(row: dict, names: dict, is_new: bool) -> str:
+    """' — {стиль}, {крепость}%[, новинка]' или '' (все части пусты)."""
+    info = []
+    style = style_ru(row.get('style'), names)
+    if style:
+        info.append(style)
+    abv = format_abv(row.get('abv')) if row.get('abv') else None
+    if abv and abv != '0':
+        info.append(f'{abv}%')
+    if is_new:
+        info.append(NEW_MARK)
+    return ' — ' + ', '.join(info) if info else ''
+
+
+def beer_text(row: dict, names: dict, is_new: bool = False) -> str:
+    """Строка сорта без номера крана: '{имя} — {стиль}, {крепость}%[, новинка]'.
+    Так новый сорт показывается до подтверждения связи (страница «Связи с Untappd»)."""
+    return post_name(row, names) + _beer_info(row, names, is_new)
+
+
 def tap_line(row: dict, names: dict, is_new: bool = False) -> Tuple[str, Optional[Tuple[int, int]]]:
     """'{кран}. {имя} — {стиль}, {крепость}%[, новинка]' и (начало, конец) имени в
     строке — для ссылки на Untappd (None — ссылки нет: у крана нет карточки).
@@ -166,18 +206,7 @@ def tap_line(row: dict, names: dict, is_new: bool = False) -> Tuple[str, Optiona
     name = post_name(row, names)
     line = head + name
     span = (len(head), len(line)) if name and row.get('untappd_url') else None
-    info = []
-    style = style_ru(row.get('style'), names)
-    if style:
-        info.append(style)
-    abv = format_abv(row.get('abv')) if row.get('abv') else None
-    if abv and abv != '0':
-        info.append(f'{abv}%')
-    if is_new:
-        info.append(NEW_MARK)
-    if info:
-        line += ' — ' + ', '.join(info)
-    return line, span
+    return line + _beer_info(row, names, is_new), span
 
 
 # ---------------------------------------------------------------------------

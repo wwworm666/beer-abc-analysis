@@ -16,13 +16,22 @@ DEFAULT_REGISTRY = Path(__file__).resolve().parents[1] / "data/iiko_untappd_regi
 BUNDLED_REGISTRY = Path(__file__).resolve().parents[1] / "resources/iiko_untappd_registry.json"
 
 
-def load_registry(path=None):
+def load_registry(path=None, live=None):
+    """Рабочий реестр: встроенный файл + связи, подтверждённые на сайте.
+
+    live — наложить связи с сайта (core/untappd_live: агент предлагает, владелец
+    подтверждает, без деплоя). По умолчанию — да, если path не задан (так читают
+    сайт, бот и посты); при явном path — нет (тесты, сборка реестра)."""
+    explicit = path is not None
     if path is None:
         path = os.environ.get('UNTAPPD_REGISTRY_PATH') or (
             BUNDLED_REGISTRY if BUNDLED_REGISTRY.exists() else DEFAULT_REGISTRY)
     registry = json.loads(Path(path).read_text(encoding="utf-8"))
     if registry.get("schema_version") != 1:
         raise ValueError("Unsupported iiko/Untappd registry version")
+    if (not explicit) if live is None else live:
+        from core import untappd_live
+        registry = untappd_live.apply(registry)
     return registry
 
 
