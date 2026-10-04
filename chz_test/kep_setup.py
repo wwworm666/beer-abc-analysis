@@ -383,6 +383,13 @@ def main() -> int:
             if thumb2 and thumb2 != thumb and write_thumbprint(thumb2):
                 thumb = thumb2
             ok, out = check_signature()
+    if not ok and how == "file" and thumb != EXPECTED_THUMBPRINT:
+        # Хранилище не прочиталось, а отпечаток из файла не подошёл (в chz.py остался
+        # прежний КЭП) — пробуем ожидаемый из этого скрипта, как до 2026-10-04.
+        say("   Отпечаток из файла не подошёл — пробую ожидаемый " + EXPECTED_THUMBPRINT + "...")
+        if write_thumbprint(EXPECTED_THUMBPRINT):
+            thumb = EXPECTED_THUMBPRINT
+            ok, out = check_signature()
     if not ok:
         say("   [!] Подпись не прошла. Хвост вывода chz.py:")
         show_tail(out)

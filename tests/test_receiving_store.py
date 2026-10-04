@@ -1468,19 +1468,64 @@ def test_reviewed_cleared_when_own_decision_is_reverted(db, clock):
 
 def test_redecided_closed_row_then_reverted_unstamps(db, clock):
     # Ревью 2026-10-04: решение по уже закрытой строке (устаревшая вкладка, агент) сдвигает
-    # resolved_at; отметка приёмки переходит к новому решению, и «Вернуть в разбор» её снимает.
+    # resolved_at, но не начало закрытого периода (closed_since) — «Вернуть в разбор» и
+    # после него снимает отметку приёмки.
     rid = _closed_receipt_with([_ean(G2)])
     rs.upsert_review(G2, rid, 'new', [], [], CHZ, IDX_0700)
     _processed(rid)
     rs.update_review(G2, USER, state='not_needed')
-    assert rs.get_receipt(rid)['reviewed'] is True
+    stamped = rs.get_receipt(rid)['reviewed_at']
+    assert stamped == clock.iso()
     clock.move(minutes=5)
     rs.update_review(G2, USER, state='done')
-    assert rs.get_receipt(rid)['reviewed_at'] == clock.iso()
+    assert rs.get_receipt(rid)['reviewed_at'] == stamped                   # отметка не двигается
     clock.move(minutes=5)
     rs.update_review(G2, USER, state='open')
     back = rs.get_receipt(rid)
     assert (back['reviewed'], back['can_delete']) == (False, True)
+
+
+def test_redecision_of_other_row_keeps_previous_cycle_stamp(db, clock):
+    # Ревью 2026-10-04: приёмка A (G1+G2) разобрана в прошлом круге; B переоткрыла G2, её
+    # решили заново; повторное решение по закрытой G1 (устаревшая вкладка) и затем
+    # «Вернуть в разбор» у G2 снимают отметку только у B.
+    a = _closed_receipt_with([_ean(G1), _ean(G2)])
+    rs.upsert_review(G1, a, 'new', [], [], CHZ, IDX_0700)
+    rs.upsert_review(G2, a, 'new', [], [], CHZ, IDX_0700)
+    _processed(a)
+    rs.update_review(G1, USER, state='done')
+    rs.update_review(G2, USER, state='done')
+    assert rs.get_receipt(a)['reviewed'] is True
+    clock.move(days=20)
+    b = _closed_receipt_with([_ean(G2)])
+    rs.upsert_review(G2, b, 'restore', [_card('k2', 'Балтика', archived=True)], [], {}, clock.iso())
+    _processed(b)
+    clock.move(minutes=5)
+    rs.update_review(G2, USER, state='done')
+    clock.move(minutes=5)
+    rs.update_review(G1, USER, state='not_needed')                         # G1 уже закрыта
+    clock.move(minutes=5)
+    rs.update_review(G2, USER, state='open')
+    assert rs.get_receipt(a)['reviewed'] is True
+    assert rs.get_receipt(b)['reviewed'] is False
+
+
+def test_closed_since_backfilled_for_existing_closed_rows(db, clock):
+    # База до колонки closed_since: у закрытых строк — время решения.
+    rid = _closed_receipt_with([_ean(G1)])
+    rs.upsert_review(G1, rid, 'new', [], [], CHZ, IDX_0700)
+    rs.update_review(G1, USER, state='done')
+    resolved = rs.get_review_item(G1)['resolved_at']
+    path = rs.db_path()
+    conn = sqlite3.connect(path)
+    conn.execute('ALTER TABLE review_items DROP COLUMN closed_since')
+    conn.commit()
+    conn.close()
+    rs.set_db_path(path)                                                   # схема заново
+    assert rs.get_review_item(G1)['state'] == 'closed'                     # первое обращение
+    conn = sqlite3.connect(path)
+    assert conn.execute('SELECT closed_since FROM review_items WHERE gtin = ?', (G1,)).fetchone()[0] == resolved
+    conn.close()
 
 
 def test_revert_keeps_stamps_of_previous_cycle(db, clock):

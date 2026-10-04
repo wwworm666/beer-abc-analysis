@@ -187,7 +187,7 @@ def bar(tmp_path, monkeypatch):
     monkeypatch.setattr(ks, 'TAILSCALE', str(tmp_path / 'tailscale.exe'))
     (tmp_path / 'tailscale.exe').write_text('', encoding='utf-8')
     state = types.SimpleNamespace(stores=[], tokens=[True], install_ok=True, calls=[],
-                                  store_fails=False, dst=dst)
+                                  store_fails=False, dst=dst, good_thumb=None)
 
     def fake_run(args, timeout=120, cwd=None, encoding='cp866', env=None):
         args = list(args)
@@ -204,6 +204,8 @@ def bar(tmp_path, monkeypatch):
         if 'chz.py' in args and 'token' in args:
             assert cwd == str(dst) and env['PYTHONIOENCODING'] == 'utf-8'
             ok = state.tokens.pop(0) if len(state.tokens) > 1 else state.tokens[0]
+            if state.good_thumb is not None:      # подпись проходит только с этим отпечатком
+                ok = state.good_thumb in (dst / 'chz.py').read_text(encoding='utf-8')
             if ok:
                 return 0, '  [auth] Запрос UUID и DATA... [OK] 730f59bf...\n  [OK] Токен действует до: 2026-10-05'
             return 1, '[ERR] csptest rc=2148073494\n  [ERR] csptest failed'
@@ -281,21 +283,38 @@ def test_main_store_unreadable_keeps_file_thumbprint(bar):
     assert _thumb_line(bar) == 'CERT_THUMBPRINT = "' + ks.EXPECTED_THUMBPRINT + '"'
 
 
-def test_main_newer_pc_file_keeps_its_thumbprint_and_names_backup(bar):
-    # На компьютере chz.py новее флешки (его обновил сервер), хранилище сертификатов не
-    # прочиталось, подпись не прошла: остаётся отпечаток из файла на компьютере, а не
-    # EXPECTED_THUMBPRINT, и итог называет копию, сделанную в этом запуске (ревью 2026-10-04).
+def _newer_pc_file(bar, thumb):
+    # На компьютере chz.py новее флешки (его обновил сервер) со своим отпечатком.
     text = (bar.dst / 'chz.py').read_text(encoding='utf-8')
     newer = text.replace('CHZ_VERSION = "' + chz.CHZ_VERSION + '"', 'CHZ_VERSION = "2099-12-01"')
-    newer = newer.replace(OLD.lower(), OTHER)
+    newer = newer.replace(OLD.lower(), thumb)
     (bar.dst / 'chz.py').write_text(newer, encoding='utf-8')
     bar.store_fails = True
     bar.stores = [[]]
+    return newer
+
+
+def test_main_store_unreadable_tries_file_then_expected_thumbprint(bar):
+    # Хранилище не прочиталось: сначала отпечаток из файла на компьютере (а не сразу
+    # EXPECTED_THUMBPRINT поверх него), не подошёл — ожидаемый (ревью 2026-10-04).
+    _newer_pc_file(bar, OTHER)
+    bar.good_thumb = OTHER
+    code, out = _main()
+    assert code == 0 and 'оставляю его' in out and 'пробую ожидаемый' not in out
+    assert _thumb_line(bar) == 'CERT_THUMBPRINT = "' + OTHER + '"'
+    _newer_pc_file(bar, OLD.lower())                         # в файле — прежний КЭП
+    bar.good_thumb = ks.EXPECTED_THUMBPRINT
+    code, out = _main()
+    assert code == 0 and 'пробую ожидаемый' in out
+    assert _thumb_line(bar) == 'CERT_THUMBPRINT = "' + ks.EXPECTED_THUMBPRINT + '"'
+
+
+def test_main_failure_names_backup_of_this_run(bar):
+    newer = _newer_pc_file(bar, OTHER)
     bar.tokens = [False]
     bar.install_ok = False
     code, out = _main()
-    assert code == 1 and 'оставляю его' in out
-    assert _thumb_line(bar) == 'CERT_THUMBPRINT = "' + OTHER + '"'
+    assert code == 1 and 'НЕ ПОЛУЧИЛОСЬ' in out
     assert ks.LAST_BACKUP and ('копией ' + ks.LAST_BACKUP) in out
     assert (bar.dst / ks.LAST_BACKUP).read_text(encoding='utf-8') == newer
 

@@ -134,10 +134,14 @@ STOP_WORDS = frozenset({
 # в ЧЗ — одно слово (ревью 2026-10-04).
 _SIGNS_RE = re.compile('[ьъ]')
 # Слово с объёмом («30л», «500мл») совпадает у всех кег одного объёма («КЕГ Варка Лагер
-# 30л.» и «… КЕГ 30л» другой пивоварни): в счёт идёт, но кандидатом карточку не делает —
-# как общие слова (GENERIC_WORDS). Не выбрасывается совсем: у «КЕГ ЛеФорт Трипель, 20л» и
-# «"Трипл ЛеФорт" 20л.» в ЧЗ кроме пивоварни совпадает только объём (ревью 2026-10-04).
+# 30л.» и «… КЕГ 30л» другой пивоварни), поэтому идёт в счёт, только если слово названия
+# или пивоварни совпало целиком (STRONG_WORD_LEN букв и больше): у «КЕГ ЛеФорт Трипель,
+# 20л» и «"Трипл ЛеФорт" 20л.» в ЧЗ кроме «лефорт» совпадает только объём. Совпадение
+# началом или по «звучанию» объём в счёт не пускает: «Баптист Вит 20л» иначе находил
+# «КЕГ Лимбургс Витте 20л», «Cidre de Bretagne 30л» — «КЕГ Вита Сид Том 2 30л». В долю
+# совпавших слов объём не входит (ревью 2026-10-04).
 VOLUME_WORD_RE = re.compile(r'\d+(?:мл|л|ml|l)\Z')
+STRONG_WORD_LEN = 4
 # Общие слова пива — стиль, цвет, тип, «пивоварня», «премиум»: совпадают у десятков
 # карточек разных пивоварен. Счёт «похожей» они повышают, но кандидатом карточка
 # становится, только если совпало и хотя бы одно другое слово (название, пивоварня):
@@ -162,12 +166,12 @@ GENERIC_WORDS = frozenset({
     'сешн', 'вест', 'кост', 'нью', 'фрут', 'берри', 'келлер', 'цвикель', 'марцен', 'раух',
     'экстра', 'биттер', 'ламбик', 'крик', 'радлер', 'брют', 'пшеничное', 'пшеничный',
     'вишневый', 'вишневое', 'медовое', 'медовый', 'живое', 'живой', 'разливное',
-    'сидр', 'sider', 'sidra', 'сайдер', 'мед', 'brew', 'пэйл', 'india', 'индиа', 'индийский',
+    'сидр', 'sider', 'sidra', 'сидра', 'сайдер', 'мед', 'brew', 'пэйл', 'india', 'индиа', 'индийский',
     'american', 'американ', 'американский', 'english', 'английский', 'belgian', 'бельгийский',
     'german', 'немецкий', 'czech', 'чешский', 'bavarian', 'баварский',
     # Те же слова кириллицей, как их пишет ЧЗ (ревью 2026-10-04: «Брюмен ипа» находил
     # «Брю Дог Punk IPA» по «брю» + «ипа»).
-    'брю', 'брюинг', 'бревери', 'брюери', 'дипа', 'неипа', 'нейпа', 'хейзи', 'стронг', 'вайлд',
+    'брю', 'бревери', 'брюери', 'дипа', 'неипа', 'нейпа', 'хейзи', 'стронг', 'вайлд',
     'спешл', 'витбир', 'квадрупель', 'келлербир', 'ингланд', 'вайссе', 'сауэр', 'сауер',
     'вайсбир', 'хефевайсбир', 'сэшн', 'сессионная', 'сессионный',
     # Сладость сидра: сама карточку похожей не делает, но различает варианты одного
@@ -733,7 +737,8 @@ def similar_cards(name: str, index: dict, brand: str = '', limit: int = SIMILAR_
     (ревью 2026-10-03). Слово другого алфавита совпало, если совпало «звучание»
     («Собер» = «Sober», см. _translit_key). Счёт — сколько разных слов карточки совпало; кандидат —
     счёт >= SIMILAR_MIN_SCORE и среди совпавших есть слово не из GENERIC_WORDS и не объём
-    (VOLUME_WORD_RE): стиль, цвет, тип и «30л» не делают карточку похожей сами. Кандидаты — карточки SEARCH_TYPES любые:
+    (VOLUME_WORD_RE): стиль, цвет, тип и «30л» не делают карточку похожей сами; объём идёт
+    в счёт, только если слово названия совпало целиком (см. VOLUME_WORD_RE). Кандидаты — карточки SEARCH_TYPES любые:
     актуальные, удалённые, архивные (пометки видны в сводке). Порядок: счёт по убыванию;
     при равном счёте карточки той же тары раньше: для кеги (keg=True, см. is_keg_text) —
     кеги, для остального — бутылки и банки: их в ЧЗ большинство (в выгрузке остатков ЧЗ
@@ -755,8 +760,8 @@ def similar_cards(name: str, index: dict, brand: str = '', limit: int = SIMILAR_
     scored = []
     for card, words in _candidate_words(index):
         used = set()
-        score = 0
-        distinct = False
+        score = plain = volume = 0
+        distinct = strong = False
         for word in words:
             hit = None
             for i in by_head.get(word[:MIN_WORD_LEN], ()):
@@ -765,12 +770,20 @@ def similar_cards(name: str, index: dict, brand: str = '', limit: int = SIMILAR_
                     break
             if hit is None:
                 hit = _translit_match(word, by_sound, used)
-            if hit is not None:
-                used.add(hit)
-                score += 1
-                distinct = distinct or not (word in GENERIC_WORDS or VOLUME_WORD_RE.match(word))
+            if hit is None:
+                continue
+            used.add(hit)
+            if VOLUME_WORD_RE.match(word):
+                volume += 1
+                continue
+            plain += 1
+            if word not in GENERIC_WORDS:
+                distinct = True
+                strong = strong or (tokens[hit] == word and len(word) >= STRONG_WORD_LEN)
+        score = plain + (volume if strong else 0)
         if score >= SIMILAR_MIN_SCORE and distinct:
-            scored.append((score, score / len(words), card))
+            share = plain / (sum(1 for w in words if not VOLUME_WORD_RE.match(w)) or 1)
+            scored.append((score, share, card))
     scored.sort(key=lambda item: (-item[0], bool(item[2].get('keg')) != bool(keg), -item[1])
                 + _order_key(item[2]))
     return [dict(card_summary(card), score=score) for score, _share, card in scored[:max(0, int(limit))]]

@@ -223,6 +223,10 @@ _ADDED_COLUMNS = (
     # переоткрывает новая приёмка (карточку в iiko удалили или задублировали), старые
     # приёмки с этим GTIN не возвращаются в «неразобранные» и не становятся удаляемыми.
     ('receipts', 'reviewed_at', 'TEXT'),
+    # С какого момента строка разбора закрыта (текущий закрытый период): решение по уже
+    # закрытой строке его не сдвигает. По нему пересмотр решения снимает отметки
+    # «разобрана» (_unstamp_reviewed) — только поставленные в этом периоде (ревью 2026-10-04).
+    ('review_items', 'closed_since', 'TEXT'),
 )
 
 # Порядок сортировки списка разбора: открытые раньше; статус по важности; свежие сверху.
@@ -365,6 +369,10 @@ def _ensure_schema(conn, path: str) -> None:
                 have = {r['name'] for r in conn.execute('PRAGMA table_info(%s)' % table)}
                 if column not in have:
                     conn.execute('ALTER TABLE %s ADD COLUMN %s %s' % (table, column, decl))
+                    if column == 'closed_since':
+                        # Закрытые до появления колонки: лучшее, что известно, — время решения.
+                        conn.execute("UPDATE review_items SET closed_since = COALESCE(resolved_at, updated_at)"
+                                     " WHERE state = 'closed'")
             if version < 3:
                 # reviewed_at у приёмок, разобранных полностью до появления колонки.
                 ids = [r['id'] for r in conn.execute(
@@ -663,15 +671,17 @@ def _stamp_reviewed(conn, gtins=None, receipt_ids=None) -> None:
                          (now, row['id']))
 
 
-def _unstamp_reviewed(conn, gtin: str, resolved_at) -> None:
-    """Снять reviewed_at у приёмок с этим GTIN, ставших разобранными с решением по строке.
+def _unstamp_reviewed(conn, gtin: str, closed_since) -> None:
+    """Снять reviewed_at у приёмок с этим GTIN, ставших разобранными за текущий закрытый
+    период строки.
 
     Зовётся, когда закрытую строку возвращает в разбор не новая приёмка, а пересмотр
     решения: бухгалтер — «Вернуть в разбор», индекс — «Сделано» не подтвердилось
-    (recheck_done). Отметку теряют приёмки, отмеченные не раньше этого решения
-    (resolved_at строки; отметка ставится в той же записи, что решение, и не раньше его):
-    они стали разобранными с ним. Отметки раньше — работа прежнего круга строки (её
-    переоткрыла новая приёмка, решение приняли заново) — остаются. Нет resolved_at —
+    (recheck_done). Отметку теряют приёмки, отмеченные не раньше начала закрытого периода
+    (closed_since строки; отметка ставится в той же записи, что закрытие, и не раньше
+    его): они стали разобранными, пока строка была закрыта. Повторное решение по уже
+    закрытой строке период не сдвигает. Отметки раньше — прошлый круг строки (её
+    переоткрыла новая приёмка, решение приняли заново) — остаются. Начала нет —
     снимаются все отметки приёмок с этим GTIN: лучше показать работу лишний раз, чем
     спрятать. Ревью 2026-10-04: без этого приёмка с возвращённой в разбор строкой
     оставалась «разобрана», уходила из выбора приёмок и не удалялась.
@@ -679,16 +689,7 @@ def _unstamp_reviewed(conn, gtin: str, resolved_at) -> None:
     conn.execute(
         'UPDATE receipts SET reviewed_at = NULL WHERE reviewed_at IS NOT NULL AND reviewed_at >= ?'
         ' AND id IN (SELECT receipt_id FROM receipt_scans WHERE gtin = ? AND accepted = 1'
-        ' AND deleted_at IS NULL)', (str(resolved_at or ''), gtin))
-
-
-def _restamp_reviewed(conn, gtin: str, resolved_at, now: str) -> None:
-    """Перенести на время нового решения отметки, поставленные с прежним решением по строке
-    (reviewed_at не раньше прежнего resolved_at; правило — _unstamp_reviewed)."""
-    conn.execute(
-        'UPDATE receipts SET reviewed_at = ? WHERE reviewed_at IS NOT NULL AND reviewed_at >= ?'
-        ' AND id IN (SELECT receipt_id FROM receipt_scans WHERE gtin = ? AND accepted = 1'
-        ' AND deleted_at IS NULL)', (now, str(resolved_at or ''), gtin))
+        ' AND deleted_at IS NULL)', (str(closed_since or ''), gtin))
 
 
 def _scan_dict(row) -> dict:
@@ -1298,7 +1299,7 @@ def _load_review(conn, gtin: str) -> dict:
 
 def _auto_close_sql() -> str:
     """SET-часть автозакрытия: карточка нашлась в индексе -> closed/auto."""
-    return ("state = 'closed', resolution = 'auto', resolved_at = :now,"
+    return ("state = 'closed', resolution = 'auto', resolved_at = :now, closed_since = :now,"
             " resolved_by_login = '', resolved_by_name = :actor")
 
 
@@ -1356,12 +1357,12 @@ def upsert_review(gtin, receipt_id, status, cards, candidates, chz, index_built_
                 'INSERT INTO review_items (gtin, status, state, resolution, cards_json,'
                 ' candidates_json, chz_json, first_receipt_id, last_receipt_id, first_seen_at,'
                 ' last_seen_at, classified_at, index_built_at, updated_at, resolved_at,'
-                ' resolved_by_name, notify_receipt_id)'
-                ' VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                ' resolved_by_name, notify_receipt_id, closed_since)'
+                ' VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                 (gtin, status, 'closed' if found else 'open', 'found' if found else '',
                  cards_json, candidates_json, _dumps(chz_clean), rid, rid, now, now, now, built,
                  now, now if found else None, INDEX_ACTOR if found else '',
-                 None if found else rid))
+                 None if found else rid, now if found else None))
             opened = not found
         else:
             params = {'gtin': gtin, 'status': status, 'cards': cards_json,
@@ -1380,7 +1381,7 @@ def upsert_review(gtin, receipt_id, status, cards, candidates, chz, index_built_
                         sets.append(_auto_close_sql())
                 elif row['resolution'] != 'not_needed' and status != 'found':
                     sets.append("state = 'open', resolution = '', resolved_at = NULL,"
-                                " resolved_by_login = '', resolved_by_name = '',"
+                                " resolved_by_login = '', resolved_by_name = '', closed_since = NULL,"
                                 ' reopened = reopened + 1, notify_receipt_id = :rid')
                     opened = reopened = True
             conn.execute('UPDATE review_items SET ' + ', '.join(sets) + ' WHERE gtin = :gtin', params)
@@ -1442,8 +1443,8 @@ def recheck_done(gtin, status, cards, candidates, index_built_at) -> dict:
     status = _check_status(status)
     built = _text(index_built_at)
     with _write() as conn:
-        row = conn.execute('SELECT state, resolution, resolved_at FROM review_items WHERE gtin = ?',
-                           (gtin,)).fetchone()
+        row = conn.execute('SELECT state, resolution, resolved_at, closed_since FROM review_items'
+                           ' WHERE gtin = ?', (gtin,)).fetchone()
         if row is None:
             raise ReviewItemNotFound(gtin)
         if (row['state'] != 'closed' or row['resolution'] != 'done' or not built
@@ -1458,10 +1459,10 @@ def recheck_done(gtin, status, cards, candidates, index_built_at) -> dict:
             # notify_receipt_id = NULL: переоткрыла не приёмка, сообщение о ней не шлём заново.
             sets.append("state = 'open', resolution = '', resolved_at = NULL,"
                         " resolved_by_login = '', resolved_by_name = '', reopened = reopened + 1,"
-                        ' notify_receipt_id = NULL')
+                        ' notify_receipt_id = NULL, closed_since = NULL')
         conn.execute('UPDATE review_items SET ' + ', '.join(sets) + ' WHERE gtin = :gtin', params)
         if reopened:
-            _unstamp_reviewed(conn, gtin, row['resolved_at'])
+            _unstamp_reviewed(conn, gtin, row['closed_since'] or row['resolved_at'])
         return {'row': _load_review(conn, gtin), 'reopened': reopened}
 
 
@@ -1600,26 +1601,24 @@ def update_review(gtin, user, supplier=None, state=None, note=None) -> dict:
         sets.append('note = :note')
     if state == 'open':
         sets.append("state = 'open', resolution = '', resolved_at = NULL,"
-                    " resolved_by_login = '', resolved_by_name = ''")
+                    " resolved_by_login = '', resolved_by_name = '', closed_since = NULL")
     elif state is not None:
         params['resolution'] = state
-        sets.append("state = 'closed', resolution = :resolution, resolved_at = :now,"
+        # Решение по уже закрытой строке не сдвигает начало закрытого периода (closed_since).
+        sets.append("closed_since = CASE WHEN state = 'closed'"
+                    ' THEN COALESCE(closed_since, resolved_at, :now) ELSE :now END,'
+                    " state = 'closed', resolution = :resolution, resolved_at = :now,"
                     ' resolved_by_login = :login, resolved_by_name = :name')
     with _write() as conn:
-        before = conn.execute('SELECT state, resolved_at FROM review_items WHERE gtin = ?',
+        before = conn.execute('SELECT state, resolved_at, closed_since FROM review_items WHERE gtin = ?',
                               (gtin,)).fetchone()
         cur = conn.execute('UPDATE review_items SET ' + ', '.join(sets) + ' WHERE gtin = :gtin', params)
         if cur.rowcount != 1:
             raise ReviewItemNotFound(gtin)
         if state in ('done', 'not_needed'):
-            if before['state'] == 'closed':
-                # Решение по уже закрытой строке (устаревшая вкладка, второй бухгалтер, агент):
-                # отметки, поставленные с прежним решением, переходят к новому — иначе
-                # «Вернуть в разбор» сравнит их с новым resolved_at и не снимет (ревью 2026-10-04).
-                _restamp_reviewed(conn, gtin, before['resolved_at'], now)
             _stamp_reviewed(conn, gtins=[gtin])
         elif state == 'open' and before['state'] == 'closed':
-            _unstamp_reviewed(conn, gtin, before['resolved_at'])
+            _unstamp_reviewed(conn, gtin, before['closed_since'] or before['resolved_at'])
         return _load_review(conn, gtin)
 
 
