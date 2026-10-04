@@ -764,6 +764,7 @@ iiko не знает правильный баркод.
 
 ## Changelog
 
+- **2026-10-04** — перевыпуск КЭП: в `chz.py` новый `CERT_THUMBPRINT` (КЭП от 07.08.2026 на новом Рутокене; со старым подпись не проходила, похоже, с августа). Ночное обновление больше не «успевает» за 6 секунд: сбой токена (`[ERR]` в выводе `chz.py token`) или пустой результат `search-stock` обрывают прогон с ошибкой, старый `chz_stock.json` заново не скачивается (`remote_exec.refresh_token_or_fail`). Смена сертификата без клавиатуры — `chz_test/kep_setup.bat` ([chz_test/README.md](../chz_test/README.md), «Перевыпуск КЭП»). Урок — [lessons.md](lessons.md).
 - **2026-10-03** — команда `chz.py product-info` для приёмки на РЦ: названия новинок по GTIN, ответ одной ASCII-строкой с маркером; сервер (`core/receiving_chz.py`) не шлёт её, пока идёт ночное обновление (`refresh.lock`). На бар-ПК обновить `chz.py` вручную: `python remote_exec.py push chz_test/chz.py C:\chz_test`.
 
 См. [docs/CHANGELOG.md](CHANGELOG.md). Все шаги от 2026-04-22 до
