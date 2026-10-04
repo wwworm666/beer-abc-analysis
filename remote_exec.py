@@ -77,10 +77,12 @@ def run_cmd(rem_cmd, verbose=True, timeout=None):
                 sys.stdout.buffer.write(("STDERR: " + err.strip()).encode("utf-8") + b"\n")
                 sys.stdout.buffer.flush()
         if exit_code != 0:
-            raise RuntimeError(
+            error = RuntimeError(
                 f"Remote command failed (exit {exit_code}): {rem_cmd!r}"
                 + (f"\nSTDERR: {err.strip()}" if err.strip() else "")
             )
+            error.out = out      # вывод команды — для понятной причины (refresh_token_or_fail)
+            raise error
         return out, err
     finally:
         client.close()
@@ -142,10 +144,17 @@ def pull(remote_path, local_dir):
 
 
 REMOTE_STOCK_JSON = REMOTE_CHZ_DIR + r"\debug\chz_stock.json"
+# Сбой подписи (в выводе chz.py token строка «[ERR] csptest …»): дело в Рутокене или отпечатке.
 TOKEN_FAIL_TEXT = (
     "Токен ЧЗ на бар-ПК не получен (подпись КриптоПро не прошла: тот ли Рутокен "
     "вставлен, тот ли CERT_THUMBPRINT в chz.py). Остатки не собираются, старый "
     "chz_stock.json не скачивается.")
+# Остальные сбои (ЧЗ не ответил, сеть бар-ПК, 5xx): причина — последняя строка [ERR]
+# вывода, без догадок про Рутокен (ревью 2026-10-04: любой сбой выглядел сбоем подписи).
+TOKEN_FAIL_OTHER = (
+    "Токен ЧЗ на бар-ПК не получен: {detail}. Остатки не собираются, старый "
+    "chz_stock.json не скачивается.")
+TOKEN_DETAIL_LIMIT = 200
 
 
 def remote_mtime(remote_path):
@@ -195,9 +204,24 @@ def refresh_token_or_fail():
     try:
         out, _err = run_cmd(token_cmd, timeout=120)
     except RuntimeError as exc:
-        raise RuntimeError(TOKEN_FAIL_TEXT) from exc
+        raise RuntimeError(token_error_text(getattr(exc, "out", ""), str(exc))) from exc
     if "[ERR]" in (out or ""):
-        raise RuntimeError(TOKEN_FAIL_TEXT)
+        raise RuntimeError(token_error_text(out, ""))
+
+
+def token_error_text(out, fallback: str) -> str:
+    """Причина сбоя «chz.py token» по его выводу: подпись (csptest) — TOKEN_FAIL_TEXT;
+    иначе последняя строка [ERR] (ASCII: кириллица по SSH — кракозябры), а без неё —
+    первая строка fallback (текст ошибки run_cmd)."""
+    errors = [line.strip() for line in str(out or "").splitlines() if "[ERR]" in line]
+    if any("[ERR] csptest" in line for line in errors):
+        return TOKEN_FAIL_TEXT
+    if errors:
+        detail = errors[-1][errors[-1].index("[ERR]"):]
+    else:
+        detail = (str(fallback or "").strip().splitlines() or ["нет вывода"])[0]
+    detail = "".join(ch if 32 <= ord(ch) < 127 else "?" for ch in detail)[:TOKEN_DETAIL_LIMIT]
+    return TOKEN_FAIL_OTHER.format(detail=detail)
 
 
 # ----- chz.py на бар-ПК: обновление с сервера ------------------------------------------
@@ -316,40 +340,57 @@ def _replace_remote_chz(sftp, new_bytes: bytes, old_bytes) -> str:
     return backup_name
 
 
+# Итог последней сверки chz.py с бар-ПК (chz_test/debug/chz_sync.json): его отдаёт статус
+# обновления ЧЗ (поле chz_sync, routes/stocks.py) — строка в журнале тонет в выводе сбора
+# остатков, а страница показывает только хвост журнала (ревью 2026-10-04).
+SYNC_RESULT_FILE = "chz_sync.json"
+
+
 def sync_chz_script() -> str:
     """Привести chz.py на бар-ПК к серверному, сохранив строку отпечатка КЭП бар-ПК.
 
     Совпадает (без строки CERT_THUMBPRINT и разницы в переводах строк) — файл не
     трогается. Иначе — _replace_remote_chz. Строка CERT_THUMBPRINT — из chz.py на бар-ПК,
     нет её там (или файла) — из самой новой копии chz_backup_*.py, нет и копий — с сервера.
-    Любая ошибка — строка [WARN] в журнале, а обновление ЧЗ идёт дальше: свежий файл
-    полезен, но не стоит ночи без данных. Возврат: 'off' | 'no-local' | 'current' |
-    'updated' | 'failed'.
+    Любая ошибка — строка [WARN], а обновление ЧЗ идёт дальше: свежий файл полезен, но не
+    стоит ночи без данных. Итог печатается в журнал и пишется в SYNC_RESULT_FILE.
+    Возврат: 'off' | 'no-local' | 'current' | 'updated' | 'failed'.
     """
+    result, message = _sync_chz()
+    print(message)
+    try:
+        path = REPO_DIR / "chz_test" / "debug" / SYNC_RESULT_FILE
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({"result": result, "message": message,
+                                    "at": time.strftime("%Y-%m-%dT%H:%M:%S")},
+                                   ensure_ascii=False), encoding="utf-8")
+    except OSError:
+        pass
+    return result
+
+
+def _sync_chz() -> tuple:
+    """Сверка и замена chz.py на бар-ПК -> (итог, строка для журнала)."""
     if os.environ.get(AUTO_UPDATE_ENV, "1").strip() == "0":
-        print(f"chz.py на бар-ПК: автообновление выключено ({AUTO_UPDATE_ENV}=0)")
-        return "off"
+        return "off", f"chz.py на бар-ПК: автообновление выключено ({AUTO_UPDATE_ENV}=0)"
     try:
         local_text = (REPO_DIR / "chz_test" / "chz.py").read_bytes().decode("utf-8")
     except (OSError, UnicodeDecodeError) as e:
-        print(f"[WARN] chz.py на сервере не прочитан ({e}) — бар-ПК не обновляется")
-        return "no-local"
+        return "no-local", f"[WARN] chz.py на сервере не прочитан ({e}) — бар-ПК не обновляется"
     if not THUMB_LINE_RE.search(local_text):
-        print("[WARN] chz.py на сервере без строки CERT_THUMBPRINT — бар-ПК не обновляется")
-        return "no-local"
+        return "no-local", "[WARN] chz.py на сервере без строки CERT_THUMBPRINT — бар-ПК не обновляется"
+    version = chz_version(local_text) or "без версии"
     try:
         client = connect()
     except Exception as e:
-        print(f"[WARN] chz.py на бар-ПК не проверен ({e})")
-        return "failed"
+        return "failed", f"[WARN] chz.py на бар-ПК не проверен ({e})"
     try:
         sftp = client.open_sftp()
         try:
             remote_bytes = _sftp_read(sftp, REMOTE_CHZ_PY)
             remote_text = remote_bytes.decode("utf-8", errors="replace") if remote_bytes is not None else ""
             if remote_bytes is not None and _body(remote_text) == _body(local_text):
-                print(f"chz.py на бар-ПК совпадает с сервером (версия {chz_version(local_text) or 'без версии'})")
-                return "current"
+                return "current", f"chz.py на бар-ПК совпадает с сервером (версия {version})"
             if THUMB_LINE_RE.search(remote_text):
                 thumb_text, thumb_from = remote_text, "с бар-ПК"
             else:
@@ -361,15 +402,13 @@ def sync_chz_script() -> str:
         finally:
             sftp.close()
     except Exception as e:
-        print(f"[WARN] chz.py на бар-ПК не обновлён ({e})")
-        return "failed"
+        return "failed", f"[WARN] chz.py на бар-ПК не обновлён ({e})"
     finally:
         client.close()
     was = "файла не было" if remote_bytes is None else (chz_version(remote_text) or "без версии")
     kept = f"; прежний — {backup}" if backup else ""
-    print(f"chz.py на бар-ПК обновлён: {was} -> {chz_version(local_text) or 'без версии'} "
-          f"(отпечаток КЭП {thumb_from}{kept})")
-    return "updated"
+    return "updated", (f"chz.py на бар-ПК обновлён: {was} -> {version} "
+                       f"(отпечаток КЭП {thumb_from}{kept})")
 
 
 def _stock_not_written(out) -> bool:

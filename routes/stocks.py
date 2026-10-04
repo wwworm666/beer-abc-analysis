@@ -34,6 +34,8 @@ _CHZ_REFRESH_LOCK = _BASE_DIR / 'chz_test' / 'debug' / 'refresh.lock'
 # и сама снимает refresh.lock.
 _CHZ_REFRESH_PID = _BASE_DIR / 'chz_test' / 'debug' / 'refresh.pid'
 _CHZ_REFRESH_EXIT = _BASE_DIR / 'chz_test' / 'debug' / 'refresh.exit'
+# Итог сверки chz.py с бар-ПК (remote_exec.SYNC_RESULT_FILE) — поле chz_sync статуса.
+_CHZ_SYNC_FILE = _BASE_DIR / 'chz_test' / 'debug' / 'chz_sync.json'
 # Лок без pid обёртки старше этого — висячий (refresh укладывается в 30 минут).
 _CHZ_REFRESH_STALE_SEC = 1800
 # Обёртка ждёт remote_exec.py не дольше этого (передача файлов paramiko без таймаута могла
@@ -1373,7 +1375,26 @@ def refresh_chz_status():
         'exit_code': exit_code,
         'cache_updated_at': cache_updated,
         'log_tail': log_tail,
+        'chz_sync': _chz_sync_result(),
     })
+
+
+def _chz_sync_result():
+    """Итог сверки chz.py с бар-ПК в текущем (последнем) обновлении ЧЗ или None.
+
+    Файл пишет remote_exec.sync_chz_script; он не старше refresh.pid (его пишет запуск
+    обновления) — значит, из этого прогона, а не из вчерашнего (ревью 2026-10-04: строка
+    итога тонула в журнале, страница показывает только хвост).
+    """
+    try:
+        if _CHZ_SYNC_FILE.stat().st_mtime < _CHZ_REFRESH_PID.stat().st_mtime:
+            return None
+        data = json.loads(_CHZ_SYNC_FILE.read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    return {key: str(data.get(key) or '') for key in ('result', 'message', 'at')}
 
 
 

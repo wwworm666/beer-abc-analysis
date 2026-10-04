@@ -26,6 +26,7 @@ refresh.lock и pid обёртки (refresh.pid), код выхода — из r
   лок, дописывает строку «refresh finished» в журнал; зависший remote_exec.py обрывается
   по таймауту с кодом 124.
 """
+import json
 import os
 import subprocess
 import sys
@@ -52,6 +53,7 @@ def chz(tmp_path, monkeypatch):
         '_CHZ_REFRESH_EXIT': debug / 'refresh.exit',
         '_CHZ_REFRESH_LOG': debug / 'refresh.log',
         '_CHZ_CACHE_FILE': debug / 'chz_stock.json',
+        '_CHZ_SYNC_FILE': debug / 'chz_sync.json',
     }
     for name, path in paths.items():
         monkeypatch.setattr(rs, name, path)
@@ -214,6 +216,23 @@ def test_start_replaces_stale_lock(chz, monkeypatch):
     result, code = rs.start_chz_refresh()
     assert (result['status'], code) == ('started', 200)
     rs._refresh_log_file.close()
+
+
+def test_status_shows_chz_sync_of_current_run_only(chz):
+    # Итог сверки chz.py с бар-ПК (пишет remote_exec) — только из текущего прогона: файл
+    # не старше refresh.pid, который пишет запуск обновления (ревью 2026-10-04).
+    pid_file, sync_file = chz.paths['_CHZ_REFRESH_PID'], chz.paths['_CHZ_SYNC_FILE']
+    assert _status(chz)['chz_sync'] is None                          # файлов нет
+    sync_file.write_text(json.dumps({'result': 'updated', 'message': 'chz.py на бар-ПК обновлён: ...',
+                                     'at': '2026-10-04T23:00:00'}, ensure_ascii=False), encoding='utf-8')
+    pid_file.write_text('%d\n' % _dead_pid(), encoding='ascii')
+    os.utime(sync_file, (time.time() - 3600, time.time() - 3600))   # вчерашний итог
+    assert _status(chz)['chz_sync'] is None
+    os.utime(sync_file, None)
+    assert _status(chz)['chz_sync'] == {'result': 'updated', 'message': 'chz.py на бар-ПК обновлён: ...',
+                                        'at': '2026-10-04T23:00:00'}
+    sync_file.write_text('не json', encoding='utf-8')
+    assert _status(chz)['chz_sync'] is None
 
 
 def test_start_without_remote_pass(chz, monkeypatch):

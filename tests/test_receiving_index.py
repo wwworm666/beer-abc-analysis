@@ -504,19 +504,26 @@ def test_similar_generic_words_alone_are_not_enough():
 
 def test_similar_stop_volume_and_sign_words():
     """Ревью 2026-10-04: стоп-слова убраны и из текста ЧЗ («пивоварня» карточки совпадала
-    началом с «пиво»), объём «30л» — не слово (совпадал у кег разных пивоварен одного
-    объёма), мягкий знак не пишется («Майзельс» в ЧЗ = «Майзелс» в iiko)."""
+    началом с «пиво»); объём «30л» идёт в счёт, но кандидата сам не делает (совпадал у кег
+    разных пивоварен одного объёма), а вместе с пивоварней делает («КЕГ ЛеФорт Трипель,
+    20л» — единственная верная карточка); мягкий знак не пишется («Майзельс» в ЧЗ =
+    «Майзелс» в iiko); общие слова кириллицей («брю») — тоже общие."""
     idx = _review_index(
         _product('c-varka', 'КЕГ Варка Лагер 30л.', parent=G_KEG),
+        _product('c-lefort', 'КЕГ ЛеФорт Трипель, 20л', parent=G_KEG),
         _product('c-volk', 'Пивоварня Волк Лагер'),
         _product('c-maisel', 'Майзелс Вайс Ориджинал 0,5 бут.'),
+        _product('c-brewdog', 'Брю Дог Punk IPA 0,500 ж/б'),
     )
     assert ri.similar_cards('Пиво "Нишко пиво LAGER" (NISKO LAGER PIVO) 4,7% об., КЕГ 30л', idx,
                             keg=True) == []
+    lefort = ri.similar_cards('Пиво LeFort "Трипл ЛеФорт" 20л. светлое', idx, brand='LeFort', keg=True)
+    assert [(c['id'], c['score']) for c in lefort] == [('c-lefort', 2)]
     assert ri.similar_cards('Пиво Волк светлое', idx) == []
+    assert ri.similar_cards('Пиво светлое "Брюмен ипа 6" 0,45л', idx, brand='Гас') == []
     found = ri.similar_cards('Пиво светлое "Майзельс Вайссе Ориджинал"', idx)
     assert [(c['id'], c['score']) for c in found] == [('c-maisel', 3)]
-    assert ri._name_words('КЕГ Варка Лагер 30л.') == ['варка', 'лагер']
+    assert ri._name_words('КЕГ Варка Лагер 30л.') == ['варка', 'лагер', '30л']
     assert ri._name_words('Майзельс') == ['майзелс']
 
 

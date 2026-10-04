@@ -1466,6 +1466,23 @@ def test_reviewed_cleared_when_own_decision_is_reverted(db, clock):
     assert rs.get_receipt(later)['reviewed'] is True
 
 
+def test_redecided_closed_row_then_reverted_unstamps(db, clock):
+    # Ревью 2026-10-04: решение по уже закрытой строке (устаревшая вкладка, агент) сдвигает
+    # resolved_at; отметка приёмки переходит к новому решению, и «Вернуть в разбор» её снимает.
+    rid = _closed_receipt_with([_ean(G2)])
+    rs.upsert_review(G2, rid, 'new', [], [], CHZ, IDX_0700)
+    _processed(rid)
+    rs.update_review(G2, USER, state='not_needed')
+    assert rs.get_receipt(rid)['reviewed'] is True
+    clock.move(minutes=5)
+    rs.update_review(G2, USER, state='done')
+    assert rs.get_receipt(rid)['reviewed_at'] == clock.iso()
+    clock.move(minutes=5)
+    rs.update_review(G2, USER, state='open')
+    back = rs.get_receipt(rid)
+    assert (back['reviewed'], back['can_delete']) == (False, True)
+
+
 def test_revert_keeps_stamps_of_previous_cycle(db, clock):
     # R1 разобрана («Сделано»); через 20 дней R2 переоткрыла общую строку, бухгалтер решил
     # её снова и вернул в разбор: отметку теряет только R2 — R1 разобрана в прошлом круге.

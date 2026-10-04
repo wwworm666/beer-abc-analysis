@@ -27,6 +27,7 @@ Windows, КриптоПро и SSH не нужны: команды (PowerShell, 
 import ast
 import contextlib
 import io
+import json
 import os
 import shutil
 import subprocess
@@ -105,12 +106,14 @@ def test_copy_chz_does_not_downgrade(tmp_path, monkeypatch):
     with contextlib.redirect_stdout(io.StringIO()) as buf:
         assert ks.copy_chz(str(here)) is True
     assert '2026-12-01' in (dst / 'chz.py').read_text(encoding='utf-8')     # новее — не тронут
-    assert 'оставляю его' in buf.getvalue() and not list(dst.glob('chz_backup_*.py'))
+    # Копия прежнего — и когда файл остаётся: дальше в него пишется отпечаток (ревью 2026-10-04).
+    assert 'оставляю его' in buf.getvalue() and ks.LAST_BACKUP in buf.getvalue()
+    assert '2026-12-01' in (dst / ks.LAST_BACKUP).read_text(encoding='utf-8')
     (dst / 'chz.py').write_text('CERT_THUMBPRINT = "y"\n', encoding='utf-8')  # старый, без версии
     with contextlib.redirect_stdout(io.StringIO()):
         assert ks.copy_chz(str(here)) is True
     assert '2026-10-04' in (dst / 'chz.py').read_text(encoding='utf-8')
-    assert len(list(dst.glob('chz_backup_*.py'))) == 1
+    assert (dst / ks.LAST_BACKUP).read_text(encoding='utf-8') == 'CERT_THUMBPRINT = "y"\n'
     assert ks.chz_version(os.path.join(_REPO, 'chz_test', 'chz.py')) >= '2026-10-04'
 
 
@@ -278,6 +281,25 @@ def test_main_store_unreadable_keeps_file_thumbprint(bar):
     assert _thumb_line(bar) == 'CERT_THUMBPRINT = "' + ks.EXPECTED_THUMBPRINT + '"'
 
 
+def test_main_newer_pc_file_keeps_its_thumbprint_and_names_backup(bar):
+    # На компьютере chz.py новее флешки (его обновил сервер), хранилище сертификатов не
+    # прочиталось, подпись не прошла: остаётся отпечаток из файла на компьютере, а не
+    # EXPECTED_THUMBPRINT, и итог называет копию, сделанную в этом запуске (ревью 2026-10-04).
+    text = (bar.dst / 'chz.py').read_text(encoding='utf-8')
+    newer = text.replace('CHZ_VERSION = "' + chz.CHZ_VERSION + '"', 'CHZ_VERSION = "2099-12-01"')
+    newer = newer.replace(OLD.lower(), OTHER)
+    (bar.dst / 'chz.py').write_text(newer, encoding='utf-8')
+    bar.store_fails = True
+    bar.stores = [[]]
+    bar.tokens = [False]
+    bar.install_ok = False
+    code, out = _main()
+    assert code == 1 and 'оставляю его' in out
+    assert _thumb_line(bar) == 'CERT_THUMBPRINT = "' + OTHER + '"'
+    assert ks.LAST_BACKUP and ('копией ' + ks.LAST_BACKUP) in out
+    assert (bar.dst / ks.LAST_BACKUP).read_text(encoding='utf-8') == newer
+
+
 def test_main_without_chz_dir(bar, monkeypatch, tmp_path):
     monkeypatch.setattr(ks, 'CHZ_DIR', str(tmp_path / 'нет'))
     code, out = _main()
@@ -367,7 +389,9 @@ def _remote(monkeypatch, token_out, search_out, needed=('04610093628430',), mtim
         calls.append(cmd)
         if cmd.endswith('chz.py token'):
             if token_exit:
-                raise RuntimeError('Remote command failed (exit %d): %r' % (token_exit, cmd))
+                error = RuntimeError('Remote command failed (exit %d): %r' % (token_exit, cmd))
+                error.out = token_out              # как настоящий run_cmd
+                raise error
             return token_out, ''
         if cmd.endswith('chz.py ' + command):
             return search_out, ''
@@ -429,15 +453,28 @@ def test_remote_search_stock_stops_on_empty_needed_list(monkeypatch, tmp_path):
     assert not any(c.endswith('chz.py token') or c.endswith('search-stock') for c in calls)
 
 
-def test_remote_token_exit_1_gives_readable_error(monkeypatch, tmp_path):
+@pytest.mark.parametrize('token_out, expected', [
+    # Подпись не прошла — про Рутокен и отпечаток.
+    ('  [auth] Подпись... [ERR] csptest rc=2148073494\n  [ERR] csptest failed', 'Рутокен'),
+    # ЧЗ или сеть бар-ПК не ответили — причина из вывода, без догадок про Рутокен (ревью 2026-10-04).
+    ('  [auth] Запрос UUID и DATA... [ERR] GET /auth/key: <urlopen error [Errno 11001] getaddrinfo failed>',
+     '[ERR] GET /auth/key: <urlopen error [Errno 11001] getaddrinfo failed>'),
+    ('  [auth] ????????? [ERR] 503: Service Unavailable', '[ERR] 503: Service Unavailable'),
+    # Вывода нет (python не запустился) — первая строка ошибки run_cmd.
+    ('', 'Remote command failed (exit 1)'),
+])
+def test_remote_token_exit_1_gives_readable_error(monkeypatch, tmp_path, token_out, expected):
     monkeypatch.setattr(remote_exec, 'REPO_DIR', tmp_path)
-    calls, pulled = _remote(monkeypatch, '', 'x', token_exit=1)
+    calls, pulled = _remote(monkeypatch, token_out, 'x', token_exit=1)
     with contextlib.redirect_stdout(io.StringIO()):
         with pytest.raises(RuntimeError) as exc:
             remote_exec.main()
-    assert str(exc.value) == remote_exec.TOKEN_FAIL_TEXT
+    text = str(exc.value)
+    assert text.startswith('Токен ЧЗ на бар-ПК не получен') and expected in text
+    assert ('Рутокен' in text) == (expected == 'Рутокен')
     assert 'exit 1' in str(exc.value.__cause__)
     assert pulled == [] and not any(c.endswith('search-stock') for c in calls)
+    assert remote_exec.token_error_text('[ERR] ' + 'x' * 500, '').count('x') == remote_exec.TOKEN_DETAIL_LIMIT - 6
 
 
 @pytest.mark.parametrize('command', ['search-stock', 'stock', 'csv-auto'])
@@ -588,6 +625,9 @@ def test_sync_replaces_file_atomically_and_keeps_bar_pc_thumbprint(monkeypatch, 
     assert REMOTE_PY + '.new' not in sftp.files
     assert not sftp.missing_seen                                   # chz.py не пропадал ни на миг
     assert 'без версии -> 2026-10-04' in out and 'отпечаток КЭП с бар-ПК' in out
+    # Итог — и в файле для статуса обновления ЧЗ (поле chz_sync).
+    saved = json.loads((tmp_path / 'chz_test' / 'debug' / remote_exec.SYNC_RESULT_FILE).read_text(encoding='utf-8'))
+    assert saved['result'] == 'updated' and saved['message'] in out and saved['at']
 
 
 @pytest.mark.parametrize('newline', ['\n', '\r\n'])

@@ -682,6 +682,15 @@ def _unstamp_reviewed(conn, gtin: str, resolved_at) -> None:
         ' AND deleted_at IS NULL)', (str(resolved_at or ''), gtin))
 
 
+def _restamp_reviewed(conn, gtin: str, resolved_at, now: str) -> None:
+    """Перенести на время нового решения отметки, поставленные с прежним решением по строке
+    (reviewed_at не раньше прежнего resolved_at; правило — _unstamp_reviewed)."""
+    conn.execute(
+        'UPDATE receipts SET reviewed_at = ? WHERE reviewed_at IS NOT NULL AND reviewed_at >= ?'
+        ' AND id IN (SELECT receipt_id FROM receipt_scans WHERE gtin = ? AND accepted = 1'
+        ' AND deleted_at IS NULL)', (now, str(resolved_at or ''), gtin))
+
+
 def _scan_dict(row) -> dict:
     return {
         'id': row['id'],
@@ -1603,6 +1612,11 @@ def update_review(gtin, user, supplier=None, state=None, note=None) -> dict:
         if cur.rowcount != 1:
             raise ReviewItemNotFound(gtin)
         if state in ('done', 'not_needed'):
+            if before['state'] == 'closed':
+                # Решение по уже закрытой строке (устаревшая вкладка, второй бухгалтер, агент):
+                # отметки, поставленные с прежним решением, переходят к новому — иначе
+                # «Вернуть в разбор» сравнит их с новым resolved_at и не снимет (ревью 2026-10-04).
+                _restamp_reviewed(conn, gtin, before['resolved_at'], now)
             _stamp_reviewed(conn, gtins=[gtin])
         elif state == 'open' and before['state'] == 'closed':
             _unstamp_reviewed(conn, gtin, before['resolved_at'])

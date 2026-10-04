@@ -54,6 +54,8 @@ THUMB_LINE_RE = re.compile(r'^CERT_THUMBPRINT\s*=\s*"[^"\n]*"', re.MULTILINE)
 HEX40_RE = re.compile(r"[0-9a-f]{40}")
 # Строка версии в chz.py: CHZ_VERSION = "2026-10-04" (дата ISO, сравнивается строкой).
 CHZ_VERSION_RE = re.compile(r'^CHZ_VERSION\s*=\s*["\']([0-9-]+)["\']', re.M)
+# Копия прежнего chz.py, сделанная в этом запуске (copy_chz), — её называет итог при сбое.
+LAST_BACKUP = ""
 
 # Сколько ждать: подпись КриптоПро (csptest в chz.py ждёт 60 с, столько же есть на
 # ввод PIN) плюс сеть до Честного знака.
@@ -256,34 +258,51 @@ def chz_version(path: str) -> str:
 
 
 def copy_chz(here: str) -> bool:
-    """Скопировать chz.py с флешки в CHZ_DIR (прежний — в chz_backup_<время>.py).
+    """Скопировать chz.py с флешки в CHZ_DIR; прежний — всегда копией chz_backup_<время>.py.
 
-    На компьютере chz.py новее (CHZ_VERSION больше, его обновили по SSH после того, как
-    готовили флешку) — не копирует: старая флешка не откатывает код (ревью 2026-10-04).
+    Копия делается и когда файл остаётся (скрипт запущен из CHZ_DIR или на компьютере
+    chz.py новее): дальше в него пишется отпечаток, и прежний должен остаться целым (ревью
+    2026-10-04: без копии сообщение «старый файл лежит копией» было неправдой). На
+    компьютере chz.py новее (CHZ_VERSION больше, его обновил сервер) — не копирует: старая
+    флешка не откатывает код. Имя копии — в LAST_BACKUP.
     """
+    global LAST_BACKUP
+    LAST_BACKUP = ""
     source = os.path.join(here, "chz.py")
     target = os.path.join(CHZ_DIR, "chz.py")
     if not os.path.isdir(CHZ_DIR):
         say("[!] Нет папки " + CHZ_DIR + " — это не тот компьютер?")
         return False
-    if os.path.abspath(source).lower() == os.path.abspath(target).lower():
-        say("1. chz.py уже в " + CHZ_DIR + " — копировать не нужно.")
-        return True
-    if not os.path.exists(source):
+    same = os.path.abspath(source).lower() == os.path.abspath(target).lower()
+    if not same and not os.path.exists(source):
         say("[!] Рядом со скриптом нет chz.py — положите его в ту же папку на флешке.")
         return False
-    if os.path.exists(target) and chz_version(target) > chz_version(source):
-        say("1. На компьютере chz.py новее (версия " + chz_version(target) + "), чем на флешке ("
-            + (chz_version(source) or "без версии") + ") — оставляю его.")
-        return True
     if os.path.exists(target):
         stamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         backup = os.path.join(CHZ_DIR, "chz_backup_" + stamp + ".py")
         shutil.copy2(target, backup)
-        say("1. Прежний chz.py сохранён как " + os.path.basename(backup))
+        LAST_BACKUP = os.path.basename(backup)
+        say("1. Прежний chz.py сохранён как " + LAST_BACKUP)
+    if same:
+        say("   chz.py уже в " + CHZ_DIR + " — копировать не нужно.")
+        return True
+    if os.path.exists(target) and chz_version(target) > chz_version(source):
+        say("   На компьютере chz.py новее (версия " + chz_version(target) + "), чем на флешке ("
+            + (chz_version(source) or "без версии") + ") — оставляю его.")
+        return True
     shutil.copy2(source, target)
     say("   Новый chz.py скопирован в " + CHZ_DIR)
     return True
+
+
+def file_thumbprint() -> str:
+    """Отпечаток из строки CERT_THUMBPRINT в chz.py на компьютере ('' — строки или файла нет)."""
+    try:
+        with open(os.path.join(CHZ_DIR, "chz.py"), encoding="utf-8", errors="replace") as f:
+            match = THUMB_LINE_RE.search(f.read())
+    except OSError:
+        return ""
+    return match.group(0).split('"')[1] if match else ""
 
 
 def write_thumbprint(thumb: str) -> bool:
@@ -337,10 +356,11 @@ def main() -> int:
     say("2. Ищу сертификат КЭП в Windows...")
     thumb, how, installed = find_thumbprint(allow_install=True)
     if not thumb:
-        # Хранилище не прочиталось (PowerShell запрещён и т. п.) — отпечаток с фото уже
-        # в chz.py; проверка подписи ниже покажет, подходит ли он.
+        # Хранилище не прочиталось (PowerShell запрещён и т. п.) — остаётся отпечаток, что
+        # уже в chz.py на компьютере (ревью 2026-10-04: писался EXPECTED_THUMBPRINT поверх
+        # него, хотя экран говорил «оставляю»); проверка подписи ниже покажет, подходит ли он.
         say("   [!] Сертификат в Windows не найден — оставляю отпечаток из файла.")
-        thumb, how = EXPECTED_THUMBPRINT, "file"
+        thumb, how = file_thumbprint() or EXPECTED_THUMBPRINT, "file"
     if how == "expected":
         say("   [OK] Найден сертификат с отпечатком " + thumb)
     elif how == "by_inn":
@@ -367,8 +387,11 @@ def main() -> int:
         say("   [!] Подпись не прошла. Хвост вывода chz.py:")
         show_tail(out)
         say()
-        say("НЕ ПОЛУЧИЛОСЬ. Сфотографируйте это окно и пришлите. Старый файл не тронут:")
-        say("   он лежит рядом копией chz_backup_*.py.")
+        say("НЕ ПОЛУЧИЛОСЬ. Сфотографируйте это окно и пришлите.")
+        if LAST_BACKUP:
+            say("   Прежний chz.py лежит рядом копией " + LAST_BACKUP + ".")
+        else:
+            say("   Копии прежнего chz.py нет: в " + CHZ_DIR + " его не было.")
         return 1
     say("   [OK] Подпись прошла, токен Честного знака получен.")
 
