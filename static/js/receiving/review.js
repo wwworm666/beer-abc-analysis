@@ -454,7 +454,8 @@
 
     // Подпись на приёмке в выборе: сколько её позиций ещё к разбору или почему их не видно.
     function pickNote(r) {
-        if (!r) return { text: 'не найдена', cls: 'is-error' };
+        // До первого ответа сервера приёмок ещё нет — это не «не найдена».
+        if (!r) return state.data ? { text: 'не найдена', cls: 'is-error' } : { text: '', cls: '' };
         if (r.status !== 'closed') return { text: 'не завершена', cls: 'is-wait' };
         if (r.process_state === 'error') return { text: 'ошибка сверки', cls: 'is-error' };
         if (r.process_state !== 'done') return { text: 'сверяется', cls: 'is-wait' };
