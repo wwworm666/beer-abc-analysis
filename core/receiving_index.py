@@ -34,6 +34,8 @@ RefreshBusy. Состояние обновления — STATE_FILE: кнопк�
 missing (сервис дальше решает similar / new по названию из ЧЗ).
 """
 import atexit
+import difflib
+import functools
 import hashlib
 import json
 import os
@@ -561,6 +563,101 @@ def _candidate_words(index) -> list:
     return pairs
 
 
+# ----- кириллица и латиница одного слова: «Собер» = «Sober» ---------------------------------
+#
+# В ЧЗ английские названия сортов часто записаны русскими буквами («Собер Вэй», «Хоппи
+# Сёрф», «Комьюнити»), а в iiko — латиницей («Zagovor Sober Way»), и наоборот. Такие пары
+# сравниваются по упрощённому латинскому «звучанию» (_translit_key): кириллица —
+# побуквенно в латиницу, у латиницы — английские сочетания к тому же виду (ph -> f,
+# th -> t, ck -> k, x -> ks, w -> v, c -> s перед e/i/y, иначе k), у обоих y -> i и
+# z -> s (английское s между гласными звучит как «з»: gose — гозе), повторы букв
+# схлопываются. Слова совпали, если «звучание» одинаковое («sober»/«собер» -> sober,
+# «zagovor»/«заговор» -> sagovor) или одинаковый костяк согласных (без a, e, i, o, u)
+# длиной от TRANSLIT_MIN_SKELETON при похожем «звучании» (доля общих букв difflib от
+# TRANSLIT_MIN_RATIO): «surf»/«сёрф» -> srf, 0,75; «community»/«комьюнити» -> kmnt, 0,94.
+# Без доли костяк gns давал «Ganza» и «Gonzo» = «Гиннесс» (0,6) — ложные кандидаты на
+# выгрузке ЧЗ. Короткий костяк («way»/«вэй» -> v) не сравнивается: совпадал бы с чем угодно.
+# Сравнение только между разными алфавитами — слова одного алфавита сравниваются как
+# раньше (одно начинается с другого).
+TRANSLIT_MIN_SKELETON = 3
+TRANSLIT_MIN_RATIO = 0.7
+# «Звучание» короче трёх букв тоже не сравнивается («ооо» -> o).
+TRANSLIT_MIN_KEY = 3
+_CYR_TO_LAT = {
+    'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd', 'е': 'e', 'ё': 'e', 'ж': 'zh', 'з': 'z',
+    'и': 'i', 'й': 'i', 'к': 'k', 'л': 'l', 'м': 'm', 'н': 'n', 'о': 'o', 'п': 'p', 'р': 'r',
+    'с': 's', 'т': 't', 'у': 'u', 'ф': 'f', 'х': 'h', 'ц': 'ts', 'ч': 'ch', 'ш': 'sh',
+    'щ': 'sch', 'ъ': '', 'ы': 'i', 'ь': '', 'э': 'e', 'ю': 'iu', 'я': 'ia',
+}
+_LAT_RULES = (('ph', 'f'), ('th', 't'), ('ck', 'k'), ('qu', 'kv'), ('q', 'k'), ('x', 'ks'),
+              ('w', 'v'))
+_LAT_C_RE = re.compile(r'c(?!h)(?=[eiy])')
+_LAT_K_RE = re.compile(r'c(?!h)')
+_REPEAT_RE = re.compile(r'(.)\1+')
+_VOWELS_RE = re.compile('[aeiou]')
+_ONLY_LATIN_RE = re.compile('[a-z]+')
+_ONLY_CYR_RE = re.compile('[а-яё]+')
+
+
+@functools.lru_cache(maxsize=65536)
+def _translit_key(word: str) -> Optional[tuple]:
+    """Слово (уже _fold) -> (алфавит 'cyr' | 'lat', «звучание», костяк согласных).
+
+    Слово не целиком из одного алфавита (цифры, смесь, диакритика) — None: его
+    сравнивают только с тем же написанием.
+    """
+    if _ONLY_CYR_RE.fullmatch(word):
+        script = 'cyr'
+        text = ''.join(_CYR_TO_LAT.get(ch, ch) for ch in word.replace('дж', 'j'))
+    elif _ONLY_LATIN_RE.fullmatch(word):
+        script = 'lat'
+        text = word
+        for old, new in _LAT_RULES:
+            text = text.replace(old, new)
+        text = _LAT_K_RE.sub('k', _LAT_C_RE.sub('s', text))
+    else:
+        return None
+    sound = _REPEAT_RE.sub(r'\1', text.replace('y', 'i').replace('z', 's'))
+    if len(sound) < TRANSLIT_MIN_KEY:
+        return None
+    return script, sound, _VOWELS_RE.sub('', sound)
+
+
+def _translit_index(tokens: list) -> dict:
+    """Слова ЧЗ: {('s', звучание) | ('k', костяк): [(i, алфавит, звучание)]}."""
+    out = {}
+    for i, token in enumerate(tokens):
+        key = _translit_key(token)
+        if key is None:
+            continue
+        script, sound, skeleton = key
+        out.setdefault(('s', sound), []).append((i, script, sound))
+        if len(skeleton) >= TRANSLIT_MIN_SKELETON:
+            out.setdefault(('k', skeleton), []).append((i, script, sound))
+    return out
+
+
+@functools.lru_cache(maxsize=65536)
+def _sound_ratio(first: str, second: str) -> float:
+    return difflib.SequenceMatcher(None, first, second).ratio()
+
+
+def _translit_match(word: str, by_sound: dict, used: set) -> Optional[int]:
+    """Номер свободного слова ЧЗ другого алфавита, совпавшего со словом карточки."""
+    key = _translit_key(word)
+    if key is None:
+        return None
+    script, sound, skeleton = key
+    for i, other, _ in by_sound.get(('s', sound), ()):
+        if other != script and i not in used:
+            return i
+    if len(skeleton) >= TRANSLIT_MIN_SKELETON:
+        for i, other, other_sound in by_sound.get(('k', skeleton), ()):
+            if other != script and i not in used and _sound_ratio(sound, other_sound) >= TRANSLIT_MIN_RATIO:
+                return i
+    return None
+
+
 def similar_cards(name: str, index: dict, brand: str = '', limit: int = SIMILAR_LIMIT,
                   keg: bool = False) -> list:
     """Карточки iiko, похожие на товар ЧЗ по названию (порт suggest_barcode_fixes.py).
@@ -571,7 +668,8 @@ def similar_cards(name: str, index: dict, brand: str = '', limit: int = SIMILAR_
     «урхельское» — «урхель»), и каждое слово ЧЗ засчитывается одному слову карточки.
     Так одно слово ЧЗ не набирает порог в одиночку: в оригинале поиск подстрокой
     давал «pale» и «ale» из одного «Pale» — счёт 2 у любой карточки «… Pale Ale»
-    (ревью 2026-10-03). Счёт — сколько разных слов карточки совпало; кандидат —
+    (ревью 2026-10-03). Слово другого алфавита совпало, если совпало «звучание»
+    («Собер» = «Sober», см. _translit_key). Счёт — сколько разных слов карточки совпало; кандидат —
     счёт >= SIMILAR_MIN_SCORE. Кандидаты — карточки SEARCH_TYPES любые: актуальные,
     удалённые, архивные (пометки видны в сводке). Порядок: счёт по убыванию, при
     keg=True (товар ЧЗ — кега, см. is_keg_text) кеги раньше бутылок того же счёта,
@@ -585,16 +683,22 @@ def similar_cards(name: str, index: dict, brand: str = '', limit: int = SIMILAR_
     by_head = {}
     for i, token in enumerate(tokens):
         by_head.setdefault(token[:MIN_WORD_LEN], []).append(i)
+    by_sound = _translit_index(tokens)
     scored = []
     for card, words in _candidate_words(index):
         used = set()
         score = 0
         for word in words:
+            hit = None
             for i in by_head.get(word[:MIN_WORD_LEN], ()):
                 if i not in used and (tokens[i].startswith(word) or word.startswith(tokens[i])):
-                    used.add(i)
-                    score += 1
+                    hit = i
                     break
+            if hit is None:
+                hit = _translit_match(word, by_sound, used)
+            if hit is not None:
+                used.add(hit)
+                score += 1
         if score >= SIMILAR_MIN_SCORE:
             scored.append((score, card))
     scored.sort(key=lambda item: (-item[0], bool(keg) and not item[1].get('keg')) + _order_key(item[1]))

@@ -415,6 +415,56 @@ def test_similar_yo_digits_brand_limit():
     assert ri.similar_cards('Konix Pale', {}) == []
 
 
+def test_similar_cross_script_translit():
+    """ЧЗ пишет английские названия русскими буквами, iiko — латиницей (и наоборот):
+    «Собер Вэй» от «Пивоварни Заговор» = карточка «Zagovor Sober Way» (решение 2026-10-04,
+    примеры — из выгрузки остатков ЧЗ и номенклатуры iiko)."""
+    products = [
+        _product('c-sober', 'Zagovor Sober Way , б/а, 0,45 ж/б'),
+        _product('c-street', 'Zagovor Street Justice Idaho7 0.45, ж/б'),
+        _product('c-onyx', 'Polnochnyj Project Onyx The Cat ж/б, 0,450'),
+        _product('c-tomato', 'Selfmade Tomato Method, ж/б, 0,500'),
+        _product('c-guin', 'Гиннесс Драфт, 0,440 ж/б'),
+        _product('c-ganza', 'Ganza КО-КО , бан. 0,33 .'),
+        _product('c-gonzo', 'Self made Gonzo 0.5, бан'),
+        _product('c-glet', 'Глетчер Милк оф Амнезия  0.5, бан'),
+    ]
+    idx = ri.build_index(products, GROUPS, built_at='2026-10-04T07:30:05+03:00')
+    ids = lambda found: [(c['id'], c['score']) for c in found]   # noqa: E731
+    sober = ri.similar_cards('Пивной напиток безалкогольный "Собер Вэй" непастеризованный', idx,
+                             brand='ООО "Пивоварня Заговор"')
+    assert ids(sober) == [('c-sober', 2)]                    # заговор + собер; «вэй» = «way» — нет
+    street = ri.similar_cards('Пиво светлое "Стрит Джастис Айдахо 7" непастеризованное', idx,
+                              brand='ООО "Пивоварня Заговор"')
+    assert ids(street)[0] == ('c-street', 3)
+    assert ids(ri.similar_cards('Пиво светлое "Оникс Зе Кэт", 4,5% об. алк.', idx,
+                                brand='Polnochnyj Project')) == [('c-onyx', 3)]
+    assert ids(ri.similar_cards('Пивной напиток "СБ Томато Метод" Банка 0,45 л', idx,
+                                brand='Selfmade'))[0] == ('c-tomato', 3)
+    # Латиница ЧЗ к кириллице карточки.
+    assert ids(ri.similar_cards('MILK OF AMNESIA - V. Tropic', idx, brand='Gletcher')) == [('c-glet', 3)]
+    # Костяк gns у «Ganza»/«Gonzo» и «Гиннесс» совпадает, но звучание не похоже (0,6 < 0,7):
+    # остаётся только настоящий Гиннесс.
+    guin = ri.similar_cards('Пиво темное Гиннесс Драфт "Guinness Draught" мет. банка 0,44 л', idx,
+                            brand='Guinness & Co (Гиннесс энд Ко)')
+    assert [c['id'] for c in guin] == ['c-guin']
+
+
+def test_translit_key_rules():
+    key = ri._translit_key
+    assert key('sober')[1:] == key('собер')[1:] == ('sober', 'sbr')
+    assert key('sober')[0] == 'lat' and key('собер')[0] == 'cyr'
+    assert key('hoppy')[1] == key('хоппи')[1] == 'hopi'            # pp -> p, y -> i
+    assert key('pixel')[1] == key('пиксел')[1] == 'piksel'          # x -> ks
+    assert key('gletcher')[1] == key('глетчер')[1] == 'gletcher'    # ch остаётся
+    assert key('gose')[1] == key('гозе')[1] == 'gose'               # z -> s
+    assert key('juicy')[1] == 'juisi' and key('джуси')[1] == 'jusi'  # дж -> j; c -> s перед y
+    assert key('community')[2] == key('комьюнити')[2] == 'kmnt'
+    # Смесь алфавитов, цифры, короткое — не сравниваются.
+    assert key('idaho7') is None and key('ко-ко') is None and key('ооо') is None
+    assert ri.TRANSLIT_MIN_SKELETON == 3 and ri.TRANSLIT_MIN_RATIO == 0.7
+
+
 def test_similar_words_cache_follows_index():
     """Кэш слов привязан к объекту индекса: новый индекс — новые кандидаты."""
     first = _similar_index()
