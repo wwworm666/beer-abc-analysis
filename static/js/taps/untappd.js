@@ -253,6 +253,7 @@
             img.alt = '';
             img.loading = 'lazy';
             img.referrerPolicy = 'no-referrer';
+            img.addEventListener('error', () => img.remove());   // фото недоступно — без значка битой картинки
             block.appendChild(img);
         }
         const text = el('div', 'tp-link-beer-text');
