@@ -1,25 +1,32 @@
 /* Страница «Контент-план» раздела «Гости» (/content-plan).
 
-   Что здесь:
+   Что здесь (экран переделан 2026-10-04: на виду — план, пост и его время;
+   служебное агента, редкие действия, пояснения и история — свёрнуты или в меню):
      - полоса фильтров: месяц, бар (общий для раздела: GH.getBar / GH.setBar),
        площадка, вид «Таблица | Календарь»; действия «Утвердить готовые» и
-       «Добавить материал»; под полосой — сводка месяца и вторичные действия
-       «Скопировать прошлый месяц» и «Пауза»;
-     - таблица месяца (материалы плана по неделям) и календарь (все размещения,
-       датированные месяцем) со слоем отзывов по дням;
-     - карточка материала справа: название, тип, дата темы, содержание (текст
-       или шаблон, фото и видео), размещения с редактором, предпросмотр,
-       повтор и перенос, история;
-     - диалоги «Утвердить готовые» и «Скопировать прошлый месяц», меню паузы,
-       массовые действия над отмеченными строками таблицы;
+       «Добавить материал» (диалог: название, площадка, бары, дата и время сразу);
+       под полосой — сводка месяца и два меню: «ИИ-агент» и «Ещё» (каналы и
+       отправка, копирование прошлого месяца, пауза);
+     - таблица месяца (материалы плана по неделям; чипы одного материала на
+       нескольких барах склеены) и календарь (все размещения, датированные
+       месяцем; плашка — время, где и название) со слоем отзывов по дням;
+     - карточка материала справа: «Куда и когда» (размещения: дата и время прямо
+       в строке, главное действие, остальное по «⋯»), «Пост» (текст или шаблон,
+       фото и видео; «Как увидят гости» — предпросмотр), свёрнутые «От агента»,
+       «Ещё» (тип, «Нужно фото», сдвиг, повтор, удаление) и «История»; внизу —
+       «Утвердить» все готовые размещения;
+     - диалоги «Утвердить готовые» (в том числе по отмеченным строкам) и
+       «Скопировать прошлый месяц», меню паузы, массовые действия над
+       отмеченными строками таблицы;
      - ИИ-агент (MCP): пометка «ИИ» у материалов агента (origin 'agent' ставит
-       сервер) в таблице, календаре и шапке карточки; в карточке — «Почему этот
-       пост» (agent_rationale) и «Что снять» (shot_list) с автосохранением;
-       чип «Только от ИИ» (?origin=agent) и «Удалить черновики ИИ» рядом со
-       сводкой; кнопка «Бриф для агента» — выдвижная карточка брифа сети
-       (GET / PUT /api/content-plan/brief, поля и пределы — из ответа сервера);
-     - «Попросить агента» — меню из трёх заданий (план следующего месяца,
-       проверка недели, разбор отзывов): пункт открывает Claude
+       сервер) в шапке карточки и в окне утверждения; в карточке — свёрнутый
+       раздел «От агента»: «Почему этот пост» (agent_rationale), «Что снять»
+       (shot_list) и заметка с автосохранением; меню «ИИ-агент»: задания агенту,
+       «Бриф для агента» — выдвижная карточка брифа сети (GET / PUT
+       /api/content-plan/brief, поля и пределы — из ответа сервера), фильтр
+       «Только от ИИ» (?origin=agent) и «Удалить черновики ИИ»;
+     - «Попросить агента» (в меню «ИИ-агент») — три задания (план следующего
+       месяца, проверка недели, разбор отзывов): пункт открывает Claude
        (claude.ai/new?q=<задание>) в новой вкладке и копирует задание в буфер;
      - отправка (2026-09-28): баннер состояния из delivery ответа месяца (не
        подключено / выключено / включено и какие площадки уходят сами);
@@ -293,6 +300,8 @@
 
     var X_SVG = '<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">' +
         '<path d="M2.5 2.5l7 7M9.5 2.5l-7 7" stroke-width="1.6" stroke-linecap="round"/></svg>';
+    var DOTS_SVG = '<svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">' +
+        '<circle cx="3" cy="7" r="1.3"/><circle cx="7" cy="7" r="1.3"/><circle cx="11" cy="7" r="1.3"/></svg>';
     var PLUS_SVG = '<svg width="11" height="11" viewBox="0 0 12 12" aria-hidden="true">' +
         '<path d="M6 1.5v9M1.5 6h9" stroke-width="1.8" stroke-linecap="round"/></svg>';
 
@@ -316,8 +325,8 @@
         expanded: {},            // id размещения -> редактор раскрыт
         previewPid: null,
         addForm: null,
-        live: null,              // проверка шаблона на текущих данных {mid, loading, result, error}
-        liveBar: '',
+        addOpen: null,           // id материала, у которого открыта форма «Добавить площадку»
+        postView: 'edit',        // раздел «Пост»: 'edit' — текст и файлы, 'preview' — как увидят гости
         previewLive: {},         // ключ размещения -> {loading} | {result} | {error}
         log: null,               // {id, entries, error, all}
         shiftDays: '',
@@ -342,6 +351,7 @@
         calOpen: {},             // день -> показаны все размещения
         approve: null,
         copy: null,
+        newPost: null,           // диалог «Новый материал»: {title, channel, bars, bar, audience, date, time, busy, error}
         pendingOpen: null,
         // Бриф для агента: {loading} | {error} | {data: ответ GET, examples: [..]}.
         // examples — список примеров на экране (с пустыми, которые только что
@@ -520,13 +530,17 @@
         return mediaFor(m, (p && p.effective_media) || []);
     }
 
+    // Легенда цветов — свёрнута (справка, а не данные): «Цвета состояний» у
+    // таблицы и у календаря, образцы — те же, что на чипах и плашках.
     function legendHtml() {
         var html = '';
         each(LEGEND_STATES, function (key) {
             html += '<span class="gh-cp-legend-i"' + tip(STATE_TIPS[key]) + '><span class="gh-cp-sw ' +
                 stateCls(key) + '"></span>' + esc(stateInfo(key).label) + '</span>';
         });
-        return '<span class="gh-cp-legend" aria-label="Цвета состояний">' + html + '</span>';
+        return '<details class="gh-cp-legendbox" data-how="legend"' + (S.howOpen.legend ? ' open' : '') + '>' +
+            '<summary>Цвета состояний</summary>' +
+            '<span class="gh-cp-legend" aria-label="Цвета состояний">' + html + '</span></details>';
     }
 
     // ==================== отправка: правила экрана ====================
@@ -1203,17 +1217,17 @@
         el.sum.innerHTML = html;
     }
 
-    // Чип «Только от ИИ» и «Удалить черновики ИИ» рядом со сводкой. Блок виден,
-    // когда в плане есть материалы агента или фильтр включён (снять его можно
-    // всегда); кнопка удаления — когда в плане месяца есть черновики ИИ.
+    // Пункты меню «ИИ-агент»: «Только от ИИ» (число — материалы агента в плане;
+    // включённый фильтр виден снимаемым чипом над планом, renderStateBar) и
+    // «Удалить черновики ИИ» — когда в плане месяца есть черновики ИИ.
     function renderOrigin() {
-        if (!S.data) { el.origin.hidden = true; return; }
+        if (!S.data) return;
         var st = agentStats();
         var on = S.origin === ORIGIN_AGENT;
-        el.origin.hidden = !st.total && !on;
         el.originBtn.classList.toggle('is-on', on);
         el.originBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
-        el.originN.textContent = String(st.total);
+        el.originBtn.disabled = !st.total && !on;
+        el.originN.textContent = on ? 'включено · ' + st.total : String(st.total);
         var n = st.drafts.length;
         el.agentDel.hidden = !n;
         el.agentDel.textContent = 'Удалить черновики ИИ: ' + n;
@@ -1227,39 +1241,44 @@
         S.origin = value === ORIGIN_AGENT ? ORIGIN_AGENT : '';
         GH.setParams({ origin: S.origin || null });
         renderOrigin();
+        renderStateBar();
         renderView();
         renderBulk();
     }
 
+    // Снимаемые фильтры над планом: состояние (?state=) и «Только от ИИ»
+    // (?origin=agent — включается в меню «ИИ-агент», виден здесь, чтобы было
+    // понятно, почему материалов людей нет).
     function renderStateBar() {
-        if (!S.stateFilter) {
-            el.stateBar.hidden = true;
-            el.stateBar.innerHTML = '';
-            return;
-        }
-        var info = stateInfo(S.stateFilter);
-        if (S.scope) {
-            el.stateBar.innerHTML =
-                '<span class="gh-cp-statebar-t">Список за все месяцы: материалы, у которых есть такие размещения</span>' +
+        var html = '';
+        if (S.stateFilter && S.scope) {
+            var sinfo = stateInfo(S.stateFilter);
+            html += '<span class="gh-cp-statebar-t">Список за все месяцы: материалы, у которых есть такие размещения</span>' +
                 '<span class="gh-chip gh-cp-scopechip ' + stateCls(S.stateFilter) + '"' +
-                    tip('Материалы любых месяцев с размещениями в состоянии «' + info.label + '». Сюда ведёт ' +
+                    tip('Материалы любых месяцев с размещениями в состоянии «' + sinfo.label + '». Сюда ведёт ' +
                         'полоса «Требует внимания»: она считает такие размещения за все месяцы.\n' +
                         STATE_TIPS[S.stateFilter] + '\nКрестик — вернуться к плану текущего месяца.') + '>' +
                     '<span class="gh-chip-dot"></span>Все месяцы · ' + esc(SCOPE_NAMES[S.stateFilter]) +
                     '<button type="button" class="gh-chip-x" data-act="clear-state" ' +
                         'aria-label="Закрыть список за все месяцы">' + X_SVG + '</button>' +
                 '</span>';
-            el.stateBar.hidden = false;
-            return;
+        } else if (S.stateFilter) {
+            var info = stateInfo(S.stateFilter);
+            html += '<span class="gh-cp-statebar-t">Показаны только размещения в состоянии</span>' +
+                '<span class="gh-chip ' + stateCls(S.stateFilter) + '"' + tip(STATE_TIPS[S.stateFilter]) + '>' +
+                    '<span class="gh-chip-dot"></span>' + esc(info.label) +
+                    '<button type="button" class="gh-chip-x" data-act="clear-state" aria-label="Снять фильтр состояния">' +
+                        X_SVG + '</button>' +
+                '</span>';
         }
-        el.stateBar.innerHTML =
-            '<span class="gh-cp-statebar-t">Показаны только размещения в состоянии</span>' +
-            '<span class="gh-chip ' + stateCls(S.stateFilter) + '"' + tip(STATE_TIPS[S.stateFilter]) + '>' +
-                '<span class="gh-chip-dot"></span>' + esc(info.label) +
-                '<button type="button" class="gh-chip-x" data-act="clear-state" aria-label="Снять фильтр состояния">' +
-                    X_SVG + '</button>' +
-            '</span>';
-        el.stateBar.hidden = false;
+        if (S.origin) {
+            html += '<span class="gh-chip gh-cp-originchip is-on"' + tip('Показаны только материалы, которые создал ' +
+                    'ИИ-агент. Крестик — показать все.') + '><span class="gh-cp-ai" aria-hidden="true">ИИ</span>' +
+                    'Только от ИИ<button type="button" class="gh-chip-x" data-act="clear-origin" ' +
+                    'aria-label="Показать все материалы">' + X_SVG + '</button></span>';
+        }
+        el.stateBar.innerHTML = html;
+        el.stateBar.hidden = !html;
     }
 
     function setStateFilter(value) {
@@ -1414,9 +1433,13 @@
         return out;
     }
 
-    function excerpt(m) {
-        var t = String(m.base_text || '').replace(/\s+/g, ' ').trim();
-        return t.length > 160 ? t.slice(0, 160) + '…' : t;
+    // Бары списком: все бары сети — «все бары» (в плашке календаря — «все»),
+    // иначе короткие имена через запятую.
+    function barsLabel(bars, short) {
+        if (bars.length > 1 && bars.length === GH.BARS.length) return short ? 'все' : 'все бары';
+        var out = [];
+        each(bars, function (b) { out.push(GH.barShort(b)); });
+        return out.join(', ');
     }
 
     function chipTip(m, p) {
@@ -1430,13 +1453,35 @@
         return lines.join('\n');
     }
 
-    function chipHtml(m, p) {
+    // Чип размещения; bars — бары склеенной группы (см. chipGroups).
+    function chipHtml(m, p, bars) {
+        var list = bars && bars.length ? bars : [p.bar];
         var when = (p.date && p.date !== m.date ? dayMon(p.date) + ' ' : '') + (p.time || '—');
+        var text = chipTip(m, p) + (list.length > 1 ? '\nБары: ' + barsLabel(list) + ' — по размещению на бар' : '');
         return '<button type="button" class="gh-chip gh-cp-chip ' + stateCls(p.display_state) +
             (p.display_state === 'cancelled' ? ' is-cancel' : '') + '" data-open="' + esc(m.id) +
-            '" data-pid="' + esc(p.id) + '"' + tip(chipTip(m, p)) + '>' +
+            '" data-pid="' + esc(p.id) + '"' + tip(text) + '>' +
             '<span class="gh-chip-dot"></span><b>' + esc(chShort(p.channel)) + '</b>' +
-            esc(GH.barShort(p.bar)) + '<span class="gh-cp-chip-t">' + esc(when) + '</span></button>';
+            esc(barsLabel(list)) + '<span class="gh-cp-chip-t">' + esc(when) + '</span></button>';
+    }
+
+    // Размещения материала под фильтрами, склеенные: одна площадка, дата, время и
+    // состояние на нескольких барах — один чип со списком баров («Таплист
+    // пятницы» на четыре бара — «TG все бары 16:00», а не четыре чипа). Разное
+    // состояние или время — разные чипы.
+    function chipGroups(m) {
+        var groups = [];
+        var index = {};
+        each(m.placements, function (p) {
+            if (!placementMatches(p)) return;
+            var key = [p.channel, p.date || '', p.time || '', p.display_state].join('|');
+            if (!index[key]) {
+                index[key] = { p: p, bars: [] };
+                groups.push(index[key]);
+            }
+            index[key].bars.push(p.bar);
+        });
+        return groups;
     }
 
     function chipsHtml(m) {
@@ -1447,10 +1492,8 @@
         }
         var html = '';
         var hidden = 0;
-        each(pls, function (p) {
-            if (placementMatches(p)) html += chipHtml(m, p);
-            else hidden++;
-        });
+        each(pls, function (p) { if (!placementMatches(p)) hidden++; });
+        each(chipGroups(m), function (g) { html += chipHtml(m, g.p, g.bars); });
         if (hidden) {
             html += '<span class="gh-chip gh-cp-chip-more"' + tip('Скрыто фильтром: ' +
                 nText(hidden, 'размещение', 'размещения', 'размещений') +
@@ -1508,18 +1551,20 @@
             date = '<span class="gh-cp-d is-none">без даты</span>';
         } else {
             date = '<span class="gh-cp-d' + (repeatDate ? ' is-rep' : '') + '">' + esc(GH.fmtDateShort(m.date)) +
-                '</span>' + (m.date === today ? '<span class="gh-badge gh-tone-accent gh-cp-today">сегодня</span>' : '');
+                '</span>' + (m.date === today && !repeatDate
+                    ? '<span class="gh-badge gh-tone-accent gh-cp-today">сегодня</span>' : '');
         }
         var tags = tagsHtml(m);
-        var ex = excerpt(m);
         return '<tr class="' + cls + '" data-mid="' + esc(m.id) + '">' +
             '<td class="gh-cp-c-sel"><label class="gh-cp-cbx"><input type="checkbox" data-sel="' + esc(m.id) + '"' +
                 (sel ? ' checked' : '') + ' aria-label="Выбрать: ' + esc(m.title) + '"></label></td>' +
             '<td class="gh-cp-c-date">' + date + '</td>' +
-            '<td class="gh-cp-c-mat">' + aiMark(m, true) +
+            // Пометки «ИИ» в строке нет: от агента почти весь план, и метка ничего
+            // не различала (решение владельца 2026-10-04); она — в шапке карточки,
+            // фильтр — «ИИ-агент» -> «Только от ИИ».
+            '<td class="gh-cp-c-mat">' +
                 '<button type="button" class="gh-cp-mt" data-open="' + esc(m.id) + '">' + esc(m.title) + '</button>' +
-                (tags ? '<div class="gh-cp-tags">' + tags + '</div>' : '') +
-                (ex ? '<div class="gh-cp-ex">' + esc(ex) + '</div>' : '') + '</td>' +
+                (tags ? '<div class="gh-cp-tags">' + tags + '</div>' : '') + '</td>' +
             '<td class="gh-cp-c-pl">' + chipsHtml(m) + '</td>' +
             '<td class="gh-cp-c-ready">' + readyHtml(m) + '</td>' +
             '</tr>';
@@ -1610,21 +1655,64 @@
             return '«' + x.m.title + '»\nТема на этот день: размещений в этом месяце пока нет. ' +
                 'Нажмите, чтобы открыть карточку.' + ai;
         }
-        return chipTip(x.m, x.p) + '\nМатериал: «' + x.m.title + '»' + ai;
+        var bars = x.bars && x.bars.length > 1 ? '\nБары: ' + barsLabel(x.bars) + ' — по размещению на бар' : '';
+        return chipTip(x.m, x.p) + bars + '\nМатериал: «' + x.m.title + '»' + ai;
     }
+
+    // В узкой плашке календаря название — без приставки «<бар>, <дата> — », с
+    // которой агент начинает названия (бар и время в плашке уже есть): иначе от
+    // названия видно только «ВО, 1…». Приставка — короткое имя бара, «Сеть» или
+    // «Бот» в начале (это плашка и так показывает: «Бот, 22 окт — …» давало
+    // «Бот Бот, 22…»), за ним пробел или запятая и до 16 знаков до « — ».
+    // Другие слова («Кухня, 14 окт — …», «Хэллоуин — …») — часть названия, их не
+    // трогаем. Полное название — в подсказке плашки и в карточке.
+    function pillTitle(title) {
+        var t = String(title || '');
+        var shorts = [GH.barShort('all'), chShort('bot')];
+        each(GH.BARS, function (b) { shorts.push(b.short); });
+        var cut = t.replace(new RegExp('^(?:' + shorts.join('|') + ')(?=[\\s,])[^—]{0,16}—\\s*', 'i'), '');
+        return cut || t;
+    }
+    // Где выходит: у Telegram — бары («все», если все), у Instagram и бота —
+    // площадка (и бар, если не вся сеть).
+    function pillWhere(x) {
+        var p = x.p;
+        if (p.channel === 'telegram') return barsLabel(x.bars && x.bars.length ? x.bars : [p.bar], true);
+        return chShort(p.channel) + (p.bar !== 'all' ? ' ' + GH.barShort(p.bar) : '');
+    }
+    // Плашка: время, где и название. Пометки «ИИ» в плашке нет (она — в
+    // подсказке): от агента почти весь план, а метка съедала место названия.
     function pillHtml(x) {
         if (x.theme) {
             return '<button type="button" class="gh-cp-pill is-theme" data-open="' + esc(x.m.id) + '"' +
-                tip(pillTip(x)) + '>' + aiMark(x.m, false) + '<span class="gh-cp-pill-n">Тема: ' +
-                esc(x.m.title) + '</span></button>';
+                tip(pillTip(x)) + '><span class="gh-cp-pill-n">Тема: ' + esc(pillTitle(x.m.title)) + '</span></button>';
         }
         var p = x.p;
         return '<button type="button" class="gh-cp-pill ' + stateCls(p.display_state) +
             (p.display_state === 'cancelled' ? ' is-cancel' : '') + '" data-open="' + esc(x.m.id) +
             '" data-pid="' + esc(p.id) + '"' + tip(pillTip(x)) + '>' +
             '<span class="gh-cp-pill-t">' + esc(p.time || '—') + '</span> ' +
-            esc(chShort(p.channel) + ' ' + GH.barShort(p.bar)) + ' · ' + aiMark(x.m, false) +
-            '<span class="gh-cp-pill-n">' + esc(x.m.title) + '</span></button>';
+            '<span class="gh-cp-pill-w">' + esc(pillWhere(x)) + '</span> ' +
+            '<span class="gh-cp-pill-n">' + esc(pillTitle(x.m.title)) + '</span></button>';
+    }
+
+    // Пункты дня для плашек: размещения одного материала в одно время на одной
+    // площадке и в одном состоянии склеиваются в одну плашку со списком баров
+    // («Таплист пятницы» на четыре бара — одна плашка «16:00 все …»). Темы — как
+    // есть. Сводка дня (dayStats) считает по пунктам до склейки.
+    function pillGroups(list) {
+        var out = [];
+        var index = {};
+        each(list, function (x) {
+            if (!x.p) { out.push(x); return; }
+            var key = [x.m.id, x.p.channel, x.p.time || '', x.p.display_state].join('|');
+            if (!index[key]) {
+                index[key] = { m: x.m, p: x.p, bars: [] };
+                out.push(index[key]);
+            }
+            index[key].bars.push(x.p.bar);
+        });
+        return out;
     }
 
     // Сводка дня календаря (по видимым под фильтрами пунктам, без отменённых):
@@ -1696,13 +1784,14 @@
             '</div>';
         if (!c.out) html += reviewsHtml(c.iso);
         if (!c.out && list.length) {
-            var limit = S.calOpen[c.iso] ? list.length : CAL_MAX_PILLS;
+            var pills = pillGroups(list);
+            var limit = S.calOpen[c.iso] ? pills.length : CAL_MAX_PILLS;
             html += '<div class="gh-cp-day-list">';
-            for (var i = 0; i < list.length && i < limit; i++) html += pillHtml(list[i]);
+            for (var i = 0; i < pills.length && i < limit; i++) html += pillHtml(pills[i]);
             html += '</div>';
-            if (list.length > CAL_MAX_PILLS) {
+            if (pills.length > CAL_MAX_PILLS) {
                 html += '<button type="button" class="gh-cp-more" data-cal-more="' + esc(c.iso) + '">' +
-                    (S.calOpen[c.iso] ? 'свернуть' : 'ещё ' + (list.length - CAL_MAX_PILLS)) + '</button>';
+                    (S.calOpen[c.iso] ? 'свернуть' : 'ещё ' + (pills.length - CAL_MAX_PILLS)) + '</button>';
             }
         }
         if (canAdd) {
@@ -1764,7 +1853,7 @@
                     esc(day) + '">' + PLUS_SVG + 'материал</button>' : '') + '</div>' +
                 '<div class="gh-cp-ag-list">';
             if (!list.length) agenda += '<span class="gh-cp-none">публикаций нет</span>';
-            each(list, function (x) { agenda += pillHtml(x); });
+            each(pillGroups(list), function (x) { agenda += pillHtml(x); });
             agenda += '</div></section>';
         });
         if (!days.length) {
@@ -1847,6 +1936,7 @@
         var ids = selectedIds();
         if (kind === 'clear') { S.selected = {}; renderView(); renderBulk(); return; }
         if (!ids.length) return;
+        if (kind === 'approve') { openApprove(ids); return; }
         var what = nText(ids.length, 'материал', 'материала', 'материалов');
         if (kind === 'shift') {
             GH.prompt({
@@ -1882,26 +1972,179 @@
     }
 
     // ==================== новый материал ====================
+    // Диалог «Новый материал»: название и сразу где и когда он выйдет —
+    // площадка (Telegram — бары, Instagram — аккаунт сети, бот — охват и
+    // аудитория), дата и время. «Без площадки» — тема без размещений (дата
+    // — дата темы). Создание — два запроса: материал (POST /materials, дата
+    // задаёт месяц плана) и его размещения (POST /materials/<id>/placements, как
+    // «Добавить площадку» в карточке); затем открывается карточка — дописать
+    // текст и фото. Раньше диалог спрашивал только название, а размещение
+    // добавлялось потом в карточке отдельной формой.
 
-    function addMaterial(day) {
-        GH.prompt({
-            title: day ? 'Новый материал на ' + GH.fmtDate(day) : 'Новый материал',
-            text: day ? '' : 'Материал появится в плане «' + GH.monthLabel(S.month) + '». Дату, текст и ' +
-                'размещения можно задать в карточке.',
-            label: 'Название', placeholder: 'Например: Таплист пятницы', ok: 'Создать'
-        }).then(function (title) {
-            if (title === null) return;
-            title = title.replace(/\s+/g, ' ').trim();
-            if (!title) { GH.toast('Название обязательно', 'warning'); return; }
-            var body = { month: S.month, title: title.slice(0, TITLE_MAX) };
-            if (day) body.planned_date = day;
-            GH.api('POST', withMonth(API + '/materials'), body).then(function (res) {
-                var id = res && res.material && res.material.id;
-                if (!id) return;
-                S.knownMonth[id] = res.material.month;
-                reload({ material: res.material }).then(function () { openMaterial(id); });
-            }, reportError);
+    var NEW_CHANNELS = ['telegram', 'instagram', 'bot', 'none'];
+
+    // Дата по умолчанию: нажатый день календаря, иначе сегодня (если открыт
+    // текущий месяц), иначе первое число открытого месяца.
+    function newDefaults(day) {
+        var today = (S.data && S.data.today) || GH.mskNow().date;
+        var date = day || (S.month === today.slice(0, 7) ? today : S.month + '-01');
+        return { title: '', channel: 'telegram', bars: [], bar: 'all', audience: '', date: date, time: DEFAULT_TIME,
+                 busy: false, error: '' };
+    }
+
+    function openNew(day) {
+        flushAll();
+        S.newPost = newDefaults(day);
+        renderNew();
+        GH.openModal(el.newModal, { onClose: function () { S.newPost = null; } });
+    }
+
+    function renderNew() {
+        var f = S.newPost;
+        if (!f || !el.newBody) return;
+        var segs = '';
+        each(NEW_CHANNELS, function (k) {
+            segs += segBtn(k, k === 'none' ? 'Без площадки' : chName(k), f.channel, 'new_ch_');
         });
+        var html = field('Название', '<input type="text" class="gh-input" data-new="title" data-gh-autofocus maxlength="' +
+                TITLE_MAX + '" autocomplete="off" placeholder="Например: Таплист пятницы" value="' + esc(f.title) + '">') +
+            field('Где выйдет', '<div class="gh-seg gh-cp-newseg" data-new-seg role="group" aria-label="Площадка">' +
+                segs + '</div>');
+        if (f.channel === 'telegram') {
+            var allOn = f.bars.length === GH.BARS.length;
+            var checks = '<label class="gh-check"><input type="checkbox" data-new="allbars"' + (allOn ? ' checked' : '') +
+                '><span>Все бары</span></label>';
+            each(GH.BARS, function (b) {
+                checks += '<label class="gh-check"><input type="checkbox" data-new="bar" value="' + esc(b.key) + '"' +
+                    (f.bars.indexOf(b.key) >= 0 ? ' checked' : '') + '><span' + tip(b.name) + '>' + esc(b.short) +
+                    '</span></label>';
+            });
+            html += field('Бары ' + help('У каждого бара свой канал: на каждый отмеченный бар — своё размещение.'),
+                '<div class="gh-checks">' + checks + '</div>');
+        } else if (f.channel !== 'none') {
+            html += field(f.channel === 'instagram' ? 'Аккаунт' : 'Бар (охват рассылки)',
+                '<select class="gh-select" data-new="barsel" aria-label="Бар">' + barOptions(null, f.channel, f.bar) +
+                '</select>');
+        }
+        if (f.channel === 'bot') {
+            html += field('Аудитория рассылки', '<select class="gh-select" data-new="audience" ' +
+                'aria-label="Аудитория рассылки">' + audienceOptions(f.audience, 'Выберите аудиторию') + '</select>');
+        }
+        html += '<div class="gh-form-row">' +
+            field(f.channel === 'none' ? 'Дата темы' : 'Дата', dateInput('data-new="date"', f.date, 'Дата')) +
+            (f.channel === 'none' ? '' : field('Время', timeInput('data-new="time"', f.time, 'Время'))) +
+            '</div>';
+        if (f.channel === 'none') {
+            html += '<p class="gh-field-hint">Тема без публикаций: где и когда она выйдет, можно добавить потом в ' +
+                'карточке.</p>';
+        }
+        if (f.error) html += '<p class="gh-field-err">' + esc(f.error) + '</p>';
+        el.newBody.innerHTML = '<div class="gh-cp-newform">' + html + '</div>';
+        el.newGo.disabled = !!f.busy;
+        el.newGo.textContent = f.busy ? 'Создаю…' : 'Создать';
+    }
+
+    // Набранное в диалоге -> S.newPost (перед перерисовкой и созданием).
+    function syncNew() {
+        var f = S.newPost;
+        if (!f || !el.newBody) return f;
+        var get = function (sel) { return el.newBody.querySelector(sel); };
+        var t = get('[data-new="title"]');
+        if (t) f.title = t.value;
+        var d = get('[data-new="date"]');
+        if (d) f.date = d.value;
+        var tm = get('[data-new="time"]');
+        if (tm) f.time = String(tm.value || '').slice(0, 5);
+        var bs = get('[data-new="barsel"]');
+        if (bs) f.bar = bs.value;
+        var au = get('[data-new="audience"]');
+        if (au) f.audience = au.value;
+        return f;
+    }
+
+    // Тело запроса размещений нового материала (как «Добавить площадку»):
+    // Telegram — по размещению на отмеченный бар, Instagram и бот — охват.
+    function newPlacementBody(f) {
+        var body = { channel: f.channel, date: f.date || null, time: f.time || null };
+        body.bars = f.channel === 'telegram' ? f.bars.slice() : [f.bar || 'all'];
+        if (f.channel === 'bot') body.audience = { segment: f.audience };
+        return body;
+    }
+
+    // Почему диалог нельзя отправить ('' — можно).
+    function newProblem(f) {
+        if (!normTitle(f.title)) return 'Название обязательно';
+        if (f.channel === 'telegram' && !f.bars.length) {
+            return 'Отметьте хотя бы один бар — или выберите «Без площадки»';
+        }
+        if (f.channel === 'bot' && !f.audience) return 'Выберите аудиторию рассылки';
+        if (f.date && (!DATE_RE.test(f.date) || f.date < DATE_MIN || f.date > DATE_MAX)) {
+            return 'Дата: год от ' + YEAR_MIN + ' до ' + YEAR_MAX;
+        }
+        return '';
+    }
+
+    function addMaterial() {
+        var f = syncNew();
+        if (!f || f.busy) return;
+        f.error = newProblem(f);
+        if (f.error) { renderNew(); return; }
+        f.busy = true;
+        renderNew();
+        var body = { month: f.date ? f.date.slice(0, 7) : S.month, title: normTitle(f.title).slice(0, TITLE_MAX) };
+        if (f.date) body.planned_date = f.date;
+        GH.api('POST', withMonth(API + '/materials'), body).then(function (res) {
+            var created = res && res.material;
+            if (!created) throw new Error('Сервер не вернул материал');
+            if (f.channel === 'none') return created;
+            return GH.api('POST', withMonth(API + '/materials/' + enc(created.id) + '/placements'), newPlacementBody(f))
+                .then(function (r2) { return (r2 && r2.material) || created; }, function (err) {
+                    // Материал создан, размещения — нет: карточка откроется, площадку можно добавить там.
+                    GH.toast('Материал создан, но площадка не добавлена: ' + err.message, 'warning');
+                    return created;
+                });
+        }).then(function (mat) {
+            if (S.newPost === f) GH.closeModal(el.newModal);
+            S.knownMonth[mat.id] = mat.month;
+            reload({ material: mat }).then(function () { openMaterial(mat.id); });
+        }, function (err) {
+            f.busy = false;
+            f.error = err.message;
+            if (S.newPost === f) renderNew();
+            reportError(err);
+        });
+    }
+
+    function onNewClick(e) {
+        var f = S.newPost;
+        var seg = closest(e.target, '[data-new-seg] [data-value]');
+        if (!f || !seg) return;
+        var ch = seg.getAttribute('data-value');
+        if (f.channel === ch) return;
+        syncNew();
+        f.channel = ch;
+        f.bars = [];
+        f.bar = 'all';
+        f.audience = '';
+        f.error = '';
+        renderNew();
+    }
+    function onNewChange(e) {
+        var f = S.newPost;
+        var t = e.target;
+        var kind = t && t.getAttribute && t.getAttribute('data-new');
+        if (!f || (kind !== 'allbars' && kind !== 'bar')) return;
+        syncNew();
+        if (kind === 'allbars') {
+            f.bars = [];
+            if (t.checked) each(GH.BARS, function (b) { f.bars.push(b.key); });
+        } else {
+            var at = f.bars.indexOf(t.value);
+            if (t.checked && at < 0) f.bars.push(t.value);
+            if (!t.checked && at >= 0) f.bars.splice(at, 1);
+        }
+        f.error = '';
+        renderNew();
     }
 
     // ==================== автосохранение ====================
@@ -2165,7 +2408,8 @@
             S.expanded = {};
             S.previewPid = null;
             S.addForm = null;
-            S.live = null;
+            S.addOpen = null;
+            S.postView = 'edit';
             S.log = { id: id, entries: null, error: null, all: false };
             S.shiftDays = '';
             S.repeatDays = [];
@@ -2173,7 +2417,6 @@
         }
         S.openId = id;
         if (pid) {
-            S.expanded[pid] = true;
             S.previewPid = pid;
             S.focusPid = pid;
             S.scrollToPid = pid;
@@ -2186,6 +2429,7 @@
         if (!drawerOpen()) {
             GH.openDrawer(el.drawer, { onClose: onDrawerClose });
             fitTitle();
+            fitPostText();
         }
         if (!same) {
             var body = el.drawer.querySelector('.gh-drawer-body');
@@ -2251,17 +2495,20 @@
         var oldBody = el.drawer.querySelector('.gh-drawer-body');
         var scroll = oldBody ? oldBody.scrollTop : 0;
         var focus = captureFocus(el.drawer);
+        // Порядок — по тому, что делают чаще (решение владельца 2026-10-04):
+        // куда и когда выходит пост (дата и время правятся прямо в строке),
+        // сам пост; служебное агента, редкие действия и история свёрнуты.
         el.drawer.innerHTML = drawerHead(m) +
             '<div class="gh-drawer-body">' +
-                secMain(m) + secWhy(m) + secContent(m) + secShots(m) + secPlacements(m) + secPreview(m) +
-                secRepeat(m) + secLog(m) +
+                secWhere(m) + secPost(m) + secAgent(m) + secMore(m) + secLog(m) +
             '</div>' + drawerFoot(m);
         var body = el.drawer.querySelector('.gh-drawer-body');
         if (body) body.scrollTop = scroll;
         restoreFocus(el.drawer, focus);
         fitTitle();
+        fitPostText();
         updateSaveIndicator();
-        maybeLoadPreviewLive(m);
+        if (S.postView === 'preview') maybeLoadPreviewLive(m);
     }
 
     // Название — однострочное по смыслу, но длинное должно переноситься, а не
@@ -2273,6 +2520,21 @@
         // Скрытая карточка (ещё не открыта) даёт scrollHeight 0 — высоту не
         // фиксируем, openMaterial подгонит её после открытия.
         if (t.scrollHeight) t.style.height = t.scrollHeight + 'px';
+    }
+
+    // Поле текста поста растёт по тексту — пост читается целиком, без прокрутки
+    // внутри поля, — но не выше POST_TEXT_MAX_PX (дальше — прокрутка): длинный
+    // шаблон или пост не отодвигает остальную карточку на экран вниз.
+    var POST_TEXT_MAX_PX = 520;
+    function fitPostText() {
+        var t = el.drawer.querySelector('.gh-cp-text');
+        if (!t) return;
+        t.style.height = 'auto';
+        var h = t.scrollHeight;
+        if (!h) return;     // карточка ещё скрыта: высоту подгонит openMaterial
+        var cs = window.getComputedStyle ? window.getComputedStyle(t) : null;
+        var borders = cs ? (parseFloat(cs.borderTopWidth) || 0) + (parseFloat(cs.borderBottomWidth) || 0) : 0;
+        t.style.height = Math.min(h + borders, POST_TEXT_MAX_PX) + 'px';
     }
 
     // Перерисовать одну секцию карточки (история, предпросмотр), не трогая поля.
@@ -2291,58 +2553,71 @@
         if (focus) restoreFocus(el.drawer, focus);
     }
 
+    // Шапка: название и под ним одна строка — сводка сервера (готовность
+    // материала) и пометка «ИИ» у материала агента. Кто и когда создавал и
+    // менял — в «Истории» (свёрнута внизу карточки).
     function drawerHead(m) {
         var key = 'm:' + m.id + ':title';
-        var subParts = ['План: ' + GH.monthLabel(m.month)];
-        if (!m.in_month) subParts.push('в этом месяце — только размещения');
-        if (m.updated_at) subParts.push('изменено ' + GH.fmtDateTime(m.updated_at) + (m.updated_by ? ', ' + m.updated_by : ''));
-        // Материал агента: пометка «ИИ» и кто его создал (created_by сервера —
-        // «<login> · агент»), чтобы при проверке было видно, чей это черновик.
-        var ai = m.origin === ORIGIN_AGENT
-            ? aiMark(m, true) + '<span class="gh-cp-ai-t">Подготовил ИИ-агент' +
-                (m.created_at ? ' ' + esc(GH.fmtDateTime(m.created_at)) : '') + '</span> · '
-            : '';
+        var s = m.summary || {};
+        var line = '<span class="gh-cp-headst ' + GH.toneClass(s.tone || 'muted') + '"' + tip(readyTip(m)) + '>' +
+            esc(s.label || '') + '</span>';
+        if (!m.in_month && m.month) {
+            line += '<span class="gh-cp-headnote"' + tip('Материал из плана «' + GH.monthLabel(m.month) + '»: в этом ' +
+                'месяце у него только размещения.') + '>план: ' + esc(GH.monthLabel(m.month)) + '</span>';
+        }
         return '<div class="gh-drawer-head">' +
             '<div class="gh-drawer-h">' +
                 '<textarea class="gh-cp-title" rows="1" data-fk="title" data-save-key="' + esc(key) + '" maxlength="' +
                     TITLE_MAX + '" autocomplete="off" aria-label="Название материала" ' +
                     'placeholder="Название материала">' + esc(dirtyOr(key, m.title)) + '</textarea>' +
-                '<div class="gh-drawer-s">' + ai + esc(subParts.join(' · ')) + '</div>' +
+                '<div class="gh-drawer-s gh-cp-heads">' + aiMark(m, true) + line + '</div>' +
             '</div>' +
             '<button type="button" class="gh-x" data-gh-close aria-label="Закрыть карточку">' + X_SVG + '</button>' +
         '</div>';
     }
 
-    function secMain(m) {
-        var kind = m.kind === 'live' ? 'live' : 'fixed';
-        var s = m.summary || {};
-        var dateNote = m.date
-            ? 'В плане: ' + GH.fmtDateShort(m.date)
-            : 'В плане без даты';
-        return '<section class="gh-cp-sec gh-cp-main" data-sec="main">' +
-            '<div class="gh-cp-kind">' +
-                '<div class="gh-seg gh-seg-block" data-kind-seg role="group" aria-label="Тип материала">' +
-                    segBtn('fixed', 'Готовая публикация', kind, 'kind_') +
-                    segBtn('live', 'С актуальными данными', kind, 'kind_') +
+    // Заголовок раздела карточки: название и справа — подпись или переключатель.
+    function secHead(title, right) {
+        return '<div class="gh-cp-sh"><span class="gh-cp-sh-t">' + esc(title) + '</span>' + (right || '') + '</div>';
+    }
+    // Свёрнутый раздел карточки («От агента», «Ещё», «История»): <details>,
+    // раскрытое остаётся раскрытым после перерисовки (S.howOpen, как у «Как
+    // считается»). hint — что внутри, одной строкой справа от названия.
+    function foldHtml(key, title, hint, inner, sec) {
+        return '<details class="gh-cp-fold" data-how="' + esc(key) + '"' + (sec ? ' data-sec="' + esc(sec) + '"' : '') +
+            (S.howOpen[key] ? ' open' : '') + '><summary><span class="gh-cp-fold-t">' + esc(title) + '</span>' +
+            (hint ? '<span class="gh-cp-fold-s">' + esc(hint) + '</span>' : '') + '</summary>' +
+            '<div class="gh-cp-fold-in">' + inner + '</div></details>';
+    }
+
+    // ----- «Куда и когда» -----
+    // Размещения материала: площадка, бар, дата и время (правятся прямо в
+    // строке), состояние и главное действие; остальные действия и настройки
+    // размещения (бар, аудитория, своя версия текста, подборка файлов) — по «⋯».
+    // У темы без размещений здесь дата темы и сразу форма «Добавить площадку».
+    function secWhere(m) {
+        var pls = m.placements || [];
+        var html = secHead('Куда и когда', pls.length
+            ? '<span class="gh-cp-sh-s">' + esc(nText(pls.length, 'размещение', 'размещения', 'размещений')) + '</span>'
+            : '');
+        if (!pls.length) {
+            html += '<p class="gh-cp-explain">Пока это тема без публикаций: добавьте, где и когда она выйдет.</p>' +
+                '<div class="gh-form-row">' +
+                    field('Дата темы ' + help('Дата темы — ориентир для плана, пока у материала нет размещений: ' +
+                        'по ней тема стоит в календаре и в таблице, она же задаёт месяц плана.\n' + DT_HELP),
+                        dateInput('data-mf="planned_date" data-fk="planned_date"', m.planned_date, 'Дата темы'),
+                        'gh-cp-pdate') +
                 '</div>' +
-                '<div class="gh-cp-kind-hints">' +
-                    '<p class="' + (kind === 'fixed' ? 'is-on' : '') + '"><b>Готовая публикация</b> — ' +
-                        KIND_HINTS.fixed + '</p>' +
-                    '<p class="' + (kind === 'live' ? 'is-on' : '') + '"><b>С актуальными данными</b> — ' +
-                        KIND_HINTS.live + '</p>' +
-                '</div>' +
-            '</div>' +
-            '<div class="gh-cp-main-row">' +
-                field('Дата темы ' + help('Дата темы — ориентир для плана, если размещений ещё нет. ' +
-                    'Дата материала в таблице — самая ранняя дата его неотменённых размещений, иначе дата ' +
-                    'темы. Дата темы задаёт месяц плана.\n' + DT_HELP),
-                    dateInput('data-mf="planned_date" data-fk="planned_date"', m.planned_date, 'Дата темы'), 'gh-cp-pdate') +
-                field('Готовность ' + help(summaryRulesTip()),
-                    '<span class="gh-cp-state"><span class="gh-badge gh-cp-ready ' + GH.toneClass(s.tone) + '"' +
-                        tip(readyTip(m)) + '>' + esc(s.label || '') + '</span>' +
-                    '<span class="gh-cp-datenote">' + esc(dateNote) + '</span></span>') +
-            '</div>' +
-        '</section>';
+                addFormHtml(m, false);
+        } else {
+            html += '<div class="gh-cp-pls">';
+            each(pls, function (p) { html += placementHtml(m, p); });
+            html += '</div>';
+            html += S.addOpen === m.id ? addFormHtml(m, true)
+                : '<button type="button" class="gh-btn gh-btn-sm gh-btn-ghost gh-cp-addpl" data-act="add-open" ' +
+                    'data-fk="add_open">' + PLUS_SVG + 'Добавить площадку</button>';
+        }
+        return '<section class="gh-cp-sec" data-sec="placements">' + html + '</section>';
     }
 
     // Самый строгий лимит длины среди размещений, которые берут общий текст
@@ -2396,41 +2671,77 @@
         node.classList.toggle('is-over', !!limit && n > limit);
     }
 
-    function secContent(m) {
+    // ----- «Пост» -----
+    // Текст поста (у материала с актуальными данными — шаблон и подстановки) и
+    // файлы. Переключатель «Как увидят гости» показывает вместо них предпросмотр
+    // каждого размещения (у живого материала — с данными таплиста на сейчас):
+    // так в карточке нет второго длинного блока с тем же текстом.
+    function secPost(m) {
         var live = m.kind === 'live';
+        var view = S.postView === 'preview' ? 'preview' : 'edit';
+        var seg = '<div class="gh-seg gh-cp-postseg" data-post-seg role="group" aria-label="Вид поста">' +
+            segBtn('edit', live ? 'Шаблон' : 'Текст', view, 'pv_') +
+            segBtn('preview', 'Как увидят гости', view, 'pv_') + '</div>';
+        var html = secHead(live ? 'Пост с актуальными данными' : 'Пост', seg);
+        if (view === 'preview') return '<section class="gh-cp-sec" data-sec="post">' + html + secPreview(m) + '</section>';
         var key = 'm:' + m.id + ':base_text';
         var text = dirtyOr(key, m.base_text || '');
-        var html = sub('Содержание', live ? 'шаблон с подстановками' : 'общий текст всех размещений');
-        if (live) html += liveSourceHtml(m);
         var lim = live ? null : commonLimit(m);
         var counter = live
             ? '<span class="gh-counter" data-counter="' + esc(key) + '"' + tip('Длина шаблона. Итоговая длина ' +
-                'с подставленным таплистом видна в проверке на текущих данных (предел без площадки — 4096 ' +
-                'знаков, сообщение Telegram) и в предпросмотре каждого размещения — там предел своей ' +
-                'площадки. ' + limitsTip()) + '>' + nText(charLen(text), 'знак', 'знака', 'знаков') + ' в шаблоне</span>'
+                'с подставленным таплистом — в «Как увидят гости»: там предел своей площадки. ' + limitsTip()) + '>' +
+                nText(charLen(text), 'знак', 'знака', 'знаков') + ' в шаблоне</span>'
             : counterHtml(key, text, lim && lim.limit, lim && lim.why, lim && lim.units);
-        html += field(live ? 'Шаблон' : 'Общий текст',
-            '<textarea class="gh-textarea gh-cp-text" rows="8" data-fk="base_text" data-save-key="' + esc(key) + '" ' +
-                'aria-label="' + (live ? 'Шаблон' : 'Общий текст') + '" placeholder="' +
-                (live ? 'Например: Сегодня на кранах {бар}:\n{таплист}' : 'Текст публикации') + '">' +
-                esc(text) + '</textarea>' +
-            '<div class="gh-cp-textfoot"><span class="gh-save" data-save></span>' + counter + '</div>');
+        html += '<textarea class="gh-textarea gh-cp-text" rows="' + (live ? 4 : 8) + '" data-fk="base_text" ' +
+                'data-save-key="' + esc(key) + '" ' +
+                'aria-label="' + (live ? 'Шаблон поста' : 'Текст поста') + '" placeholder="' +
+                (live ? 'Например: Сегодня на кранах {бар}:\n{таплист}' : 'Текст поста') + '">' + esc(text) + '</textarea>' +
+            '<div class="gh-cp-textfoot"><span class="gh-save" data-save></span>' + ownTextNote(m) + counter + '</div>';
+        if (live) html += liveTokensHtml(m);
         var locked = 0;
         each(m.placements, function (p) {
             if (locksOnContent(p) && (p.text === null || p.text === undefined)) locked++;
         });
         if (locked) {
-            html += '<div class="gh-cp-warn">Правка ' + (live ? 'шаблона' : 'общего текста') + ' снимет утверждение ' +
+            html += '<div class="gh-cp-warn is-quiet">Правка ' + (live ? 'шаблона' : 'общего текста') + ' снимет утверждение ' +
                 'с размещений, которые его используют: ' + locked + '.</div>';
         }
-        if (live) html += liveCheckHtml(m);
         html += mediaHtml(m);
-        var noteKey = 'm:' + m.id + ':note';
-        html += field('Заметка для команды',
-            '<textarea class="gh-textarea gh-cp-notearea" rows="2" data-fk="note" data-save-key="' + esc(noteKey) + '" ' +
-                'aria-label="Заметка для команды" placeholder="Видна только в плане, в публикацию не уходит">' +
-                esc(dirtyOr(noteKey, m.note || '')) + '</textarea>', 'gh-cp-note');
-        return '<section class="gh-cp-sec" data-sec="content">' + html + '</section>';
+        return '<section class="gh-cp-sec" data-sec="post">' + html + '</section>';
+    }
+
+    // Размещения со своей версией текста (её правят по «⋯» размещения):
+    // общий текст на них не действует — об этом подпись под полем.
+    function ownTextNote(m) {
+        var names = [];
+        each(m.placements, function (p) {
+            if (p.status !== 'cancelled' && p.text !== null && p.text !== undefined) {
+                names.push(chShort(p.channel) + ' ' + GH.barShort(p.bar));
+            }
+        });
+        if (!names.length) return '';
+        return '<span class="gh-cp-owntag"' + tip('У этих размещений своя версия текста: общий текст на них не ' +
+            'действует. Править — «⋯» в строке размещения.') + '>свой текст: ' + esc(names.join(', ')) + '</span>';
+    }
+
+    // Подстановки шаблона кнопками (вставка в позицию курсора) и правила —
+    // под «Как считается».
+    function liveTokensHtml(m) {
+        var src = findIn(liveSources(), m.live_source);
+        var chips = '';
+        if (src) {
+            each(src.placeholders, function (ph) {
+                chips += '<button type="button" class="gh-chip gh-cp-token" data-act="token" data-token="' +
+                    esc(ph.token) + '"' + tip(ph.token + ' — ' + ph.hint) + '>' + esc(ph.token) + '</button>';
+            });
+        }
+        return (chips
+            ? '<div class="gh-cp-tokens"><span class="gh-cp-tokens-t">Вставить:</span><div class="gh-chips">' + chips +
+                '</div></div>'
+            : '<div class="gh-field-hint">Источник данных не выбран — выберите его в разделе «Ещё».</div>') +
+            howHtml('live', '<p>' + esc(LIVE_EXPLAIN) + '</p><p>' + esc('Любая другая подстановка в фигурных скобках — ' +
+                'ошибка: размещение не пройдёт проверку готовности. Как пост выглядит с данными таплиста на ' +
+                'сейчас — переключатель «Как увидят гости».') + '</p>');
     }
 
     // «Почему этот пост» (agent_rationale) и «Что снять» (shot_list): строки до
@@ -2448,22 +2759,51 @@
                     '" data-limit="' + AGENT_TEXT_MAX + '"' + tip(AGENT_FIELD_TIP) + '>' + n + ' / ' + AGENT_TEXT_MAX +
                 '</span></div>';
     }
-    // Сразу под основными полями: при проверке черновика агента владелец
-    // сначала читает, зачем пост, и только потом — сам текст.
-    function secWhy(m) {
+
+    // ----- «От агента» (свёрнуто) -----
+    // «Почему этот пост», «Что снять» и заметка для команды — служебное: в
+    // публикацию не уходит и нужно изредка (решение владельца 2026-10-04: «вся
+    // эта история для ИИ-агента — её можно свернуть»). В свёрнутом виде видно,
+    // что заполнено. У материала людей раздел называется «Заметки».
+    function secAgent(m) {
         var agent = m.origin === ORIGIN_AGENT;
-        return '<section class="gh-cp-sec" data-sec="why">' +
-            sub('Почему этот пост', agent ? 'пояснение агента' : 'по желанию') +
-            agentFieldHtml(m, 'agent_rationale', 'Почему этот пост', WHY_PLACEHOLDER, 'gh-cp-agentarea') +
-            '</section>';
+        var have = [];
+        if (String(m.agent_rationale || '').trim()) have.push('почему этот пост');
+        if (String(m.shot_list || '').trim()) have.push('что снять');
+        if (String(m.note || '').trim()) have.push('заметка');
+        var noteKey = 'm:' + m.id + ':note';
+        var inner = field('Почему этот пост', agentFieldHtml(m, 'agent_rationale', 'Почему этот пост', WHY_PLACEHOLDER,
+                'gh-cp-agentarea')) +
+            field('Что снять', agentFieldHtml(m, 'shot_list', 'Что снять', SHOTS_PLACEHOLDER, 'gh-cp-agentarea')) +
+            field('Заметка для команды',
+                '<textarea class="gh-textarea gh-cp-notearea" rows="2" data-fk="note" data-save-key="' + esc(noteKey) + '" ' +
+                    'aria-label="Заметка для команды" placeholder="Видна только в плане, в публикацию не уходит">' +
+                    esc(dirtyOr(noteKey, m.note || '')) + '</textarea>');
+        return foldHtml('fold:agent', agent ? 'От агента' : 'Заметки', have.length ? have.join(', ') : 'пусто', inner);
     }
-    // После «Содержания» (там фото и видео): что нужно снять для этого поста.
-    function secShots(m) {
-        var agent = m.origin === ORIGIN_AGENT;
-        return '<section class="gh-cp-sec" data-sec="shots">' +
-            sub('Что снять', agent ? 'список кадров от агента' : 'список кадров') +
-            agentFieldHtml(m, 'shot_list', 'Что снять', SHOTS_PLACEHOLDER, 'gh-cp-agentarea') +
-            '</section>';
+
+    // ----- «Ещё» (свёрнуто) -----
+    // Тип материала, источник данных, «Нужно фото», перенос, повтор по дням
+    // недели и удаление: это делают редко, в основном когда собирают план.
+    function secMore(m) {
+        var kind = m.kind === 'live' ? 'live' : 'fixed';
+        var inner =
+            field('Тип материала',
+                '<div class="gh-seg" data-kind-seg role="group" aria-label="Тип материала">' +
+                    segBtn('fixed', 'Готовая публикация', kind, 'kind_') +
+                    segBtn('live', 'С актуальными данными', kind, 'kind_') +
+                '</div>' +
+                howHtml('kind', '<p><b>Готовая публикация</b> — ' + esc(KIND_HINTS.fixed) + '</p>' +
+                    '<p><b>С актуальными данными</b> — ' + esc(KIND_HINTS.live) + '</p>')) +
+            (kind === 'live' ? liveSourceHtml(m) : '') +
+            '<div class="gh-cp-req"><label class="gh-cb"><input type="checkbox" data-mf="media_required" ' +
+                'data-fk="media_required"' + (m.media_required ? ' checked' : '') + '><span>Нужно фото</span></label>' +
+                help('Отметьте, если публикация без фото не имеет смысла: размещения без фото будут в состоянии ' +
+                    '«Не хватает: нет фото». Для Instagram фото обязательно всегда.') + '</div>' +
+            repeatHtml(m) +
+            '<div class="gh-cp-moredel"><button type="button" class="gh-btn gh-btn-danger gh-btn-outline gh-btn-sm" ' +
+                'data-act="delete">Удалить материал</button></div>';
+        return foldHtml('fold:more', 'Ещё', 'тип, перенос, повтор, удаление', inner, 'more');
     }
 
     function liveSourceHtml(m) {
@@ -2472,73 +2812,12 @@
             opts += '<option value="' + esc(s.key) + '"' + (s.key === m.live_source ? ' selected' : '') + '>' +
                 esc(s.name) + '</option>';
         });
-        var src = findIn(liveSources(), m.live_source);
-        var chips = '';
-        if (src) {
-            each(src.placeholders, function (ph) {
-                chips += '<button type="button" class="gh-chip gh-cp-token" data-act="token" data-token="' +
-                    esc(ph.token) + '"' + tip(ph.token + ' — ' + ph.hint) + '>' + esc(ph.token) + '</button>';
-            });
-        }
-        return '<div class="gh-cp-live">' +
-            field('Источник данных', '<select class="gh-select" data-mf="live_source" data-fk="live_source" ' +
-                'aria-label="Источник данных">' + opts + '</select>', 'gh-cp-src') +
-            (chips ? field('Подстановки — нажмите, чтобы вставить в шаблон ' + help('Любая другая подстановка ' +
-                'в фигурных скобках — ошибка: размещение не пройдёт проверку готовности.'),
-                '<div class="gh-chips">' + chips + '</div>') : '') +
-            '</div>';
+        return field('Источник данных', '<select class="gh-select" data-mf="live_source" data-fk="live_source" ' +
+            'aria-label="Источник данных">' + opts + '</select>', 'gh-cp-src');
     }
 
-    function liveDefaultBar(m) {
-        if (S.liveBar) return S.liveBar;
-        var found = '';
-        each(m.placements, function (p) { if (!found && GH.isBar(p.bar)) found = p.bar; });
-        return found || GH.getBar() || GH.BARS[0].key;
-    }
-
-    function liveCheckHtml(m) {
-        var barKey = liveDefaultBar(m);
-        var opts = '';
-        each(GH.BARS, function (b) {
-            opts += '<option value="' + esc(b.key) + '"' + (b.key === barKey ? ' selected' : '') + '>' +
-                esc(b.name) + '</option>';
-        });
-        var r = S.live && S.live.mid === m.id ? S.live : null;
-        var html = '<div class="gh-cp-livebox">' +
-            '<p class="gh-cp-explain">' + esc(LIVE_EXPLAIN) + '</p>' +
-            '<div class="gh-cp-livebar">' +
-                field('Бар', '<select class="gh-select" data-live="bar" data-fk="live_bar" aria-label="Бар для проверки">' +
-                    opts + '</select>') +
-                '<button type="button" class="gh-btn" data-act="live-check"' + (r && r.loading ? ' disabled' : '') + '>' +
-                    (r && r.loading ? '<span class="gh-spin"></span>' : '') + 'Проверить на текущих данных</button>' +
-            '</div>';
-        if (r && r.error) html += '<div class="gh-field-err">' + esc(r.error) + '</div>';
-        if (r && r.result) html += liveResultHtml(r.result, r.bar);
-        return html + '</div>';
-    }
-
-    function liveResultHtml(res, barKey) {
-        var problems = res.problems || [];
-        var html = '<div class="gh-cp-liveres">' +
-            '<div class="gh-cp-liveres-h"><span>' + esc(GH.barName(barKey)) + ' · данные на ' +
-                esc(GH.fmtDateTime(res.data_at)) + '</span>' +
-                '<span class="gh-counter' + (res.length > res.limit ? ' is-over' : '') + '"' +
-                    tip('Длина итогового текста с подставленными данными / предел. ' + (res.limit_note ||
-                        'Площадка не выбрана: предел сообщения Telegram') + '. Предел конкретной площадки — в ' +
-                        'предпросмотре размещения. ' + limitsTip()) + '>' +
-                    esc(res.length) + ' / ' + esc(res.limit) + '</span></div>';
-        if (problems.length) {
-            var texts = [];
-            each(problems, function (p) { texts.push(p.text); });
-            html += '<div class="gh-cp-stop"><b>Публикация будет остановлена:</b> ' + esc(texts.join('; ')) + '</div>';
-        } else {
-            html += '<div class="gh-cp-go">Сейчас проверка пройдена. В момент выхода данные подставятся заново.</div>';
-        }
-        html += '<div class="gh-cp-rendered">' + (res.text ? multiline(res.text) :
-            '<span class="gh-muted">Текст пуст</span>') + '</div>';
-        return html + '</div>';
-    }
-
+    // Фото и видео материала — плитками; последняя плитка — «добавить» (туда же
+    // можно перетащить файлы). Пределы — в подсказке плитки.
     function mediaHtml(m) {
         var list = m.media || [];
         var items = '';
@@ -2547,31 +2826,31 @@
             var thumb = f.kind === 'video'
                 ? '<video src="' + esc(f.url) + '" muted preload="metadata"></video><span class="gh-cp-media-kind">видео</span>'
                 : '<img src="' + esc(f.url) + '" alt="' + esc(name) + '" loading="lazy">';
-            items += '<figure class="gh-cp-media-i">' +
+            items += '<figure class="gh-cp-media-i"' + tip(name + ' · ' + fileSize(f.size)) + '>' +
                 '<div class="gh-cp-media-th">' + thumb + '</div>' +
-                '<figcaption class="gh-cp-media-cap"><span class="gh-cp-media-nm">' + esc(name) + '</span>' +
-                    '<span class="gh-cp-media-sz">' + esc(fileSize(f.size)) + '</span></figcaption>' +
                 '<button type="button" class="gh-cp-media-x" data-act="media-del" data-name="' + esc(f.name) + '" ' +
                     'aria-label="Удалить файл ' + esc(name) + '">' + X_SVG + '</button>' +
             '</figure>';
         });
         var lim = (S.data && S.data.media_limits) || {};
         var up = S.uploading && S.uploading.mid === m.id ? S.uploading : null;
-        var drop = '<div class="gh-cp-drop' + (up ? ' is-busy' : '') + '" data-drop>';
+        var add;
         if (up) {
-            drop += '<span class="gh-spin"></span><span class="gh-cp-drop-t">Загрузка: ' +
-                Math.min(up.done + 1, up.total) + ' из ' + up.total + '…</span>';
+            add = '<div class="gh-cp-media-add is-busy"><span class="gh-spin"></span><span class="gh-cp-drop-t">Загрузка: ' +
+                Math.min(up.done + 1, up.total) + ' из ' + up.total + '…</span></div>';
         } else {
             // Само поле выбора файлов (#cpFile) живёт вне карточки: карточка
             // перерисовывается целиком (автосохранение, ответы сервера), и поле
             // внутри неё отрывалось бы от страницы, пока открыт системный диалог
             // выбора, — выбранный файл молча терялся.
-            drop += '<span class="gh-cp-drop-t">Перетащите фото или видео сюда</span>' +
-                '<button type="button" class="gh-btn gh-btn-sm gh-cp-upload" data-act="pick-files">' +
-                    'Выбрать файлы</button>';
+            add = '<button type="button" class="gh-cp-media-add' + (list.length ? '' : ' is-wide') +
+                '" data-act="pick-files"' +
+                tip('JPEG, PNG, WEBP до ' + mbText(lim.image_bytes) + ', MP4 до ' + mbText(lim.video_bytes) +
+                    '; у материала до ' + (lim.per_material || '—') + ' файлов. Файлы можно перетащить сюда.') + '>' +
+                PLUS_SVG + '<span class="gh-cp-drop-t">' + (list.length ? 'Ещё файл'
+                    : 'Фото или видео — нажмите или перетащите сюда') + '</span></button>';
         }
-        drop += '<span class="gh-cp-drop-s">JPEG, PNG, WEBP до ' + esc(mbText(lim.image_bytes)) + ', MP4 до ' +
-            esc(mbText(lim.video_bytes)) + '; у материала до ' + esc(lim.per_material || '—') + ' файлов</span></div>';
+        var html = '<div class="gh-cp-media' + (list.length || up ? '' : ' is-empty') + '" data-drop>' + items + add + '</div>';
         // Новый файл входит во все размещения с набором «все файлы» (media ==
         // null) — у утверждённых из них это смена содержания, утверждение
         // снимется (core/content_plan.py, add_media). Предупреждаем заранее.
@@ -2580,16 +2859,11 @@
             if (locksOnContent(p) && (p.media === null || p.media === undefined)) inherit++;
         });
         if (inherit) {
-            drop += '<div class="gh-cp-warn">Новый файл попадёт во все размещения с набором «все файлы» и снимет ' +
+            html += '<div class="gh-cp-warn is-quiet">Новый файл попадёт во все размещения с набором «все файлы» и снимет ' +
                 'утверждение с ' + nText(inherit, 'размещения', 'размещений', 'размещений') +
                 '. У размещений со своей подборкой файлов утверждение сохранится.</div>';
         }
-        var req = '<div class="gh-cp-req"><label class="gh-cb"><input type="checkbox" data-mf="media_required" ' +
-            'data-fk="media_required"' + (m.media_required ? ' checked' : '') + '><span>Нужно фото</span></label>' +
-            help('Отметьте, если публикация без фото не имеет смысла: размещения без фото будут в состоянии ' +
-                '«Не хватает: нет фото». Для Instagram фото обязательно всегда.') + '</div>';
-        return sub('Фото и видео', list.length ? nText(list.length, 'файл', 'файла', 'файлов') : 'нет файлов') +
-            (items ? '<div class="gh-cp-media">' + items + '</div>' : '') + drop + req;
+        return html;
     }
 
     // ----- размещения -----
@@ -2664,7 +2938,33 @@
     var DOWNLOAD_TIP = 'Архив для публикации с телефона: подпись каждого размещения отдельным файлом и все фото и ' +
         'видео материала. Instagram выкладывается вручную: после публикации отметьте выход.';
 
-    function actionButtons(m, p) {
+    // Кнопка одного действия размещения (в строке — главное, по «⋯» — остальные).
+    function actionButton(m, p, a) {
+        var cls = 'gh-btn gh-btn-sm';
+        var extra = '';
+        if (a === 'approve') {
+            cls += ' gh-btn-primary';
+            if (!p.ready) extra = ' disabled';
+        } else if (a === 'send_now') {
+            cls += ' gh-btn-primary gh-btn-outline';
+            if (S.sendBusy[p.id]) extra = ' disabled';
+        } else if (a === 'delete') {
+            cls += ' gh-btn-ghost gh-cp-del';
+        } else if (a === 'cancel') {
+            cls += ' gh-btn-ghost';
+        }
+        var label = esc(ACTION_LABELS[a]);
+        // Instagram выкладывает человек: «сейчас» уходит напоминание в чат.
+        if (a === 'send_now' && p.channel === 'instagram') label = 'Напомнить сейчас';
+        if (a === 'send_now' && S.sendBusy[p.id]) label = '<span class="gh-spin"></span>Ставлю в очередь…';
+        // Что выпускает публикацию наружу — только администратор (ADMIN_ONLY_ACTIONS).
+        if (adminOnly(a)) extra += adminAttrs();
+        return '<button type="button" class="' + cls + '" data-act="pl-' + a + '" data-pid="' + esc(p.id) + '"' +
+            extra + '>' + label + '</button>';
+    }
+
+    // Все действия размещения; skip — главное, которое уже стоит в строке.
+    function actionButtons(m, p, skip) {
         var list = actionList(p);
         var html = '';
         // Instagram выкладывают руками: архив — рядом с «Напомнить сейчас», до
@@ -2676,33 +2976,10 @@
             : '';
         if (download && list[0] !== 'send_now') html += download;
         each(list, function (a, i) {
-            var cls = 'gh-btn gh-btn-sm';
-            var extra = '';
-            if (a === 'approve') {
-                cls += ' gh-btn-primary';
-                if (!p.ready) {
-                    extra = ' disabled';
-                }
-            } else if (a === 'send_now') {
-                cls += ' gh-btn-primary gh-btn-outline';
-                if (S.sendBusy[p.id]) extra = ' disabled';
-            } else if (a === 'delete') {
-                cls += ' gh-btn-ghost gh-cp-del';
-            } else if (a === 'cancel') {
-                cls += ' gh-btn-ghost';
-            }
-            var label = esc(ACTION_LABELS[a]);
-            // Instagram выкладывает человек: «сейчас» уходит напоминание в чат.
-            if (a === 'send_now' && p.channel === 'instagram') label = 'Напомнить сейчас';
-            if (a === 'send_now' && S.sendBusy[p.id]) label = '<span class="gh-spin"></span>Ставлю в очередь…';
-            // Что выпускает публикацию наружу — только администратор (ADMIN_ONLY_ACTIONS).
-            if (adminOnly(a)) extra += adminAttrs();
-            html += '<button type="button" class="' + cls + '" data-act="pl-' + a + '" data-pid="' + esc(p.id) + '"' +
-                extra + '>' + label + '</button>';
+            if (a !== skip) html += actionButton(m, p, a);
             if (i === 0 && a === 'send_now') html += download;
         });
         var hint = '';
-        if (p.status === 'draft' && !p.ready) hint = '<span class="gh-cp-acthint">Утвердить можно, когда всё заполнено</span>';
         if (isSendingNow(p)) {
             hint = '<span class="gh-cp-acthint">' + (p.channel === 'bot' && html
                 ? 'Идёт рассылка: пауза или отмена остановят её после текущей пачки'
@@ -2710,6 +2987,24 @@
         }
         if (!html && !hint) return '';
         return '<div class="gh-cp-pl-acts">' + html + hint + '</div>';
+    }
+
+    // Главное действие строки размещения — на виду, остальные — по «⋯»:
+    //   черновик готов — «Утвердить» (неготовый показывает, чего не хватает);
+    //   ошибка отправки — «Повторить отправку»; пауза — «Снять паузу»;
+    //   отменено — «Вернуть»; рассылка дошла не всем — «Повторить неудавшимся»;
+    //   время вышло — «Отправить сейчас» (площадка подключена), иначе «Отметить
+    //   вышедшим». У запланированного главного действия нет: оно уйдёт само.
+    function primaryAction(p) {
+        var list = actionList(p);
+        var want = p.display_state === 'overdue' ? ['send_now', 'mark_published']
+            : ['approve', 'retry', 'resume', 'restore', 'retry_failed'];
+        for (var i = 0; i < want.length; i++) {
+            if (list.indexOf(want[i]) < 0) continue;
+            if (want[i] === 'approve' && !p.ready) continue;
+            return want[i];
+        }
+        return '';
     }
 
     function placementMeta(m, p) {
@@ -2824,13 +3119,10 @@
             html += '<div class="gh-cp-warn">Изменение снимет утверждение: текст, фото, бар и аудитория — это ' +
                 'содержание публикации. Перенос даты и времени утверждение сохраняет.</div>';
         }
+        // Дата и время — прямо в строке размещения (placementHtml), здесь — бар.
         html += '<div class="gh-form-row">' +
             field('Бар', '<select class="gh-select" data-pf="bar" data-pid="' + esc(p.id) + '" data-fk="pb:' + esc(p.id) +
                 '" aria-label="Бар">' + barOptions(p, p.channel, p.bar) + '</select>') +
-            field('Дата ' + help(DT_HELP), dateInput('data-pf="date" data-pid="' + esc(p.id) + '" data-fk="pd:' +
-                esc(p.id) + '"', p.date, 'Дата выхода')) +
-            field('Время', timeInput('data-pf="time" data-pid="' + esc(p.id) + '" data-fk="ptm:' + esc(p.id) + '"',
-                p.time, 'Время выхода')) +
             '</div>';
         if (p.channel === 'bot') {
             var seg = p.audience && p.audience.segment ? p.audience.segment : '';
@@ -2893,35 +3185,62 @@
             thumbsHtml(files, 'gh-cp-pl-files') + '</div>';
     }
 
+    // Строка размещения в «Куда и когда»:
+    //   1-я строка — точка состояния, площадка, бар и бейдж состояния (у
+    //     неготового черновика вместо бейджа — чего не хватает, строкой ниже);
+    //   2-я — дата и время (правятся прямо здесь, по правилам «дата и время»),
+    //     главное действие (primaryAction) и «⋯»: остальные действия и
+    //     настройки — бар, аудитория, своя версия текста, подборка файлов.
+    // Вышедшее, отменённое и то, что сейчас отправляется, не правится: вместо
+    // полей — дата и время текстом.
     function placementHtml(m, p) {
         var open = !!S.expanded[p.id];
-        // Пока идёт отправка, сервер правку не примет (409) — редактор не открывается.
+        // Пока идёт отправка, сервер правку не примет (409) — полей и настроек нет.
         var editable = p.status !== 'published' && p.status !== 'cancelled' && !isSendingNow(p);
-        var cls = 'gh-cp-pl' + (open && editable ? ' is-open' : '') + (S.focusPid === p.id ? ' is-focus' : '') +
+        var main = primaryAction(p);
+        var extra = editable || actionList(p).length > (main ? 1 : 0);
+        var cls = 'gh-cp-pl' + (open && extra ? ' is-open' : '') + (S.focusPid === p.id ? ' is-focus' : '') +
             (p.status === 'cancelled' ? ' is-cancel' : '');
+        // У неготового черновика вместо бейджа — чего не хватает (строкой ниже),
+        // у готового — кнопка «Утвердить»: бейдж повторял бы её.
+        var badge = p.display_state === 'incomplete' || p.display_state === 'ready' ? ''
+            : '<span class="gh-badge gh-cp-stbadge ' + stateCls(p.display_state) + '"' + tip(stateTip(p)) + '>' +
+                esc(stateLabel(p)) + '</span>';
+        var when = editable
+            ? dateInput('data-pf="date" data-pid="' + esc(p.id) + '" data-fk="pd:' + esc(p.id) + '"', p.date, 'Дата выхода') +
+                timeInput('data-pf="time" data-pid="' + esc(p.id) + '" data-fk="ptm:' + esc(p.id) + '"', p.time, 'Время выхода')
+            : '<span class="gh-cp-pl-when">' + esc(whenText(p)) + '</span>';
+        var more = extra
+            ? '<button type="button" class="gh-btn gh-btn-ghost gh-btn-sm gh-btn-icon gh-cp-pl-tg" data-act="toggle-pl" ' +
+                'data-pid="' + esc(p.id) + '" data-fk="tg:' + esc(p.id) + '" aria-expanded="' + (open ? 'true' : 'false') +
+                '" aria-label="' + (open ? 'Свернуть' : 'Другие действия и настройки') + '"' +
+                tip(open ? 'Свернуть' : 'Другие действия и настройки: пауза, отмена, бар, своя версия текста, подборка ' +
+                    'файлов') + '>' + DOTS_SVG + '</button>'
+            : '';
         var html = '<div class="' + cls + '" data-pl="' + esc(p.id) + '">' +
-            '<div class="gh-cp-pl-h"><div class="gh-cp-pl-info">' +
+            '<div class="gh-cp-pl-h">' +
                 '<span class="gh-dot ' + stateCls(p.display_state) + '"></span>' +
                 '<span class="gh-cp-pl-ch">' + esc(chName(p.channel)) + '</span>' +
                 '<span class="gh-cp-pl-bar">' + esc(GH.barName(p.bar)) + '</span>' +
-                '<span class="gh-cp-pl-when">' + esc(whenText(p)) + '</span>' +
-                '<span class="gh-badge gh-cp-stbadge ' + stateCls(p.display_state) + '"' + tip(stateTip(p)) + '>' +
-                    esc(stateLabel(p)) + '</span>' +
-                '</div>' +
-                (editable ? '<button type="button" class="gh-btn gh-btn-ghost gh-btn-sm gh-cp-pl-tg" data-act="toggle-pl" ' +
-                    'data-pid="' + esc(p.id) + '" data-fk="tg:' + esc(p.id) + '" aria-expanded="' + (open ? 'true' : 'false') + '">' +
-                    (open ? 'Свернуть' : 'Изменить') + '</button>' : '') +
+                badge +
+            '</div>' +
+            '<div class="gh-cp-pl-row">' +
+                '<div class="gh-cp-pl-dt">' + when + '</div>' +
+                '<div class="gh-cp-pl-btns">' + (main ? actionButton(m, p, main) : '') + more + '</div>' +
             '</div>';
         if (p.display_state === 'incomplete' && (p.missing || []).length) {
             var miss = [];
             each(p.missing, function (x) { miss.push(x.text); });
-            html += '<div class="gh-cp-pl-miss">Не хватает: ' + esc(miss.join(', ')) + '</div>';
+            var text = miss.join(', ');
+            html += '<div class="gh-cp-pl-miss"' + tip(stateTip(p)) + '>' +
+                esc(text.charAt(0).toUpperCase() + text.slice(1)) + '</div>';
         }
         html += placementMeta(m, p);
         html += deliveryHtml(m, p);
         html += sentHtml(m, p);
-        html += actionButtons(m, p);
-        if (open && editable) html += editorHtml(m, p);
+        if (open && extra) {
+            html += '<div class="gh-cp-pl-x">' + actionButtons(m, p, main) + (editable ? editorHtml(m, p) : '') + '</div>';
+        }
         return html + '</div>';
     }
 
@@ -2935,10 +3254,12 @@
         return S.addForm;
     }
 
-    function addFormHtml(m) {
+    // Форма «Добавить площадку»: у темы без размещений открыта сразу, у
+    // остальных — по кнопке (cancelable: есть «Отмена»).
+    function addFormHtml(m, cancelable) {
         var f = addFormState(m);
         var html = '<div class="gh-cp-add">' +
-            '<div class="gh-cp-add-h">Добавить размещение</div>' +
+            '<div class="gh-cp-add-h">Добавить площадку</div>' +
             '<div class="gh-seg" data-add-seg role="group" aria-label="Площадка">';
         each(CHANNEL_KEYS, function (k) { html += segBtn(k, chName(k), f.channel, 'add_ch_'); });
         html += '</div>';
@@ -2954,17 +3275,14 @@
                     (f.bars.indexOf(b.key) >= 0 ? ' checked' : '') + '><span' + tip(b.name) + '>' + esc(b.short) +
                     '</span></label>';
             });
-            html += field('Бары — у каждого бара свой канал', '<div class="gh-checks">' + checks + '</div>' +
-                '<div class="gh-field-hint">По одному размещению на каждый отмеченный бар.</div>');
+            html += field('Бары ' + help('У каждого бара свой канал: на каждый отмеченный бар — своё размещение.'),
+                '<div class="gh-checks">' + checks + '</div>');
             valid = f.bars.length > 0;
             count = f.bars.length;
         } else {
             html += field(f.channel === 'instagram' ? 'Аккаунт' : 'Бар (охват рассылки)',
                 '<select class="gh-select" data-add="barsel" data-fk="add_bar" aria-label="Бар">' +
-                    barOptions(null, f.channel, f.bar) + '</select>' +
-                (f.channel === 'instagram'
-                    ? '<div class="gh-field-hint">Instagram — один аккаунт сети, поэтому по умолчанию «Вся сеть».</div>'
-                    : ''));
+                    barOptions(null, f.channel, f.bar) + '</select>');
         }
         if (f.channel === 'bot') {
             html += field('Аудитория рассылки', '<select class="gh-select" data-add="audience" data-fk="add_aud" ' +
@@ -2976,25 +3294,15 @@
             field('Дата', dateInput('data-add="date" data-fk="add_date"', f.date, 'Дата выхода')) +
             field('Время', timeInput('data-add="time" data-fk="add_time"', f.time, 'Время выхода')) +
             '</div>';
-        html += '<p class="gh-cp-botnote">' + esc(BOT_NOTE) + '</p>';
+        if (f.channel === 'bot') html += howHtml('add:bot', '<p>' + esc(BOT_NOTE) + '</p>');
         var label = f.channel === 'telegram' && count > 1
             ? 'Добавить ' + nText(count, 'размещение', 'размещения', 'размещений')
             : 'Добавить размещение';
-        html += '<button type="button" class="gh-btn gh-btn-primary gh-btn-sm" data-act="add-pl"' +
-            (valid ? '' : ' disabled') + '>' + PLUS_SVG + esc(label) + '</button>';
+        html += '<div class="gh-cp-add-btns"><button type="button" class="gh-btn gh-btn-primary gh-btn-sm" data-act="add-pl"' +
+            (valid ? '' : ' disabled') + '>' + PLUS_SVG + esc(label) + '</button>' +
+            (cancelable ? '<button type="button" class="gh-btn gh-btn-ghost gh-btn-sm" data-act="add-close">Отмена</button>'
+                : '') + '</div>';
         return html + '</div>';
-    }
-
-    function secPlacements(m) {
-        var pls = m.placements || [];
-        var html = sub('Размещения', pls.length ? nText(pls.length, 'размещение', 'размещения', 'размещений') : 'пока нет');
-        if (!pls.length) {
-            html += '<p class="gh-cp-explain">Пока это только тема. Добавьте, где и когда она выйдет: ' +
-                'Telegram-канал бара, Instagram сети или рассылка бота.</p>';
-        }
-        each(pls, function (p) { html += placementHtml(m, p); });
-        html += addFormHtml(m);
-        return '<section class="gh-cp-sec" data-sec="placements">' + html + '</section>';
     }
 
     // ----- предпросмотр -----
@@ -3144,48 +3452,52 @@
         return '<div class="gh-cp-pv">' + body + foot + '</div>';
     }
 
+    // Предпросмотр «как увидят гости» (переключатель в разделе «Пост»): вкладка
+    // на каждое неотменённое размещение.
     function secPreview(m) {
         var t = previewTarget(m);
-        var html = sub('Предпросмотр', 'как увидят гости');
+        var html = '';
         if (!t.cur) {
             html += '<p class="gh-cp-explain">Предпросмотр появится, когда у материала будут размещения.</p>';
         } else {
-            html += '<div class="gh-cp-ptabs" role="tablist">';
-            each(t.list, function (p) {
-                var on = p.id === t.cur.id;
-                html += '<button type="button" role="tab" class="gh-cp-ptab' + (on ? ' is-on' : '') + '" data-act="ptab" ' +
-                    'data-pid="' + esc(p.id) + '" data-fk="ptab:' + esc(p.id) + '" aria-selected="' + (on ? 'true' : 'false') + '">' +
-                    esc(chShort(p.channel) + ' ' + GH.barShort(p.bar) + (p.time ? ' ' + p.time : '')) + '</button>';
-            });
-            html += '</div>' + previewHtml(m, t.cur);
+            if (t.list.length > 1) {
+                html += '<div class="gh-cp-ptabs" role="tablist">';
+                each(t.list, function (p) {
+                    var on = p.id === t.cur.id;
+                    html += '<button type="button" role="tab" class="gh-cp-ptab' + (on ? ' is-on' : '') + '" data-act="ptab" ' +
+                        'data-pid="' + esc(p.id) + '" data-fk="ptab:' + esc(p.id) + '" aria-selected="' + (on ? 'true' : 'false') + '">' +
+                        esc(chShort(p.channel) + ' ' + GH.barShort(p.bar) + (p.time ? ' ' + p.time : '')) + '</button>';
+                });
+                html += '</div>';
+            }
+            html += previewHtml(m, t.cur);
         }
-        return '<section class="gh-cp-sec" data-sec="preview">' + html + '</section>';
+        return '<div class="gh-cp-pvwrap" data-sec="preview">' + html + '</div>';
     }
 
-    // ----- повтор, перенос, история -----
+    // ----- повтор и перенос (в «Ещё»), история -----
 
-    function secRepeat(m) {
-        var html = sub('Повтор и перенос', '');
-        html += '<div class="gh-cp-rep-row">' +
+    function repeatHtml(m) {
+        var html = '<div class="gh-cp-rep-row">' +
             field('Сдвинуть на, дней', '<input type="number" class="gh-input" min="-' + SHIFT_MAX + '" max="' + SHIFT_MAX +
                 '" step="1" data-rep="days" data-fk="shift_days" value="' + esc(S.shiftDays) + '" placeholder="7" ' +
                 'aria-label="Сдвиг в днях">', 'gh-cp-days') +
-            '<button type="button" class="gh-btn" data-act="shift">Сдвинуть</button>' +
+            '<button type="button" class="gh-btn gh-btn-sm" data-act="shift">Сдвинуть</button>' +
             '</div>' +
-            '<div class="gh-field-hint">Сдвигает дату темы и даты всех невышедших и неотменённых размещений. ' +
-                'От −' + SHIFT_MAX + ' до ' + SHIFT_MAX + ' дней, минус — раньше. Если утверждённая публикация ' +
-                'окажется в прошлом, ничего не сдвинется.</div>';
+            howHtml('shift', '<p>' + esc('Сдвигает дату темы и даты всех невышедших и неотменённых размещений. От −' +
+                SHIFT_MAX + ' до ' + SHIFT_MAX + ' дней, минус — раньше. Если утверждённая публикация окажется в ' +
+                'прошлом, ничего не сдвинется. Утверждение при сдвиге сохраняется.') + '</p>');
         var checks = '';
         each(GH.WEEKDAYS, function (w, i) {
             checks += '<label class="gh-check"><input type="checkbox" data-rep="wd" value="' + i + '"' +
                 (S.repeatDays.indexOf(i) >= 0 ? ' checked' : '') + '><span>' + esc(w) + '</span></label>';
         });
-        html += field('Повторять в этом месяце по дням недели', '<div class="gh-checks">' + checks + '</div>', 'gh-cp-rep-days') +
-            '<button type="button" class="gh-btn" data-act="repeat"' + (S.repeatDays.length ? '' : ' disabled') + '>' +
-                'Создать повторы</button>' +
-            '<div class="gh-field-hint">Копия материала — на каждый выбранный день недели месяца «' +
-                esc(GH.monthLabel(S.month)) + '», начиная с сегодняшнего дня. Дни, уже занятые этой серией, ' +
-                'пропускаются. Копии — черновики с теми же размещениями, текстом и фото; утверждение не копируется.</div>';
+        html += field('Повторять в этом месяце по дням недели', '<div class="gh-checks">' + checks + '</div>' +
+                '<div class="gh-cp-rep-go"><button type="button" class="gh-btn gh-btn-sm" data-act="repeat"' +
+                    (S.repeatDays.length ? '' : ' disabled') + '>Создать повторы</button></div>', 'gh-cp-rep-days') +
+            howHtml('repeat', '<p>' + esc('Копия материала — на каждый выбранный день недели месяца «' +
+                GH.monthLabel(S.month) + '», начиная с сегодняшнего дня. Дни, уже занятые этой серией, пропускаются. ' +
+                'Копии — черновики с теми же размещениями, текстом и фото; утверждение не копируется.') + '</p>');
         if (m.series && m.series.id) {
             var n = 0;
             each(materials(), function (x) { if (x.series && x.series.id === m.series.id) n++; });
@@ -3193,12 +3505,13 @@
                 esc(weekdaysText(m.series.weekdays)) + ' · в этом месяце ' +
                 esc(nText(n, 'материал', 'материала', 'материалов')) + '</div>';
         }
-        return '<section class="gh-cp-sec" data-sec="repeat">' + html + '</section>';
+        return html;
     }
 
+    // «История» — свёрнута: кто, когда и что менял (журнал материала).
     function secLog(m) {
         var lg = S.log && S.log.id === m.id ? S.log : null;
-        var html = sub('История', lg && lg.entries ? nText(lg.entries.length, 'запись', 'записи', 'записей') : '');
+        var html = '';
         if (!lg || (!lg.entries && !lg.error)) {
             html += '<p class="gh-cp-explain">Загружаю историю…</p>';
         } else if (lg.error) {
@@ -3219,7 +3532,9 @@
                     lg.entries.length + '</button>';
             }
         }
-        return '<section class="gh-cp-sec" data-sec="log">' + html + '</section>';
+        var hint = lg && lg.entries ? nText(lg.entries.length, 'запись', 'записи', 'записей') : '';
+        if (m.updated_at) hint += (hint ? ' · ' : '') + 'изменено ' + GH.fmtDateTime(m.updated_at);
+        return foldHtml('fold:log', 'История', hint, html, 'log');
     }
 
     function loadLog() {
@@ -3238,13 +3553,32 @@
         });
     }
 
+    // Готовые к утверждению размещения материала (черновики без недостач —
+    // ready считает сервер).
+    function readyPlacements(m) {
+        var out = [];
+        each(m.placements, function (p) { if (p.status === 'draft' && p.ready) out.push(p); });
+        return out;
+    }
+
+    // Низ карточки: отметка сохранения, «Закрыть» и главное действие —
+    // «Утвердить» все готовые размещения материала одним нажатием (только
+    // администратор; неготовые остаются черновиками).
     function drawerFoot(m) {
+        var ready = readyPlacements(m);
+        var total = 0;
+        each(m.placements, function (p) { if (p.status === 'draft') total++; });
+        var label = ready.length === total ? (ready.length > 1 ? 'Утвердить все: ' + ready.length : 'Утвердить')
+            : 'Утвердить готовые: ' + ready.length;
+        var approve = ready.length
+            ? '<button type="button" class="gh-btn gh-btn-primary gh-btn-sm" data-act="approve-all"' +
+                (S.isAdmin ? tip('Утверждаются черновики этого материала, у которых всё заполнено: они выйдут в своё ' +
+                    'время. Незаполненные остаются черновиками.') : '') + adminAttrs() + '>' + esc(label) + '</button>'
+            : '';
         return '<div class="gh-drawer-foot">' +
-            '<button type="button" class="gh-btn gh-btn-danger gh-btn-outline gh-btn-sm" data-act="delete">' +
-                'Удалить материал</button>' +
-            '<span class="gh-grow"></span>' +
             '<span class="gh-save" data-save></span>' +
-            '<button type="button" class="gh-btn gh-btn-sm" data-gh-close>Закрыть</button>' +
+            '<span class="gh-grow"></span>' +
+            '<button type="button" class="gh-btn gh-btn-sm" data-gh-close>Закрыть</button>' + approve +
         '</div>';
     }
 
@@ -3292,26 +3626,6 @@
         onDrawerInput({ target: ta });
     }
 
-    function runLiveCheck(m) {
-        var ta = el.drawer.querySelector('textarea[data-fk="base_text"]');
-        var barKey = liveDefaultBar(m);
-        S.liveBar = barKey;
-        S.live = { mid: m.id, loading: true, bar: barKey };
-        renderDrawer();
-        var body = { source: m.live_source || '', bar: barKey, material_id: m.id,
-                     template: ta ? ta.value : (m.base_text || '') };
-        if (m.date) body.date = m.date;
-        GH.api('POST', API + '/live-preview', body).then(function (res) {
-            if (!S.live || S.live.mid !== m.id) return;
-            S.live = { mid: m.id, result: res || {}, bar: barKey };
-            if (current()) renderDrawer();
-        }, function (err) {
-            if (!S.live || S.live.mid !== m.id) return;
-            S.live = { mid: m.id, error: err.message, bar: barKey };
-            if (current()) renderDrawer();
-        });
-    }
-
     function approveOne(m, p) {
         if (adminBlocked()) return;
         var send = function (confirmBot) {
@@ -3335,6 +3649,46 @@
                 text: 'Аудитория: ' + (info ? info.name : 'не выбрана') + '.\nРазмер: ' + sizeText(got) +
                     '.\nПроверьте аудиторию: разосланное сообщение не отзовёшь.',
                 ok: 'Утвердить рассылку'
+            });
+        }).then(function (ok) { if (ok) send(true); });
+    }
+
+    // «Утвердить» внизу карточки: все готовые размещения материала одним
+    // запросом (неготовые остаются черновиками). Если среди них рассылка бота —
+    // только после подтверждения аудитории, как у отдельного размещения.
+    function approveMaterial(m) {
+        if (adminBlocked()) return;
+        var list = readyPlacements(m);
+        if (!list.length) return;
+        var ids = [];
+        var bot = null;
+        each(list, function (p) {
+            ids.push(p.id);
+            if (p.channel === 'bot' && !bot) bot = p;
+        });
+        var send = function (confirmBot) {
+            GH.api('POST', API + '/approve', { placement_ids: ids, confirm_bot: !!confirmBot }).then(function (res) {
+                var approved = (res && res.approved) || [];
+                var skipped = (res && res.skipped) || [];
+                if (approved.length) {
+                    GH.toast('Утверждено: ' + nText(approved.length, 'размещение', 'размещения', 'размещений') +
+                        ' — «' + m.title + '»', 'success');
+                }
+                if (skipped.length) {
+                    GH.toast('Не утверждено: ' + skipped.length + ' — ' + ((skipped[0].reasons || []).join(', ') ||
+                        'размещение не готово'), 'warning');
+                }
+                reload();
+            }, function (err) { reportError(err); reload(); });
+        };
+        if (!bot) { send(false); return; }
+        var info = bot.audience_info;
+        audienceReady(info && info.segment, bot.bar, info).then(function (got) {
+            return GH.confirm({
+                title: 'Утвердить вместе с рассылкой через бота?',
+                text: 'Среди утверждаемых — рассылка. Аудитория: ' + (info ? info.name : 'не выбрана') + '.\nРазмер: ' +
+                    sizeText(got) + '.\nПроверьте аудиторию: разосланное сообщение не отзовёшь.',
+                ok: 'Утвердить'
             });
         }).then(function (ok) { if (ok) send(true); });
     }
@@ -3466,6 +3820,7 @@
             var n = (res.created || []).length;
             GH.toast('Добавлено: ' + nText(n, 'размещение', 'размещения', 'размещений'), 'success');
             if (S.addForm && S.addForm.mid === m.id) { S.addForm.bars = []; S.addForm.audience = ''; }
+            S.addOpen = null;
             if (current()) renderDrawer();
         });
     }
@@ -3608,6 +3963,18 @@
         if (!m) return;
         var kindBtn = closest(t, '[data-kind-seg] [data-value]');
         if (kindBtn) { changeKind(m, kindBtn.getAttribute('data-value')); return; }
+        // «Текст | Как увидят гости»: перед предпросмотром несохранённый текст
+        // уходит на сервер — предпросмотр показывает то, что сохранено.
+        var postSeg = closest(t, '[data-post-seg] [data-value]');
+        if (postSeg) {
+            var view = postSeg.getAttribute('data-value') === 'preview' ? 'preview' : 'edit';
+            if (S.postView !== view) {
+                if (view === 'preview') flushSavers();
+                S.postView = view;
+                renderDrawer();
+            }
+            return;
+        }
         var addSeg = closest(t, '[data-add-seg] [data-value]');
         if (addSeg) {
             var f = addFormState(m);
@@ -3642,8 +4009,6 @@
             else placementAction(m, p, action);
         } else if (a === 'token') {
             insertToken(act.getAttribute('data-token'));
-        } else if (a === 'live-check') {
-            runLiveCheck(m);
         } else if (a === 'media-del') {
             deleteMedia(m, act.getAttribute('data-name'));
         } else if (a === 'pick-files') {
@@ -3653,6 +4018,14 @@
             el.file.click();
         } else if (a === 'add-pl') {
             addPlacements(m);
+        } else if (a === 'add-open') {
+            S.addOpen = m.id;
+            renderDrawer();
+        } else if (a === 'add-close') {
+            S.addOpen = null;
+            renderDrawer();
+        } else if (a === 'approve-all') {
+            approveMaterial(m);
         } else if (a === 'ptab' && pid) {
             S.previewPid = pid;
             renderSection('preview');
@@ -3682,6 +4055,7 @@
             setSave('dirty');
             saver(key)();
             updateCounter(t);
+            if (/:base_text$/.test(key)) fitPostText();
             return;
         }
         if (t.getAttribute && t.getAttribute('data-rep') === 'days') S.shiftDays = t.value;
@@ -3766,7 +4140,6 @@
             if (btn) btn.disabled = !S.repeatDays.length;
             return;
         }
-        if (t.getAttribute('data-live') === 'bar') { S.liveBar = t.value; }
     }
 
     // Выбор файлов в постоянном поле #cpFile (вне карточки, см. mediaHtml).
@@ -3857,8 +4230,28 @@
     // ==================== диалог «Утвердить готовые» ====================
 
     function approveScope() {
+        var only = S.approve && S.approve.only;
+        if (only) {
+            var n = 0;
+            for (var id in only) if (hasOwn(only, id)) n++;
+            return GH.monthLabel(S.month) + ' · отмеченные: ' + nText(n, 'материал', 'материала', 'материалов');
+        }
         return GH.monthLabel(S.month) + ' · ' + (S.bar ? GH.barName(S.bar) : 'все бары') + ' · ' +
             (S.channel ? chName(S.channel) : 'все площадки') + (S.origin ? ' · только от ИИ' : '');
+    }
+
+    // Предпросмотр утверждения только по отмеченным материалам (панель
+    // «Выбрано: …» -> «Утвердить»): списки сервера (готово, рассылки, останутся
+    // черновиками) фильтруются по id материала — готовность считает сервер.
+    function onlySelected(res, only) {
+        var keep = function (list) {
+            var out = [];
+            each(list, function (it) { if (only[it.material_id]) out.push(it); });
+            return out;
+        };
+        res = res || {};
+        return { month: res.month, will_approve: keep(res.will_approve), bot: keep(res.bot),
+                 stays_draft: keep(res.stays_draft) };
     }
     function apWhen(it) {
         return (it.date ? GH.fmtDateShort(it.date) : 'без даты') + (it.time ? ' ' + it.time : '');
@@ -3910,19 +4303,29 @@
             (extra || '') + '</li>';
     }
 
-    function openApprove() {
+    // ids — id отмеченных материалов (панель «Выбрано: …»); без них — всё
+    // готовое под фильтрами.
+    function openApprove(ids) {
         if (adminBlocked()) return;
         flushAll();
-        S.approve = { loading: true, bots: {} };
+        var only = null;
+        if (ids && ids.length) {
+            only = {};
+            each(ids, function (id) { only[id] = true; });
+        }
+        S.approve = { loading: true, bots: {}, only: only };
         renderApprove();
         GH.openModal(el.approveModal);
         // Под фильтром «Только от ИИ» окно утверждает только материалы агента
         // (сервер: ?origin=), как бар и площадка — только отфильтрованное.
-        var q = '?month=' + enc(S.month) + (S.bar ? '&bar=' + enc(S.bar) : '') +
-            (S.channel ? '&channel=' + enc(S.channel) : '') + (S.origin ? '&origin=' + enc(S.origin) : '');
+        // Отмеченные материалы — все их размещения, без фильтров.
+        var q = '?month=' + enc(S.month) + (only ? '' : (S.bar ? '&bar=' + enc(S.bar) : '') +
+            (S.channel ? '&channel=' + enc(S.channel) : '') + (S.origin ? '&origin=' + enc(S.origin) : ''));
         GH.api('GET', API + '/approve-preview' + q).then(function (res) {
             if (!S.approve) return;
+            if (only) res = onlySelected(res, only);
             S.approve = { data: res || {}, bots: {} };
+            S.approve.only = only;
             renderApprove();
         }, function (err) {
             if (!S.approve) return;
@@ -4006,9 +4409,12 @@
         if (!x.ids.length) return;
         S.approve.busy = true;
         updateApproveBtn();
+        var selection = !!(S.approve && S.approve.only);
         GH.api('POST', API + '/approve', { placement_ids: x.ids, confirm_bot: x.bots > 0 }).then(function (res) {
             var approved = (res && res.approved) || [];
             var skipped = (res && res.skipped) || [];
+            // Утверждали отмеченные строки — выделение больше не нужно.
+            if (selection) S.selected = {};
             GH.closeModal(el.approveModal);
             GH.toast('Утверждено: ' + nText(approved.length, 'размещение', 'размещения', 'размещений'), 'success');
             if (skipped.length) {
@@ -4665,7 +5071,7 @@
             return { label: 'Канал не задан', tone: 'muted', note: 'Публикации этого бара отмечаются вручную.' };
         }
         if (!chk) {
-            return { label: 'Не проверен', tone: 'muted', note: 'Нажмите «Проверить»: сервер спросит Telegram, видит ли ' +
+            return { label: 'Не подключён', tone: 'muted', note: 'Нажмите «Подключить»: сервер спросит Telegram, видит ли ' +
                 'бот канал и может ли в нём публиковать.' };
         }
         var title = chk.chat_title ? 'Канал «' + chk.chat_title + '»' : 'Канал';
@@ -4679,6 +5085,14 @@
                 'может публиковать. Сделайте бота администратором с правом «Публикация сообщений» и проверьте снова.' };
         }
         return { label: 'Ошибка проверки', tone: 'danger', note: (chk.error || 'Telegram не ответил') + checked };
+    }
+
+    // Канал бара подключён: последняя проверка — для текущего адреса, бот видит
+    // канал и может публиковать (как telegram_bar_ready на сервере).
+    function barChecked(bar) {
+        var cfg = barCfg(bar);
+        var chk = cfg.check && (!cfg.check.chat || cfg.check.chat === cfg.chat) ? cfg.check : null;
+        return !!(cfg.chat && chk && chk.ok && chk.can_post);
     }
 
     function chanStatusLine() {
@@ -4755,9 +5169,11 @@
                     'autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Канал Telegram — ' +
                     esc(b.name) + '"' + chanRo() + '>' +
                 '<div class="gh-cp-chan-btns">' +
-                    '<button type="button" class="gh-btn gh-btn-sm" data-cact="check" data-bar="' + esc(b.key) + '" ' +
+                    '<button type="button" class="gh-btn gh-btn-sm' + (barChecked(b.key) ? '' : ' gh-btn-primary') +
+                        '" data-cact="check" data-bar="' + esc(b.key) + '" ' +
                         'data-fk="cc:' + esc(b.key) + '"' + (cfg.chat && !busy ? '' : ' disabled') + adminAttrs() + '>' +
-                        (busy === 'check' ? '<span class="gh-spin"></span>' : '') + 'Проверить</button>' +
+                        (busy === 'check' ? '<span class="gh-spin"></span>' : '') +
+                        (barChecked(b.key) ? 'Проверить снова' : 'Подключить') + '</button>' +
                     '<button type="button" class="gh-btn gh-btn-sm gh-btn-ghost" data-cact="test" data-bar="' +
                         esc(b.key) + '" data-fk="ct:' + esc(b.key) + '"' + (cfg.chat && !busy ? '' : ' disabled') +
                         adminAttrs() + '>' +
@@ -4785,11 +5201,12 @@
                 'администраторы канала в самом Telegram.',
             'Адрес — @имя публичного канала или числовой id закрытого (начинается с -100). Ссылку вида ' +
                 't.me/<имя> можно вставить целиком — она станет @именем.',
-            '«Проверить»: сервер спрашивает Telegram, видит ли бот канал и может ли в нём публиковать; результат ' +
-                'и время проверки сохраняются. Сменили адрес — проверьте снова.',
+            '«Подключить»: сервер спрашивает Telegram, видит ли бот канал и может ли в нём публиковать; результат ' +
+                'и время проверки сохраняются. Сменили адрес — нажмите «Подключить» снова.',
             'Канал подключён, если последняя проверка прошла и включена автоматическая отправка.',
             '«Тестовое сообщение» публикует в канале текст «Проверка связи с сайтом»: его увидят подписчики, ' +
-                'удалите его потом в Telegram.',
+                'удалите его потом в Telegram. Если тест дошёл, а канал ещё не подключён, сайт сразу проверяет и ' +
+                'подключает его.',
             'Ссылка на вышедший пост есть только у публичного канала (@имя).'
         ]));
         return html + '</section>';
@@ -5211,6 +5628,10 @@
                 renderChannels();
                 GH.toast(sent ? 'Тестовое сообщение отправлено в канал ' + chat
                     : 'Не отправлено: ' + ((res && res.error) || 'ошибка Telegram'), sent ? 'success' : 'danger');
+                // Тест дошёл, а канал не подключён (проверки не было или она была до
+                // того, как бота сделали администратором): подключаем сразу — иначе
+                // «связь есть», а посты не уходят (так и было 2026-10-04).
+                if (sent && !barChecked(bar)) checkChannel(bar);
             }, function (err) {
                 if (!S.chan) return;
                 delete S.chan.busy[bar];
@@ -5297,7 +5718,7 @@
     function agentToday() { return (S.data && S.data.today) || GH.mskNow().date; }
 
     function renderAgentMenu() {
-        var html = '<div class="gh-menu-grab" aria-hidden="true"></div><div class="gh-menu-cap">Задание агенту в Claude</div>';
+        var html = '';
         each(agentTasks(agentToday()), function (t) {
             html += '<a class="gh-menu-item gh-cp-agentitem" href="' + esc(t.url) + '" target="_blank" ' +
                 'rel="noopener noreferrer" data-agent-task="' + esc(t.key) + '">' +
@@ -5307,7 +5728,10 @@
             'скопировано в буфер. Нужен коннектор <span class="gh-nowrap">' + esc(AGENT_CONNECTOR) + '</span>, ' +
             'подключённый в Claude, — адрес и доступ: ' +
             '<a class="gh-link" href="' + esc(MCP_ADMIN_URL) + '" target="_blank" rel="noopener">Доступ агентов</a>.</div>';
-        el.agentMenu.innerHTML = html;
+        // Бриф, «Только от ИИ» и «Удалить черновики ИИ» — постоянные пункты
+        // меню из шаблона; здесь — задания и число материалов агента.
+        el.agentTasks.innerHTML = html;
+        renderOrigin();
     }
     // Пункт меню — ссылка: новую вкладку открывает сам браузер (target=_blank,
     // без блокировки всплывающих окон); здесь — копия задания в буфер.
@@ -5437,7 +5861,7 @@
         var act = closest(t, '[data-act]');
         if (act && !el.drawer.contains(act)) {
             var a = act.getAttribute('data-act');
-            if (a === 'add') { addMaterial(null); return; }
+            if (a === 'add') { openNew(null); return; }
             if (a === 'copy') { openCopy(); return; }
             if (a === 'leave-scope') { leaveScope(S.month, ''); return; }
             if (a === 'origin-off') { setOrigin(''); return; }
@@ -5461,14 +5885,14 @@
             return;
         }
         var addDay = closest(t, '[data-add-day]');
-        if (addDay) { addMaterial(addDay.getAttribute('data-add-day')); return; }
+        if (addDay) { openNew(addDay.getAttribute('data-add-day')); return; }
         var open = closest(t, '[data-open]');
         if (open) { openMaterial(open.getAttribute('data-open'), open.getAttribute('data-pid')); return; }
         if (closest(t, '.gh-cp-c-sel') || closest(t, 'input, label, button, a, .gh-cp-day-rv')) return;
         var row = closest(t, 'tr[data-mid]');
         if (row) { openMaterial(row.getAttribute('data-mid')); return; }
         var cell = closest(t, '.gh-cp-day.is-add');
-        if (cell) addMaterial(cell.getAttribute('data-day'));
+        if (cell) openNew(cell.getAttribute('data-day'));
     }
 
     function onViewChange(e) {
@@ -5531,8 +5955,18 @@
         });
         GH.bindSeg(el.viewSeg, setView);
 
-        el.approveBtn.addEventListener('click', openApprove);
-        el.addBtn.addEventListener('click', function () { addMaterial(null); });
+        el.approveBtn.addEventListener('click', function () { openApprove(); });
+        el.addBtn.addEventListener('click', function () { openNew(null); });
+        el.newBody.addEventListener('click', onNewClick);
+        el.newBody.addEventListener('change', onNewChange);
+        el.newBody.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' && e.target.getAttribute && e.target.getAttribute('data-new') === 'title') {
+                e.preventDefault();
+                addMaterial();
+            }
+        });
+        el.newGo.addEventListener('click', addMaterial);
+        el.moreBtn.addEventListener('click', function () { GH.toggleMenu(el.moreMenu, el.moreBtn); });
         el.copyBtn.addEventListener('click', openCopy);
         el.briefBtn.addEventListener('click', openBrief);
         el.originBtn.addEventListener('click', function () { setOrigin(S.origin ? '' : ORIGIN_AGENT); });
@@ -5557,7 +5991,12 @@
             var key = d && d.getAttribute && d.getAttribute('data-how');
             if (key) S.howOpen[key] = !!d.open;
         }, true);
-        el.pauseBtn.addEventListener('click', function () { renderPauseMenu(); GH.toggleMenu(el.pauseMenu, el.pauseBtn); });
+        // «Пауза» в меню «Ещё» открывает своё меню на том же месте — после того,
+        // как общий обработчик клика по документу отработает (иначе он закрыл
+        // бы только что открытое меню).
+        el.pauseBtn.addEventListener('click', function () {
+            setTimeout(function () { renderPauseMenu(); GH.openMenu(el.pauseMenu, el.moreBtn); }, 0);
+        });
         el.pauseMenu.addEventListener('click', function (e) {
             var item = closest(e.target, '[data-pause]');
             if (!item) return;
@@ -5578,6 +6017,7 @@
             // В сквозном виде крестик возвращает план текущего месяца
             // (setStateFilter -> leaveScope).
             if (closest(e.target, '[data-act="clear-state"]')) setStateFilter('');
+            if (closest(e.target, '[data-act="clear-origin"]')) setOrigin('');
         });
 
         el.table.addEventListener('click', onViewClick);
@@ -5675,7 +6115,6 @@
             copyBody: byId('cpCopyBody'),
             copyGo: byId('cpCopyGo'),
             file: byId('cpFile'),
-            origin: byId('cpOrigin'),
             originBtn: byId('cpOriginBtn'),
             originN: byId('cpOriginN'),
             agentDel: byId('cpAgentDelBtn'),
@@ -5686,7 +6125,13 @@
             chanBtn: byId('cpChanBtn'),
             chanDrawer: byId('cpChanDrawer'),
             agentBtn: byId('cpAgentBtn'),
-            agentMenu: byId('cpAgentMenu')
+            agentMenu: byId('cpAgentMenu'),
+            agentTasks: byId('cpAgentTasks'),
+            moreBtn: byId('cpMoreBtn'),
+            moreMenu: byId('cpMoreMenu'),
+            newModal: byId('cpNewModal'),
+            newBody: byId('cpNewBody'),
+            newGo: byId('cpNewGo')
         };
         if (!GH) {
             if (el.msg) {
@@ -5753,6 +6198,12 @@
         isAutoPublished: isAutoPublished, canRetryFailed: canRetryFailed, openChannels: openChannels,
         chanSave: chanSave, flushChannels: flushChannels, inFlight: inFlight, setBotSignup: setBotSignup,
         actionButtons: actionButtons, reportError: reportError, switchHtml: switchHtml, bulkPause: bulkPause,
-        approveOne: approveOne, openApprove: openApprove, checkChannel: checkChannel, testChannel: testChannel
+        approveOne: approveOne, openApprove: openApprove, checkChannel: checkChannel, testChannel: testChannel,
+        // Переделка экрана 2026-10-04: склейка чипов и плашек, главное действие,
+        // название в плашке, утверждение отмеченных, новый материал одной формой.
+        chipGroups: chipGroups, pillGroups: pillGroups, pillTitle: pillTitle, barsLabel: barsLabel,
+        primaryAction: primaryAction, onlySelected: onlySelected, newPlacementBody: newPlacementBody,
+        newProblem: newProblem, readyPlacements: readyPlacements, chanBarStatus: chanBarStatus, barChecked: barChecked,
+        placementHtml: placementHtml, foldHtml: foldHtml, legendHtml: legendHtml
     };
 })();
