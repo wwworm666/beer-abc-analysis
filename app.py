@@ -117,6 +117,13 @@ def _start_background_jobs():
     from core.content_publisher_scheduler import start_scheduler as start_content_publisher
     start_content_publisher()
 
+    # Приёмка на РЦ: индекс «GTIN -> карточки iiko» каждое утро (07:30 МСК) и при
+    # старте, если индекса нет или он старше суток (без кредов iiko — не обновляется);
+    # раз в 10 минут — повтор обработок закрытых приёмок, прерванных перезапуском или
+    # упавших. См. docs/receiving.md.
+    from core.receiving_scheduler import start_scheduler as start_receiving_scheduler
+    start_receiving_scheduler()
+
 
 # BEER_SCHEDULERS=0 — импорт app без фоновых потоков (локальные скрипты, проверки).
 # Иначе импорт запускает рассылки с боевыми токенами из .env: 2026-09-26 локальный

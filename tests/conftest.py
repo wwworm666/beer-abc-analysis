@@ -33,6 +33,7 @@ _OUTBOUND_SECRETS = (
     'TELEGRAM_OPEN_CHECK_BOT_TOKEN', # бот персонала: проверка открытия, тревоги, отзывы владельцу
     'TELEGRAM_GROUP_CHAT_ID',        # чат смены
     'TELEGRAM_ALARM_CHAT_IDS',       # чаты тревог
+    'RECEIVING_NOTIFY_CHAT_IDS',     # чаты бухгалтерии: «приёмка на РЦ ждёт разбора» (core/receiving_notify.py)
     'REMOTE_PASS',                   # SSH на бар-ПК (remote_exec.py выполняет команды)
     'GOOGLE_SA_JSON',                # сервис-аккаунт Google: пишет в таблицу ЗП бухгалтерии
     'GOOGLE_SA_JSON_CONTENT',

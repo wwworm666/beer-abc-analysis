@@ -11,8 +11,8 @@ Self-runnable: `py -3 tests/test_mcp_tools_stocks.py` (совместимо с p
 Что проверяется (контракт MCP, раздел 5):
 - validate_tool_spec пуст; имена уникальны, с префиксом stocks_, домен stocks;
 - каждый (метод, путь) есть в url_map, метод разрешён, view — из файлов домена
-  (routes/stocks.py, orders.py, suppliers.py, expiration.py, taps.py, yml_feeds.py,
-  menu_editor.py); path_params совпадают с аргументами правила Flask;
+  (routes/stocks.py, orders.py, suppliers.py, receiving.py, expiration.py, taps.py,
+  yml_feeds.py, menu_editor.py); path_params совпадают с аргументами правила Flask;
 - все API- и data-маршруты этих файлов (/api/*, /feeds/*, /menu/api/*) покрыты ровно
   одним инструментом или стоят в EXCLUDED; HTML-страницы в охват не входят;
 - query- и body-аргументы действительно читаются модулем маршрута (имя поля в
@@ -23,7 +23,8 @@ Self-runnable: `py -3 tests/test_mcp_tools_stocks.py` (совместимо с p
   своя минимальная проверка; типичные ошибки агента схема отбивает;
 - идентификаторы баров и константы схем совпадают с кодом (extensions.BARS,
   core.taplist.BAR_NAMES, routes/stocks и routes/expiration, TapsManager, order_store,
-  supplier_directory, menu_editor, yml_overrides);
+  supplier_directory, menu_editor, yml_overrides; пределы и перечни приёмки на РЦ —
+  routes/receiving, receiving_store, receiving_codes, receiving_photo_store);
 - пометки: GET — только чтение; зафиксированные наборы destructive, open_world,
   heavy и also_in=('content',); примеры есть у всех лёгких чтений и нет у записи;
 - тексты: без эмодзи, упомянутые stocks_* и документы docs/*.md существуют;
@@ -47,8 +48,8 @@ os.environ.setdefault('SESSION_COOKIE_SECURE', '0')
 from core.mcp import spec as mcp_spec  # noqa: E402
 from core.mcp.tools import stocks  # noqa: E402
 
-OWN_MODULES = ('routes.stocks', 'routes.orders', 'routes.suppliers', 'routes.expiration',
-               'routes.taps', 'routes.yml_feeds', 'routes.menu_editor')
+OWN_MODULES = ('routes.stocks', 'routes.orders', 'routes.suppliers', 'routes.receiving',
+               'routes.expiration', 'routes.taps', 'routes.yml_feeds', 'routes.menu_editor')
 ROUTE_METHODS = ('GET', 'POST', 'PUT', 'PATCH', 'DELETE')
 DATA_ROUTES = ('/feeds/taplist.yml', '/feeds/kitchen.yml', '/feeds/kitchen/<bar_id>')
 
@@ -59,12 +60,16 @@ EXPECTED_DESTRUCTIVE = {
     'stocks_menu_item_delete',
     # фид Яндекса публичен: сохранение необратимо уходит наружу (проверка безопасности 2026-09-28)
     'stocks_yml_feed_save',
+    # приёмка на РЦ: закрытие не отменить (и уходит сообщение бухгалтерии), скан и фото — удаление
+    'stocks_receiving_close', 'stocks_receiving_scan_delete', 'stocks_receiving_invoice_delete',
 }
 EXPECTED_OPEN_WORLD = {
     'stocks_chz_live', 'stocks_chz_refresh', 'stocks_nomenclature_update', 'stocks_yml_feed_save',
     'stocks_yml_refresh', 'stocks_menu_refresh_prices',
     # кег и сорт на кране меняют публичный таплист и фид Яндекса
     'stocks_tap_start', 'stocks_tap_stop', 'stocks_tap_replace', 'stocks_tap_identify',
+    # приёмка на РЦ: сверка с iiko, ЧЗ через бар-ПК, Telegram бухгалтерии; индекс из iiko
+    'stocks_receiving_close', 'stocks_receiving_index_refresh',
 }
 EXPECTED_HEAVY = {
     'stocks_order_board', 'stocks_taplist_stock', 'stocks_bottles_stock', 'stocks_kitchen_stock',
@@ -74,6 +79,7 @@ EXPECTED_HEAVY = {
     'stocks_nomenclature_update', 'stocks_feed_taplist_yml', 'stocks_feed_bar_yml',
     'stocks_yml_feed', 'stocks_yml_feed_save', 'stocks_yml_feed_ack', 'stocks_yml_refresh',
     'stocks_menu_refresh_prices', 'stocks_menu_render_pdf', 'stocks_menu_export_pdf',
+    'stocks_receiving_close', 'stocks_receiving_index_refresh',
 }
 EXPECTED_ALSO_CONTENT = {
     'stocks_taps_bars', 'stocks_taps_bar', 'stocks_taplist_full', 'stocks_feed_taplist_yml',
@@ -86,6 +92,8 @@ IIKO_MARKERS = (
     'IikoAPI', 'OlapReports', 'get_stocks_nomenclature', '_payload(', 'refresh_prices',
     'render_bar_feed', 'bar_state', 'feed_detail_data', 'refresh_snapshot', '_render_pdf_html',
     'get_chz_stock', 'start_chz_refresh',
+    # приёмка на РЦ: фоновая сверка закрытой приёмки (iiko, ЧЗ на бар-ПК) и пересборка индекса
+    'start_receiving_index_refresh', 'start_receipt_processing',
 )
 
 _APP = None
@@ -501,6 +509,28 @@ def test_bad_args_rejected_by_schema():
         ('stocks_menu_item_create', {'vols': ['05', '10', '04', '025']}),
         ('stocks_menu_item_create', {'ratings': {'gor': 6}}),
         ('stocks_menu_export_pdf', {'filter': 'taps'}),
+        ('stocks_receiving_list', {'status': 'done'}),
+        ('stocks_receiving_list', {'limit': 500}),
+        ('stocks_receiving_get', {'receipt_id': '12'}),                  # номер — число
+        ('stocks_receiving_get', {'receipt_id': 0}),
+        ('stocks_receiving_scan', {'receipt_id': 1, 'code': '4610093628430'}),     # нет client_id
+        ('stocks_receiving_scan', {'receipt_id': 1, 'code': '4610093628430', 'client_id': 'short'}),
+        ('stocks_receiving_scan', {'receipt_id': 1, 'code': '4610093628430',
+                                   'client_id': 'abcd-1234-efgh', 'source': 'phone'}),
+        ('stocks_receiving_scan', {'receipt_id': 1, 'code': '', 'client_id': 'abcd-1234-efgh'}),
+        ('stocks_receiving_scan', {'receipt_id': 1, 'code': 'x' * 513, 'client_id': 'abcd-1234-efgh'}),
+        ('stocks_receiving_review', {'status': 'open'}),                 # open — это state
+        ('stocks_receiving_review', {'status': 'new,'}),
+        ('stocks_receiving_review', {'state': 'done'}),
+        ('stocks_receiving_review', {'limit': 1001}),
+        ('stocks_receiving_review_update', {'gtin': '4610093628430', 'state': 'done'}),   # 13 цифр
+        ('stocks_receiving_review_update', {'gtin': '04610093628430', 'state': 'closed'}),
+        ('stocks_receiving_review_update', {'gtin': '04610093628430', 'note': 'x' * 501}),
+        ('stocks_receiving_products', {}),
+        ('stocks_receiving_products', {'q': 'I'}),
+        ('stocks_receiving_products', {'q': 'IPA', 'limit': 101}),
+        ('stocks_receiving_invoice_get', {'name': '../receiving.db'}),
+        ('stocks_receiving_invoice_upload', {'receipt_id': 1, 'photo': {'content_base64': 'AA=='}}),
     ]
     for name, args in cases:
         assert _fallback_check(tools[name].input_schema, args), name + ': схема пропустила ' + repr(args)
@@ -618,6 +648,60 @@ def test_narrowing_params_match_routes():
     two_prices = dict(row, servings=row['servings'] + [{'portion_liters': '0.5', 'price_rub': '390.00'}])
     assert rtaps.compact_tap_row(two_prices)['price_0_5'] is None, 'две цены 0,5 л — не выбираем за владельца'
     assert rtaps.compact_tap_row(dict(row, servings=[]))['price_0_5'] is None
+
+
+def test_receiving_constants_match_code():
+    """Приёмка на РЦ: перечни и пределы схем — те же, что в маршрутах и хранилище."""
+    import core.receiving_codes as rcodes
+    import core.receiving_photo_store as rphotos
+    import core.receiving_store as rstore
+    import routes.receiving as rr
+
+    assert stocks.RECEIPT_FILTERS == rr.RECEIPT_FILTERS
+    assert stocks.RECEIPTS_LIMIT_MAX == rr.RECEIPTS_LIMIT_MAX
+    assert stocks.RECEIVING_NOTE_LIMIT == rr.NOTE_LIMIT == rstore.NOTE_LIMIT
+    assert stocks.RECEIVING_CODE_MAX == rcodes.MAX_CODE_LEN
+    assert stocks.SCAN_SOURCES == rr.SCAN_SOURCES == rstore.SOURCES
+    assert stocks.SCAN_CLIENT_TIME_LIMIT == rr.CLIENT_TIME_LIMIT == rstore.CLIENT_TIME_LIMIT
+    assert stocks.REVIEW_STATES == rr.REVIEW_STATES == rstore.LIST_STATES
+    assert stocks.REVIEW_STATUSES == rr.REVIEW_STATUSES == rstore.STATUSES
+    assert stocks.REVIEW_USER_STATES == rr.REVIEW_USER_STATES == rstore.USER_STATES
+    assert stocks.REVIEW_LIMIT_MAX == rr.REVIEW_LIMIT_MAX == rstore.LIST_LIMIT_MAX
+    assert (stocks.PRODUCTS_MIN_Q, stocks.PRODUCTS_LIMIT_MAX) == (rr.PRODUCTS_MIN_Q, rr.PRODUCTS_LIMIT_MAX)
+    assert stocks.SEARCH_Q_MAX == rr.SEARCH_Q_MAX
+    assert stocks.INVOICE_MAX_MB * 1024 * 1024 == rphotos.MAX_PHOTO_BYTES
+    assert int('9' * 9) == stocks.RECEIPT_ID_MAX
+
+    # схемы действительно используют эти значения
+    assert _prop('stocks_receiving_list', 'status')['enum'] == list(rr.RECEIPT_FILTERS)
+    assert _prop('stocks_receiving_list', 'limit')['maximum'] == rr.RECEIPTS_LIMIT_MAX
+    assert _prop('stocks_receiving_scan', 'source')['enum'] == list(rstore.SOURCES)
+    assert _prop('stocks_receiving_scan', 'code')['maxLength'] == rcodes.MAX_CODE_LEN
+    assert _prop('stocks_receiving_review', 'state')['enum'] == list(rstore.LIST_STATES)
+    assert _prop('stocks_receiving_review', 'limit')['maximum'] == rstore.LIST_LIMIT_MAX
+    assert _prop('stocks_receiving_review_update', 'state')['enum'] == list(rstore.USER_STATES)
+    assert _prop('stocks_receiving_review_update', 'note')['maxLength'] == rstore.NOTE_LIMIT
+    assert _prop('stocks_receiving_create', 'note')['maxLength'] == rstore.NOTE_LIMIT
+    assert _prop('stocks_receiving_products', 'q')['minLength'] == rr.PRODUCTS_MIN_Q
+    assert _prop('stocks_receiving_products', 'limit')['maximum'] == rr.PRODUCTS_LIMIT_MAX
+    for status in rstore.STATUSES:
+        assert re.fullmatch(_prop('stocks_receiving_review', 'status')['pattern'], status), status
+    assert re.fullmatch(_prop('stocks_receiving_review', 'status')['pattern'], 'new,similar,restore')
+    # client_id: схема и маршрут пускают одно и то же
+    pattern = _prop('stocks_receiving_scan', 'client_id')['pattern']
+    for value in ('0f8e7d6c-1a2b-4c3d-9e8f-0123456789ab', 'abcd1234', 'a' * 64):
+        assert re.search(pattern, value) and rr.CLIENT_ID_RE.match(value), value
+    for value in ('abc', 'a' * 65, 'abc_1234', 'абвгдежз'):
+        assert not re.search(pattern, value) and not rr.CLIENT_ID_RE.match(value), value
+    # имя фото накладной: схема и хранилище фото согласны
+    name_pattern = _prop('stocks_receiving_invoice_get', 'name')['pattern']
+    assert _prop('stocks_receiving_invoice_delete', 'name')['pattern'] == name_pattern
+    good = rphotos.make_name(12)
+    assert re.search(name_pattern, good) and rphotos.is_valid_name(good)
+    for bad in ('../r1.jpg', 'r1_20261003T140500_0123abcd.png', 'r1_20261003T140500_0123ABCD.jpg'):
+        assert not re.search(name_pattern, bad) and not rphotos.is_valid_name(bad), bad
+    upload = _tools()['stocks_receiving_invoice_upload']
+    assert upload.file_params == ('photo',) and upload.body == 'multipart'
 
 
 # --------------------------------------------------------------------------- тесты: пометки

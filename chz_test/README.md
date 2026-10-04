@@ -275,6 +275,19 @@ python chz.py stock 2024-01-01
 
 Данные в `chz_stock.json` используются Flask-эндпоинтом `GET /api/chz/stock` (читает кеш без SSH/CryptoPro).
 
+### Карточки товаров по GTIN (для приёмки на РЦ)
+```cmd
+python chz.py product-info 04600093628431,04607082009899
+```
+
+Спрашивает `POST /api/v4/true-api/product/info` (до 1000 GTIN за раз, только карточки, готовые к
+обороту). Печатает обычный журнал, а последней строкой — маркер `@@CHZ_JSON@@` и JSON только в
+ASCII: `{"ok": true, "version": 1, "items": {GTIN: карточка как есть}, "missing": [...], "error": ""}`.
+При сбое (нет токена, HTTP-ошибка) — `"ok": false` и текст в `error`, `missing` пустой. Сервер
+вызывает команду по SSH пакетами по 400 GTIN (`core/receiving_chz.py`, см. `docs/receiving.md`).
+Старый `chz.py` без этой команды печатает справку — сервер увидит, что маркера нет, и попросит
+обновить файл на бар-ПК (`python remote_exec.py push chz_test/chz.py C:\chz_test`).
+
 ### Удалённый запуск через SSH
 
 С локальной машины (Python + paramiko):
