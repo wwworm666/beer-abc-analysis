@@ -228,13 +228,18 @@ stats — по этим материалам). С month — обычный ме�
 
 ## Живые данные (render_live)
 
-Шаблон с подстановками {бар}, {дата}, {таплист}, {кранов}. Строка таплиста:
-«{кран}. {пивоварня} — {название}, {стиль}, {крепость}%» (пустые части
-опускаются; крепость — округление до 0,01 по правилу half-up, без хвостовых
-нулей, десятичная запятая: 5.0 → «5», 6.5 → «6,5»; 0 и пусто — не пишется).
+Шаблон с подстановками {бар}, {дата}, {таплист}, {кранов}. Строка таплиста
+(core/taplist_post.py, формат владельца 2026-10-04, без цен):
+«{кран}. {пивоварня и название} — {стиль}, {крепость}%[, новинка]». Пивоварня и
+название — ссылка на Untappd (entities, text_link), стиль — по-русски из словаря
+resources/taplist_post_names.json; пустые части опускаются; крепость — округление
+до 0,01 по правилу half-up, без хвостовых нулей, десятичная запятая: 5.0 → «5»,
+6.5 → «6,5»; 0 и пусто — не пишется. «Новинка» — сорт подключили в баре за 7 дней
+до поста, а 30 дней до этого его там не было.
 Публикация будет остановлена, если: бар не выбран; на кранах нет активных
-позиций; у крана нет проверенной связи с Untappd; есть неизвестная подстановка;
-итоговый текст длиннее предела площадки.
+позиций; краны бара не обновлялись больше 14 дней (stale_taps); у крана нет
+проверенной связи с Untappd; есть неизвестная подстановка; итоговый текст
+длиннее предела площадки.
 
 Предел площадки (`text_limit_for`) — тот же, что у готовой публикации: если
 передана площадка (channel), то Telegram и бот — 1024 (подпись), когда у
@@ -376,10 +381,9 @@ import threading
 from calendar import monthrange
 from contextlib import contextmanager
 from datetime import date, datetime, timedelta
-from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from typing import Callable, Dict, List, Optional, Tuple
 
-from core import content_media, msk_time
+from core import content_media, msk_time, taplist_post
 from core.json_store import atomic_write_json, file_lock
 from core.storage_paths import get_data_path
 
@@ -465,7 +469,8 @@ LIVE_SOURCES = {
         'placeholders': [
             {'token': '{бар}', 'hint': 'полное название бара'},
             {'token': '{дата}', 'hint': 'дата выхода, например «9 октября»'},
-            {'token': '{таплист}', 'hint': 'список кранов: номер, пивоварня, название, стиль, крепость'},
+            {'token': '{таплист}', 'hint': 'список кранов: номер, пивоварня и название (ссылка на Untappd), '
+                                              'стиль, крепость, «новинка»'},
             {'token': '{кранов}', 'hint': 'число активных кранов'},
         ],
     },
@@ -1472,33 +1477,14 @@ def _to_draft(placement: dict) -> None:
 # Живые данные: таплист
 # ---------------------------------------------------------------------------
 
-def format_abv(value) -> Optional[str]:
-    """Крепость: half-up до 0,01, без хвостовых нулей, десятичная запятая.
-    5.0 → '5', 6.5 → '6,5', 7.25 → '7,25'. Нечисло → None."""
-    try:
-        number = Decimal(str(value)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-    except (InvalidOperation, ValueError):
-        return None
-    text = format(number, 'f')
-    if '.' in text:
-        text = text.rstrip('0').rstrip('.')
-    return text.replace('.', ',')
+# Строка крана, словарь имён, новинки и свежесть кранов — core/taplist_post.py.
+format_abv = taplist_post.format_abv
 
 
-def taplist_line(row: dict) -> str:
-    """'{кран}. {пивоварня} — {название}[, {стиль}][, {крепость}%]'."""
-    number = row.get('tap_number')
-    name = row.get('beer_name') or row.get('iiko_name') or ''
-    brewery = (row.get('brewery') or '').strip()
-    line = f'{number}. {brewery} — {name}' if brewery else f'{number}. {name}'
-    if row.get('style'):
-        line += f', {row["style"]}'
-    abv = row.get('abv')
-    if abv:
-        text = format_abv(abv)
-        if text and text != '0':
-            line += f', {text}%'
-    return line
+def taplist_line(row: dict, names: Optional[dict] = None, is_new: bool = False) -> str:
+    """'{кран}. {пивоварня и название} — {стиль}, {крепость}%[, новинка]' — без
+    ссылки (она — сущность Telegram, см. render_live)."""
+    return taplist_post.tap_line(row, names or taplist_post.load_names(), is_new)[0]
 
 
 def load_live_data(registry=None):
@@ -1522,14 +1508,21 @@ def _tap_sort_key(row: dict):
 
 
 def render_live(source, bar, template, pub_date=None, snapshot=None, registry=None, now=None,
-                channel=None, has_media=None) -> dict:
+                channel=None, has_media=None, names=None) -> dict:
     """Подставить живые данные в шаблон и проверить правила остановки.
 
-    -> {ok, text, problems:[{code, text}], length, limit, limit_note, channel,
-    has_media, rows, data_at}.
+    -> {ok, text, entities, problems:[{code, text}], length, limit, limit_note,
+    channel, has_media, rows, data_at, taps_changed_at}.
     rows — строки таплиста [{tap_number, brewery, beer_name, style, abv, mapped,
-    mapping_message, line}]. ok=False означает «публикация будет остановлена».
-    now — момент для data_at и {дата} по умолчанию (для тестов).
+    mapping_message, name, untappd_url, new, line}]: name — пивоварня и название
+    так, как в посте, new — пометка «новинка». ok=False означает «публикация будет
+    остановлена».
+    entities — ссылки на Untappd в text: [{type: 'text_link', offset, length, url}],
+    offset и length — в единицах UTF-16, как их считает Telegram.
+    taps_changed_at — последнее изменение на странице кранов бара ('YYYY-MM-DDTHH:MM')
+    или None. now — момент для data_at, {дата} по умолчанию, новинок и свежести
+    кранов (для тестов). names — словарь имён (по умолчанию
+    resources/taplist_post_names.json; для тестов).
     channel/has_media — площадка размещения и есть ли у него фото/видео: предел
     длины = `text_limit_for(channel, has_media)` (1024 подпись Telegram/бота с
     медиа, 4096 без, Instagram 2200). Без channel — 4096, как раньше.
@@ -1551,6 +1544,8 @@ def render_live(source, bar, template, pub_date=None, snapshot=None, registry=No
         add('no_live_source', 'не выбран источник данных')
     bar_ok = bar in BAR_KEYS
     rows: List[dict] = []
+    news: List[bool] = []
+    stale, changed = None, None
     if source in LIVE_SOURCES:
         if not bar_ok:
             add('no_bar', 'для таплиста выберите бар')
@@ -1561,47 +1556,79 @@ def render_live(source, bar, template, pub_date=None, snapshot=None, registry=No
                     snapshot = loaded_snapshot if snapshot is None else snapshot
                     registry = loaded_registry if registry is None else registry
                 from core.taplist import full_taplist
-                rows = full_taplist(snapshot, registry, TAPLIST_BAR_IDS[bar], active_only=True)
+                bar_id = TAPLIST_BAR_IDS[bar]
+                rows = sorted(full_taplist(snapshot, registry, bar_id, active_only=True), key=_tap_sort_key)
+                if names is None:
+                    names = taplist_post.load_names()
+                fresh = taplist_post.new_beer_keys(snapshot[bar_id], registry, moment)
+                key = taplist_post.beer_key_fn(registry)
+                news = [key(row.get('iiko_product_id'), row.get('iiko_name')) in fresh for row in rows]
+                changed = taplist_post.last_change(snapshot[bar_id])
+                stale = taplist_post.stale_problem(snapshot[bar_id], moment, fmt_date_ru)
             except KeyError:
-                rows = []
+                rows, news, stale, changed = [], [], None, None
                 add('no_data', 'Бар не найден в таплисте')
             except Exception as e:  # noqa: BLE001 — предпросмотр не должен падать 500
                 print(f'[CONTENT_PLAN] live data unavailable: {e!r}')
-                rows = []
+                rows, news, stale, changed = [], [], None, None
                 add('no_data', 'Не удалось прочитать данные таплиста')
-            rows = sorted(rows, key=_tap_sort_key)
             if not rows and not problems:
                 add('no_data', 'На кранах бара нет активных позиций')
+            if rows and stale:
+                add('stale_taps', stale)
             for row in rows:
                 if not row.get('mapped'):
                     add('unverified', f'Кран {row.get("tap_number")}: {row.get("mapping_message") or "нет проверенной связи"}')
     for token in unknown_placeholders(template):
         add('bad_placeholder', f'неизвестная подстановка {token}')
 
-    lines = []
-    for row in rows:
-        line = taplist_line(row)
+    lines: List[str] = []
+    links: List[Tuple[int, int, str]] = []      # (начало, конец) имени в блоке {таплист}, ссылка
+    position = 0
+    for row, is_new in zip(rows, news):
+        line, span = taplist_post.tap_line(row, names, is_new)
+        if span:
+            links.append((position + span[0], position + span[1], row['untappd_url']))
+        position += len(line) + 1
         lines.append(line)
         rows_out.append({'tap_number': row.get('tap_number'), 'brewery': row.get('brewery'),
                          'beer_name': row.get('beer_name'), 'style': row.get('style'),
                          'abv': row.get('abv'), 'mapped': bool(row.get('mapped')),
-                         'mapping_message': row.get('mapping_message'), 'line': line})
+                         'mapping_message': row.get('mapping_message'),
+                         'name': taplist_post.post_name(row, names), 'untappd_url': row.get('untappd_url'),
+                         'new': is_new, 'line': line})
 
     day = pub_date or moment.date().isoformat()
     values = {'{дата}': fmt_date_ru(day)}
+    block = '\n'.join(lines)
     if bar_ok and source in LIVE_SOURCES:
-        values.update({'{бар}': BAR_BY_KEY[bar]['name'], '{таплист}': '\n'.join(lines),
-                       '{кранов}': str(len(rows))})
+        values.update({'{бар}': BAR_BY_KEY[bar]['name'], '{таплист}': block, '{кранов}': str(len(rows))})
     # Один проход по шаблону: подставленное значение (название пива с «{…}»)
-    # повторно не разбирается.
-    text = _TOKEN_RE.sub(lambda m: values.get(m.group(0), m.group(0)), template)
+    # повторно не разбирается. По ходу считается позиция каждого {таплист} в
+    # единицах UTF-16 — от неё отсчитываются ссылки на Untappd.
+    pieces: List[str] = []
+    entities: List[dict] = []
+    units, last = 0, 0
+    for match in _TOKEN_RE.finditer(template):
+        before, token = template[last:match.start()], match.group(0)
+        value = values.get(token, token)
+        units += taplist_post.utf16_len(before)
+        if token == '{таплист}' and token in values:
+            for begin, end, url in links:
+                entities.append({'type': 'text_link', 'offset': units + taplist_post.utf16_len(block[:begin]),
+                                 'length': taplist_post.utf16_len(block[begin:end]), 'url': url})
+        units += taplist_post.utf16_len(value)
+        pieces += [before, value]
+        last = match.end()
+    pieces.append(template[last:])
+    text = ''.join(pieces)
     length = text_units(text, channel)      # Telegram: единицы UTF-16 (эмодзи — 2)
     if length > limit:
         add('text_too_long', f'текст длиннее {limit} знаков')
-    return {'ok': not problems, 'text': text, 'problems': problems, 'length': length,
+    return {'ok': not problems, 'text': text, 'entities': entities, 'problems': problems, 'length': length,
             'limit': limit, 'limit_note': limit_note_for(channel, with_media),
             'channel': channel, 'has_media': with_media, 'rows': rows_out,
-            'data_at': fmt_stamp(moment)}
+            'data_at': fmt_stamp(moment), 'taps_changed_at': fmt_stamp(changed) if changed else None}
 
 
 # ---------------------------------------------------------------------------

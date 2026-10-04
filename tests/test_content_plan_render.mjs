@@ -1422,6 +1422,39 @@ test('плашка календаря: название без приставк�
     assert.match(fnBody('pillTip'), /x\.m\.title/, 'в подсказке плашки нет полного названия');
 });
 
+test('предпросмотр таплиста: названия пива — ссылки на Untappd (сущности Telegram, UTF-16)', () => {
+    const { cp } = loadReal();
+    // U+1D504 — две единицы UTF-16, как эмодзи: offset Telegram совпадает с индексом строки JS.
+    const text = 'Таплист \u{1D504}\n1. Zavod Dopamine — двойной IPA, 7,2%\n2. <b>Злое</b> — сидр';
+    const url = 'https://untappd.com/b/zavod-dopamine/3636325';
+    const html = cp.linkedText(text, [
+        { type: 'text_link', offset: text.indexOf('Zavod'), length: 'Zavod Dopamine'.length, url },
+        { type: 'text_link', offset: text.indexOf('<b>'), length: 3, url: 'javascript:alert(1)' },
+    ]);
+    assert.ok(html.includes('<a href="' + url + '" target="_blank" rel="noopener noreferrer">Zavod Dopamine</a> — двойной IPA'));
+    assert.ok(!html.includes('javascript:'), 'не https — ссылки нет');
+    assert.ok(html.includes('&lt;b&gt;Злое&lt;/b&gt;'), 'текст вне ссылок экранируется');
+    assert.ok(html.includes('Таплист \u{1D504}<br>1. '));
+    // выход за конец текста и наложение — без ссылки, текст целиком
+    assert.equal(cp.linkedText('abc', [{ type: 'text_link', offset: 2, length: 5, url: 'https://x' }]), 'abc');
+    assert.equal(cp.linkedText('abcd', [{ type: 'text_link', offset: 1, length: 2, url: 'https://x' },
+                                        { type: 'text_link', offset: 2, length: 1, url: 'https://y' }]),
+                 'a<a href="https://x" target="_blank" rel="noopener noreferrer">bc</a>d');
+    assert.equal(cp.linkedText('a\nb', []), 'a<br>b');
+    // пузырь Telegram берёт entities из ответа live-preview; Instagram ссылок не показывает
+    const m = { id: 'm1', kind: 'live', live_source: 'taplist', media: [], placements: [] };
+    const tg = { id: 'p1', channel: 'telegram', bar: 'varshavskaya', date: '2026-10-09', time: '16:00',
+                 status: 'approved', effective_text: '{таплист}', media: null };
+    const ig = Object.assign({}, tg, { id: 'p2', channel: 'instagram', bar: 'all' });
+    const result = { text, entities: [{ type: 'text_link', offset: text.indexOf('Zavod'), length: 14, url }],
+                     length: 60, limit: 4096, problems: [] };
+    cp.state.previewLive[cp.previewKey(m, tg)] = { result };
+    cp.state.previewLive[cp.previewKey(m, ig)] = { result };
+    assert.ok(cp.previewHtml(m, tg).includes('>Zavod Dopamine</a>'));
+    assert.ok(!cp.previewHtml(m, ig).includes('<a href'), 'в подписи Instagram ссылок нет');
+    assert.match(css, /\.gh-cp-bubble-t a \{[^}]*color: var\(--gh-accent-ink\)/);
+});
+
 test('новый материал одной формой: название, площадка, бары, дата и время — сразу', () => {
     const { cp } = loadReal();
     const base = { title: 'Осенний сидр', channel: 'telegram', bars: ['bolshoy', 'ligovskiy'], bar: 'all', audience: '',

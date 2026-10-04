@@ -1054,23 +1054,39 @@ def _card(bid, name, brewery, style, abv):
 REGISTRY = {
     'schema_version': 1,
     'products': {GUID_A: _registry_row(GUID_A, '101'), GUID_B: _registry_row(GUID_B, '102')},
-    'beers': {'101': _card('101', 'Пилзнер', 'Пивоварня А', 'Lager', 5.0),
+    'beers': {'101': _card('101', 'Пилзнер', 'Пивоварня А', 'Pilsner - Czech / Bohemian', 5.0),
               '102': _card('102', 'IPA', 'Б', 'IPA - American', 6.5)},
 }
+# Краны стоят с 20 сентября: на NOW (7 октября) это не новинки. Свежесть кранов —
+# по снятию 1 октября (_fresh): без него последнее изменение было бы 20 сентября,
+# 17 дней назад, и пост остановило бы правило stale_taps.
+TAP_STARTED = '2026-09-20T12:00:00+03:00'
 
 
-def _tap(number, beer, guid, status='active'):
-    return {'tap_number': number, 'current_beer': beer, 'status': status, 'iiko_product_id': guid}
+def _tap(number, beer, guid, status='active', started=TAP_STARTED, history=None):
+    active = status == 'active'
+    if history is None:
+        history = [{'timestamp': started, 'action': 'start', 'beer_name': beer,
+                    'iiko_product_id': guid}] if active and beer else []
+    return {'tap_number': number, 'current_beer': beer, 'status': status, 'iiko_product_id': guid,
+            'started_at': started if active else None, 'history': history}
+
+
+def _fresh(number):
+    """Пустой кран, с которого 1 октября сняли кегу: свежая отметка на странице кранов."""
+    return _tap(number, None, None, status='empty', history=[
+        {'timestamp': '2026-09-10T12:00:00+03:00', 'action': 'start', 'beer_name': 'КЕГ Старое'},
+        {'timestamp': '2026-10-01T12:00:00+03:00', 'action': 'stop', 'beer_name': 'КЕГ Старое'}])
 
 
 SNAPSHOT = {
     'bar1': {'name': 'Большой пр. В.О', 'taps': [_tap(1, None, None, status='empty')]},
     'bar2': {'name': 'Лиговский', 'taps': [_tap(4, 'КЕГ Неизвестное', GUID_UNKNOWN),
                                            _tap(5, 'КЕГ Без карточки', None),
-                                           _tap(6, 'КЕГ Пилзнер', GUID_A)]},
+                                           _tap(6, 'КЕГ Пилзнер', GUID_A), _fresh(9)]},
     'bar4': {'name': 'Варшавская', 'taps': [_tap(2, 'КЕГ Пилзнер', GUID_A), _tap(1, 'КЕГ IPA', GUID_B),
                                             _tap(3, None, None, status='empty'),
-                                            _tap(7, 'КЕГ Старое', GUID_A, status='finished')]},
+                                            _tap(7, 'КЕГ Старое', GUID_A, status='finished'), _fresh(8)]},
 }
 TEMPLATE = 'Сегодня в баре «{бар}» ({дата}), кранов: {кранов}\n{таплист}'
 
@@ -1082,23 +1098,36 @@ def _render(bar, template=TEMPLATE, **kw):
 
 
 def test_taplist_line_format():
+    """Формат владельца 2026-10-04: «{кран}. {пивоварня и название} — {стиль}, {крепость}%[, новинка]»,
+    стиль по-русски из словаря, без цен. Правила имени — tests/test_taplist_post.py."""
     assert cp.format_abv(5.0) == '5' and cp.format_abv(6.5) == '6,5' and cp.format_abv('7.25') == '7,25'
     assert cp.format_abv(4.555) == '4,56' and cp.format_abv(4.545) == '4,55' and cp.format_abv('abc') is None
     assert cp.taplist_line({'tap_number': 3, 'beer_name': 'Лагер'}) == '3. Лагер'
-    assert cp.taplist_line({'tap_number': 3, 'beer_name': 'Лагер', 'brewery': 'АФ', 'style': 'Lager',
-                            'abv': 4.7}) == '3. АФ — Лагер, Lager, 4,7%'
-    assert cp.taplist_line({'tap_number': 3, 'beer_name': 'Лагер', 'brewery': 'АФ', 'abv': 0}) == '3. АФ — Лагер'
-    assert cp.taplist_line({'tap_number': 3, 'beer_name': 'Сидр', 'abv': 6}) == '3. Сидр, 6%'
+    row = {'tap_number': 3, 'beer_name': 'Лагер', 'brewery': 'АФ', 'style': 'Lager - Helles', 'abv': 4.7}
+    assert cp.taplist_line(row) == '3. АФ Лагер — светлый лагер, 4,7%'
+    assert cp.taplist_line(row, is_new=True) == '3. АФ Лагер — светлый лагер, 4,7%, новинка'
+    assert cp.taplist_line({'tap_number': 3, 'beer_name': 'Лагер', 'brewery': 'АФ', 'abv': 0}) == '3. АФ Лагер'
+    assert cp.taplist_line({'tap_number': 3, 'beer_name': 'Сидр', 'abv': 6}) == '3. Сидр — 6%'
+    # стиля нет в словаре — по-английски в пост не пишем
+    assert cp.taplist_line({'tap_number': 3, 'beer_name': 'Сидр', 'style': 'Unknown Style', 'abv': 6}) == '3. Сидр — 6%'
 
 
 def test_render_live_ok_and_stop_rules():
     r = _render('varshavskaya', pub_date='2026-10-09')
     assert r['ok'] is True and r['problems'] == []
     assert r['text'] == ('Сегодня в баре «Варшавская» (9 октября), кранов: 2\n'
-                         '1. Б — IPA, IPA - American, 6,5%\n'
-                         '2. Пивоварня А — Пилзнер, Lager, 5%')
+                         '1. Б IPA — американский IPA, 6,5%\n'
+                         '2. Пивоварня А Пилзнер — чешский пилснер, 5%')
     assert (r['length'], r['limit'], r['data_at']) == (len(r['text']), 4096, NOW_STR)
     assert [row['tap_number'] for row in r['rows']] == [1, 2] and r['rows'][0]['line'].startswith('1. Б')
+    assert (r['rows'][0]['name'], r['rows'][0]['new'], r['rows'][0]['untappd_url']) == (
+        'Б IPA', False, 'https://untappd.com/b/beer/102')
+    # названия — ссылки на Untappd: сущности Telegram, offset и length в UTF-16
+    assert r['entities'] == [
+        {'type': 'text_link', 'offset': r['text'].index('Б IPA'), 'length': 5, 'url': 'https://untappd.com/b/beer/102'},
+        {'type': 'text_link', 'offset': r['text'].index('Пивоварня А Пилзнер'), 'length': 19,
+         'url': 'https://untappd.com/b/beer/101'}]
+    assert r['taps_changed_at'] == '2026-10-01T12:00'
     assert '(7 октября)' in _render('varshavskaya')['text']                    # {дата} по умолчанию — сегодня
 
     def codes(result):
@@ -1116,7 +1145,9 @@ def test_render_live_ok_and_stop_rules():
     assert codes(r) == ['unverified', 'unverified']
     assert [p['text'] for p in r['problems']] == ['Кран 4: Нет проверенной связи с Untappd',
                                                    'Кран 5: Уточните сорт на кране']
-    assert '4. КЕГ Неизвестное' in r['text'] and '6. Пивоварня А — Пилзнер' in r['text']
+    assert '4. КЕГ Неизвестное\n' in r['text'] and '6. Пивоварня А Пилзнер — чешский пилснер, 5%' in r['text']
+    # у крана без карточки Untappd ссылки нет
+    assert [e['url'] for e in r['entities']] == ['https://untappd.com/b/beer/101']
     r = _render('varshavskaya', template='{таплист} {цена}')
     assert codes(r) == ['bad_placeholder'] and r['problems'][0]['text'] == 'неизвестная подстановка {цена}'
     r = _render('varshavskaya', template='x' * 4097)
