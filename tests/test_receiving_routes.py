@@ -670,6 +670,31 @@ def test_delete_receipt_route(env):
     assert r.status_code == 404 and r.get_json()['error'] == 'Приёмка не найдена'
 
 
+def test_scan_into_deleted_receipt_is_409_so_phone_keeps_scans(env):
+    c = env.client
+    rid = _new_receipt(c)
+    _scan(c, rid, EAN_A)
+    c.post('/api/receiving/%d/close' % rid)
+    assert c.delete('/api/receiving/%d' % rid).status_code == 200
+    code, body = _scan(c, rid, EAN_B)                                     # телефон досылает очередь
+    assert code == 409 and body['code'] == 'receipt_deleted'
+    assert body['error'] == 'Приёмку удалили в «Разборе приёмок» — сканы в неё не записываются'
+    code, body = _scan(c, rid + 100, EAN_B)
+    assert code == 404                                                     # такой приёмки не было
+
+
+def test_delete_receipt_route_refuses_while_processing(env):
+    c = env.client
+    env.service.claim = True                                              # «Завершить» берёт обработку
+    rid = _new_receipt(c)
+    _scan(c, rid, EAN_A)
+    assert c.post('/api/receiving/%d/close' % rid).status_code == 202
+    assert receiving_store.get_receipt(rid)['process_state'] == 'running'
+    r = c.delete('/api/receiving/%d' % rid)
+    assert r.status_code == 409 and r.get_json()['code'] == 'receipt_processing'
+    assert c.get('/api/receiving/%d' % rid).status_code == 200
+
+
 def test_delete_receipt_route_refuses_open_and_reviewed(env):
     c = env.client
     scanning = _new_receipt(c)

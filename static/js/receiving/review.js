@@ -134,6 +134,7 @@
         tab: 'open',
         q: '',
         picked: [],           // выбранные приёмки: ?receipt=12,15, выбор вверху, «Показать позиции»
+        loadedPicked: [],     // выбор, для которого пришёл последний ответ (receipts — по нему)
         data: null,           // последний ответ /api/receiving/review
         rows: [],
         index: null,
@@ -288,6 +289,7 @@
     // ответ на устаревший запрос отбрасывается (docs/lessons.md).
     async function load() {
         const seq = ++state.seq;
+        const picked = state.picked.slice();
         state.loading = true;
         renderCount();
         let res;
@@ -316,6 +318,7 @@
         // строку, сохранится она как обычно — по уходу из поля (ревью 2026-10-03).
         const typing = draftNotes();
         applyData(res.data);
+        state.loadedPicked = picked;
         render();
         restoreNotes(typing);
         // Индекс обновляет кто-то другой (утреннее обновление, вторая вкладка, закрытие
@@ -453,9 +456,14 @@
     }
 
     // Подпись на приёмке в выборе: сколько её позиций ещё к разбору или почему их не видно.
-    function pickNote(r) {
-        // До первого ответа сервера приёмок ещё нет — это не «не найдена».
-        if (!r) return state.data ? { text: 'не найдена', cls: 'is-error' } : { text: '', cls: '' };
+    // Приёмку выбрали после последнего ответа сервера (ещё грузится или загрузка не
+    // удалась) — её данных нет не потому, что её нет.
+    function pickedLoaded(id) {
+        return Boolean(state.data) && state.loadedPicked.indexOf(Number(id)) !== -1;
+    }
+
+    function pickNote(r, id) {
+        if (!r) return pickedLoaded(id) ? { text: 'не найдена', cls: 'is-error' } : { text: '', cls: '' };
         if (r.status !== 'closed') return { text: 'не завершена', cls: 'is-wait' };
         if (r.process_state === 'error') return { text: 'ошибка сверки', cls: 'is-error' };
         if (r.process_state !== 'done') return { text: 'сверяется', cls: 'is-wait' };
@@ -471,7 +479,7 @@
         button.setAttribute('aria-pressed', on ? 'true' : 'false');
         const day = r ? fmtStamp(r.closed_at || r.created_at).slice(0, 5) : '';
         button.appendChild(el('span', '', '№' + id + (day ? ' · ' + day : '')));
-        const note = pickNote(r);
+        const note = pickNote(r, id);
         button.appendChild(el('span', 'rv-chip-n' + (note.cls ? ' ' + note.cls : ''), note.text));
         if (r) {
             const c = r.counts || {};
@@ -485,6 +493,9 @@
 
     function renderPicker() {
         const box = $('rvPickList');
+        // Чипы строятся заново: фокус клавиатуры возвращается на тот же чип (как у заметок).
+        const active = document.activeElement;
+        const focusKey = active && active.parentNode === box && active.dataset ? active.dataset.receipt : null;
         clear(box);
         const known = {};
         state.receipts.forEach((r) => { known[Number(r.id)] = r; });
@@ -498,11 +509,17 @@
         all.addEventListener('click', () => setPicked([]));
         box.appendChild(all);
         ids.forEach((id) => box.appendChild(pickNode(id, known[id] || null)));
+        if (focusKey) {
+            const again = box.children ? Array.prototype.find.call(box.children, (n) => n.dataset && n.dataset.receipt === focusKey) : null;
+            if (again && typeof again.focus === 'function') again.focus();
+        }
 
         const waiting = state.receipts.filter(needsReview).length;
         let sub = '';
-        if (state.picked.length) {
-            sub = 'выбрано ' + state.picked.length + ' — показаны только их позиции';
+        if (state.picked.length === 1) {
+            sub = 'выбрана приёмка №' + state.picked[0] + ' — показаны только её позиции';
+        } else if (state.picked.length) {
+            sub = 'выбрано приёмок: ' + state.picked.length + ' — показаны только их позиции';
         } else if (state.data) {
             sub = waiting ? 'неразобранных ' + fmtInt(waiting) : 'неразобранных приёмок нет';
         }
@@ -522,6 +539,8 @@
     function emptyText() {
         if (!state.data) return state.error ? 'Список не загружен' : 'Загрузка...';
         if (state.q) return 'По запросу «' + state.q + '» ничего не нашлось';
+        const reason = pickedReason();
+        if (reason) return reason;
         let scope = '';
         if (state.picked.length === 1) scope = 'В приёмке №' + state.picked[0] + ' ';
         else if (state.picked.length > 1) scope = 'В выбранных приёмках ';
@@ -534,6 +553,28 @@
         if (tab.status) return (scope || '') + 'Строк со статусом «' + STATUS_LABELS[tab.status] + '» нет';
         const nothing = 'разбирать нечего: всё принятое есть в iiko';
         return scope ? scope + nothing : 'Р' + nothing.slice(1);
+    }
+
+    // Пустая таблица по выбранным приёмкам: их строк нет, потому что сверка ещё идёт или
+    // не прошла, приёмка не завершена или её нет, — а не потому, что «всё есть в iiko».
+    function pickedReason() {
+        if (!state.picked.length) return '';
+        const known = {};
+        state.receipts.forEach((r) => { known[Number(r.id)] = r; });
+        const notes = [];
+        state.picked.forEach((id) => {
+            const r = known[id];
+            if (!r) {
+                if (pickedLoaded(id)) notes.push('Приёмки №' + id + ' нет — удалена или номер неверный');
+            } else if (r.status !== 'closed') {
+                notes.push('Приёмка №' + id + ' ещё не завершена');
+            } else if (r.process_state === 'error') {
+                notes.push('Сверка приёмки №' + id + ' с iiko не прошла' + (r.process_note ? ': ' + r.process_note : ''));
+            } else if (r.process_state !== 'done') {
+                notes.push('Приёмка №' + id + ' ещё сверяется с iiko — позиции появятся после сверки');
+            }
+        });
+        return notes.join('. ');
     }
 
     function renderRows() {
@@ -1267,14 +1308,17 @@
         delete state.deleting[id];
         if (res.ok || res.status === 404) {
             const rows = Number(res.data && res.data.rows_deleted) || 0;
-            toast(res.ok ? 'Приёмка №' + id + ' удалена'
-                + (rows ? ', из разбора убрано ' + fmtInt(rows) + ' ' + plural(rows, POSITION_WORDS) : '')
+            toast(res.ok ? 'Приёмка №' + id + ' удалена' + (rows ? '; убрано из разбора позиций: ' + fmtInt(rows) : '')
                 : 'Приёмки №' + id + ' уже нет');
             delete state.receiptDetails[id];
+            // Из списка — сразу: и до ответа на перечитывание, и если оно не удастся.
+            state.receipts = state.receipts.filter((x) => Number(x.id) !== id);
             if (pickedHas(id)) {
                 await setPicked(state.picked.filter((x) => x !== id));
                 return;
             }
+            renderPicker();
+            renderReceipts();
             await load();
             return;
         }

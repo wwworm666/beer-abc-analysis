@@ -1137,7 +1137,7 @@ await test('?receipt=12: фильтр в запросе и выбранная п
     assert.ok(e2.chip(12).classList.contains('is-on'));
     assert.equal(e2.chip(12).getAttribute('aria-pressed'), 'true');
     assert.ok(!e2.chip('all').classList.contains('is-on'));
-    assert.match(e2.byId.rvPickSub.textContent, /^выбрано 1/);
+    assert.equal(e2.byId.rvPickSub.textContent, 'выбрана приёмка №12 — показаны только её позиции');
     assert.deepEqual(e2.rows().map((r) => r.dataset.gtin), ['04650075420019', '04607043562301', '14600000000005']);
     assert.ok(e2.byId.rvReceipts.children[0].classList.contains('is-current'), 'приёмка не подсвечена в списке');
     e2.clearCalls();
@@ -1166,7 +1166,7 @@ await test('выбор приёмок: неразобранные вверху, 
     assert.equal(e2.lastGet('/api/receiving/review?').url, '/api/receiving/review?state=open&receipt_id=12,11&limit=200');
     assert.deepEqual(e2.urls.slice(-1), ['/receiving/review?receipt=12,11']);
     assert.ok(e2.chip(12).classList.contains('is-on') && e2.chip(11).classList.contains('is-on'));
-    assert.match(e2.byId.rvPickSub.textContent, /^выбрано 2/);
+    assert.equal(e2.byId.rvPickSub.textContent, 'выбрано приёмок: 2 — показаны только их позиции');
     assert.equal(e2.rows().length, 4, 'строки обеих приёмок');
     e2.chip(12).click();
     await flush();
@@ -1247,7 +1247,7 @@ await test('«Удалить приёмку»: подтверждение, DELET
     assert.equal(e2.calls[0].url, '/api/receiving/12');
     assert.equal(e2.lastGet('/api/receiving/review?').url, '/api/receiving/review?state=open&receipt_id=11&limit=200');
     assert.deepEqual(e2.urls.slice(-1), ['/receiving/review?receipt=11']);
-    assert.equal(e2.byId.rvToast.textContent, 'Приёмка №12 удалена, из разбора убрано 2 позиции');
+    assert.equal(e2.byId.rvToast.textContent, 'Приёмка №12 удалена; убрано из разбора позиций: 2');
     assert.ok(!e2.byId.rvReceipts.children.some((n) => /№12/.test(n.textContent)), 'удалённая осталась в истории');
 });
 
@@ -1270,6 +1270,62 @@ await test('«Удалить приёмку»: 409 — текст сервера
     e2.db.network = false;
     assert.equal(e2.byId.rvToast.textContent, 'Нет связи с сервером — приёмка не удалена');
     assert.equal(del().textContent, 'Удалить приёмку', 'кнопка не вернулась после сбоя');
+});
+
+await test('удаление: приёмка уходит из истории и выбора сразу, даже если перечитать не удалось', async () => {
+    const e2 = boot();
+    await flush();
+    const box = () => e2.byId.rvReceipts.children.find((n) => /№12/.test(n.textContent));
+    e2.db.holdNext = (call) => call.method === 'GET' && call.url.startsWith('/api/receiving/review?');
+    findAll(box(), (n) => n.dataset.action === 'delete')[0].click();
+    await flush();
+    assert.equal(box(), undefined, 'удалённая приёмка ещё в истории до ответа');
+    assert.equal(e2.chip(12), undefined, 'удалённая приёмка ещё в выборе');
+    e2.db.reviewReply = { status: 503, data: { error: 'База приёмки недоступна' } };   // перечитать не удалось
+    await e2.release();
+    assert.equal(box(), undefined, 'после сбоя перечитывания удалённая вернулась');
+    assert.equal(e2.chip(12), undefined);
+});
+
+await test('пустая таблица у выбранных приёмок объясняет, почему: сверяется, не прошла, нет такой', async () => {
+    const e2 = boot({ search: '?receipt=11', setup: (db) => { db.rows = []; } });
+    await flush();
+    assert.equal(e2.byId.rvRows.textContent,
+        'Сверка приёмки №11 с iiko не прошла: Нет индекса iiko: Не настроено подключение к iiko');
+    const e3 = boot({ search: '?receipt=99', setup: (db) => { db.rows = []; } });
+    await flush();
+    assert.equal(e3.byId.rvRows.textContent, 'Приёмки №99 нет — удалена или номер неверный');
+    assert.equal(flat(e3.chip(99).textContent), '№99не найдена');
+    const e4 = boot({ search: '?receipt=12', setup: (db) => {
+        db.rows = [];
+        db.receipts[0] = Object.assign({}, db.receipts[0], { process_state: 'running', can_delete: false });
+    } });
+    await flush();
+    assert.equal(e4.byId.rvRows.textContent, 'Приёмка №12 ещё сверяется с iiko — позиции появятся после сверки');
+    assert.equal(findAll(e4.byId.rvReceipts.children[0], (n) => n.dataset.action === 'delete').length, 0,
+        'у сверяемой приёмки кнопки удаления нет');
+});
+
+await test('выбранная из строки приёмка не «не найдена», пока список перечитывается', async () => {
+    const e2 = boot();
+    await flush();
+    e2.db.holdNext = (call) => call.method === 'GET' && call.url.startsWith('/api/receiving/review?');
+    e2.api.setReceipt(7);
+    await flush();
+    assert.equal(flat(e2.chip(7).textContent), '№7', 'до ответа приёмка помечена «не найдена»');
+    e2.db.reviewReply = { status: 503, data: { error: 'База приёмки недоступна' } };   // загрузка не удалась
+    await e2.release();
+    assert.equal(flat(e2.chip(7).textContent), '№7', 'после сбоя загрузки приёмка помечена «не найдена»');
+});
+
+await test('фокус клавиатуры остаётся на чипе приёмки после щелчка', async () => {
+    const e2 = boot();
+    await flush();
+    e2.chip(11).focus();
+    e2.chip(11).click();
+    await flush();
+    assert.equal(e2.document.activeElement, e2.chip(11), 'фокус ушёл с чипа');
+    assert.ok(e2.chip(11).classList.contains('is-on'));
 });
 
 await test('кривой ?receipt= игнорируется', async () => {

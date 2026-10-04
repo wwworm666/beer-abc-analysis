@@ -197,6 +197,7 @@ class FakeServer {
         this.nextReceipt = 12;
         this.nextScan = 500;
         this.override = null;     // (call) -> {status, data} | null — подмена ответа
+        this.deleted = new Set(); // удалённые в «Разборе приёмок»: скан в них — 409 receipt_deleted
     }
 
     addReceipt(extra) {
@@ -296,6 +297,10 @@ class FakeServer {
         }
         if ((m = SCAN_RE.exec(pathname)) && call.method === 'POST') {
             const r = this.receipts.get(Number(m[1]));
+            if (!r && this.deleted.has(Number(m[1]))) {
+                return { status: 409, data: { error: 'Приёмку удалили в «Разборе приёмок» — сканы в неё не записываются',
+                                              code: 'receipt_deleted' } };
+            }
             if (!r) return { status: 404, data: { error: 'Приёмка не найдена' } };
             const body = call.body || {};
             if (typeof body.code !== 'string') return { status: 400, data: { error: 'code — строка с прочитанным кодом' } };
@@ -1187,6 +1192,50 @@ await test('409 на скан (приёмку закрыли на другом �
     assert.match(env.$('rc-toast').textContent, /Приёмку №60 уже закрыли — неотправленные сканы из телефона \(2\) перенесены в новую приёмку №61/);
     assert.equal(env.$('rc-title').textContent, 'Приёмка №61');
     assert.equal(env.sandbox.location.search, '?r=61');
+});
+
+await test('409 receipt_deleted (приёмку удалили в разборе): сканы переносятся в новую приёмку', async () => {
+    // Ревью 2026-10-04: удаление приёмки не должно выбрасывать неотправленные сканы телефона.
+    const server = new FakeServer();
+    server.addReceipt({ id: 63 });
+    server.nextReceipt = 64;
+    const env = await boot({ server, search: '?r=63' });
+    env.net.mode = 'offline';
+    scan(env, EAN_A);
+    scan(env, DM_1);
+    await settle(env);
+    assert.equal(env.queue().length, 2);
+    server.receipts.delete(63);
+    server.deleted.add(63);
+    env.net.mode = 'online';
+    await advance(env, 30000);
+    assert.deepEqual(env.queue(), [], 'сканы не дошли');
+    const created = env.net.calls.filter((c) => c.method === 'POST' && c.url === '/api/receiving');
+    assert.equal(created.length, 1);
+    assert.match(created[0].body.note, /после удаления приёмки №63/);
+    assert.equal(server.receipts.get(64).scans.filter((s) => s.accepted).length, 2);
+    assert.match(env.$('rc-toast').textContent, /Приёмку №63 удалили — неотправленные сканы из телефона \(2\) перенесены в новую приёмку №64/);
+});
+
+await test('отмена скана в закрытой приёмке (409) не выбрасывает следующие сканы: они уходят в новую', async () => {
+    const server = new FakeServer();
+    const r = server.addReceipt({ id: 66 });
+    server.nextReceipt = 67;
+    const saved = server.record(r, EAN_A, 'saved-scan-0001', 'scanner');
+    r.status = 'closed';
+    const base = { source: 'scanner', client_time: '2026-10-03T07:00:00.000Z', at: 1, local: 'accepted',
+                   kind: 'ean', message: 'Принято' };
+    const queue = [
+        Object.assign({}, base, { client_id: 'undo-item-0001', receipt_id: 66, code: EAN_A, gtin: GTIN_A, key: GTIN_A,
+                                  tries: 1, undo: true, scan_id: saved.scan.id }),
+        Object.assign({}, base, { client_id: 'next-scan-0002', receipt_id: 66, code: EAN_B, gtin: GTIN_B, key: GTIN_B,
+                                  tries: 0 }),
+    ];
+    const env = await boot({ server, storage: { 'rc.queue.v1': JSON.stringify(queue) } });
+    await advance(env, 30000);
+    assert.deepEqual(env.queue(), [], 'очередь не разобрана');
+    assert.equal(server.receipts.get(67).scans.filter((s) => s.accepted).length, 1, 'скан после отмены потерян');
+    assert.match(env.$('rc-toast').textContent, /Приёмку №66 уже закрыли — неотправленные сканы из телефона \(1\) перенесены в новую приёмку №67/);
 });
 
 await test('404 на скан (приёмки нет): сканы этой приёмки выброшены с сообщением', async () => {

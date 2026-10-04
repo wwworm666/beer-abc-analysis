@@ -297,8 +297,9 @@
 .rv-chip.is-on { color: var(--rv-accent-ink); background: var(--rv-accent-soft); border-color: var(--rv-accent); }
 .rv-chip-n { font-weight: 600; color: var(--rv-ink3); font-variant-numeric: tabular-nums; }
 .rv-chip.is-on .rv-chip-n { color: var(--rv-accent-ink); }
-.rv-chip-n.is-wait { color: var(--rv-warn-ink); }
-.rv-chip-n.is-error { color: var(--rv-bad-ink); }
+/* Состояние приёмки видно и у выбранного чипа: правила не слабее .rv-chip.is-on .rv-chip-n. */
+.rv-chip-n.is-wait, .rv-chip.is-on .rv-chip-n.is-wait { color: var(--rv-warn-ink); }
+.rv-chip-n.is-error, .rv-chip.is-on .rv-chip-n.is-error { color: var(--rv-bad-ink); }
 
 .rv-msg { margin: 0 0 12px; font-size: 13px; color: var(--rv-ink3); }
 .rv-msg.is-bad {

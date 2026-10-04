@@ -459,6 +459,9 @@ def _notify_once(rid: int, notes: list) -> bool:
         receiving_store.mark_notified(rid)
         return sent
     except Exception as error:  # noqa: BLE001 — строки уже заведены, сообщение вторично
+        not_found = getattr(receiving_store, 'ReceiptNotFound', None)
+        if isinstance(not_found, type) and isinstance(error, not_found):
+            raise       # приёмку удалили — process_receipt тихо остановится, без «не отправлено»
         _log_error(f'приёмка №{rid}: сообщение бухгалтерии', error)
         notes.append('Сообщение бухгалтерии не отправлено: ' + _error_text(error))
         return False

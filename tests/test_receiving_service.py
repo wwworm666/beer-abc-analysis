@@ -625,6 +625,23 @@ def test_process_unknown_receipt_stops_quietly(fakes):
     assert fakes.store.finished == []
 
 
+def test_process_receipt_deleted_during_notify_is_quiet(fakes, capsys):
+    # Приёмку удалили, когда строки уже заведены, а сообщение ещё не ушло: без
+    # трассировки в логе и без ложного «сообщение не отправлено».
+    fakes.store.lines[17] = _lines(G_NEW_BARE)
+
+    def gone(rid):
+        raise fakes.store.ReceiptNotFound(str(rid))
+
+    fakes.store.get_receipt = gone
+    res = svc.process_receipt(17)
+    assert res['state'] == 'deleted'
+    assert fakes.store.finished == []
+    assert 'не отправлено' not in res['note']
+    out = capsys.readouterr()
+    assert 'Traceback' not in out.err and 'Traceback' not in out.out
+
+
 def test_process_receipt_deleted_midway_stops_without_finish(fakes):
     # Приёмку удалили посреди обработки: хранилище не заводит ей строку разбора
     # (ReceiptNotFound) — обработка останавливается без итога и без сообщения.

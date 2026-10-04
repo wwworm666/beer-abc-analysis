@@ -47,8 +47,10 @@
 
 Коды ошибок: 400 — кривое поле или фильтр (текст по-русски), 404 — нет приёмки,
 скана, фото или строки разбора, 409 `code='receipt_closed'` — сканы закрытой
-приёмки не меняются, 409 `code='receipt_open'` / `code='receipt_reviewed'` —
-удалить можно только закрытую приёмку, разобранную не полностью,
+приёмки не меняются (удалённой — `code='receipt_deleted'`: телефон переносит сканы
+в новую приёмку), 409 `code='receipt_open'` / `code='receipt_reviewed'` /
+`code='receipt_processing'` — удалить можно только закрытую приёмку, разобранную не
+полностью и не сверяемую в эту минуту,
 411 — фото без Content-Length, 413 — фото больше предела, 503 `code='receiving_unavailable'` —
 `receiving.db` не читается (файл не трогаем), 503 `code='index_missing'` — индекс
 iiko ещё не собран (поиск карточек).
@@ -95,8 +97,8 @@ RECEIPTS_LIMIT_MAX = 200
 # потолок — общий предел списков хранилища (1000).
 REVIEW_LIMIT_DEFAULT = 200
 REVIEW_LIMIT_MAX = receiving_store.LIST_LIMIT_MAX
-# В ответ разбора — для выбора приёмок и блока «Приёмки»: все неразобранные, последние
-# 20 закрытых (история) и выбранные (core/receiving_store.review_receipts).
+# В ответ разбора — для выбора приёмок и «Истории приёмок»: все неразобранные с позициями,
+# последние 20 закрытых (история) и выбранные (core/receiving_store.review_receipts).
 REVIEW_RECENT_RECEIPTS = 20
 # Сколько приёмок разом в фильтре разбора (?receipt_id=2,3) — предел хранилища.
 REVIEW_RECEIPTS_MAX = receiving_store.RECEIPT_FILTER_MAX
@@ -171,6 +173,11 @@ def _store_guard(view):
             return _error(str(e), 503, code='receiving_unavailable')
         except receiving_store.ReceiptNotFound:
             return _error('Приёмка не найдена', 404)
+        except receiving_store.ReceiptDeleted:
+            # Раньше ReceiptClosed (это его наследник): скан в удалённую приёмку — 409, и
+            # телефон переносит неотправленные сканы в новую приёмку, а не выбрасывает.
+            return _error('Приёмку удалили в «Разборе приёмок» — сканы в неё не записываются', 409,
+                          code='receipt_deleted')
         except receiving_store.ReceiptClosed:
             return _error('Приёмка уже закрыта — сканы в ней не меняются', 409, code='receipt_closed')
         except receiving_store.ScanNotFound:
@@ -183,6 +190,9 @@ def _store_guard(view):
         except receiving_store.ReceiptReviewed:
             return _error('Приёмка разобрана полностью — она остаётся в истории', 409,
                           code='receipt_reviewed')
+        except receiving_store.ReceiptProcessing:
+            return _error('Приёмку сейчас сверяют с iiko — удалить можно, когда сверка закончится', 409,
+                          code='receipt_processing')
         except ValueError as e:
             return _error(str(e), 400)
     return wrapper
@@ -329,12 +339,13 @@ def receiving_get(receipt_id):
 @receiving_bp.route('/api/receiving/<int:receipt_id>', methods=['DELETE'])
 @_store_guard
 def receiving_delete(receipt_id):
-    """«Удалить приёмку» в блоке «Приёмки» на разборе: закрытую, разобранную не полностью.
+    """«Удалить приёмку» в «Истории приёмок» на разборе: закрытую, разобранную не полностью.
 
     Правила и что удаляется — core/receiving_store.delete_receipt. 200 — {'deleted': True,
     'receipt' (какой она была), 'rows_deleted', 'rows_kept', 'invoices_deleted'};
     409 receipt_open — приёмку ещё сканируют; 409 receipt_reviewed — разобрана
-    полностью и остаётся в истории; 404 — нет приёмки (повтор удаления тоже 404).
+    полностью и остаётся в истории; 409 receipt_processing — её сверяют в эту минуту;
+    404 — нет приёмки (повтор удаления тоже 404). Скан в удалённую — 409 receipt_deleted.
     Файлы фото накладных удаляются после записи в базе (best-effort, как одно фото).
     """
     result = receiving_store.delete_receipt(receipt_id, current_user())
@@ -493,8 +504,9 @@ def receiving_review():
     запятую из found, restore, duplicate, similar, new), ?receipt_id=12 или 12,15
     (GTIN этих приёмок, до REVIEW_RECEIPTS_MAX номеров), ?q= (GTIN, штрихкод, название
     ЧЗ, карточки, поставщик, заметка), ?limit=1..1000. Кривой фильтр — 400. counts —
-    счётчики вкладок без state и status. receipts — приёмки для выбора и блока
-    «Приёмки»: все неразобранные, последние REVIEW_RECENT_RECEIPTS закрытых и выбранные.
+    счётчики вкладок без state и status. receipts — приёмки для выбора и «Истории
+    приёмок»: все неразобранные с позициями, последние REVIEW_RECENT_RECEIPTS закрытых и
+    выбранные.
     """
     state = (request.args.get('state') or 'open').strip()
     if state not in REVIEW_STATES:
