@@ -6,6 +6,8 @@
    /api/receiving/barcodes/status, подробности приёмки — GET /api/receiving/<id>,
    «Удалить приёмку» — DELETE /api/receiving/<id>. Какие приёмки разбирать — выбор
    вверху страницы (несколько сразу, адрес ?receipt=12,15).
+   Панель «Поиск в iiko» одна: открывается под строкой, которая её позвала, или под
+   шапкой таблицы для поиска без строки (findInIiko, openIikoFree, closeIiko).
    Статусы, счётчики вкладок и порядок строк считает сервер
    (core/receiving_store.list_review); здесь только показ и действия — второй копии
    правил на странице нет.
@@ -57,6 +59,16 @@
     // Уведомление: обычное 4 с, ошибка 8 с — её дочитывают (как на /taps).
     const TOAST_MS = 4000;
     const TOAST_BAD_MS = 8000;
+    // Уведомление с кнопкой («Вернуть» после «Сделано» и «Не нужно») — 8 с: успеть
+    // нажать «Вернуть». Пока кнопка в фокусе, уведомление не прячется.
+    const TOAST_ACTION_MS = 8000;
+    // Колонок таблицы: позиция, кол-во, карточки iiko, поставщик и заметка, решение.
+    // На всю ширину — пустая строка и строка с «Поиском в iiko» под позицией (colSpan).
+    const COLS = 5;
+    // Индекс старше 26 ч — утренняя сборка (07:30 МСК) не прошла: то же правило, что у
+    // сервера при старте (STARTUP_MAX_AGE_HOURS = 26 в core/receiving_scheduler.py).
+    // Тогда кнопка «Обновить из iiko» выделяется, а у даты индекса — пометка.
+    const INDEX_STALE_MIN = 26 * 60;
     // Сколько держится надпись «Скопировано» на кнопке.
     const FLASH_MS = 1500;
     // Номера приёмок в ?receipt= — до 9 цифр каждый (как r\d{1,9} в именах фото
@@ -158,12 +170,16 @@
         pollTimer: null,
         pollFails: 0,
         searchTimer: null,
-        iiko: { q: '', seq: 0, cards: null },
-        receiptDetails: {},   // id -> {open, data}
+        // gtin: где открыта панель «Поиск в iiko» — null закрыта, '' без строки (под
+        // шапкой таблицы), GTIN — под этой строкой.
+        iiko: { q: '', seq: 0, cards: null, gtin: null },
+        receiptDetails: {},   // id -> {open, data, loading, failed}: подробности приёмки
         deleting: {},         // id -> true, пока уходит удаление приёмки
     };
-    // Узлы, которые строятся один раз (вкладки), и элементы строк по GTIN.
-    const nodes = { tabs: null, rows: {}, notes: {} };
+    // Узлы, которые строятся один раз (вкладки), элементы строк по GTIN, панель «Поиск
+    // в iiko» (iiko) и строка таблицы, в которой она стоит под позицией (findTr).
+    // Панель держим ссылкой: отцепленный от страницы узел getElementById не находит.
+    const nodes = { tabs: null, rows: {}, notes: {}, iiko: null, findTr: null };
 
     // ==================== Помощники ====================
 
@@ -235,13 +251,41 @@
     }
 
     let toastTimer = null;
-    function toast(text, bad) {
+    // action — {label, run}: кнопка в уведомлении («Вернуть» после решения по строке).
+    // Срабатывает один раз: щелчок прячет уведомление и только потом выполняет действие;
+    // следующее уведомление заменяет текст вместе с кнопкой.
+    function toast(text, bad, action) {
         const node = $('rvToast');
         node.textContent = text;
         node.classList.toggle('is-bad', Boolean(bad));
+        if (action) {
+            const button = el('button', 'rv-toast-act', action.label);
+            button.type = 'button';
+            let used = false;
+            button.addEventListener('click', () => {
+                if (used) return;
+                used = true;
+                clearTimeout(toastTimer);
+                node.hidden = true;
+                action.run();
+            });
+            node.appendChild(button);
+        }
         node.hidden = false;
         clearTimeout(toastTimer);
-        toastTimer = setTimeout(() => { node.hidden = true; }, bad ? TOAST_BAD_MS : TOAST_MS);
+        toastTimer = setTimeout(hideToast, action ? TOAST_ACTION_MS : bad ? TOAST_BAD_MS : TOAST_MS);
+    }
+
+    // Кнопка уведомления в фокусе (дошли до неё клавиатурой) — подождать ещё TOAST_MS,
+    // а не прятать кнопку из-под фокуса.
+    function hideToast() {
+        const node = $('rvToast');
+        const active = document.activeElement;
+        if (active && active.parentNode === node && !node.hidden) {
+            toastTimer = setTimeout(hideToast, TOAST_MS);
+            return;
+        }
+        node.hidden = true;
     }
 
     // Подпись кнопки возвращается к исходной, даже если нажали дважды подряд
@@ -343,23 +387,34 @@
         renderReceipts();
     }
 
+    // Индекс iiko: 'missing' — не собран, 'stale' — старше INDEX_STALE_MIN, иначе 'ok'.
+    // Возраст неизвестен (age_minutes null) — 'ok': без даты сборки индекс уже 'missing'.
+    function indexState() {
+        const info = state.index;
+        if (!info || !info.built_at) return 'missing';
+        const age = Number(info.age_minutes);
+        return Number.isFinite(age) && age > INDEX_STALE_MIN ? 'stale' : 'ok';
+    }
+
     function renderIndex() {
         const node = $('rvIndex');
         const info = state.index;
-        if (info && info.built_at) {
+        const mode = indexState();
+        if (mode !== 'missing') {
             const products = (info.counts && info.counts.products) || 0;
             node.textContent = 'Индекс iiko: ' + fmtStamp(info.built_at, true) + ', '
-                + fmtInt(products) + ' ' + plural(products, ['карточка', 'карточки', 'карточек']);
-            node.classList.remove('is-missing');
+                + fmtInt(products) + ' ' + plural(products, ['карточка', 'карточки', 'карточек'])
+                + (mode === 'stale' ? ' — утреннее обновление не прошло' : '');
         } else {
             node.textContent = 'Индекс iiko ещё не собран — нажмите «Обновить из iiko»';
-            node.classList.add('is-missing');
         }
+        node.classList.toggle('is-missing', mode === 'missing');
+        node.classList.toggle('is-stale', mode === 'stale');
         renderIndexDiag();
         renderJob();
     }
 
-    // Диагностика индекса — внутри «Как считается» шапки.
+    // Диагностика индекса — внутри «Как считается» шапки таблицы.
     function renderIndexDiag() {
         const node = $('rvIndexDiag');
         if (!node) return;
@@ -398,9 +453,14 @@
         node.classList.toggle('is-bad', bad);
 
         const busy = running || state.refreshStarting;
+        // Кнопка нужна редко (индекс собирается сам) и обычно тихая; выделяется цветом,
+        // когда без неё не обойтись: индекса нет, он устарел или обновление не удалось.
+        const urgent = !busy && (indexState() !== 'ok' || Boolean(job.error));
         const button = $('rvRefresh');
         button.disabled = busy;
         button.classList.toggle('is-busy', busy);
+        button.classList.toggle('rv-btn-primary', urgent);
+        button.classList.toggle('rv-btn-ghost', !urgent);
         $('rvRefreshLabel').textContent = busy ? 'Обновляем...' : 'Обновить из iiko';
     }
 
@@ -532,6 +592,37 @@
             sub = waiting ? 'неразобранных ' + fmtInt(waiting) : 'неразобранных приёмок нет';
         }
         $('rvPickSub').textContent = sub;
+        renderPickPhotos();
+    }
+
+    // Выбрана ровно одна приёмка (ссылка из Telegram, «Показать позиции») — под выбором
+    // строка с фото её накладной: по накладной бухгалтер выбирает поставщика, и ради
+    // неё не надо листать до «Истории приёмок». Подробности приёмки — общий загрузчик
+    // с «Историей приёмок» (loadReceiptDetails: один запрос на приёмку).
+    function renderPickPhotos() {
+        const node = $('rvPickPhotos');
+        clear(node);
+        const id = state.picked.length === 1 ? state.picked[0] : 0;
+        const r = id ? state.receipts.find((x) => Number(x.id) === id) : null;
+        if (!r) {
+            node.hidden = true;
+            return;
+        }
+        node.hidden = false;
+        const label = 'Накладная №' + id + ':';
+        const entry = state.receiptDetails[id];
+        const links = entry && entry.data ? invoiceLinks(entry.data, false) : [];
+        if (!Number((r.counts || {}).invoices) || (entry && entry.data && !links.length)) {
+            node.appendChild(el('span', 'rv-muted', 'Фото накладной в приёмке №' + id + ' нет'));
+        } else if (links.length) {
+            node.appendChild(el('span', '', label));
+            links.forEach((link) => node.appendChild(link));
+        } else if (entry && entry.failed && !entry.loading) {
+            node.appendChild(el('span', '', label + ' не загрузилась'));
+        } else {
+            node.appendChild(el('span', '', label + ' загрузка...'));
+            loadReceiptDetails(id);
+        }
     }
 
     function renderCount() {
@@ -587,19 +678,39 @@
 
     function renderRows() {
         const body = $('rvRows');
+        const query = $('rvIikoQ');
+        // Запрос «Поиска в iiko» набирают прямо сейчас — после перерисовки фокус вернётся
+        // в то же поле (узел тот же, текст в нём остаётся).
+        const wasTyping = document.activeElement === query;
+        // Панель «Поиск в iiko» — домой до очистки таблицы: иначе она уйдёт из страницы
+        // вместе со строкой под позицией (ниже она встанет под свою строку снова). Уже
+        // дома — не трогаем: перенос узла снимает фокус с поля.
+        const home = $('rvIikoHome');
+        if (nodes.iiko.parentNode !== home) home.appendChild(nodes.iiko);
         clear(body);
+        nodes.findTr = null;
         nodes.rows = {};
         nodes.notes = {};
         if (!state.rows.length) {
             const tr = el('tr', 'rv-tr-empty');
             const td = el('td');
-            td.colSpan = 7;
+            td.colSpan = COLS;
             td.appendChild(el('div', 'rv-empty', emptyText()));
             tr.appendChild(td);
             body.appendChild(tr);
         } else {
-            state.rows.forEach((row) => body.appendChild(rowNode(row)));
+            state.rows.forEach((row) => {
+                body.appendChild(rowNode(row));
+                if (row.gtin === state.iiko.gtin) {
+                    nodes.findTr = findDrawer();
+                    body.appendChild(nodes.findTr);
+                }
+            });
         }
+        // Строка, под которой стоял поиск, ушла из списка («Сделано», другая вкладка,
+        // её закрыл другой бухгалтер) — поиск закрывается вместе с ней.
+        if (state.iiko.gtin && !nodes.findTr) closeIiko(false);
+        if (wasTyping && !nodes.iiko.hidden && typeof query.focus === 'function') query.focus({ preventScroll: true });
         const more = $('rvMore');
         const total = state.data ? Number(state.data.total) || 0 : 0;
         if (total > state.rows.length) {
@@ -612,40 +723,43 @@
         }
     }
 
-    // Классы на каждой ячейке — не для красоты: на телефоне строка таблицы становится
-    // карточкой (review.css), и раскладка адресует ячейки по смыслу, а не по nth-child.
+    // Пять колонок: позиция (статус, название, коды, «Найти в iiko»), кол-во, карточки
+    // iiko, поставщик и заметка, решение. Классы на каждой ячейке — не для красоты: на
+    // телефоне строка таблицы становится карточкой (review.css), и раскладка адресует
+    // ячейки по смыслу, а не по nth-child.
     function rowNode(row) {
         const tr = el('tr', 'rv-row');
         tr.dataset.gtin = row.gtin;
         if (row.state === 'closed') tr.classList.add('is-closed');
-        nodes.rows[row.gtin] = { tr: tr, actions: [] };
-        tr.appendChild(statusCell(row));
+        if (state.iiko.gtin === row.gtin) tr.classList.add('is-finding');
+        nodes.rows[row.gtin] = { tr: tr, actions: [], find: null };
         tr.appendChild(positionCell(row));
         tr.appendChild(qtyCell(row));
         tr.appendChild(cardsCell(row));
-        tr.appendChild(supplierCell(row));
-        tr.appendChild(noteCell(row));
+        tr.appendChild(editCell(row));
         tr.appendChild(actionsCell(row));
         markBusy(row.gtin, Boolean(state.busy[row.gtin]));
         return tr;
     }
 
-    function statusCell(row) {
-        const td = el('td', 'rv-td-st');
-        td.appendChild(el('span', 'rv-pill is-' + (STATUS_TONE[row.status] || 'warn'),
+    // Верх ячейки позиции: таблетка статуса, у закрытой — чем и кем закрыта, у открытой
+    // повторно — сколько раз возвращалась в разбор.
+    function statusLine(row) {
+        const box = el('div', 'rv-pos-top');
+        box.appendChild(el('span', 'rv-pill is-' + (STATUS_TONE[row.status] || 'warn'),
             STATUS_LABELS[row.status] || row.status));
         if (row.state === 'closed') {
             const res = el('div', 'rv-res');
             res.appendChild(el('b', '', RESOLUTION_LABELS[row.resolution] || 'Закрыта'));
             const who = [row.resolved_by, fmtStamp(row.resolved_at)].filter(Boolean).join(', ');
             if (who) res.appendChild(el('span', '', ' · ' + who));
-            td.appendChild(res);
+            box.appendChild(res);
         } else if (Number(row.reopened) > 0) {
             const n = Number(row.reopened);
-            td.appendChild(el('div', 'rv-again', 'вернулась в разбор'
+            box.appendChild(el('div', 'rv-again', 'вернулась в разбор'
                 + (n > 1 ? ': ' + n + ' ' + plural(n, ['раз', 'раза', 'раз']) : '')));
         }
-        return td;
+        return box;
     }
 
     function codeNode(label, value) {
@@ -657,6 +771,7 @@
 
     function positionCell(row) {
         const td = el('td', 'rv-td-pos');
+        td.appendChild(statusLine(row));
         const chz = row.chz || {};
         const name = chz.name || chz.full_name || '';
         const title = el('div', 'rv-name' + (name ? '' : ' is-none'),
@@ -669,7 +784,41 @@
         codes.appendChild(codeNode('штрихкод для iiko', row.barcode || row.gtin));
         if (row.barcode && row.barcode !== row.gtin) codes.appendChild(codeNode('GTIN', row.gtin));
         td.appendChild(codes);
+        if (row.state === 'open') td.appendChild(toolsLine(row));
         return td;
+    }
+
+    function linkButton(text, action) {
+        const button = el('button', 'rv-link', text);
+        button.type = 'button';
+        button.dataset.action = action;
+        return button;
+    }
+
+    function setFindLabel(button, open) {
+        button.textContent = open ? 'Скрыть поиск' : 'Найти в iiko';
+        button.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+
+    // Инструменты открытой строки — ссылками под кодами, у всех строк на одном месте:
+    // «Найти в iiko» первым (он есть у каждой открытой), «Скопировать для iiko» — там,
+    // где карточку заводят. Решение по строке — отдельной колонкой справа.
+    function toolsLine(row) {
+        const box = el('div', 'rv-pos-acts');
+        const find = linkButton('', 'find');
+        find.setAttribute('aria-controls', 'rvIiko');
+        setFindLabel(find, state.iiko.gtin === row.gtin);
+        find.title = 'Поискать карточку в iiko по словам названия — поиск откроется под строкой';
+        find.addEventListener('click', () => findInIiko(row));
+        nodes.rows[row.gtin].find = find;
+        box.appendChild(find);
+        if (COPY_STATUSES.has(row.status)) {
+            const copy = linkButton('Скопировать для iiko', 'copy');
+            copy.title = 'Название, бренд, штрихкод, GTIN, поставщик, объём и группа ЧЗ построчно';
+            copy.addEventListener('click', () => copyForIiko(row, copy));
+            box.appendChild(copy);
+        }
+        return box;
     }
 
     function receiptLink(id, text) {
@@ -754,19 +903,30 @@
         return node;
     }
 
-    function supplierCell(row) {
-        const td = el('td', 'rv-td-sup');
+    // «Поставщик и заметка» — одна колонка: сначала поставщик (выбор или текст), под
+    // ним заметка. Первый .rv-saved ячейки — статус поставщика.
+    function editCell(row) {
+        const td = el('td', 'rv-td-edit');
+        const box = el('div', 'rv-edit');
+        box.appendChild(supplierBlock(row));
+        box.appendChild(noteBlock(row));
+        td.appendChild(box);
+        return td;
+    }
+
+    function supplierBlock(row) {
+        const box = el('div', 'rv-edit-sup');
         const editable = row.state === 'open' && SUPPLIER_STATUSES.has(row.status);
         if (!editable) {
             if (row.supplier) {
-                td.appendChild(el('div', '', row.supplier));
+                box.appendChild(el('div', '', row.supplier));
             } else if (row.supplier_hint) {
-                td.appendChild(el('div', '', row.supplier_hint));
-                td.appendChild(el('div', 'rv-sup-hint', 'категория карточки iiko'));
+                box.appendChild(el('div', '', row.supplier_hint));
+                box.appendChild(el('div', 'rv-sup-hint', 'категория карточки iiko'));
             } else {
-                td.appendChild(el('div', 'rv-none', 'не указан'));
+                box.appendChild(el('div', 'rv-none', 'не указан'));
             }
-            return td;
+            return box;
         }
         const select = el('select', 'rv-sel');
         select.setAttribute('aria-label', 'Поставщик: ' + (rowTitle(row) || row.gtin));
@@ -779,12 +939,12 @@
         const status = el('div', 'rv-saved');
         status.hidden = true;
         select.addEventListener('change', () => saveSupplier(row, select, status));
-        td.appendChild(select);
+        box.appendChild(select);
         if (row.supplier_hint && row.supplier_hint !== row.supplier) {
-            td.appendChild(el('div', 'rv-sup-hint', 'у карточки iiko: ' + row.supplier_hint));
+            box.appendChild(el('div', 'rv-sup-hint', 'у карточки iiko: ' + row.supplier_hint));
         }
-        td.appendChild(status);
-        return td;
+        box.appendChild(status);
+        return box;
     }
 
     // Незаписанные заметки: {gtin: текст} и в каком поле фокус.
@@ -807,8 +967,8 @@
         if (item && typeof item.input.focus === 'function') item.input.focus();
     }
 
-    function noteCell(row) {
-        const td = el('td', 'rv-td-note');
+    function noteBlock(row) {
+        const box = el('div', 'rv-edit-note');
         const input = el('input', 'rv-input rv-input-note');
         nodes.notes[row.gtin] = { input: input, row: row };
         input.type = 'text';
@@ -826,9 +986,9 @@
                 if (typeof input.blur === 'function') input.blur();
             }
         });
-        td.appendChild(input);
-        td.appendChild(status);
-        return td;
+        box.appendChild(input);
+        box.appendChild(status);
+        return box;
     }
 
     function actionButton(text, action, extra) {
@@ -838,31 +998,21 @@
         return button;
     }
 
+    // Колонка «Решение»: у открытой строки «Сделано» и «Не нужно» столбиком, у закрытой —
+    // «Вернуть в разбор». На узком экране колонка прилипает к правому краю таблицы.
     function actionsCell(row) {
         const td = el('td', 'rv-td-act');
         const box = el('div', 'rv-acts');
         const holder = nodes.rows[row.gtin];
         if (row.state === 'open') {
-            if (COPY_STATUSES.has(row.status)) {
-                const copy = actionButton('Скопировать для iiko', 'copy');
-                copy.title = 'Название, бренд, штрихкод, GTIN, поставщик, объём и группа ЧЗ построчно';
-                copy.addEventListener('click', () => copyForIiko(row, copy));
-                box.appendChild(copy);
-            }
-            const find = actionButton('Найти в iiko', 'find');
-            find.title = 'Поискать карточку по словам названия в блоке «Поиск в iiko»';
-            find.addEventListener('click', () => findInIiko(row));
-            box.appendChild(find);
-            const pair = el('div', 'rv-acts-row');
             const done = actionButton('Сделано', 'done', 'rv-btn-primary');
             done.title = 'Карточку завели или поправили в iiko — закрыть строку';
             done.addEventListener('click', () => setRowState(row, 'done'));
             const skip = actionButton('Не нужно', 'not_needed');
             skip.title = 'Заводить не нужно — закрыть строку, при следующих приёмках она не вернётся';
             skip.addEventListener('click', () => setRowState(row, 'not_needed'));
-            pair.appendChild(done);
-            pair.appendChild(skip);
-            box.appendChild(pair);
+            box.appendChild(done);
+            box.appendChild(skip);
             holder.actions.push(done, skip);
         } else {
             const back = actionButton('Вернуть в разбор', 'open');
@@ -968,7 +1118,11 @@
             markBusy(row.gtin, false);
         }
         if (!fresh) return;
-        toast(STATE_DONE_TEXT[value] + ': ' + (rowTitle(fresh) || fresh.gtin));
+        // Решение по ошибке отменяется из уведомления: «Вернуть» — то же, что «Вернуть в
+        // разбор» на вкладке «Закрытые» (и так же снимает с приёмки отметку «разобрана»).
+        const undo = value === 'open' ? null
+            : { label: 'Вернуть', run: () => setRowState(fresh, 'open') };
+        toast(STATE_DONE_TEXT[value] + ': ' + (rowTitle(fresh) || fresh.gtin), false, undo);
         // Строка ушла с вкладки, счётчики сменились — перечитать список целиком.
         await load();
     }
@@ -1036,11 +1190,111 @@
         return words.length ? words.join(' ') : String(row.barcode || row.gtin || '');
     }
 
+    // ==================== Панель «Поиск в iiko» ====================
+
+    // Мышь или тачпад: курсор сразу в поле запроса, запрос выделен — его можно сразу
+    // сократить. На сенсорном экране не фокусируем: клавиатура закрыла бы результаты.
+    function finePointer() {
+        return typeof window.matchMedia === 'function'
+            && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+    }
+
+    // Новый поиск: прежние результаты и сообщение убраны, поздний ответ прежнего
+    // запроса отбрасывается (номер запроса — как у списка).
+    function resetIiko() {
+        ++state.iiko.seq;
+        state.iiko.cards = null;
+        renderIikoResults([]);
+        iikoMessage('', false);
+    }
+
+    // Строка таблицы под позицией: в ней панель на всю ширину. Без data-gtin — это не
+    // строка разбора.
+    function findDrawer() {
+        const tr = el('tr', 'rv-find-tr');
+        const td = el('td', 'rv-find-td');
+        td.colSpan = COLS;
+        td.appendChild(nodes.iiko);
+        tr.appendChild(td);
+        return tr;
+    }
+
+    // «Найти в iiko» в строке: панель встаёт прямо под строку, строка и её «Сделано»
+    // остаются на экране. Второй щелчок по той же строке закрывает поиск.
     function findInIiko(row) {
+        if (state.iiko.gtin === row.gtin) {
+            closeIiko(true);
+            return Promise.resolve();
+        }
+        closeIiko(false);
+        const holder = nodes.rows[row.gtin];
         const q = searchQueryFor(row);
-        $('rvIikoQ').value = q;
-        scrollToNode($('rvIiko'));
+        // Строки нет в таблице (вызов не из строки) — поиск без строки, под шапкой.
+        state.iiko.gtin = holder ? row.gtin : '';
+        resetIiko();
+        const input = $('rvIikoQ');
+        input.value = q;
+        if (holder) {
+            nodes.findTr = findDrawer();
+            holder.tr.parentNode.insertBefore(nodes.findTr, holder.tr.nextSibling);
+            holder.tr.classList.add('is-finding');
+            if (holder.find) setFindLabel(holder.find, true);
+        } else {
+            $('rvIikoHome').appendChild(nodes.iiko);
+            $('rvIikoOpen').setAttribute('aria-expanded', 'true');
+        }
+        nodes.iiko.hidden = false;
+        if (finePointer() && typeof input.focus === 'function') {
+            input.focus({ preventScroll: true });
+            input.select();
+        }
+        // Одна прокрутка, пока результатов нет и панель низкая: 'nearest' сдвигает
+        // страницу, только если панель не видна, — строка остаётся на экране.
+        if (typeof nodes.iiko.scrollIntoView === 'function') {
+            nodes.iiko.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
         return searchIiko(q);
+    }
+
+    // «Поиск в iiko» над таблицей: пустая панель под шапкой, курсор в поле — поиск без
+    // строки. Второй щелчок закрывает.
+    function openIikoFree() {
+        if (state.iiko.gtin === '') {
+            closeIiko(true);
+            return;
+        }
+        closeIiko(false);
+        state.iiko.gtin = '';
+        resetIiko();
+        const input = $('rvIikoQ');
+        input.value = '';
+        $('rvIikoHome').appendChild(nodes.iiko);
+        nodes.iiko.hidden = false;
+        $('rvIikoOpen').setAttribute('aria-expanded', 'true');
+        if (typeof input.focus === 'function') input.focus();
+    }
+
+    // Закрыть панель: она возвращается домой (под шапку) и прячется, строка под позицией
+    // убирается. returnFocus — фокус на кнопку, которая её открыла («Скрыть», Esc,
+    // второй щелчок); без него — когда панель закрывает сама страница.
+    function closeIiko(returnFocus) {
+        const gtin = state.iiko.gtin;
+        if (gtin === null) return;
+        const holder = gtin ? nodes.rows[gtin] : null;
+        ++state.iiko.seq;
+        $('rvIikoHome').appendChild(nodes.iiko);
+        nodes.iiko.hidden = true;
+        if (nodes.findTr && nodes.findTr.parentNode) nodes.findTr.parentNode.removeChild(nodes.findTr);
+        nodes.findTr = null;
+        state.iiko.gtin = null;
+        if (holder) {
+            holder.tr.classList.remove('is-finding');
+            if (holder.find) setFindLabel(holder.find, false);
+        }
+        $('rvIikoOpen').setAttribute('aria-expanded', 'false');
+        if (!returnFocus) return;
+        const opener = gtin ? holder && holder.find : $('rvIikoOpen');
+        if (opener && typeof opener.focus === 'function') opener.focus({ preventScroll: true });
     }
 
     // ==================== Поиск в iiko ====================
@@ -1338,6 +1592,9 @@
         if (res.status === 409) await load();
     }
 
+    // Приёмка в истории — две строки: № · когда и кто · сверка · штуки и позиции; ниже
+    // прогресс разбора и ссылки («Удалить приёмку» — отдельно, справа). Ошибка сверки и
+    // заметка приёмщика — своими строками между ними.
     function receiptNode(r) {
         const c = r.counts || {};
         const box = el('div', 'rv-rc' + (pickedHas(r.id) ? ' is-current' : ''));
@@ -1347,22 +1604,22 @@
         if (when) head.appendChild(el('span', 'rv-rc-when', when));
         const proc = PROCESS[r.process_state] || PROCESS.none;
         head.appendChild(el('span', 'rv-rc-proc' + (proc.cls ? ' ' + proc.cls : ''), proc.label));
-        box.appendChild(head);
-
         const facts = [fmtInt(c.units) + ' шт.',
                        fmtInt(c.gtins) + ' ' + plural(c.gtins, POSITION_WORDS)];
         if (c.rejected) facts.push('отклонено ' + fmtInt(c.rejected));
         if (c.repeats) facts.push('повторов ' + fmtInt(c.repeats));
         if (c.invoices) facts.push('фото накладных ' + fmtInt(c.invoices));
-        box.appendChild(el('div', 'rv-rc-facts', facts.join(' · ')));
-        const progress = receiptProgress(r);
-        if (progress) box.appendChild(el('div', 'rv-rc-prog' + (r.reviewed ? ' is-done' : ''), progress));
+        head.appendChild(el('span', 'rv-rc-facts', facts.join(' · ')));
+        box.appendChild(head);
+
         if (r.process_note) {
             box.appendChild(el('div', 'rv-rc-note' + (r.process_state === 'error' ? ' is-bad' : ''), r.process_note));
         }
         if (r.note) box.appendChild(el('div', 'rv-rc-note', 'Заметка приёмщика: ' + r.note));
 
         const actions = el('div', 'rv-rc-act');
+        const progress = receiptProgress(r);
+        if (progress) actions.appendChild(el('span', 'rv-rc-prog' + (r.reviewed ? ' is-done' : ''), progress));
         const show = el('button', 'rv-link', 'Показать позиции');
         show.type = 'button';
         show.dataset.action = 'receipt';
@@ -1412,20 +1669,27 @@
         state.receipts.forEach((r) => box.appendChild(receiptNode(r)));
     }
 
-    function renderReceiptDetails(holder, data) {
-        clear(holder);
+    // Ссылки на фото накладных приёмки — только на свои пути (INVOICE_PREFIX), в новой
+    // вкладке. withTime — подпись со временем съёмки (в «Истории приёмок»).
+    function invoiceLinks(data, withTime) {
         const invoices = Array.isArray(data.invoices) ? data.invoices : [];
         const links = [];
         invoices.forEach((invoice, i) => {
             const url = String((invoice && invoice.url) || '');
             if (url.indexOf(INVOICE_PREFIX) !== 0) return;
             const link = el('a', '', 'Фото ' + (i + 1)
-                + (invoice.uploaded_at ? ' · ' + fmtStamp(invoice.uploaded_at) : ''));
+                + (withTime && invoice.uploaded_at ? ' · ' + fmtStamp(invoice.uploaded_at) : ''));
             link.setAttribute('href', url);
             link.setAttribute('target', '_blank');
             link.setAttribute('rel', 'noopener');
             links.push(link);
         });
+        return links;
+    }
+
+    function renderReceiptDetails(holder, data) {
+        clear(holder);
+        const links = invoiceLinks(data, true);
         if (links.length) {
             holder.appendChild(el('div', 'rv-rc-sub', 'Фото накладных'));
             const list = el('div', 'rv-rc-photos');
@@ -1447,6 +1711,32 @@
         }
     }
 
+    // Подробности приёмки (фото накладных, последние сканы) — один запрос на приёмку за
+    // жизнь страницы: их ждут и строка «Накладная» под выбором приёмок, и «История
+    // приёмок». Неудача запоминается (failed): строка под выбором не перезапрашивает
+    // её на каждой перерисовке; retry — повтор по щелчку «Фото и отклонённые сканы».
+    function loadReceiptDetails(id, retry) {
+        const entry = state.receiptDetails[id] || (state.receiptDetails[id] = { open: false, data: null });
+        if (entry.data || (entry.failed && !retry)) return Promise.resolve(entry);
+        if (entry.loading) return entry.loading;
+        entry.failed = '';
+        entry.loading = (async () => {
+            let res = null;
+            try {
+                res = await request('GET', API_RECEIPT + Number(id));
+            } catch (error) {
+                res = null;
+            }
+            entry.loading = null;
+            if (res && res.ok) entry.data = res.data;
+            else entry.failed = res ? errorText(res, 'Не удалось загрузить приёмку') : 'Нет связи с сервером';
+            // Строка «Накладная» ждёт эту приёмку — показать фото (или что не загрузились).
+            if (state.picked.length === 1 && state.picked[0] === Number(id)) renderPickPhotos();
+            return entry;
+        })();
+        return entry.loading;
+    }
+
     async function toggleReceiptDetails(id, holder, button) {
         const entry = state.receiptDetails[id] || (state.receiptDetails[id] = { open: false, data: null });
         entry.open = !entry.open;
@@ -1455,24 +1745,27 @@
         if (!entry.open) return;
         if (entry.data) { renderReceiptDetails(holder, entry.data); return; }
         holder.textContent = 'Загрузка...';
-        let res;
-        try {
-            res = await request('GET', API_RECEIPT + Number(id));
-        } catch (error) {
-            holder.textContent = 'Нет связи с сервером';
-            return;
-        }
-        if (!res.ok) { holder.textContent = errorText(res, 'Не удалось загрузить приёмку'); return; }
-        entry.data = res.data;
-        if (entry.open) renderReceiptDetails(holder, res.data);
+        await loadReceiptDetails(id, true);
+        if (!entry.open) return;
+        if (entry.data) renderReceiptDetails(holder, entry.data);
+        else holder.textContent = entry.failed;
     }
 
     // ==================== Старт ====================
 
     function init() {
         state.picked = receiptsFromUrl();
+        nodes.iiko = $('rvIiko');
         $('rvSearch').addEventListener('input', onSearchInput);
         $('rvRefresh').addEventListener('click', startRefresh);
+        $('rvIikoOpen').addEventListener('click', () => openIikoFree());
+        $('rvIikoClose').addEventListener('click', () => closeIiko(true));
+        // Esc внутри панели закрывает поиск (меню сайта ловит Esc, только когда открыто).
+        nodes.iiko.addEventListener('keydown', (event) => {
+            if (event.key !== 'Escape') return;
+            event.preventDefault();
+            closeIiko(true);
+        });
         $('rvIikoForm').addEventListener('submit', (event) => {
             event.preventDefault();
             searchIiko($('rvIikoQ').value);
@@ -1497,6 +1790,8 @@
         startRefresh: startRefresh,
         searchIiko: searchIiko,
         findInIiko: findInIiko,
+        openIikoFree: openIikoFree,
+        closeIiko: closeIiko,
         buildCopyText: buildCopyText,
         searchQueryFor: searchQueryFor,
         keywords: keywords,

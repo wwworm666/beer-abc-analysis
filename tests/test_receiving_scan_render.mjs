@@ -210,12 +210,15 @@ test('поля ввода на экране нет: только скрытый 
 
 test('кнопки экрана сканирования: «Сканировать камерой» сразу под счётчиком, Накладная, Отменить последний, Завершить', () => {
     // Только телефон (решение владельца 2026-10-03): камера — главная кнопка экрана,
-    // сразу под счётчиком, до пояснения и остальных кнопок.
+    // сразу под карточкой счётчика; «Как считается» — последней строкой самой карточки
+    // (редизайн 2026-10-04), поэтому кнопка камеры и ряд действий снова рядом.
     const counterAt = html.indexOf('id="rc-counter"');
     const cameraAt = html.indexOf('id="rc-camera"');
     assert.ok(counterAt > 0 && cameraAt > counterAt, 'кнопка камеры не под счётчиком');
-    assert.ok(cameraAt < html.indexOf('<details class="rc-how">'), 'кнопка камеры ниже пояснения');
-    assert.match(html, /<button class="rc-btn rc-btn-lg rc-btn-primary rc-cam-cta" id="rc-camera" type="button">[\s\S]*?Сканировать камерой/);
+    assert.ok(html.slice(counterAt, cameraAt).includes('<details class="rc-how">'), 'пояснение не в карточке счётчика');
+    assert.match(html, /<\/details>\s*<\/div>\s*<button class="rc-btn rc-btn-lg rc-btn-primary rc-cam-cta" id="rc-camera" type="button">[\s\S]*?Сканировать камерой/,
+        'пояснение не последней строкой карточки счётчика или камера не сразу под карточкой');
+    assert.ok(cameraAt < html.indexOf('<div class="rc-actions">'), 'ряд действий выше камеры');
     // На экране сканирования главная кнопка одна — камера; «Завершить» выделена иначе.
     const scanScreen = html.slice(html.indexOf('id="rc-scan"'), html.indexOf('id="rc-done"'));
     assert.equal((scanScreen.match(/rc-btn-primary/g) || []).length, 1, 'на экране сканирования больше одной главной кнопки');
@@ -225,16 +228,53 @@ test('кнопки экрана сканирования: «Сканироват
                                ['rc-undo', 'Отменить последний'], ['rc-finish', 'Завершить']]) {
         assert.match(actions, new RegExp('id="' + id + '" type="button">[\\s\\S]*?' + label), 'нет кнопки ' + label);
     }
-    // В окне камеры: отмена последнего скана без выхода из камеры.
+    // Окно камеры, верх: «Закрыть» слева (значок и подпись), номер приёмки, «Фонарик» справа.
+    const camTop = html.slice(html.indexOf('class="rc-cam-top"'), html.indexOf('class="rc-cam-bar"'));
+    assert.match(camTop, /class="rc-btn rc-cam-close" id="rc-cam-close" type="button" aria-label="Закрыть камеру">\s*<svg[^>]*>[\s\S]*?<\/svg>\s*Закрыть\s*<\/button>/,
+        'нет «Закрыть» в верхней панели камеры');
+    assert.match(camTop, /class="rc-btn rc-cam-torch" id="rc-torch" type="button"[^>]*>[\s\S]*?Фонарик/, 'нет «Фонарик» в верхней панели камеры');
+    const topAt = (id) => camTop.indexOf('id="' + id + '"');
+    assert.ok(topAt('rc-cam-close') < topAt('rc-cam-title') && topAt('rc-cam-title') < topAt('rc-torch'), 'порядок: Закрыть, приёмка, Фонарик');
+    for (const id of ['rc-cam-units', 'rc-cam-gtins', 'rc-cam-pending', 'rc-cam-status']) assert.ok(topAt(id) > 0, 'нет ' + id + ' в верхней панели камеры');
+    assert.match(camTop, /class="rc-pending rc-cam-pending" id="rc-cam-pending" hidden/);
+    // Окно камеры, низ (под большим пальцем): те же действия, что на экране, — ввести цифры,
+    // отменить последний, завершить; «Завершить» выделена так же, как на экране.
     const camBar = html.slice(html.indexOf('class="rc-cam-bar"'), html.indexOf('id="rc-toast"'));
-    for (const [id, label] of [['rc-torch', 'Фонарик'], ['rc-cam-undo', 'Отменить последний'], ['rc-cam-close', 'Закрыть камеру']]) {
-        assert.match(camBar, new RegExp('id="' + id + '" type="button"[^>]*>' + label), 'нет кнопки ' + label + ' в окне камеры');
+    const barIds = [...camBar.matchAll(/<button\b[^>]*\sid="([^"]+)"/g)].map((m) => m[1]);
+    assert.deepEqual(barIds, ['rc-cam-manual', 'rc-cam-undo', 'rc-cam-finish'], 'кнопки нижнего ряда камеры: ' + barIds.join(', '));
+    for (const [id, label] of [['rc-cam-manual', 'Ввести цифры'], ['rc-cam-undo', 'Отменить последний'], ['rc-cam-finish', 'Завершить']]) {
+        assert.match(camBar, new RegExp('id="' + id + '" type="button"[^>]*>[\\s\\S]*?' + label), 'нет кнопки ' + label + ' в окне камеры');
     }
+    assert.match(camBar, /class="rc-btn rc-btn-finish" id="rc-cam-finish"/, '«Завершить» в камере выделена не как на экране');
+    // Старт: главная кнопка одна — «Новая приёмка»; ссылка бухгалтерии — под списком.
     assert.match(html, /id="rc-new" type="button">[\s\S]*?Новая приёмка/);
     assert.match(html, /href="\/receiving\/review">Разбор приёмок<\/a>/, 'нет ссылки на разбор');
+    const start = html.slice(html.indexOf('id="rc-start"'), html.indexOf('id="rc-scan"'));
+    assert.equal((start.match(/rc-btn-primary/g) || []).length, 1, 'на стартовом экране больше одной главной кнопки');
+    assert.ok(start.indexOf('Разбор приёмок') > start.indexOf('id="rc-open-list"'), 'ссылка на разбор не под списком');
+    assert.match(start, /<p class="rc-start-foot"><a class="rc-link" href="\/receiving\/review">Разбор приёмок<\/a><\/p>/);
+    // «Готово»: «Все приёмки» — назад к открытым приёмкам без перезагрузки.
+    const done = html.slice(html.indexOf('id="rc-done"'), html.indexOf('id="rc-sheet-wrap"'));
+    assert.match(done, /id="rc-done-new"[\s\S]*?<button class="rc-btn rc-btn-lg" id="rc-done-back" type="button">Все приёмки<\/button>/);
     assert.match(html, /class="rc-pending" id="rc-pending" hidden/);
     // Все <button> — type="button" (на странице нет форм, но привычка защищает от submit).
     for (const m of html.matchAll(/<button\b[^>]*>/g)) assert.match(m[0], /type="button"/, m[0]);
+});
+
+test('окно: ожидание очереди и напоминание о фото — между текстом и полем; отмена в DOM раньше «Завершить»', () => {
+    const sheet = html.slice(html.indexOf('id="rc-sheet-wrap"'), html.indexOf('id="rc-cam-wrap"'));
+    const at = (id) => sheet.indexOf('id="' + id + '"');
+    assert.ok(at('rc-sheet-text') < at('rc-sheet-wait') && at('rc-sheet-wait') < at('rc-sheet-note')
+        && at('rc-sheet-note') < at('rc-sheet-input'), 'порядок узлов окна');
+    for (const id of ['rc-sheet-wait', 'rc-sheet-retry', 'rc-sheet-login', 'rc-sheet-note']) {
+        assert.match(sheet, new RegExp('id="' + id + '"[^>]*\\shidden>'), id + ' виден сразу');
+    }
+    assert.match(sheet, /<span id="rc-sheet-wait-text" role="status" aria-live="polite"><\/span>/);
+    assert.match(sheet, /class="rc-link-btn" id="rc-sheet-retry" type="button" hidden>Отправить сейчас</);
+    assert.match(sheet, /class="rc-link" id="rc-sheet-login" href="\/login\?next=%2Freceiving" hidden>Войти снова</);
+    assert.match(sheet, /Фото накладной не добавлено[\s\S]*?class="rc-link-btn" id="rc-sheet-photo" type="button">Сфотографировать</);
+    // На телефоне кнопки столбиком (column-reverse): отмена, первая в DOM, — в самом низу.
+    assert.ok(at('rc-sheet-cancel') > 0 && at('rc-sheet-cancel') < at('rc-sheet-ok'), 'отмена не перед «Завершить» в DOM');
 });
 
 test('«Как считается» свёрнуто у счётчика, а пауза сканера в тексте совпадает с JS', () => {
@@ -244,7 +284,8 @@ test('«Как считается» свёрнуто у счётчика, а п�
     const gap = Number(js.match(/const SCAN_GAP_MS = (\d+);/)[1]);
     assert.equal(gap, 80);
     assert.ok(details[1].includes(gap + ' мс'), 'в пояснении другая пауза сканера');
-    for (const word of ['DataMatrix', 'EAN', 'SSCC', 'Не отправлено', 'Отменить последний', 'Камера']) {
+    // «Завершить» и «не читает» — правило окна поверх камеры: пока оно открыто, коды не читаются.
+    for (const word of ['DataMatrix', 'EAN', 'SSCC', 'Не отправлено', 'Отменить последний', 'Камера', 'Завершить', 'не читает']) {
         assert.ok(details[1].includes(word), 'в пояснении нет «' + word + '»');
     }
     // Числа камеры в пояснении — те же, что в JS.
@@ -293,6 +334,36 @@ test('CSS: [hidden] сильнее display, телефон 768px, шаг кно�
     const classes = [...selectors.matchAll(/\.([a-zA-Z][\w-]*)/g)].map((m) => m[1]);
     const foreign = [...new Set(classes)].filter((c) => c !== 'rc' && !c.startsWith('rc-') && !c.startsWith('is-'));
     assert.deepEqual(foreign, [], 'чужие классы в scan.css: ' + foreign.join(', '));
+});
+
+test('CSS: окно поверх камеры, уведомление поверх окна и сверху, пока окно открыто; на телефоне отмена внизу', () => {
+    // z-index правила, которое начинается с новой строки (не вложенного и не составного).
+    const z = (sel) => {
+        const m = css.match(new RegExp('\\n' + sel.replace(/[.-]/g, '\\$&') + ' \\{[^}]*?z-index: (\\d+);'));
+        assert.ok(m, 'нет z-index у ' + sel);
+        return Number(m[1]);
+    };
+    const camera = z('.rc-cam-wrap');
+    const sheet = z('.rc-sheet-wrap');
+    const toast = z('.rc-toast');
+    assert.equal(sheet, 220);
+    assert.ok(camera < sheet && sheet < toast, `слои: камера ${camera}, окно ${sheet}, уведомление ${toast}`);
+    // Пока открыто окно — уведомление сверху; правило после «камерного» (при обоих классах главнее).
+    const camToast = css.indexOf('.rc-cam-on .rc-toast {');
+    const sheetToast = css.match(/\n\.rc-sheet-on \.rc-toast \{([^}]*)\}/);
+    assert.ok(camToast > 0 && sheetToast, 'нет правил уведомления для камеры и окна');
+    assert.ok(sheetToast.index > camToast, '.rc-sheet-on .rc-toast объявлено раньше .rc-cam-on .rc-toast');
+    assert.match(sheetToast[1], /\btop: calc\(12px \+ env\(safe-area-inset-top, 0px\)\);/);
+    assert.match(sheetToast[1], /\bbottom: auto;/);
+    const phone = css.slice(css.indexOf('@media (max-width: 768px)'));
+    assert.match(phone, /\.rc-sheet-actions \{ flex-direction: column-reverse; \}/, 'на телефоне кнопки окна не столбиком');
+    // Результат скана в камере — плашка цвета результата на существующих токенах.
+    for (const [cls, token] of [['is-ok', 'ok-ink'], ['is-repeat', 'warn-ink'], ['is-bad', 'bad-ink']]) {
+        assert.match(css, new RegExp('\\.rc-cam-status\\.' + cls + ' \\{ background: var\\(--rc-' + token + '\\); color: var\\(--rc-on-accent\\); \\}'),
+            'плашка ' + cls + ' в камере');
+    }
+    assert.match(css, /\n\.rc-cam \{[^}]*border: 8px solid transparent;/, 'рамка-вспышка камеры не 8px');
+    assert.match(css, /\.rc-sheet \.rc-btn-ok, \.rc-sheet \.rc-btn-ok:hover \{\s*background: var\(--rc-ok-ink\);/, 'нет зелёной кнопки окна');
 });
 
 // ---------------------------------------------------------------- JS

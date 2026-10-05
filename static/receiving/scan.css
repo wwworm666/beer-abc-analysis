@@ -10,7 +10,13 @@
    ним, крупные кнопки (56px), сигнал скана — цветом рамки счётчика и окна камеры
    (зелёный — принято, жёлтый — уже посчитана, красный — не распознан). Кнопки действий
    — одна строка из трёх на любой ширине; брейкпоинт телефона — 768px: у кнопок мельче
-   текст и нет значков, окна открываются листом снизу. */
+   текст и нет значков, окна открываются листом снизу, кнопки окна — столбиком
+   (отмена в самом низу, под большим пальцем).
+
+   Окно камеры: сверху «Закрыть», номер приёмки и «Фонарик», счётчик, неотправленные
+   сканы и результат скана плашкой его цвета; снизу — «Ввести цифры», «Отменить
+   последний», «Завершить» (на тех же местах, что на экране). Слои: камера 210 < окно
+   подтверждения 220 < уведомление 300 — окно открывается поверх камеры. */
 
 @font-face {
     font-family: 'IBM Plex Sans';
@@ -258,6 +264,9 @@ body.rc-page { background: var(--rc-bg); }
 .rc-open-meta { font-size: 12px; color: var(--rc-ink4); overflow: hidden; text-overflow: ellipsis; }
 .rc-open-counts { font-size: 13px; color: var(--rc-ink3); }
 .rc-open-counts em { font-style: normal; color: var(--rc-warn-ink); }
+/* «Разбор приёмок» (бухгалтерии) — тихой ссылкой под списком, высотой 44px для пальца. */
+.rc-start-foot { margin: 0; padding: 0 4px; }
+.rc-start-foot .rc-link { display: inline-flex; align-items: center; min-height: var(--rc-ctl-h); }
 
 /* ==================== Сканирование ==================== */
 
@@ -318,7 +327,8 @@ body.rc-page { background: var(--rc-bg); }
 .rc-counter.is-flash-repeat { border-color: var(--rc-warn); background: var(--rc-warn-soft); }
 .rc-counter.is-flash-bad { border-color: var(--rc-bad); background: var(--rc-bad-soft); }
 
-.rc-how { margin: -2px 2px 12px; }
+/* «Как считается» — последней строкой карточки счётчика, которую объясняет. */
+.rc-counter .rc-how { grid-column: 1 / -1; margin: 4px 0 0; }
 .rc-how > summary {
     display: inline-flex;
     align-items: center;
@@ -359,6 +369,8 @@ body.rc-page { background: var(--rc-bg); }
 }
 .rc-actions .rc-btn { width: 100%; padding: 0 10px; white-space: normal; line-height: 1.2; text-align: center; }
 .rc-manual-row { margin-bottom: 12px; }
+/* Ссылка-кнопка «ввести цифры» — высотой с палец в перчатке (44px), а не со строку текста. */
+.rc-manual-row .rc-link-btn { min-height: var(--rc-ctl-h); }
 
 .rc-invoices { display: flex; flex-direction: column; padding-bottom: 6px; }
 .rc-invoice {
@@ -404,10 +416,12 @@ body.rc-page { background: var(--rc-bg); }
 
 /* ==================== Окно (подтверждение, ввод вручную) ==================== */
 
+/* Слой 220 — над камерой (210), под уведомлением (300): «Завершить» и «Ввести цифры»
+   открываются поверх камеры, не закрывая её. Порядок в DOM прежний — решает z-index. */
 .rc-sheet-wrap {
     position: fixed;
     inset: 0;
-    z-index: 200;
+    z-index: 220;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -430,6 +444,30 @@ body.rc-page { background: var(--rc-bg); }
 }
 .rc-sheet h2 { margin: 0; font-size: 18px; font-weight: 600; }
 .rc-sheet-text { margin: 0; color: var(--rc-ink2); }
+.rc-sheet a { color: var(--rc-accent-ink); font-weight: 600; }
+/* «Завершить»: ожидание неотправленных сканов (жёлтая; красная — нет связи или нужен
+   вход) и напоминание о фото накладной. */
+.rc-sheet-wait, .rc-sheet-note {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    margin: 0;
+    padding: 10px 12px;
+    border-radius: var(--rc-r-ctl);
+    font-size: 13px;
+    color: var(--rc-ink2);
+    background: var(--rc-warn-soft);
+}
+.rc-sheet-wait.is-bad { background: var(--rc-bad-soft); }
+/* «Отправить сейчас», «Войти снова», «Сфотографировать» — строкой под текстом, высотой с
+   палец в перчатке (44px), как «ввести цифры» на экране; нижний отступ строки — часть
+   этой высоты. */
+.rc-sheet-wait .rc-link-btn, .rc-sheet-note .rc-link-btn, .rc-sheet-wait .rc-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--rc-ctl-h);
+    margin-bottom: -10px;
+}
 .rc-input {
     width: 100%;
     height: var(--rc-ctl-lg);
@@ -445,6 +483,11 @@ body.rc-page { background: var(--rc-bg); }
 .rc-input:focus { outline: none; border-color: var(--rc-accent); box-shadow: var(--rc-focus); }
 .rc-sheet-actions { display: flex; gap: 8px; }
 .rc-sheet-actions .rc-btn { flex: 1; height: var(--rc-ctl-lg); font-size: 15px; }
+/* «Завершить приёмку» — зелёная, как «Завершить» на экране и в камере. Фон --rc-ok-ink, а
+   не --rc-ok: белый текст на светлом --rc-ok — только 3,8:1, на --rc-ok-ink — 5,5:1. */
+.rc-sheet .rc-btn-ok, .rc-sheet .rc-btn-ok:hover {
+    background: var(--rc-ok-ink); border-color: var(--rc-ok-ink); color: var(--rc-on-accent);
+}
 
 /* ==================== Камера ==================== */
 
@@ -454,12 +497,14 @@ body.rc-page { background: var(--rc-bg); }
     z-index: 210;
     background: var(--rc-cam-bg);
 }
+/* Рамка окна — вспышка результата скана: 8px (заметна краем глаза), прозрачная, пока
+   вспышки нет, — поэтому вёрстка при вспышке не сдвигается. */
 .rc-cam {
     position: absolute;
     inset: 0;
     display: flex;
     flex-direction: column;
-    border: 4px solid transparent;
+    border: 8px solid transparent;
     transition: border-color .2s ease;
     color: var(--rc-cam-ink);
     font-family: var(--rc-sans);
@@ -468,12 +513,14 @@ body.rc-page { background: var(--rc-bg); }
 .rc-cam.is-flash-repeat { border-color: var(--rc-warn); }
 .rc-cam.is-flash-bad { border-color: var(--rc-bad); }
 .rc-video { flex: 1; width: 100%; min-height: 0; object-fit: cover; background: var(--rc-cam-bg); }
+/* Рамка прицела — по центру окна; 40vh — чтобы на низком экране (375x667) не заходила
+   под верхнюю панель. */
 .rc-cam-frame {
     position: absolute;
     left: 50%;
-    top: 42%;
-    width: min(62vw, 300px);
-    height: min(62vw, 300px);
+    top: 50%;
+    width: min(62vw, 300px, 40vh);
+    height: min(62vw, 300px, 40vh);
     transform: translate(-50%, -50%);
     border: 2px solid var(--rc-cam-dim);
     border-radius: 18px;
@@ -485,26 +532,69 @@ body.rc-page { background: var(--rc-bg); }
     left: 0;
     right: 0;
     display: flex;
-    align-items: baseline;
-    gap: 10px;
-    padding: calc(14px + env(safe-area-inset-top, 0px)) 18px 14px;
-    background: var(--rc-cam-panel);
-}
-.rc-cam-units { font-family: var(--rc-mono); font-size: 30px; font-weight: 600; line-height: 1; }
-.rc-cam-status { font-size: 15px; color: var(--rc-cam-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.rc-cam-bar {
-    display: flex;
+    flex-direction: column;
     gap: 8px;
-    padding: 12px 18px calc(12px + env(safe-area-inset-bottom, 0px));
+    padding: calc(10px + env(safe-area-inset-top, 0px)) 16px 12px;
     background: var(--rc-cam-panel);
 }
-.rc-cam-bar .rc-btn { flex: 1; min-width: 0; height: var(--rc-ctl-lg); padding: 0 8px; white-space: normal; line-height: 1.2; text-align: center; }
+/* Строка «Закрыть | Приёмка №N | Фонарик»: крайние колонки равные, поэтому номер
+   приёмки по центру и тогда, когда фонарика нет. Крайние — не уже своих кнопок: на
+   экране 360px «Закрыть» шире половины остатка, и при номере из 3-4 цифр кнопка
+   наезжала бы на номер; так номер сдвигается или укорачивается многоточием. */
+.rc-cam-row {
+    display: grid;
+    grid-template-columns: minmax(max-content, 1fr) auto minmax(max-content, 1fr);
+    align-items: center;
+    gap: 8px;
+}
+.rc-cam-close { justify-self: start; }
+.rc-cam-torch { justify-self: end; }
+.rc-cam-top .rc-btn { background: transparent; border-color: var(--rc-cam-dim); color: var(--rc-cam-ink); padding: 0 12px; }
+.rc-cam-top .rc-btn:hover { background: var(--rc-cam-panel); border-color: var(--rc-cam-ink); }
+.rc-cam-title { font-size: 13px; color: var(--rc-cam-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rc-cam-count { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 12px; }
+.rc-cam-units { font-family: var(--rc-mono); font-size: 30px; font-weight: 600; line-height: 1; }
+.rc-cam-gtins { font-size: 15px; color: var(--rc-cam-dim); }
+/* «Не отправлено: N» — та же плашка, что на экране (красная — нет связи или нужен вход). */
+.rc-cam-pending { white-space: normal; height: auto; min-height: 26px; align-self: center; }
+/* Результат скана — плашка его цвета и держится до следующего скана: на iPhone без звука
+   (беззвучный режим) это главный сигнал. Подсказки — без заливки. Текст плашки
+   --rc-on-accent на *-ink: не меньше 4,5:1 в обеих темах. */
+.rc-cam-status {
+    align-self: flex-start;
+    max-width: 100%;
+    padding: 6px 12px;
+    border-radius: var(--rc-r-ctl);
+    font-size: 17px;
+    font-weight: 600;
+    line-height: 1.3;
+    color: var(--rc-cam-ink);
+    white-space: normal;
+}
+.rc-cam-status.is-ok { background: var(--rc-ok-ink); color: var(--rc-on-accent); }
+.rc-cam-status.is-repeat { background: var(--rc-warn-ink); color: var(--rc-on-accent); }
+.rc-cam-status.is-bad { background: var(--rc-bad-ink); color: var(--rc-on-accent); }
+.rc-cam-bar {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+    background: var(--rc-cam-panel);
+}
+.rc-cam-bar .rc-btn { width: 100%; height: var(--rc-ctl-lg); padding: 0 6px; white-space: normal; line-height: 1.2; text-align: center; }
+/* «Завершить» в камере — как на экране: зелёная рамка и текст (правило .rc .rc-btn-finish
+   сюда не достаёт: окно камеры — не внутри .rc). */
+.rc-cam .rc-btn-finish { border-color: var(--rc-ok); color: var(--rc-ok-ink); }
+.rc-cam .rc-btn-finish:hover { background: var(--rc-ok-soft); }
 .rc-cam .rc-btn[aria-pressed="true"] { background: var(--rc-accent); border-color: var(--rc-accent); color: var(--rc-on-accent); }
 
 /* ==================== Уведомление ==================== */
 
 /* Пока открыта камера, уведомление — над её кнопками, а не поверх них. */
 .rc-cam-on .rc-toast { bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
+/* Пока открыто окно (лист снизу, в том числе поверх камеры), уведомление — сверху: ошибка
+   не ложится на кнопки окна. Объявлено после правила камеры — при обоих классах главнее. */
+.rc-sheet-on .rc-toast { top: calc(12px + env(safe-area-inset-top, 0px)); bottom: auto; }
 
 .rc-toast {
     position: fixed;
@@ -549,5 +639,10 @@ body.rc-page { background: var(--rc-bg); }
         border-radius: 18px 18px 0 0;
         padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px));
     }
+    /* Кнопки окна — столбиком: в DOM отмена первая, а нарисована в самом низу, под большим
+       пальцем. Двойное касание «Завершить» в нижнем ряду камеры (перчатка) попадает в
+       отмену, а не в «Завершить приёмку». */
+    .rc-sheet-actions { flex-direction: column-reverse; }
+    .rc-sheet-actions .rc-btn { flex: none; width: 100%; }
     .rc-toast { bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
 }
