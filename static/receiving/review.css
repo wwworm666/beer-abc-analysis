@@ -14,8 +14,17 @@
      новые цвета»), поэтому новая позиция выделена терракотовым акцентом.
    Красный (bad) — только ошибки (сбой обновления, ошибка сверки), не статус позиции.
 
+   Компоновка сверху вниз: выбор приёмок и строка «вкладки + поиск» — без рамок панелей
+   (это фильтры таблицы); панель таблицы с шапкой: число строк, дата индекса iiko и две
+   тихие кнопки — «Обновить из iiko» (выделяется, только когда индекс устарел или
+   сломан) и «Поиск в iiko»; таблица в пять колонок: позиция (статус, название, коды,
+   «Найти в iiko»), кол-во, карточки iiko, поставщик и заметка, решение. Она
+   помещается без прокрутки от окна шириной около 940px (на 1024 и 1280 — целиком);
+   уже — прокручивается, а «Решение» прилипает справа.
+   Панель «Поиск в iiko» одна: под шапкой таблицы или строкой таблицы под позицией.
+
    Брейкпоинт телефона — 768px: таблица превращается в карточки (как на /cleanliness),
-   потому что семь колонок в 390px не помещаются, а горизонтальная прокрутка уводит
+   потому что пять колонок в 390px не помещаются, а горизонтальная прокрутка уводит
    кнопки «Сделано» за экран. */
 
 /* ==================== Токены ==================== */
@@ -111,10 +120,6 @@
 .rv a { color: var(--rv-accent-ink); }
 .rv-num, .rv-code { font-variant-numeric: tabular-nums; }
 .rv-muted { color: var(--rv-ink4); }
-.rv-sr {
-    position: absolute; width: 1px; height: 1px; overflow: hidden;
-    clip: rect(0 0 0 0); white-space: nowrap;
-}
 
 .rv-panel {
     background: var(--rv-card);
@@ -160,6 +165,10 @@
 .rv-btn-primary { background: var(--rv-accent); border-color: var(--rv-accent); color: var(--rv-on-accent); }
 .rv-btn-primary:hover { background: var(--rv-accent-h); border-color: var(--rv-accent-h); }
 .rv-btn-sm { height: 32px; padding: 0 10px; font-size: 12px; }
+/* Тихая кнопка: без рамки и фона, пока на неё не навели, — инструменты, которые нужны
+   редко (шапка таблицы, «Скрыть» у поиска в iiko). */
+.rv-btn-ghost { border-color: transparent; background: transparent; color: var(--rv-ink3); }
+.rv-btn-ghost:hover { background: var(--rv-hover); border-color: var(--rv-line2); color: var(--rv-ink); }
 .rv-btn.is-busy { pointer-events: none; opacity: .7; }
 .rv-btn.is-busy svg { animation: rv-spin .8s linear infinite; }
 @keyframes rv-spin { to { transform: rotate(360deg); } }
@@ -190,19 +199,14 @@
     outline: none; border-color: var(--rv-accent); box-shadow: var(--rv-focus);
 }
 .rv-sel { max-width: 220px; width: 100%; }
-.rv-input-note { width: 100%; min-width: 140px; height: 34px; font-size: 12px; }
-
-/* ==================== Шапка: индекс iiko ==================== */
-
-.rv-head {
-    display: flex; align-items: center; gap: 12px 16px; flex-wrap: wrap;
+/* Заметка — тихое поле на мягком фоне: рамка появляется при наведении, белый фон и
+   акцентная рамка — в фокусе. Шесть пустых полей в рамках забивали таблицу. */
+.rv-input-note {
+    width: 100%; min-width: 140px; height: 34px; font-size: 12px;
+    border-color: transparent; background: var(--rv-soft);
 }
-.rv-head-main { flex: 1; min-width: 220px; }
-.rv-index { font-weight: 600; color: var(--rv-ink); }
-.rv-index.is-missing { color: var(--rv-bad-ink); }
-.rv-job { margin-top: 4px; font-size: 12px; color: var(--rv-ink3); }
-.rv-job.is-bad { color: var(--rv-bad-ink); }
-.rv-head-how { flex-basis: 100%; }
+.rv-input-note:hover { border-color: var(--rv-line2); }
+.rv-input-note:focus { border-color: var(--rv-accent); background: var(--rv-field); }
 
 /* ==================== Свёрнутые пояснения ==================== */
 
@@ -228,9 +232,50 @@
 .rv-how-in b { color: var(--rv-ink2); }
 .rv-how-in p:empty { display: none; }
 
-/* ==================== Вкладки и фильтры ==================== */
+/* ==================== Выбор приёмок ==================== */
 
-.rv-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+/* Без рамки панели: подпись, чипы и — если выбрана одна приёмка — строка с фото её
+   накладной. Выбранные чипы — акцентом (как фильтр, а не вкладка: выбрать можно
+   несколько). Пояснение раскрывается на всю ширину под подписью. */
+.rv-pick { margin-bottom: 10px; }
+.rv-pick-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 12px; margin-bottom: 6px; }
+.rv-pick-label { font-size: 12px; font-weight: 600; color: var(--rv-ink3); }
+.rv-pick-head .rv-how { margin: 0 0 0 auto; }
+.rv-pick-head .rv-how[open] { flex-basis: 100%; margin-left: 0; }
+.rv-pick-list { display: flex; gap: 6px; flex-wrap: wrap; }
+.rv-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    height: 32px; padding: 0 12px;
+    font: inherit; font-size: 12px; font-weight: 500;
+    color: var(--rv-ink2);
+    background: var(--rv-card);
+    border: 1px solid var(--rv-line);
+    border-radius: var(--rv-r-pill);
+    cursor: pointer;
+    transition: border-color .15s ease, color .15s ease;
+}
+.rv-chip:hover { border-color: var(--rv-accent); color: var(--rv-ink); }
+.rv-chip.is-on { color: var(--rv-accent-ink); background: var(--rv-accent-soft); border-color: var(--rv-accent); }
+.rv-chip-n { font-weight: 600; color: var(--rv-ink3); font-variant-numeric: tabular-nums; }
+.rv-chip.is-on .rv-chip-n { color: var(--rv-accent-ink); }
+/* Состояние приёмки видно и у выбранного чипа: правила не слабее .rv-chip.is-on .rv-chip-n. */
+.rv-chip-n.is-wait, .rv-chip.is-on .rv-chip-n.is-wait { color: var(--rv-warn-ink); }
+.rv-chip-n.is-error, .rv-chip.is-on .rv-chip-n.is-error { color: var(--rv-bad-ink); }
+.rv-pick-photos {
+    margin: 6px 0 0;
+    display: flex; flex-wrap: wrap; gap: 4px 12px;
+    font-size: 12px; color: var(--rv-ink3);
+}
+
+/* ==================== Вкладки и поиск ==================== */
+
+/* Вкладки и поиск по строкам — одна строка над таблицей; поиск переносится вниз, если
+   не помещается. */
+.rv-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 16px; margin-bottom: 12px; }
+.rv-bar .rv-tabs { flex: 1 1 auto; margin-bottom: 0; }
+.rv-bar .rv-search { flex: 0 1 340px; min-width: 220px; }
+
+.rv-tabs { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
 .rv-tab {
     display: inline-flex; align-items: center; gap: 6px;
     height: 36px; padding: 0 14px;
@@ -257,8 +302,20 @@
 .rv-tab[data-tab="similar"] .rv-tab-n.has-items,
 .rv-tab[data-tab="restore"] .rv-tab-n.has-items,
 .rv-tab[data-tab="duplicate"] .rv-tab-n.has-items { color: var(--rv-warn-ink); background: var(--rv-warn-soft); }
+/* Новые, Похожие, Восстановить и Дубли — части «К разбору»: мельче и отделены чертой
+   от неё и от «Закрытых». Вкладки и запросы те же (TABS в review.js). Черта — в
+   середине зазора: 8px между вкладками + 13px отступа. */
+.rv-tab[data-tab="new"],
+.rv-tab[data-tab="similar"],
+.rv-tab[data-tab="restore"],
+.rv-tab[data-tab="duplicate"] { height: 32px; padding: 0 12px; font-size: 12px; }
+.rv-tab[data-tab="new"], .rv-tab[data-tab="closed"] { margin-left: 13px; position: relative; }
+.rv-tab[data-tab="new"]::before,
+.rv-tab[data-tab="closed"]::before {
+    content: ''; position: absolute; left: -11px; top: 7px; bottom: 7px; width: 1px;
+    background: var(--rv-line2);
+}
 
-.rv-tools { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
 .rv-search {
     position: relative; flex: 1; min-width: 220px; max-width: 460px;
     display: flex; align-items: center;
@@ -276,43 +333,41 @@
 }
 .rv-search input:focus { outline: none; border-color: var(--rv-accent); box-shadow: var(--rv-focus); }
 
-.rv-count { font-size: 12px; color: var(--rv-ink4); margin-left: auto; }
-
-/* Выбор приёмок для разбора: чипы, выбранные — акцентом (как фильтр, а не вкладка:
-   выбрать можно несколько). */
-.rv-pick .rv-sec-head { margin-bottom: 10px; }
-.rv-pick-list { display: flex; gap: 6px; flex-wrap: wrap; }
-.rv-chip {
-    display: inline-flex; align-items: center; gap: 6px;
-    height: 32px; padding: 0 12px;
-    font: inherit; font-size: 12px; font-weight: 500;
-    color: var(--rv-ink2);
-    background: var(--rv-card);
-    border: 1px solid var(--rv-line);
-    border-radius: var(--rv-r-pill);
-    cursor: pointer;
-    transition: border-color .15s ease, color .15s ease;
-}
-.rv-chip:hover { border-color: var(--rv-accent); color: var(--rv-ink); }
-.rv-chip.is-on { color: var(--rv-accent-ink); background: var(--rv-accent-soft); border-color: var(--rv-accent); }
-.rv-chip-n { font-weight: 600; color: var(--rv-ink3); font-variant-numeric: tabular-nums; }
-.rv-chip.is-on .rv-chip-n { color: var(--rv-accent-ink); }
-/* Состояние приёмки видно и у выбранного чипа: правила не слабее .rv-chip.is-on .rv-chip-n. */
-.rv-chip-n.is-wait, .rv-chip.is-on .rv-chip-n.is-wait { color: var(--rv-warn-ink); }
-.rv-chip-n.is-error, .rv-chip.is-on .rv-chip-n.is-error { color: var(--rv-bad-ink); }
-
 .rv-msg { margin: 0 0 12px; font-size: 13px; color: var(--rv-ink3); }
 .rv-msg.is-bad {
     padding: 10px 14px; color: var(--rv-bad-ink);
     background: var(--rv-bad-soft); border-radius: var(--rv-r-ctl);
 }
 
+/* ==================== Шапка таблицы: строки и индекс iiko ==================== */
+
+/* Одна строка 12px: число строк, от какого индекса посчитаны статусы, тихие кнопки и
+   «Как считается». Ход обновления (#rvJob) и раскрытое пояснение — каждое своей
+   строкой во всю ширину ниже. */
+.rv-cap {
+    display: flex; align-items: center; flex-wrap: wrap; gap: 6px 14px;
+    padding: 8px 18px;
+    border-bottom: 1px solid var(--rv-line);
+    font-size: 12px; color: var(--rv-ink3);
+}
+.rv-cap .rv-count { font-weight: 600; color: var(--rv-ink2); }
+.rv-index { font-weight: 400; color: var(--rv-ink3); }
+.rv-index.is-stale { color: var(--rv-warn-ink); }
+.rv-index.is-missing { color: var(--rv-bad-ink); font-weight: 600; }
+.rv-cap .rv-how { margin: 0 0 0 auto; padding: 0; }
+.rv-cap .rv-how[open] { flex-basis: 100%; margin-left: 0; order: 10; }
+.rv-job { flex-basis: 100%; margin: 0; font-size: 12px; color: var(--rv-ink3); }
+.rv-job.is-bad { color: var(--rv-bad-ink); }
+
 /* ==================== Таблица ==================== */
 
-.rv-list { padding: 0; }
-.rv-list .rv-how { margin: 0; padding: 10px 18px 14px; }
-.rv-table-wrap { overflow-x: auto; }
-.rv-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+/* overflow: hidden — фон прилипшей колонки «Решение», строки под наведением и строки
+   с поиском не выходят за скруглённые углы панели. */
+.rv-list { padding: 0; overflow: hidden; }
+/* Контейнер (container-type) — для ширины панели поиска под строкой (100cqw ниже). */
+.rv-table-wrap { overflow-x: auto; container-type: inline-size; }
+/* separate, а не collapse: у прилипшей колонки «Решение» остаются свои границы. */
+.rv-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; }
 .rv-table th {
     text-align: left; white-space: nowrap;
     font-size: 11px; font-weight: 600; letter-spacing: .05em;
@@ -330,13 +385,22 @@
 .rv-row.is-closed td { color: var(--rv-ink3); }
 .rv-row.is-busy { opacity: .6; }
 
-.rv-td-st { width: 150px; }
-.rv-td-pos { min-width: 240px; }
-.rv-td-qty { white-space: nowrap; }
-.rv-td-cards { min-width: 200px; }
-.rv-td-sup { min-width: 170px; }
-.rv-td-note { min-width: 150px; }
-.rv-td-act { width: 1%; }
+/* Ширины колонок (с полями ячеек, box-sizing из base.css): сумма минимумов — около
+   900px, поэтому таблица без прокрутки от окна около 940px; кол-во и решение — по
+   содержимому (width: 1%). */
+.rv-td-pos { min-width: 280px; }
+.rv-td-qty { width: 1%; white-space: nowrap; }
+.rv-td-cards { min-width: 220px; }
+.rv-td-edit { width: 220px; }
+/* «Решение» прилипает к правому краю, когда таблица шире экрана и прокручивается:
+   кнопки строки всегда видны. Фон непрозрачный — прокрученные ячейки под ним не
+   просвечивают; при наведении на строку его перекрашивает правило tr:hover td. */
+.rv-td-act, .rv-th-act {
+    width: 1%;
+    position: sticky; right: 0; z-index: 1;
+    background: var(--rv-card);
+    box-shadow: inset 1px 0 0 var(--rv-hair);
+}
 
 .rv-pill {
     display: inline-block; white-space: nowrap;
@@ -348,15 +412,19 @@
 .rv-pill.is-ok { color: var(--rv-ok-ink); background: var(--rv-ok-soft); }
 .rv-pill.is-warn { color: var(--rv-warn-ink); background: var(--rv-warn-soft); }
 .rv-pill.is-new { color: var(--rv-accent-ink); background: var(--rv-accent-soft); border-color: var(--rv-accent); }
-.rv-res { margin-top: 6px; font-size: 11px; color: var(--rv-ink3); }
+
+/* Ячейка позиции: статус с решением, название, коды, инструменты строки. */
+.rv-pos-top { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; margin-bottom: 6px; }
+.rv-res { font-size: 11px; color: var(--rv-ink3); }
 .rv-res b { color: var(--rv-ink2); font-weight: 600; }
-.rv-again { margin-top: 4px; font-size: 11px; color: var(--rv-warn-ink); }
+.rv-again { font-size: 11px; color: var(--rv-warn-ink); }
 
 .rv-name { font-weight: 600; color: var(--rv-ink); }
 .rv-name.is-none { font-weight: 400; color: var(--rv-ink4); font-style: italic; }
 .rv-meta { margin-top: 2px; font-size: 12px; color: var(--rv-ink3); }
 .rv-codes { margin-top: 4px; display: flex; gap: 4px 12px; flex-wrap: wrap; font-size: 12px; color: var(--rv-ink3); }
 .rv-code b { color: var(--rv-ink); font-weight: 600; letter-spacing: .02em; }
+.rv-pos-acts { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 6px; }
 
 .rv-qty { font-weight: 700; font-size: 14px; font-variant-numeric: tabular-nums; }
 .rv-rcs { margin-top: 4px; display: flex; flex-direction: column; gap: 2px; font-size: 12px; }
@@ -376,43 +444,79 @@
 .rv-score { color: var(--rv-accent-ink); font-weight: 600; }
 .rv-none { font-size: 12px; color: var(--rv-ink4); }
 
+/* Поставщик и заметка — одна колонка: выбор поставщика, под ним заметка. */
+.rv-edit { display: grid; gap: 6px; }
+.rv-edit-sup, .rv-edit-note { min-width: 0; }
 .rv-sup-hint { margin-top: 4px; font-size: 11px; color: var(--rv-ink4); }
 .rv-saved { margin-top: 4px; font-size: 11px; color: var(--rv-ok-ink); }
 .rv-saved.is-bad { color: var(--rv-bad-ink); }
 
-.rv-acts { display: flex; flex-direction: column; gap: 6px; align-items: stretch; min-width: 150px; }
-.rv-acts-row { display: flex; gap: 6px; }
-.rv-acts-row .rv-btn { flex: 1; }
+/* Решение: «Сделано» и «Не нужно» столбиком одной ширины. */
+.rv-acts { display: flex; flex-direction: column; gap: 6px; min-width: 104px; }
 
 .rv-empty { padding: 28px 16px; text-align: center; font-size: 13px; color: var(--rv-ink3); }
 .rv-more { margin: 0; padding: 10px 18px; font-size: 12px; color: var(--rv-ink3); border-top: 1px solid var(--rv-hair); }
 
 /* ==================== Поиск в iiko ==================== */
 
+/* Панель одна. Под шапкой таблицы — мягкая полоса (поиск без строки), а не отдельная
+   карточка; под строкой — строка таблицы на всю ширину, акцентная черта слева
+   продолжает черту строки, которая открыла поиск. */
+.rv-iiko { padding: 12px 18px; background: var(--rv-soft); border-bottom: 1px solid var(--rv-line); }
+.rv-iiko .rv-sec-head { margin-bottom: 10px; }
+.rv-iiko .rv-h { font-size: 13px; }
+.rv-iiko-close { margin-left: auto; }
+.rv-iiko .rv-how { margin: 8px 0 0; padding: 0; }
+.rv-table .rv-find-td { padding: 0; background: var(--rv-soft); box-shadow: inset 3px 0 0 var(--rv-accent); }
+/* Фон и черту под строкой даёт ячейка: свой фон панели закрыл бы черту. Таблица
+   шире экрана (окно 769-940px) прокручивается — панель шириной в видимую часть (100cqw —
+   ширина .rv-table-wrap) и прилипает к её левому краю: «Скрыть» и результаты не
+   уезжают за край, черта слева остаётся на виду. Браузер без cqw оставит панель во
+   всю ширину таблицы. */
+.rv-find-td .rv-iiko {
+    border-bottom: none; background: transparent;
+    position: sticky; left: 0; width: 100cqw;
+    box-shadow: inset 3px 0 0 var(--rv-accent);
+}
+.rv-table tbody tr.rv-find-tr:hover td { background: var(--rv-soft); }
+.rv-row.is-finding td { border-bottom-color: transparent; }
+.rv-row.is-finding td:first-child { box-shadow: inset 3px 0 0 var(--rv-accent); }
+
 .rv-iiko-form { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
 .rv-iiko-form .rv-input { flex: 1; min-width: 220px; max-width: 460px; }
-.rv-iiko-list { display: grid; gap: 8px; }
+/* Список результатов (до 20) прокручивается внутри: 320px — около шести карточек в две
+   строки. Панель под строкой не должна выталкивать саму строку за экран. */
+.rv-iiko-list { display: grid; gap: 0; max-height: 320px; overflow-y: auto; }
+/* Карточка iiko — строкой списка: слева название с пометками, справа артикул, группа,
+   поставщик и штрихкоды; строки разделены волосяной линией. */
 .rv-hit {
-    padding: 10px 12px;
-    border: 1px solid var(--rv-hair);
-    border-radius: var(--rv-r-ctl);
-    background: var(--rv-soft);
+    display: grid; grid-template-columns: minmax(220px, 1fr) 2fr; column-gap: 16px;
+    padding: 8px 0;
+    border-top: 1px solid var(--rv-hair);
+    background: transparent;
     font-size: 12px; line-height: 1.5;
 }
+.rv-hit > :first-child { grid-row: span 2; }
 .rv-hit-n { font-size: 13px; font-weight: 600; color: var(--rv-ink); }
 .rv-hit-m { color: var(--rv-ink3); }
 .rv-hit-b { margin-top: 2px; color: var(--rv-ink2); font-variant-numeric: tabular-nums; word-break: break-word; }
 
-/* ==================== Приёмки ==================== */
+/* ==================== История приёмок ==================== */
 
-.rv-rc-list { display: grid; gap: 8px; }
+/* Приёмка — две строки: № · когда и кто · сверка · штуки; ниже прогресс разбора и
+   ссылки. Приёмки разделены волосяной линией, без рамок; «Удалить приёмку» — справа,
+   подальше от остальных ссылок. */
+.rv-rc-list { display: grid; gap: 0; }
 .rv-rc {
-    padding: 10px 12px;
-    border: 1px solid var(--rv-hair);
-    border-radius: var(--rv-r-ctl);
+    padding: 10px 0;
+    border: none;
+    border-top: 1px solid var(--rv-hair);
     font-size: 12px; line-height: 1.5;
 }
-.rv-rc.is-current { border-color: var(--rv-accent); background: var(--rv-accent-soft); }
+.rv-rc:first-child { border-top: none; }
+/* Выбранная приёмка — подсветка с чертой слева; поля по бокам, чтобы «Удалить приёмку»
+   не прилипала к краю подсветки. */
+.rv-rc.is-current { background: var(--rv-accent-soft); box-shadow: inset 3px 0 0 var(--rv-accent); padding-left: 10px; padding-right: 10px; }
 .rv-rc-head { display: flex; gap: 6px 12px; flex-wrap: wrap; align-items: baseline; }
 .rv-rc-no { font-size: 14px; font-weight: 700; color: var(--rv-ink); }
 .rv-rc-when { color: var(--rv-ink3); }
@@ -420,12 +524,13 @@
 .rv-rc-proc.is-done { color: var(--rv-ok-ink); }
 .rv-rc-proc.is-wait { color: var(--rv-warn-ink); }
 .rv-rc-proc.is-error { color: var(--rv-bad-ink); }
-.rv-rc-facts { margin-top: 2px; color: var(--rv-ink2); font-variant-numeric: tabular-nums; }
-.rv-rc-prog { margin-top: 2px; font-weight: 600; color: var(--rv-accent-ink); font-variant-numeric: tabular-nums; }
+.rv-rc-facts { color: var(--rv-ink2); font-variant-numeric: tabular-nums; }
+.rv-rc-prog { font-weight: 600; color: var(--rv-accent-ink); font-variant-numeric: tabular-nums; }
 .rv-rc-prog.is-done { color: var(--rv-ok-ink); }
 .rv-rc-note { margin-top: 2px; color: var(--rv-ink3); }
 .rv-rc-note.is-bad { color: var(--rv-bad-ink); }
-.rv-rc-act { margin-top: 6px; display: flex; gap: 14px; flex-wrap: wrap; }
+.rv-rc-act { margin-top: 4px; display: flex; gap: 4px 14px; flex-wrap: wrap; align-items: baseline; }
+.rv-rc-act .rv-link-bad { margin-left: auto; }
 .rv-rc-more { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--rv-hair); display: grid; gap: 4px; }
 .rv-rc-sub { font-weight: 600; color: var(--rv-ink2); }
 .rv-rc-photos { display: flex; gap: 6px 14px; flex-wrap: wrap; }
@@ -444,6 +549,13 @@
     box-shadow: var(--rv-shadow-toast);
 }
 .rv-toast.is-bad { color: var(--rv-on-accent); background: var(--rv-bad); }
+/* «Вернуть» в уведомлении — текстовая кнопка цветом текста уведомления. */
+.rv-toast-act {
+    margin-left: 12px; padding: 0;
+    border: none; background: none;
+    font: inherit; font-weight: 600; color: inherit;
+    text-decoration: underline; cursor: pointer;
+}
 
 /* Скрытое поле для копирования без Clipboard API (страница не по HTTPS). */
 .rv-offscreen { position: fixed; left: -9999px; top: 0; width: 1px; height: 1px; opacity: 0; }
@@ -457,22 +569,29 @@
     /* Поля от 16px: мельче — iOS увеличивает страницу при фокусе (как mobile.css). */
     .rv-input, .rv-sel, .rv-search input { height: 44px; font-size: 16px; }
     .rv-input-note { height: 44px; }
+    /* Вкладки и приёмки — в одну строку с прокруткой: обрезанный последний пункт
+       подсказывает, что дальше есть ещё; перенос съел бы первый экран. */
     .rv-tabs { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 2px; }
     .rv-tab { flex: none; }
-    /* Приёмки — в одну строку с прокруткой, как вкладки; чип повыше под палец. */
     .rv-pick-list { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 2px; }
     .rv-chip { flex: none; height: 36px; }
-    /* Поиск во всю ширину, счётчик строк — под ним, а не сжатый рядом. */
-    .rv-search { flex: 1 1 100%; max-width: none; }
-    .rv-count { margin-left: 0; }
+    /* Поиск по строкам — во всю ширину под вкладками. */
+    .rv-bar .rv-search { flex: 1 1 100%; max-width: none; }
     .rv-iiko-form .rv-input { max-width: none; }
 
-    /* Строка таблицы -> карточка: шапка карточки — статус и количество, ниже
-       позиция, карточки iiko, поставщик, заметка и кнопки во всю ширину. Ячейки
-       адресуются по классам, а не по nth-child. */
-    .rv-list { padding: 0; background: transparent; border: none; box-shadow: none; }
-    .rv-list .rv-how { padding: 10px 2px 0; }
-    .rv-table-wrap { overflow-x: visible; }
+    /* Шапка таблицы — без рамки, над карточками; кнопки повыше под палец. */
+    /* Плотнее, чем на компьютере: число строк и индекс — по строке, кнопки и
+       «Как считается» — одной строкой, а не каждое отдельно (было ~200px до карточек). */
+    .rv-cap { gap: 0 12px; padding: 0 2px 6px; border-bottom: none; }
+    .rv-cap .rv-index { flex-basis: 100%; }
+    .rv-cap .rv-btn { height: 40px; padding: 0 4px; }
+    .rv-cap .rv-how { margin-left: 0; }
+
+    /* Строка таблицы -> карточка: вверху позиция (статус, название, коды, «Найти в
+       iiko») и количество, ниже карточки iiko, поставщик рядом с заметкой и кнопки
+       решения во всю ширину. Ячейки адресуются по классам, а не по nth-child. */
+    .rv-list { padding: 0; overflow: visible; background: transparent; border: none; box-shadow: none; }
+    .rv-table-wrap { overflow-x: visible; container-type: normal; }
     .rv-table thead { display: none; }
     .rv-table tbody, .rv-table tr, .rv-table td { display: block; }
     .rv-table tr {
@@ -487,14 +606,43 @@
     }
     .rv-table tbody tr:hover td { background: transparent; }
     .rv-table td { padding: 0; border: none; min-width: 0; width: auto; }
-    .rv-td-st { grid-column: 1; grid-row: 1; }
+    .rv-td-pos { grid-column: 1; grid-row: 1; }
     .rv-td-qty { grid-column: 2; grid-row: 1; justify-self: end; text-align: right; }
     .rv-td-qty .rv-rcs { align-items: flex-end; }
-    .rv-td-pos, .rv-td-cards, .rv-td-sup, .rv-td-note, .rv-td-act { grid-column: 1 / -1; }
+    .rv-td-cards, .rv-td-edit, .rv-td-act { grid-column: 1 / -1; }
     .rv-td-cards:empty { display: none; }
+    .rv-td-act, .rv-th-act { position: static; background: transparent; box-shadow: none; }
     .rv-sel { max-width: none; }
-    .rv-acts { min-width: 0; }
+    /* Поставщик и заметка рядом, если оба помещаются по 150px; иначе друг под другом. */
+    .rv-edit { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+    .rv-acts { flex-direction: row; min-width: 0; }
+    .rv-acts .rv-btn { flex: 1; height: 44px; font-size: 13px; }
+    .rv-pos-acts .rv-link { min-height: 40px; display: inline-flex; align-items: center; }
+
+    /* Поиск в iiko под карточкой — своей карточкой с акцентной чертой слева; список
+       результатов без внутренней прокрутки (прокручивается страница). */
+    .rv-table tr.rv-find-tr { display: block; padding: 0; margin: -4px 0 8px; border: none; background: transparent; }
+    .rv-table .rv-find-td { box-shadow: none; background: transparent; }
+    .rv-table tbody tr.rv-find-tr:hover td { background: transparent; }
+    .rv-find-tr .rv-iiko, .rv-iiko-home .rv-iiko {
+        border: 1px solid var(--rv-line);
+        border-left: 3px solid var(--rv-accent);
+        border-radius: var(--rv-r-panel);
+        padding: 12px;
+        background: var(--rv-soft);
+        position: static; width: auto; box-shadow: none;
+    }
+    /* «Скрыть» — рядом с заголовком, дата индекса — строкой ниже; кнопка под палец. */
+    .rv-iiko .rv-sec-head { align-items: center; row-gap: 0; }
+    .rv-iiko .rv-sec-head .rv-sec-sub { order: 1; flex-basis: 100%; }
+    .rv-iiko .rv-iiko-close { height: 40px; }
+    .rv-iiko-list { max-height: none; overflow: visible; }
+    .rv-hit { display: block; }
+    .rv-row.is-finding { border-color: var(--rv-accent); }
+    .rv-row.is-finding td:first-child { box-shadow: none; }
+
     .rv-tr-empty { display: block; }
     .rv-tr-empty td { grid-column: 1 / -1; }
     .rv-more { border-top: none; padding: 4px 2px; }
+    .rv-rc-act .rv-link { min-height: 40px; display: inline-flex; align-items: center; }
 }

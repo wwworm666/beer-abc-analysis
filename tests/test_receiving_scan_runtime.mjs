@@ -626,6 +626,9 @@ await test('«Продолжить» открывает приёмку из сп
     server.addReceipt({ id: 7 });
     const env = await boot({ server });
     const button = env.$('rc-open-list').findAll('rc-btn')[0];
+    // Обычная кнопка: главная (оранжевая) на стартовом экране одна — «Новая приёмка».
+    assert.equal(button.textContent, 'Продолжить');
+    assert.ok(!button.classList.contains('rc-btn-primary'), '«Продолжить» — главная кнопка');
     button.click();
     await settle(env);
     assert.equal(env.net.calls.at(-1).url, '/api/receiving/7');
@@ -996,19 +999,41 @@ await test('«Отменить последний» при пустой очер
     assert.equal(env.net.calls.at(-1).url, '/api/receiving/12', 'после отмены приёмка не перечитана');
 });
 
-await test('«Завершить» не пускает, пока очередь не пуста: «Есть неотправленные сканы — дождитесь связи»', async () => {
+await test('«Завершить» при непустой очереди ждёт: окно открыто, кнопка выключена до отправки, само не завершает', async () => {
+    // Редизайн 2026-10-04: отказ тостом выглядел сломанной кнопкой (с камеры последний скан
+    // почти всегда ещё в пути) — теперь окно открывается и ждёт очередь.
     const env = main;
+    const closes = () => env.net.calls.filter((c) => CLOSE_RE.test(c.url)).length;
     env.net.mode = 'offline';
     scan(env, EAN_A);
     await settle(env);
+    const tried = env.scanCalls().length;
     env.$('rc-finish').click();
     await settle(env);
-    assert.equal(env.$('rc-sheet-wrap').hidden, true, 'окно подтверждения открылось при непустой очереди');
-    assert.equal(env.$('rc-toast').textContent, 'Есть неотправленные сканы — дождитесь связи');
-    assert.ok(!env.net.calls.some((c) => CLOSE_RE.test(c.url)), 'ушёл POST close');
+    assert.equal(env.scanCalls().length, tried + 1, '«Завершить» не отправило очередь сразу (ждёт паузы повтора)');
+    assert.equal(env.$('rc-sheet-wrap').hidden, false, 'окно подтверждения не открылось при непустой очереди');
+    assert.equal(env.$('rc-sheet-ok').disabled, true, '«Завершить приёмку» включена при непустой очереди');
+    assert.equal(env.$('rc-sheet-wait').hidden, false);
+    assert.ok(env.$('rc-sheet-wait').classList.contains('is-bad'), 'без связи строка ожидания не красная');
+    assert.equal(env.$('rc-sheet-wait-text').textContent,
+        'Нет связи — в телефоне ждут отправки сканов: 1. Завершить можно, когда они уйдут.');
+    assert.equal(env.$('rc-sheet-retry').hidden, false, 'нет «Отправить сейчас»');
+    assert.equal(env.$('rc-sheet-login').hidden, true);
+    assert.equal(env.$('rc-sheet-cancel').textContent, 'Отмена');
+    assert.notEqual(env.$('rc-toast').textContent, 'Есть неотправленные сканы — дождитесь связи');
+    assert.equal(closes(), 0, 'ушёл POST close');
+    // Связь вернулась, «Отправить сейчас»: очередь ушла, кнопка включилась — и только.
     env.net.mode = 'online';
-    await advance(env, 30000);
+    env.$('rc-sheet-retry').click();
+    await settle(env);
     assert.deepEqual(env.queue(), []);
+    assert.equal(env.$('rc-sheet-wait').hidden, true);
+    assert.equal(env.$('rc-sheet-ok').disabled, false, 'кнопка не включилась после отправки очереди');
+    await advance(env, 30000);
+    assert.equal(env.$('rc-sheet-wrap').hidden, false, 'окно закрылось само');
+    assert.equal(closes(), 0, 'приёмка завершилась без нажатия');
+    env.$('rc-sheet-cancel').click();
+    assert.equal(env.$('rc-sheet-wrap').hidden, true);
 });
 
 await test('скан при открытом подтверждении отменяет завершение', async () => {
@@ -1027,6 +1052,15 @@ await test('«Завершить»: подтверждение со счётчи
     assert.equal(env.$('rc-sheet-wrap').hidden, false);
     assert.equal(env.$('rc-sheet-title').textContent, 'Завершить приёмку №12?');
     assert.match(env.$('rc-sheet-text').textContent, new RegExp('Посчитано: ' + shown + ' шт\\.'));
+    // Подтверждение зелёное, как «Завершить»; очередь пуста — кнопка включена, ожидания нет.
+    assert.equal(env.$('rc-sheet-ok').textContent, 'Завершить приёмку');
+    assert.ok(env.$('rc-sheet-ok').classList.contains('rc-btn-ok'), 'кнопка подтверждения не зелёная');
+    assert.ok(!env.$('rc-sheet-ok').classList.contains('rc-btn-primary'));
+    assert.equal(env.$('rc-sheet-ok').disabled, false);
+    assert.equal(env.$('rc-sheet-wait').hidden, true);
+    assert.equal(env.$('rc-sheet-cancel').textContent, 'Отмена', 'камера закрыта — отмена обычная');
+    assert.equal(env.$('rc-sheet-note').hidden, false, 'нет напоминания о фото накладной');
+    assert.ok(env.sandbox.document.documentElement.classList.contains('rc-sheet-on'), 'уведомления не сверху при открытом окне');
     await advance(env, 100);
     assert.equal(env.document.activeElement, env.$('rc-sheet-cancel'), 'фокус не на «Отмене»');
     env.$('rc-sheet-ok').click();
@@ -1042,6 +1076,8 @@ await test('«Завершить»: подтверждение со счётчи
     assert.equal(env.$('rc-done-review').getAttribute('href'), '/receiving/review?receipt=12');
     assert.equal(env.sandbox.location.search, '');
     assert.equal(env.localStorage.getItem('rc.receipt.v1'), null, 'снимок закрытой приёмки остался');
+    assert.ok(!env.sandbox.document.documentElement.classList.contains('rc-sheet-on'));
+    assert.ok(!env.sandbox.document.documentElement.classList.contains('rc-lock'), 'прокрутка не вернулась');
 });
 
 await test('скан, пока «Завершить» в пути, не пишется: сигнал ошибки и подсказка', async () => {
@@ -1064,6 +1100,12 @@ await test('скан, пока «Завершить» в пути, не пише
     assert.deepEqual(tonesSince(env, mark), [220]);
     assert.match(env.$('rc-toast').textContent, /Приёмка завершается/);
     assert.equal(env.$('rc-sheet-ok').disabled, true, 'кнопка «Завершить» не заблокирована на время запроса');
+    // Отрисовка (например, по событию online) окно перерисовывает, но кнопку, пока запрос в
+    // пути, не включает: renderFinishSheet смотрит и на busy.finish.
+    for (const l of env.windowListeners.filter((x) => x.type === 'online')) l.fn({});
+    await settle(env);
+    env.api.render();
+    assert.equal(env.$('rc-sheet-ok').disabled, true, 'отрисовка включила кнопку при запросе в пути');
     env.net.hold = null;
     env.release();
     await settle(env);
@@ -1529,15 +1571,23 @@ await test('камера: закрыли и открыли заново, пок�
 });
 
 // Камера-заглушка для тестов «только телефон»: кадр задаёт тест, детектор отдаёт его.
+// detects — сколько кадров разобрано; hold — разбор «идёт долго»: detect() ждёт, пока тест
+// не отпустит его (rig.releaseDetect()). streams — сколько раз включали поток камеры.
 function cameraRig() {
-    const rig = { frame: [], stopped: [], wake: [] };
+    const rig = { frame: [], stopped: [], wake: [], detects: 0, hold: false, held: [], streams: 0 };
     class Detector {
         static getSupportedFormats() { return Promise.resolve(['ean_13', 'data_matrix']); }
-        detect() { return Promise.resolve(rig.frame.map((rawValue) => ({ rawValue }))); }
+        detect() {
+            rig.detects += 1;
+            const found = rig.frame.map((rawValue) => ({ rawValue }));
+            if (!rig.hold) return Promise.resolve(found);
+            return new Promise((resolve) => rig.held.push(() => resolve(found)));
+        }
     }
+    rig.releaseDetect = () => { const list = rig.held.splice(0); list.forEach((go) => go()); };
     const track = { stop: () => rig.stopped.push('video'), getCapabilities: () => ({}) };
     const stream = { getTracks: () => [track], getVideoTracks: () => [track] };
-    rig.media = { getUserMedia: () => Promise.resolve(stream) };
+    rig.media = { getUserMedia: () => { rig.streams += 1; return Promise.resolve(stream); } };
     rig.Detector = Detector;
     rig.wakeLock = {
         request: (type) => {
@@ -1780,6 +1830,391 @@ await test('камера: разбор кадра всё время с ошиб�
     await settle(env);
     for (let i = 0; i < 16; i++) await advance(env, 200);
     assert.match(env.$('rc-cam-status').textContent, /Камера не читает коды — закройте её и откройте снова/);
+});
+
+// ---------------------------------------------------------------- редизайн 2026-10-04: камера и «Завершить»
+
+const htmlClass = (env) => env.sandbox.document.documentElement.classList;
+
+async function cameraEnv(id, extra) {
+    const server = new FakeServer();
+    const r = server.addReceipt(Object.assign({ id }, extra || {}));
+    server.nextReceipt = id + 1;
+    const rig = cameraRig();
+    const env = await boot({ server, search: '?r=' + id, mediaDevices: rig.media, barcodeDetector: rig.Detector });
+    env.$('rc-camera').click();
+    await settle(env);
+    return { env, rig, server, r };
+}
+
+await test('камера: «Завершить» в нижнем ряду — окно поверх камеры, под окном кадры не читаются, отмена — чтение дальше', async () => {
+    const { env, rig } = await cameraEnv(141);
+    assert.equal(env.$('rc-cam-title').textContent, 'Приёмка №141');
+    rig.frame = [EAN_B];                         // немаркированный товар: штрихкод считается через 0,8 с
+    await advance(env, 1000);
+    await settle(env);
+    assert.deepEqual(env.scanCalls().map((c) => c.body.code), [EAN_B]);
+    env.$('rc-cam-finish').click();
+    assert.equal(env.$('rc-sheet-wrap').hidden, false, 'окно не открылось');
+    assert.equal(env.$('rc-cam-wrap').hidden, false, '«Завершить» закрыло камеру');
+    assert.equal(env.$('rc-sheet-title').textContent, 'Завершить приёмку №141?');
+    assert.equal(env.$('rc-sheet-ok').textContent, 'Завершить приёмку');
+    assert.equal(env.$('rc-sheet-cancel').textContent, 'Продолжить сканирование');
+    assert.ok(htmlClass(env).contains('rc-sheet-on'));
+    assert.equal(env.$('rc-cam').inert, true, 'камера под окном доступна с клавиатуры');
+    // Окно открыто 3 с (дольше 2,5 с): штрихкод всё это время в кадре, рядом новый код ЧЗ —
+    // кадры не разбираются, ничего не считается, окно не отменяется.
+    const detects = rig.detects;
+    rig.frame = [EAN_B];
+    for (let i = 0; i < 15; i++) await advance(env, 200);
+    assert.equal(rig.detects, detects, 'кадр разобран под окном');
+    assert.equal(env.scanCalls().length, 1, 'камера считала под окном');
+    assert.equal(env.$('rc-sheet-wrap').hidden, false, 'окно «Завершить» отменилось кадром камеры');
+    // «Продолжить сканирование»: чтение со следующей проверки кадра, поток тот же.
+    env.$('rc-sheet-cancel').click();
+    assert.equal(env.$('rc-cam').inert, false);
+    assert.ok(!htmlClass(env).contains('rc-sheet-on'));
+    assert.ok(htmlClass(env).contains('rc-lock'), 'под камерой вернулась прокрутка страницы');
+    for (let i = 0; i < 10; i++) await advance(env, 200);
+    await settle(env);
+    assert.ok(rig.detects >= detects + 9, 'камера не читает после окна');
+    // Штрихкод, бывший в кадре до окна и не уходивший, заново не посчитан.
+    assert.deepEqual(env.scanCalls().map((c) => c.body.code), [EAN_B], 'банка перед камерой посчитана дважды');
+    // Новый код — считается.
+    rig.frame = [DM_2];
+    await advance(env, 200);
+    await settle(env);
+    assert.deepEqual(env.scanCalls().map((c) => c.body.code), [EAN_B, DM_2]);
+    assert.equal(rig.streams, 1, 'камера перезапускалась');
+    // «Завершить» -> «Завершить приёмку»: POST close, экран «готово», поток камеры погашен.
+    rig.frame = [];
+    env.$('rc-cam-finish').click();
+    env.$('rc-sheet-ok').click();
+    await settle(env);
+    assert.ok(env.net.calls.some((c) => c.method === 'POST' && c.url === '/api/receiving/141/close'));
+    assert.equal(env.$('rc-done').hidden, false);
+    assert.equal(env.$('rc-cam-wrap').hidden, true);
+    assert.equal(env.$('rc-sheet-wrap').hidden, true);
+    assert.deepEqual(rig.stopped, ['video'], 'поток камеры не погашен');
+    assert.ok(!htmlClass(env).contains('rc-lock') && !htmlClass(env).contains('rc-sheet-on'));
+});
+
+await test('камера: кадр, разобранный уже после открытия окна, не считается и «Завершить» не отменяет', async () => {
+    const server = new FakeServer();
+    server.addReceipt({ id: 142 });
+    const rig = cameraRig();
+    rig.hold = true;                              // первый же разбор кадра «идёт долго»
+    rig.frame = [DM_1];
+    const env = await boot({ server, search: '?r=142', mediaDevices: rig.media, barcodeDetector: rig.Detector });
+    env.$('rc-camera').click();
+    await settle(env);
+    assert.equal(rig.held.length, 1, 'разбор кадра не начался');
+    env.$('rc-cam-finish').click();               // окно открыли, пока кадр разбирался
+    rig.hold = false;
+    rig.releaseDetect();
+    await settle(env);
+    assert.equal(env.scanCalls().length, 0, 'поздний кадр посчитан под окном');
+    assert.equal(env.$('rc-sheet-wrap').hidden, false, 'поздний кадр отменил «Завершить»');
+    assert.ok(!/Завершение отменено/.test(env.$('rc-toast').textContent));
+    // Цепочка проверок одна и под окном не разбирает кадры.
+    const detects = rig.detects;
+    for (let i = 0; i < 5; i++) await advance(env, 200);
+    assert.equal(rig.detects, detects);
+    // После окна код, так и не получивший сигнала, читается и считается один раз.
+    env.$('rc-sheet-cancel').click();
+    for (let i = 0; i < 5; i++) await advance(env, 200);
+    await settle(env);
+    assert.deepEqual(env.scanCalls().map((c) => c.body.code), [DM_1]);
+    assert.equal(rig.detects - detects, 5, 'кадры проверяет не одна цепочка');
+});
+
+await test('камера: закрыли и открыли, пока кадр разбирался, — проверок кадра всё равно одна цепочка', async () => {
+    const server = new FakeServer();
+    server.addReceipt({ id: 143 });
+    const rig = cameraRig();
+    rig.hold = true;
+    const env = await boot({ server, search: '?r=143', mediaDevices: rig.media, barcodeDetector: rig.Detector });
+    env.$('rc-camera').click();
+    await settle(env);
+    assert.equal(rig.held.length, 1);
+    rig.hold = false;
+    env.$('rc-cam-close').click();
+    env.$('rc-camera').click();
+    await settle(env);
+    rig.releaseDetect();                          // разбор кадра прежнего включения закончился
+    await settle(env);
+    const detects = rig.detects;
+    for (let i = 0; i < 5; i++) await advance(env, 200);
+    assert.equal(rig.detects - detects, 5, 'после повторного включения кадры проверяют две цепочки');
+});
+
+await test('камера: «Завершить», пока последний скан в пути, — «Отправляю сканы…», кнопка включается сама, завершает только нажатие', async () => {
+    const { env, rig } = await cameraEnv(144);
+    env.net.hold = (call) => call.method === 'POST' && SCAN_RE.test(call.url);
+    rig.frame = [DM_1];
+    await advance(env, 200);
+    await settle(env);
+    assert.equal(env.held.length, 1, 'скан не в пути');
+    env.net.hold = null;
+    rig.frame = [];
+    env.$('rc-cam-finish').click();
+    await settle(env);
+    assert.equal(env.$('rc-sheet-wrap').hidden, false, 'окно не открылось, пока скан в пути');
+    assert.equal(env.$('rc-sheet-wait').hidden, false);
+    assert.ok(!env.$('rc-sheet-wait').classList.contains('is-bad'), 'связь есть — строка не красная');
+    assert.equal(env.$('rc-sheet-wait-text').textContent, 'Отправляю сканы из телефона: 1…');
+    assert.equal(env.$('rc-sheet-retry').hidden, true);
+    assert.equal(env.$('rc-sheet-ok').disabled, true, 'кнопка включена, пока скан в пути');
+    assert.ok(!/дождитесь связи/.test(env.$('rc-toast').textContent), 'старый отказ тостом');
+    env.release();
+    await settle(env);
+    assert.equal(env.$('rc-sheet-wait').hidden, true);
+    assert.equal(env.$('rc-sheet-ok').disabled, false, 'кнопка не включилась, когда очередь ушла');
+    assert.match(env.$('rc-sheet-text').textContent, /^Посчитано: 1 шт\., 1 позиция\./);
+    await advance(env, 5000);
+    assert.equal(env.$('rc-sheet-wrap').hidden, false);
+    assert.ok(!env.net.calls.some((c) => CLOSE_RE.test(c.url)), 'приёмка завершилась без нажатия');
+    env.$('rc-sheet-ok').click();
+    await settle(env);
+    assert.equal(env.$('rc-done').hidden, false);
+    assert.deepEqual(rig.stopped, ['video']);
+});
+
+await test('камера: «Ввести цифры» — окно с полем поверх камеры, Enter — скан manual, результат на плашке камеры', async () => {
+    const { env } = await cameraEnv(145);
+    env.$('rc-cam-manual').click();
+    assert.equal(env.$('rc-sheet-wrap').hidden, false);
+    assert.equal(env.$('rc-sheet-input').hidden, false);
+    assert.equal(env.$('rc-cam-wrap').hidden, false, '«Ввести цифры» закрыло камеру');
+    await advance(env, 100);
+    assert.equal(env.document.activeElement, env.$('rc-sheet-input'), 'фокус не в поле');
+    env.$('rc-sheet-input').value = EAN_A;
+    env.$('rc-sheet-input').dispatch('keydown', keyEvent(env, { key: 'Enter', code: 'Enter', target: env.$('rc-sheet-input') }));
+    await settle(env);
+    assert.equal(env.$('rc-sheet-wrap').hidden, true);
+    assert.equal(env.$('rc-cam-wrap').hidden, false, 'ввод цифр закрыл камеру');
+    const call = env.scanCalls().at(-1);
+    assert.equal(call.body.code, EAN_A);
+    assert.equal(call.body.source, 'manual');
+    assert.equal(env.$('rc-cam-status').textContent, 'Принято');
+    assert.ok(env.$('rc-cam-status').classList.contains('is-ok'), 'результат не зелёной плашкой');
+    assert.equal(env.$('rc-cam-units').textContent, '1 шт.');
+    assert.equal(env.$('rc-cam-gtins').textContent, '1 позиция');
+    assert.ok(env.$('rc-cam').classList.contains('is-flash-ok'), 'нет вспышки рамки камеры');
+});
+
+await test('камера: без связи — «Не отправлено: 1, нет связи» красной плашкой прямо в камере, как на экране', async () => {
+    const { env, rig } = await cameraEnv(146);
+    assert.equal(env.$('rc-cam-gtins').textContent, '0 позиций');
+    assert.equal(env.$('rc-cam-pending').hidden, true);
+    env.net.mode = 'offline';
+    rig.frame = [DM_1];
+    await advance(env, 200);
+    await settle(env);
+    rig.frame = [];
+    assert.equal(env.$('rc-cam-pending').hidden, false, 'нет плашки «Не отправлено» в камере');
+    assert.equal(env.$('rc-cam-pending').textContent, 'Не отправлено: 1, нет связи');
+    assert.ok(env.$('rc-cam-pending').classList.contains('is-bad'), 'без связи плашка не красная');
+    assert.equal(env.$('rc-cam-pending').textContent, env.$('rc-pending').textContent, 'подписи на экране и в камере разные');
+    assert.equal(env.$('rc-cam-units').textContent, '1 шт.');
+    // Связь вернулась — плашка пропала.
+    env.net.mode = 'online';
+    for (const l of env.windowListeners.filter((x) => x.type === 'online')) l.fn({});
+    await settle(env);
+    assert.equal(env.$('rc-cam-pending').hidden, true);
+    // Сессия истекла — «нужен вход».
+    env.server.override = (c) => (c.method === 'POST' && SCAN_RE.test(c.url) ? { status: 401, data: { error: 'Требуется вход' } } : null);
+    rig.frame = [DM_2];
+    await advance(env, 200);
+    await settle(env);
+    assert.equal(env.$('rc-cam-pending').textContent, 'Не отправлено: 1, нужен вход');
+    assert.ok(env.$('rc-cam-pending').classList.contains('is-bad'));
+});
+
+await test('камера: результат — плашкой своего цвета; подсказка держится до следующего скана, отрисовка её не стирает', async () => {
+    const { env, rig } = await cameraEnv(147);
+    const status = env.$('rc-cam-status');
+    const tone = () => ['is-ok', 'is-repeat', 'is-bad'].filter((c) => status.classList.contains(c));
+    assert.equal(status.textContent, 'Наведите камеру на код');
+    assert.deepEqual(tone(), []);
+    rig.frame = [DM_1];
+    await advance(env, 200);
+    await settle(env);
+    assert.equal(status.textContent, 'Принято');
+    assert.deepEqual(tone(), ['is-ok']);
+    // Штрихкод того же товара (у него есть код ЧЗ) — подсказка без заливки.
+    rig.frame = [];
+    await advance(env, 2600);
+    rig.frame = [EAN_A];
+    await advance(env, 200);
+    assert.match(status.textContent, /^Штрихкод не считается: у товара есть код Честного знака/);
+    assert.deepEqual(tone(), [], 'подсказка залита цветом прошлого результата');
+    // Отрисовки (ответ на скан из очереди, событие online) подсказку не стирают.
+    env.api.render();
+    await env.api.flush();
+    await settle(env);
+    assert.match(status.textContent, /^Штрихкод не считается/, 'отрисовка стёрла подсказку');
+    // Следующий скан сменяет подсказку: повтор DataMatrix — жёлтая, код короба — красная.
+    rig.frame = [];
+    await advance(env, 2600);
+    rig.frame = [DM_1];
+    await advance(env, 200);
+    assert.equal(status.textContent, 'Уже посчитана');
+    assert.deepEqual(tone(), ['is-repeat']);
+    rig.frame = ['00146100936284300015'];
+    await advance(env, 200);
+    assert.equal(status.textContent, 'Код короба или паллеты — отсканируйте бутылку');
+    assert.deepEqual(tone(), ['is-bad']);
+    await settle(env);
+    env.api.render();
+    assert.deepEqual(tone(), ['is-bad']);
+});
+
+await test('окно «Завершить» без фото накладной: напоминание; «Сфотографировать» гасит камеру и открывает выбор фото', async () => {
+    const { env, rig } = await cameraEnv(148);
+    const picked = [];
+    env.$('rc-photo-input').addEventListener('click', () => picked.push(rig.stopped.length));
+    env.$('rc-cam-finish').click();
+    assert.equal(env.$('rc-sheet-note').hidden, false, 'нет напоминания о фото накладной');
+    env.$('rc-sheet-photo').click();
+    assert.equal(env.$('rc-sheet-wrap').hidden, true);
+    assert.equal(env.$('rc-cam-wrap').hidden, true, 'камера не закрылась');
+    assert.deepEqual(picked, [1], 'выбор фото открыт не один раз или раньше, чем погашена камера');
+    // Фото добавлено — в окне «Завершить» напоминания нет.
+    env.$('rc-photo-input').files = [{ name: 'IMG_0002.JPG', size: 2000000, type: 'image/jpeg' }];
+    env.$('rc-photo-input').dispatch('change', {});
+    await settle(env);
+    assert.equal(env.$('rc-invoices').findAll('rc-invoice').length, 1);
+    env.$('rc-finish').click();
+    assert.equal(env.$('rc-sheet-note').hidden, true, 'напоминание при загруженном фото');
+});
+
+await test('окно «Завершить» при истёкшей сессии: «Войдите снова» со ссылкой на приёмку, без «Отправить сейчас»', async () => {
+    const server = new FakeServer();
+    server.addReceipt({ id: 149 });
+    const env = await boot({ server, search: '?r=149' });
+    server.override = (c) => (c.method === 'POST' && SCAN_RE.test(c.url) ? { status: 401, data: { error: 'Требуется вход' } } : null);
+    scan(env, EAN_A);
+    await settle(env);
+    env.$('rc-finish').click();
+    await settle(env);
+    assert.equal(env.$('rc-sheet-wait-text').textContent,
+        'Сессия истекла — в телефоне ждут отправки сканов: 1. Войдите снова, и они уйдут.');
+    assert.ok(env.$('rc-sheet-wait').classList.contains('is-bad'));
+    assert.equal(env.$('rc-sheet-retry').hidden, true);
+    assert.equal(env.$('rc-sheet-login').hidden, false);
+    assert.equal(env.$('rc-sheet-login').getAttribute('href'), '/login?next=' + encodeURIComponent('/receiving?r=149'));
+    assert.equal(env.$('rc-sheet-ok').disabled, true);
+});
+
+await test('окно «Завершить» закрывается, когда сканы перенесли в новую приёмку (прежнюю закрыли на другом телефоне)', async () => {
+    const server = new FakeServer();
+    const r = server.addReceipt({ id: 150 });
+    server.nextReceipt = 151;
+    const env = await boot({ server, search: '?r=150' });
+    env.net.mode = 'offline';
+    scan(env, EAN_A);
+    await settle(env);
+    env.$('rc-finish').click();
+    await settle(env);
+    assert.equal(env.$('rc-sheet-wrap').hidden, false);
+    r.status = 'closed';
+    env.net.mode = 'online';
+    env.$('rc-sheet-retry').click();
+    await settle(env);
+    assert.equal(env.$('rc-title').textContent, 'Приёмка №151');
+    assert.equal(env.$('rc-sheet-wrap').hidden, true, 'окно «Завершить» прежней приёмки осталось');
+    assert.ok(!htmlClass(env).contains('rc-sheet-on'));
+    assert.ok(!env.net.calls.some((c) => CLOSE_RE.test(c.url)), 'ушёл POST close');
+    assert.deepEqual(env.queue(), []);
+});
+
+await test('«Завершить приёмку»: 401 закрывает и камеру (видно «Войдите снова»), без связи — окно остаётся', async () => {
+    const { env, server } = await cameraEnv(152);
+    env.$('rc-cam-finish').click();
+    env.net.mode = 'offline';
+    env.$('rc-sheet-ok').click();
+    await settle(env);
+    assert.equal(env.$('rc-sheet-wrap').hidden, false, 'без связи окно закрылось');
+    assert.equal(env.$('rc-cam-wrap').hidden, false);
+    assert.match(env.$('rc-toast').textContent, /Нет связи — приёмка не завершена/);
+    assert.equal(env.$('rc-sheet-ok').disabled, false, 'после ошибки «Завершить приёмку» не нажать снова');
+    env.net.mode = 'online';
+    server.override = (c) => (CLOSE_RE.test(c.url) ? { status: 401, data: { error: 'Требуется вход' } } : null);
+    env.$('rc-sheet-ok').click();
+    await settle(env);
+    assert.equal(env.$('rc-sheet-wrap').hidden, true);
+    assert.equal(env.$('rc-cam-wrap').hidden, true, 'камера закрывает «Сессия истекла»');
+    assert.equal(env.$('rc-auth').hidden, false);
+    assert.equal(env.$('rc-scan').hidden, false);
+});
+
+await test('окно над камерой: штрихкод, ещё ждавший 0,8 с, не считается (как при закрытии камеры)', async () => {
+    const { env, rig } = await cameraEnv(153);
+    rig.frame = [EAN_B];
+    await advance(env, 400);
+    assert.equal(env.api.cam.eans.size, 1, 'штрихкод не ждёт');
+    env.$('rc-cam-finish').click();
+    assert.equal(env.api.cam.eans.size, 0, 'ждавший штрихкод не сброшен');
+    rig.frame = [];
+    await advance(env, 2000);
+    env.$('rc-sheet-cancel').click();
+    await advance(env, 2000);
+    await settle(env);
+    assert.equal(env.scanCalls().length, 0, 'штрихкод без сигнала посчитан');
+});
+
+await test('окно над камерой: код, ушедший из кадра задолго до окна, после окна считается сразу', async () => {
+    // «Как не уходивший» — только код, бывший в кадре до окна (окно 2,5 с). Давний код окно
+    // не воскрешает: иначе следующая бутылка того же штрихкода не считалась бы, пока в кадре.
+    const { env, rig } = await cameraEnv(154);
+    rig.frame = [EAN_B];
+    await advance(env, 1000);
+    await settle(env);
+    assert.equal(env.scanCalls().length, 1);
+    rig.frame = [];
+    await advance(env, 5000);
+    env.$('rc-cam-manual').click();
+    env.$('rc-sheet-cancel').click();
+    rig.frame = [EAN_B];
+    await advance(env, 1000);
+    await settle(env);
+    assert.equal(env.scanCalls().length, 2, 'бутылка после окна не посчитана');
+});
+
+await test('ручной сканер при окне «Завершить» над камерой: окно закрывается, камера читает дальше', async () => {
+    const { env, rig } = await cameraEnv(155);
+    env.$('rc-cam-finish').click();
+    scan(env, EAN_A);
+    assert.equal(env.$('rc-sheet-wrap').hidden, true);
+    assert.equal(env.$('rc-toast').textContent, 'Завершение отменено: идёт сканирование');
+    assert.equal(env.$('rc-cam').inert, false);
+    await settle(env);
+    rig.frame = [DM_1];
+    await advance(env, 200);
+    await settle(env);
+    assert.deepEqual(env.scanCalls().map((c) => c.body.code), [EAN_A, DM_1]);
+});
+
+await test('экран «готово»: «Все приёмки» — назад к открытым приёмкам без перезагрузки', async () => {
+    const server = new FakeServer();
+    server.addReceipt({ id: 156 });
+    server.addReceipt({ id: 157, created_by: 'Иван' });
+    const env = await boot({ server, search: '?r=156' });
+    env.$('rc-finish').click();
+    env.$('rc-sheet-ok').click();
+    await settle(env);
+    assert.equal(env.$('rc-done').hidden, false);
+    const before = env.net.calls.length;
+    env.$('rc-done-back').click();
+    await settle(env);
+    assert.equal(env.$('rc-start').hidden, false);
+    assert.equal(env.$('rc-done').hidden, true);
+    assert.ok(env.net.calls.slice(before).some((c) => c.method === 'GET' && c.url === '/api/receiving?status=open'),
+        'список открытых приёмок не перечитан');
+    const rows = env.$('rc-open-list').findAll('rc-open-row');
+    assert.equal(rows.length, 1);
+    assert.match(rows[0].textContent, /Приёмка №157/);
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

@@ -26,6 +26,13 @@
    (window.RcCodes из codes.js — порт core/receiving_codes.py); ответ сервера главнее:
    если он не совпал, счётчик поправляется и звучит сигнал ещё раз.
 
+   Окно (подтверждение «Завершить», ввод цифр) открывается и поверх камеры: «Завершить» и
+   «Ввести цифры» есть в нижнем ряду камеры. Пока окно открыто, камера коды не читает
+   (tickCamera смотрит на state.sheet — отдельного флага паузы нет): иначе поздний кадр
+   через handleCode отменил бы завершение. «Завершить» при неотправленных сканах окно
+   открывает и ждёт очередь: «Завершить приёмку» включается, когда очередь пуста, а
+   приёмку закрывает только нажатие (renderFinishSheet).
+
    Данные в DOM попадают только через textContent (без innerHTML): коды со сканера
    и имена из базы — недоверенные строки. Для тестов наружу — window.__rcScan. */
 (function () {
@@ -194,8 +201,10 @@
         nav: 0,                 // номер перехода между экранами: ответ про прежний экран не переключает текущий
     };
 
+    // hint — подсказка в окне камеры {text, last}: держится, пока state.last тот же, то есть
+    // до следующего результата скана (renderCamera её не затирает).
     const cam = { open: false, stream: null, track: null, detector: null, timer: null, seen: new Map(), torch: false,
-        attempt: 0, dm: new Map(), eans: new Map(), counted: new Map(), wake: null, fails: 0 };
+        attempt: 0, dm: new Map(), eans: new Map(), counted: new Map(), wake: null, fails: 0, hint: null };
     // Загруженный полифил: {Detector, formats}. Один на страницу — повторная настройка
     // модуля распознавания перезагрузила бы .wasm при каждом включении камеры.
     let polyfill = null;
@@ -410,6 +419,16 @@
 
     function pendingFor(receiptId) {
         return queueOf(receiptId).length;
+    }
+
+    // Неотправленные сканы приёмки для плашки «Не отправлено: N» — одна подпись на экране
+    // и в окне камеры; bad — нет связи или нужен вход (плашка красная).
+    function pendingInfo(receiptId) {
+        const n = pendingFor(receiptId);
+        const text = n
+            ? 'Не отправлено: ' + n + (state.authRequired ? ', нужен вход' : (state.offline ? ', нет связи' : ''))
+            : '';
+        return { n, text, bad: n > 0 && (state.offline || state.authRequired) };
     }
 
     // Посчитан ли скан очереди в телефоне: принят разбором браузера и не отменён.
@@ -1179,33 +1198,82 @@
 
     // ==================== Завершить ====================
 
+    // «Завершить» на экране и в окне камеры. Окно открывается и при неотправленных сканах:
+    // с камеры последний скан почти всегда ещё в пути, отказ выглядел бы сломанной кнопкой.
+    // Окно ждёт очередь (renderFinishSheet), отправка — сразу, не дожидаясь паузы повтора.
     function requestFinish() {
         if (state.view !== 'scan' || !state.receipt) return false;
         if (state.busy.undo) {
             toast('Идёт отмена скана — дождитесь её и завершите ещё раз', true);
             return false;
         }
-        if (pendingFor(state.receipt.id)) {
-            toast('Есть неотправленные сканы — дождитесь связи', true);
-            flush();
-            return false;
+        const receiptId = state.receipt.id;
+        openSheet({
+            kind: 'finish',
+            receiptId,
+            title: 'Завершить приёмку №' + receiptId + '?',
+            ok: 'Завершить приёмку',
+            tone: 'ok',
+            onOk: doFinish,
+        });
+        renderFinishSheet();
+        if (pendingFor(receiptId)) flush();
+        return true;
+    }
+
+    // Окно «Завершить» по состоянию: счётчик, ожидание неотправленных сканов, напоминание
+    // о фото накладной. Вызывается из render() — только читает состояние: очередь не
+    // отправляет и приёмку не завершает (закрывает её только нажатие «Завершить приёмку»).
+    function renderFinishSheet() {
+        const sheet = state.sheet;
+        if (!sheet || sheet.kind !== 'finish') return;
+        if (state.view !== 'scan' || !state.receipt || state.receipt.id !== sheet.receiptId) {
+            closeSheet();          // приёмка сменилась (rescueClosed перенёс сканы в новую)
+            return;
         }
         const units = displayUnits();
         const gtins = displayGtins();
-        openSheet({
-            kind: 'finish',
-            title: 'Завершить приёмку №' + state.receipt.id + '?',
-            text: 'Посчитано: ' + units + ' шт., ' + gtins + ' ' + plural(gtins, POSITION_WORDS)
-                + '. После завершения сканировать в неё нельзя — позиции уйдут в разбор бухгалтерии.',
-            ok: 'Завершить',
-            onOk: doFinish,
-        });
-        return true;
+        $('rc-sheet-text').textContent = 'Посчитано: ' + units + ' шт., ' + gtins + ' ' + plural(gtins, POSITION_WORDS)
+            + '. После завершения сканировать в неё нельзя — позиции уйдут в разбор бухгалтерии.';
+        const waiting = pendingFor(sheet.receiptId);
+        const wait = $('rc-sheet-wait');
+        wait.hidden = !waiting;
+        wait.classList.toggle('is-bad', waiting > 0 && (state.offline || state.authRequired));
+        let waitText = '';
+        if (waiting && state.authRequired) {
+            waitText = 'Сессия истекла — в телефоне ждут отправки сканов: ' + waiting + '. Войдите снова, и они уйдут.';
+        } else if (waiting && state.offline) {
+            waitText = 'Нет связи — в телефоне ждут отправки сканов: ' + waiting + '. Завершить можно, когда они уйдут.';
+        } else if (waiting) {
+            waitText = 'Отправляю сканы из телефона: ' + waiting + '…';
+        }
+        $('rc-sheet-wait-text').textContent = waitText;
+        $('rc-sheet-retry').hidden = !(waiting && state.offline && !state.authRequired);
+        const login = $('rc-sheet-login');
+        login.hidden = !(waiting && state.authRequired);
+        login.setAttribute('href', loginHref());
+        $('rc-sheet-note').hidden = state.invoices.length > 0;
+        $('rc-sheet-cancel').textContent = cam.open ? 'Продолжить сканирование' : 'Отмена';
+        // Пока очередь не пуста или «Завершить» уже в пути — кнопка выключена.
+        $('rc-sheet-ok').disabled = waiting > 0 || Boolean(state.busy.finish);
+    }
+
+    // «Сфотографировать» в окне «Завершить»: окно и камера закрываются в том же нажатии,
+    // что открывает выбор фото, — поток камеры отпущен до того, как откроется системная камера.
+    function startInvoicePhoto() {
+        closeSheet();
+        closeCamera();
+        $('rc-photo-input').click();
     }
 
     async function doFinish(button) {
         if (!state.receipt) return;
         const receiptId = state.receipt.id;
+        // Окно про прежнюю приёмку (сканы уже перенесли в новую) — не завершать ни ту, ни другую.
+        if (state.sheet && state.sheet.receiptId !== undefined && state.sheet.receiptId !== receiptId) {
+            closeSheet();
+            return;
+        }
         await act('finish', button, async () => {
             if (state.busy.undo) {
                 closeSheet();
@@ -1227,6 +1295,7 @@
             if (res.status === 401) {
                 state.authRequired = true;
                 closeSheet();
+                closeCamera();     // под камерой — «Сессия истекла… Войдите снова»: её надо видеть
                 render();
                 toast('Сессия истекла — войдите снова', true);
                 return;
@@ -1274,6 +1343,8 @@
 
     // ==================== Окно ====================
 
+    // Окно (лист снизу). options: kind, title, text, ok — подпись кнопки, danger (красная) или
+    // tone 'ok' (зелёная), cancel — подпись отмены, input — поле цифр, onOk.
     function openSheet(options) {
         state.sheet = options;
         $('rc-sheet-title').textContent = options.title;
@@ -1283,10 +1354,26 @@
         input.value = '';
         const ok = $('rc-sheet-ok');
         ok.textContent = options.ok || 'Готово';
+        ok.disabled = false;
         ok.classList.toggle('rc-btn-danger', Boolean(options.danger));
-        ok.classList.toggle('rc-btn-primary', !options.danger);
+        ok.classList.toggle('rc-btn-ok', !options.danger && options.tone === 'ok');
+        ok.classList.toggle('rc-btn-primary', !options.danger && options.tone !== 'ok');
+        $('rc-sheet-cancel').textContent = options.cancel || 'Отмена';
+        $('rc-sheet-wait').hidden = true;
+        $('rc-sheet-note').hidden = true;
         $('rc-sheet-wrap').hidden = false;
-        document.documentElement.classList.add('rc-lock');
+        // rc-sheet-on — уведомления сверху, а не на кнопках окна (scan.css).
+        document.documentElement.classList.add('rc-lock', 'rc-sheet-on');
+        if (cam.open) {
+            // Окно поверх камеры: камера коды не читает (tickCamera). Штрихкод, ещё ждавший
+            // CAMERA_EAN_WAIT_MS без сигнала «принято», не считается — как при закрытии камеры.
+            cam.eans.clear();
+            // Код, ушедший из кадра раньше CAMERA_REPEAT_MS до окна, забыт сейчас: после окна
+            // (closeSheet) «как не уходивший» остаётся только код, бывший в кадре до окна.
+            const now = clock();
+            for (const [code, at] of cam.seen) if (now - at > CAMERA_REPEAT_MS) cam.seen.delete(code);
+            $('rc-cam').inert = true;
+        }
         // Фокус — на «Отмене» (или на поле): случайный Enter не завершит приёмку.
         setTimeout(() => {
             const target = options.input ? input : $('rc-sheet-cancel');
@@ -1298,7 +1385,18 @@
         if (!state.sheet) return;
         state.sheet = null;
         $('rc-sheet-wrap').hidden = true;
-        if (!cam.open) document.documentElement.classList.remove('rc-lock');   // под окном — камера: прокрутку не возвращаем
+        document.documentElement.classList.remove('rc-sheet-on');
+        $('rc-cam').inert = false;
+        if (cam.open) {
+            // Камера читает снова со следующей проверки кадра (поток не перезапускается). Код,
+            // бывший в кадре до окна, — как не уходивший из кадра: снова считается, только если
+            // его не видно CAMERA_REPEAT_MS (иначе банка перед камерой посчиталась бы дважды).
+            // Прокрутку не возвращаем: под окном — камера.
+            const now = clock();
+            for (const code of cam.seen.keys()) cam.seen.set(code, now);
+        } else {
+            document.documentElement.classList.remove('rc-lock');
+        }
         const input = $('rc-sheet-input');
         if (input && typeof input.blur === 'function') input.blur();
     }
@@ -1536,8 +1634,7 @@
         $('rc-cam-wrap').hidden = false;
         $('rc-torch').hidden = true;
         document.documentElement.classList.add('rc-lock', 'rc-cam-on');
-        setCamStatus('Включаю камеру…');
-        renderCamera();
+        setCamStatus('Включаю камеру…');          // заодно рисует окно камеры (renderCamera)
         try {
             const detector = await createDetector();
             if (!alive()) return;                                    // закрыли, пока грузился детектор
@@ -1565,13 +1662,24 @@
         }
     }
 
+    // Проверка кадра — одна цепочка на включение камеры: следующая проверка ставится в конце
+    // текущей. Пока открыто окно (state.sheet), кадр не разбирается — цепочка только ждёт.
     function tickCamera() {
         if (!cam.open || !cam.detector) return;
+        if (state.sheet) {
+            cam.timer = setTimeout(tickCamera, CAMERA_TICK_MS);
+            return;
+        }
+        // Номер включения: разбор, начатый до закрытия камеры, не продолжает цепочку после
+        // нового включения (иначе кадры проверяли бы две цепочки сразу).
+        const attempt = cam.attempt;
         const video = $('rc-video');
         const ready = video.readyState === undefined || video.readyState >= 2;
         new Promise((resolve) => resolve(ready ? cam.detector.detect(video) : []))
             .then((found) => {
-                if (!cam.open) return;
+                // Кадр разобрался уже после открытия окна (или после закрытия камеры) — не в
+                // счёт: поздний код через handleCode отменил бы окно «Завершить».
+                if (!cam.open || cam.attempt !== attempt || state.sheet) return;
                 cam.fails = 0;
                 const codes = (found || []).filter((item) => item && item.rawValue).map((item) => String(item.rawValue));
                 const frameHasDm = codes.some((code) => {
@@ -1584,13 +1692,14 @@
             .catch(() => {
                 // Кадр не разобрался — следующий. Много подряд — модуль распознавания сломан
                 // (оборвалась загрузка, телефон выгрузил память): подсказать, а не молчать.
+                if (cam.attempt !== attempt) return;
                 cam.fails += 1;
                 if (cam.open && cam.fails === CAMERA_FAILS_HINT) {
                     setCamStatus('Камера не читает коды — закройте её и откройте снова');
                 }
             })
             .then(() => {
-                if (cam.open) cam.timer = setTimeout(tickCamera, CAMERA_TICK_MS);
+                if (cam.open && cam.attempt === attempt) cam.timer = setTimeout(tickCamera, CAMERA_TICK_MS);
             });
     }
 
@@ -1728,6 +1837,7 @@
         cam.eans.clear();          // штрихкод без сигнала «принято» не посчитан — приёмщик видел это
         cam.dm.clear();
         cam.counted.clear();
+        cam.hint = null;
         releaseWake();
         const video = $('rc-video');
         if (video) video.srcObject = null;
@@ -1748,8 +1858,11 @@
             .catch(() => toast('Фонарик не включился', true));
     }
 
+    // Подсказка в окне камеры («Включаю камеру…», «Штрихкод не считается…», «Камера не читает
+    // коды…»): держится до следующего результата скана, а не до следующей отрисовки.
     function setCamStatus(text) {
-        $('rc-cam-status').textContent = text;
+        cam.hint = { text, last: state.last };
+        renderCamera();
     }
 
     // ==================== Кнопки: защита от двойного нажатия ====================
@@ -1793,6 +1906,7 @@
         else if (state.view === 'scan') renderScan();
         else renderDone();
         renderCamera();
+        renderFinishSheet();
     }
 
     function renderStart() {
@@ -1821,7 +1935,8 @@
             const queued = pendingFor(receipt.id);
             if (queued) line.appendChild(el('em', null, ', в телефоне ещё ' + queued));
             info.appendChild(line);
-            const button = el('button', 'rc-btn rc-btn-primary', 'Продолжить');
+            // Обычная кнопка: главная (оранжевая) на экране одна — «Новая приёмка».
+            const button = el('button', 'rc-btn', 'Продолжить');
             button.type = 'button';
             button.addEventListener('click', () => act('open', button, () => loadReceipt(receipt.id)));
             row.appendChild(info);
@@ -1842,13 +1957,11 @@
         $('rc-gtins').textContent = String(gtins);
         $('rc-gtins-label').textContent = plural(gtins, POSITION_WORDS);
 
-        const waiting = pendingFor(receipt.id);
+        const pending = pendingInfo(receipt.id);
         const pendingNode = $('rc-pending');
-        pendingNode.hidden = !waiting;
-        pendingNode.textContent = waiting
-            ? 'Не отправлено: ' + waiting + (state.authRequired ? ', нужен вход' : (state.offline ? ', нет связи' : ''))
-            : '';
-        pendingNode.classList.toggle('is-bad', Boolean(waiting) && (state.offline || state.authRequired));
+        pendingNode.hidden = !pending.n;
+        pendingNode.textContent = pending.text;
+        pendingNode.classList.toggle('is-bad', pending.bad);
 
         const status = $('rc-status');
         const last = state.last;
@@ -1936,9 +2049,25 @@
     }
 
     function renderCamera() {
-        if (!cam.open) return;
+        if (!cam.open || !state.receipt) return;
+        $('rc-cam-title').textContent = 'Приёмка №' + state.receipt.id;
         $('rc-cam-units').textContent = displayUnits() + ' шт.';
-        if (state.last) setCamStatus(state.last.message);
+        const gtins = displayGtins();
+        $('rc-cam-gtins').textContent = gtins + ' ' + plural(gtins, POSITION_WORDS);
+        const pending = pendingInfo(state.receipt.id);
+        const pendingNode = $('rc-cam-pending');
+        pendingNode.hidden = !pending.n;
+        pendingNode.textContent = pending.text;
+        pendingNode.classList.toggle('is-bad', pending.bad);
+        // Плашка результата: цвет — только у результата скана, подсказка — без заливки.
+        const last = state.last;
+        const hint = cam.hint && cam.hint.last === last ? cam.hint.text : '';
+        const tone = !hint && last ? last.tone : '';
+        const status = $('rc-cam-status');
+        status.textContent = hint || (last ? last.message : 'Наведите камеру на код');
+        status.classList.toggle('is-ok', tone === 'ok');
+        status.classList.toggle('is-repeat', tone === 'repeat');
+        status.classList.toggle('is-bad', tone === 'bad');
     }
 
     // ==================== Запуск ====================
@@ -1959,6 +2088,7 @@
 
         $('rc-new').addEventListener('click', () => startNew($('rc-new')));
         $('rc-done-new').addEventListener('click', () => startNew($('rc-done-new')));
+        $('rc-done-back').addEventListener('click', () => { showStart(); });
         $('rc-back').addEventListener('click', () => { showStart(); });
         $('rc-camera').addEventListener('click', () => { unlockAudio(); openCamera(); });
         $('rc-photo').addEventListener('click', () => $('rc-photo-input').click());
@@ -1979,6 +2109,8 @@
         $('rc-sheet-wrap').addEventListener('click', (event) => {
             if (event.target === $('rc-sheet-wrap')) closeSheet();
         });
+        $('rc-sheet-retry').addEventListener('click', () => flush());
+        $('rc-sheet-photo').addEventListener('click', () => startInvoicePhoto());
         $('rc-sheet-input').addEventListener('keydown', (event) => {
             if (event.key === 'Enter' && state.sheet && state.sheet.kind === 'manual') {
                 event.preventDefault();
@@ -1992,7 +2124,9 @@
         });
 
         $('rc-cam-close').addEventListener('click', () => closeCamera());
+        $('rc-cam-manual').addEventListener('click', () => openManual());
         $('rc-cam-undo').addEventListener('click', () => undoLast($('rc-cam-undo')));
+        $('rc-cam-finish').addEventListener('click', () => requestFinish());
         $('rc-torch').addEventListener('click', () => toggleTorch());
 
         window.addEventListener('online', () => {
