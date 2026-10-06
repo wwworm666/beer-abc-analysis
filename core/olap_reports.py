@@ -1989,7 +1989,11 @@ class OlapReports:
         Запрос 1 (summary): группировка только по AuthUser
             -> чеки, выручка, скидки (~30-50 строк)
         Запрос 2 (categories): группировка по AuthUser + DishGroup.TopParent
-            -> доли категорий, наценка (~100-200 строк)
+            -> доли категорий, наценка (~100-200 строк) и чеки с категорией:
+               UniqOrderId.OrdersCount в строке группы = уникальные чеки
+               сотрудника, где есть хотя бы одна позиция этой группы (строка
+               «ЕДА» -> KPI «Доля чеков с едой»). Складывать чеки между
+               группами нельзя: чек с пивом и едой есть в обеих строках.
 
         Текущие 4 запроса возвращают тысячи строк (группировка по DishName × Store × Date),
         что создаёт нагрузку на сервер и сеть. Эти 2 запроса возвращают только агрегаты.
@@ -2036,7 +2040,10 @@ class OlapReports:
             "filters": base_filters
         }
 
-        # Запрос 2: разбивка по категориям (доли, наценка)
+        # Запрос 2: разбивка по категориям (доли, наценка, чеки с категорией).
+        # Чеки группы считает iiko (уникальные заказы внутри строки): сверено
+        # 2026-10-06 за сентябрь 2026 — UniqOrderId.OrdersCount = UniqOrderId
+        # («Чеков») во всех 54 строках, сумма по людям = итог баров.
         categories_request = {
             "reportType": "SALES",
             "buildSummary": "false",
@@ -2045,7 +2052,8 @@ class OlapReports:
             "aggregateFields": [
                 "DishDiscountSumInt",
                 "ProductCostBase.ProductCost",
-                "ProductCostBase.MarkUp"
+                "ProductCostBase.MarkUp",
+                "UniqOrderId.OrdersCount"
             ],
             "filters": base_filters
         }
@@ -2092,7 +2100,7 @@ class OlapReports:
                     'discount_sum': float(row.get('DiscountSum', 0) or 0),
                 }
 
-        # Парсинг categories: {waiter_name: [{category, revenue, cost, markup}]}
+        # Парсинг categories: {waiter_name: [{category, revenue, cost, markup, checks}]}
         categories = {}
         if categories_raw:
             for row in categories_raw.get('data', []):
@@ -2106,6 +2114,7 @@ class OlapReports:
                         'revenue': float(row.get('DishDiscountSumInt', 0) or 0),
                         'cost': float(row.get('ProductCostBase.ProductCost', 0) or 0),
                         'markup': float(row.get('ProductCostBase.MarkUp', 0) or 0),
+                        'checks': int(row.get('UniqOrderId.OrdersCount', 0) or 0),
                     })
 
         print(f"[OK] OLAP KPI parsed: {len(summary)} employees in summary, "
