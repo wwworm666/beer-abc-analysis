@@ -251,5 +251,22 @@ test('/me перекрашивает блок только токенами', ()
         'цвет в правилах блока мимо токенов --kb-* — на одной из страниц поедет тема');
 });
 
+// «Доля чеков с едой» (2026-10-06): из чего доля — числитель и знаменатель из
+// расчёта (fact_parts), свёрнуто в «Как считается». Числа — Лиговский, сентябрь.
+test('доля с fact_parts: «Как считается» — 139 / 375 × 100 = 37,1 %', () => {
+    const food = {
+        name: 'Доля чеков с едой (%)', metric: 'food_checks_share', per_shift: false,
+        fact: 37.07, target: 38, min: 31, ratio: 0.8671, capped_ratio: 0.8671,
+        intermediate_premium: 13007, no_targets: false, location_targets: {},
+        fact_parts: { num: 139, den: 375, num_label: 'Чеки с едой', den_label: 'все чеки' },
+    };
+    const cat = Object.assign({}, CATALOG,
+        { food_checks_share: { name: 'Доля чеков с едой', unit: '%', decimals: 1 } });
+    const t = text(render(model({ items: [food], catalog: cat, basePerKpi: 15000 })));
+    assert.match(t, /Как считается ?Чеки с едой \/ все чеки × 100 = 139 \/ 375 × 100 = 37,1 %/);
+    // у доли без слагаемых блока нет
+    assert.doesNotMatch(plain, /Как считается/);
+});
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed === 0 ? 0 : 1);

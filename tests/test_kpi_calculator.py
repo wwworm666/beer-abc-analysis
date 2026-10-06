@@ -567,3 +567,37 @@ def test_kpi_olap_categories_request_counts_checks_per_group():
     assert cat_body['filters']['DeletedWithWriteoff']['values'] == ['NOT_DELETED']
     assert data['categories']['Дамир Кизатов'][0]['checks'] == 139
     assert data['summary']['Дамир Кизатов']['total_checks'] == 375
+
+
+def test_food_checks_share_row_shows_its_parts(tmp_path):
+    """Карточка KPI показывает, из чего доля: 139 / 375 (fact_parts). Только показ."""
+    reader = make_reader(tmp_path, {'2026-10': month_data({'kpi1': FOOD, 'kpi2': KITCHEN},
+                                                         {'kpi1': (38, 31), 'kpi2': (18, 13)})})
+    res = KpiCalculator(reader).calculate_employee(
+        'Дамир Кизатов',
+        {'food_checks_share': 37.07, 'food_checks': 139, 'total_checks': 375, 'kitchen_share': 16.0},
+        shifts(12, 'Лиговский', '2026-10'), '2026-10')
+    assert res['kpis']['kpi1']['fact_parts'] == {
+        'num': 139, 'den': 375, 'num_label': 'Чеки с едой', 'den_label': 'все чеки'}
+    assert 'fact_parts' not in res['kpis']['kpi2']  # у других метрик слагаемых нет
+
+
+def test_kpi_olap_fails_whole_when_categories_request_fails():
+    """Сбой запроса categories — None (роут отвечает ошибкой), а не доли = 0 и ×0 всем."""
+    from unittest.mock import patch
+    from core.olap_reports import OlapReports
+    olap = OlapReports()
+    olap.token = 't'
+
+    class Resp:
+        def __init__(self, body):
+            self.status_code = 500 if 'DishGroup.TopParent' in body['groupByRowFields'] else 200
+            self.text = 'error'
+
+        def json(self):
+            return {'data': [{'AuthUser': 'А Б', 'UniqOrderId.OrdersCount': 10,
+                              'DishDiscountSumInt': 1000, 'DiscountSum': 0}]}
+
+    with patch('core.olap_reports.requests.post',
+               lambda url, params=None, json=None, headers=None, timeout=None: Resp(json)):
+        assert olap.get_kpi_olap_data('2026-09-01', '2026-10-01') is None

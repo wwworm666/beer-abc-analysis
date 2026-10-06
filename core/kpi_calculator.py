@@ -112,6 +112,14 @@ AVAILABLE_METRICS = {
                             'extensive': True, 'dish_based': True, 'dish_source': 'revenue'},
 }
 
+# Из чего сложена доля — числитель и знаменатель для показа «139 / 375 = 37,1 %»
+# в карточке KPI (правило проекта: человек видит, как получено число, от которого
+# зависит премия). Ключи — поля metrics из routes/employee.py::_build_kpi_metrics.
+SHARE_PARTS = {
+    'food_checks_share': {'num': 'food_checks', 'den': 'total_checks',
+                          'num_label': 'Чеки с едой', 'den_label': 'все чеки'},
+}
+
 # Дефолтный конфиг KPI (если в месяце не указан kpi_config)
 DEFAULT_KPI_CONFIG = {
     'kpi1': {'metric': 'kitchen_share', 'name': 'Доля кухни (%)'},
@@ -667,6 +675,15 @@ class KpiCalculator:
                 kpi_row['dishes'] = dishes
                 kpi_row['dish_facts'] = dish_breakdown
                 kpi_row['no_dishes'] = no_dishes
+            parts = SHARE_PARTS.get(metric_field)
+            if parts:
+                # Только показ: доля уже посчитана в metrics, здесь её слагаемые
+                kpi_row['fact_parts'] = {
+                    'num': int(metrics.get(parts['num']) or 0),
+                    'den': int(metrics.get(parts['den']) or 0),
+                    'num_label': parts['num_label'],
+                    'den_label': parts['den_label'],
+                }
             if per_shift:
                 # Главные числа для человека — за ЕГО смены, в штуках: «сделал 8
                 # из 10», а не «0,80 из 2,00 за смену». Значение «за смену»

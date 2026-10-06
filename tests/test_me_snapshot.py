@@ -631,3 +631,19 @@ def _run():
 
 if __name__ == '__main__':
     sys.exit(_run())
+
+
+def test_kpi_share_parts_reach_the_cabinet():
+    """«Доля чеков с едой»: числитель и знаменатель доли (fact_parts) доходят до
+    /me без изменений — «Как считается» в карточке тот же, что на странице ЗП."""
+    kpi_row = _kpi_row(ID_A, 'Юреня Роман')
+    parts = {'num': 34, 'den': 101, 'num_label': 'Чеки с едой', 'den_label': 'все чеки'}
+    kpi_row['kpis']['kpi3'] = {
+        'name': 'Доля чеков с едой (%)', 'metric': 'food_checks_share', 'fact': 33.66,
+        'target': 36.0, 'min': 29.0, 'capped_ratio': 0.6657, 'intermediate_premium': 3328.5,
+        'per_shift': False, 'no_targets': False, 'unit': '%', 'decimals': 1,
+        'fact_parts': parts,
+    }
+    items = ms._kpi_for(kpi_row, ['kpi1', 'kpi2', 'kpi3'], {}, shifts_planned=9)['items']
+    assert items[2]['fact_parts'] == parts and items[2]['unit'] == '%'
+    assert 'fact_parts' not in items[0]

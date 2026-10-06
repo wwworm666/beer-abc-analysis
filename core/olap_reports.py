@@ -2086,7 +2086,11 @@ class OlapReports:
             summary_raw = future_summary.result()
             categories_raw = future_categories.result()
 
-        if summary_raw is None:
+        # Сбой любого из двух запросов — ошибка всего расчёта, а не нули: без
+        # categories доли кухни/розлива и «Доля чеков с едой» молча стали бы 0
+        # и KPI заплатил бы ×0 (правило «частичный сбой — ошибка, а не нули»,
+        # docs/olap-agent.md). Роут отвечает 500 «OLAP не вернул данные».
+        if summary_raw is None or categories_raw is None:
             return None
 
         # Парсинг summary: {waiter_name: {total_checks, total_revenue, discount_sum}}
