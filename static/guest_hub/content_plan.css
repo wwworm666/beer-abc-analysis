@@ -538,6 +538,13 @@ button.gh-cp-sum-i:focus-visible { outline: 2px solid var(--gh-accent-ink); outl
     font: 400 12.5px/1.45 var(--gh-sans);
     color: var(--gh-ink2);
 }
+/* Гифка к таплисту в предпросмотре: какая уйдёт с постом в канал бара. */
+.gh-cp-gif {
+    padding: 0 0 0 10px;
+    border-left: 2px solid var(--gh-line2);
+    font: 400 12px/1.45 var(--gh-sans);
+    color: var(--gh-ink3);
+}
 /* Предупреждение тихой строкой (в карточке у утверждённого оно видно всегда). */
 .gh-cp-warn.is-quiet {
     padding: 0 0 0 10px;

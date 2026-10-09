@@ -63,6 +63,7 @@ import core.content_channels as cc  # noqa: E402
 import core.content_plan as cp  # noqa: E402
 import core.content_publisher as pub  # noqa: E402
 import core.content_publisher_scheduler as sched  # noqa: E402
+import core.taplist_gifs as taplist_gifs  # noqa: E402
 import routes.content_plan as rcp  # noqa: E402
 from routes.content_plan import content_plan_bp  # noqa: E402
 
@@ -125,6 +126,9 @@ class FakeTelegram:
             return {'ok': True, 'result': {'message_id': mid, 'photo': [{'file_id': 'small'}, {'file_id': f'P{mid}'}]}}
         if method == 'sendVideo':
             return {'ok': True, 'result': {'message_id': mid, 'video': {'file_id': f'V{mid}'}}}
+        if method == 'sendAnimation':
+            return {'ok': True, 'result': {'message_id': mid, 'animation': {'file_id': f'A{mid}'},
+                                           'document': {'file_id': f'A{mid}'}}}
         return {'ok': True, 'result': {'message_id': mid}}
 
     def _answer(self, method, chat, count):
@@ -444,6 +448,167 @@ def test_live_links_in_caption_and_album():
     assert first['caption'].startswith('Краны:\n1. Б IPA')
     assert first['caption_entities'][0]['offset'] == first['caption'].index('Б IPA')
     assert 'entities' not in plain['payload'] and plain['payload']['disable_web_page_preview'] is False
+
+
+GIF_PAGE = 'https://tenor.com/view/beer-django-tap-beer-tap-django-beer-gif-13314412'
+GIF_MP4 = 'https://media.tenor.com/Ry3Tx5V3o9QAAAPo/beer-django.mp4'
+
+
+def _gifs(pages=None):
+    """Настоящий GifSource: кэш во временной папке, Tenor — словарь страниц (без сети).
+    У всех гифок набора одна страница с mp4 — какую бы гифку ни выбрало правило."""
+    from test_taplist_gifs import FakeTenor
+    html = f'<meta property="og:video" content="{GIF_MP4}">'
+    tenor = FakeTenor(pages=pages if pages is not None else
+                      {g['page']: html for g in taplist_gifs.load_gifs()})
+    source = taplist_gifs.GifSource(cache_file=os.path.join(_tmpdir(), 'taplist_gifs.json'), http_get=tenor,
+                                    now_fn=lambda: '2026-10-07T12:00')
+    return source, tenor
+
+
+def _live_env(base_text='{таплист}', bars=('varshavskaya',), times=('12:00',)):
+    env = Env()
+    env.enable(bars=bars)
+    material = env.material(kind='live', live_source='taplist', base_text=base_text)
+    pids = [env.placement(material['id'], bars=[bar], time=time) for bar in bars for time in times]
+    env.approve(*pids)
+    return env, material, pids
+
+
+def test_taplist_gif_caption_then_file_id():
+    """Владелец 2026-10-09: «к каждому таплисту прикрепляем рандомную гифку из списка».
+    Текст влезает в подпись — одно сообщение: гифка, текст в подписи, ссылки — caption_entities;
+    второй пост с той же гифкой уходит по file_id, без Tenor."""
+    import test_content_plan as tcp
+    env, material, (first, second) = _live_env(times=('12:00', '12:01'))
+    source, tenor = _gifs()
+    with _patch(cp, 'load_live_data', lambda registry=None: (tcp.SNAPSHOT, tcp.REGISTRY)):
+        env.at(12, 0)
+        assert env.run(gifs=source)['sent'] == 1
+        env.at(12, 1)
+        assert env.run(gifs=source)['sent'] == 1
+    calls = env.tg.sends()
+    assert [c['method'] for c in calls] == ['sendAnimation', 'sendAnimation']
+    payload = calls[0]['payload']
+    assert payload['animation'] == GIF_MP4 and payload['chat_id'] == '@kult_varshavskaya'
+    assert payload['caption'].startswith('1. Б IPA') and 'disable_notification' not in payload
+    assert payload['caption_entities'][0]['url'] == 'https://untappd.com/b/beer/102'
+    gif = cp.render_live('taplist', 'varshavskaya', '{таплист}', snapshot=tcp.SNAPSHOT, registry=tcp.REGISTRY,
+                         now=env.clock.moment, channel='telegram')['gif']
+    raw = env.raw(first)
+    assert raw['status'] == 'published' and raw['delivery']['message_ids'] == [501]
+    assert raw['delivery']['gif'] == {'number': gif['number'], 'title': gif['title'], 'page': gif['page'],
+                                      'mode': 'caption', 'sent': True, 'error': None}
+    assert any(f'гифка «{gif["title"]}»' in e['text'] for e in env.store.log_for(material['id']))
+    assert calls[1]['payload']['animation'] == 'A501' and len(tenor.calls) == 1   # по file_id
+
+
+def test_taplist_gif_separate_message_for_long_text():
+    """Текст длиннее подписи (1024) — гифка отдельным сообщением без уведомления, за ней текст."""
+    import test_content_plan as tcp
+    env, _material, (pid,) = _live_env(base_text='Краны:\n' + 'x' * 1100 + '\n{таплист}')
+    source, _tenor = _gifs()
+    with _patch(cp, 'load_live_data', lambda registry=None: (tcp.SNAPSHOT, tcp.REGISTRY)):
+        env.at(12, 0)
+        assert env.run(gifs=source)['sent'] == 1
+    gif_call, text_call = env.tg.sends()
+    assert gif_call['method'] == 'sendAnimation' and text_call['method'] == 'sendMessage'
+    assert gif_call['payload'] == {'disable_notification': True, 'chat_id': '@kult_varshavskaya',
+                                   'animation': GIF_MP4}
+    assert text_call['payload']['text'].startswith('Краны:\nxxx') and text_call['payload']['entities']
+    delivery = env.raw(pid)['delivery']
+    assert delivery['message_ids'] == [501, 502] and delivery['gif']['mode'] == 'separate'
+    assert cp.post_url(env.raw(pid)) == 'https://t.me/kult_varshavskaya/501'   # ссылка — на начало поста
+
+
+def test_taplist_gif_refused_post_goes_as_text():
+    """Telegram не принял ни ссылку на файл, ни «страница.gif» — пост выходит текстом, как раньше."""
+    import test_content_plan as tcp
+    env, material, (pid,) = _live_env()
+    source, _tenor = _gifs()
+    bad = {'ok': False, 'error_code': 400, 'description': 'Bad Request: wrong file identifier/HTTP URL specified'}
+    env.tg.respond('sendAnimation', bad, bad)
+    with _patch(cp, 'load_live_data', lambda registry=None: (tcp.SNAPSHOT, tcp.REGISTRY)):
+        env.at(12, 0)
+        assert env.run(gifs=source)['sent'] == 1
+    methods = [c['method'] for c in env.tg.sends()]
+    assert methods == ['sendAnimation', 'sendAnimation', 'sendMessage']
+    raw = env.raw(pid)
+    page = raw['delivery']['gif']['page']
+    assert [c['payload']['animation'] for c in env.tg.sends()[:2]] == [GIF_MP4, page + '.gif']
+    assert raw['status'] == 'published' and raw['delivery']['gif']['sent'] is False
+    assert 'wrong file identifier' in raw['delivery']['gif']['error']
+    assert any('без гифки: ' in e['text'] for e in env.store.log_for(material['id']))
+    with open(source.cache_file, encoding='utf-8') as f:     # ссылку не приняли — найдётся заново
+        assert 'media' not in json.load(f)['gifs'][page]
+
+
+def test_taplist_gif_no_answer_is_not_resent():
+    """Нет ответа на гифку с подписью — пост мог выйти: ошибка «статус неизвестен», без дубля."""
+    import test_content_plan as tcp
+    env, _material, (pid,) = _live_env()
+    source, _tenor = _gifs()
+    env.tg.respond('sendAnimation', None)
+    with _patch(cp, 'load_live_data', lambda registry=None: (tcp.SNAPSHOT, tcp.REGISTRY)):
+        env.at(12, 0)
+        assert env.run(gifs=source)['failed'] == 1
+    assert [c['method'] for c in env.tg.sends()] == ['sendAnimation']
+    assert env.raw(pid)['failed_error'] == pub.NO_ANSWER_TEXT
+
+
+def test_taplist_gif_text_failure_removes_gif():
+    """Длинный пост: гифка ушла, текст — нет. Гифка удаляется, размещение — ошибка."""
+    import test_content_plan as tcp
+    env, _material, (pid,) = _live_env(base_text='x' * 1100 + '\n{таплист}')
+    source, _tenor = _gifs()
+    env.tg.respond('sendMessage', {'ok': False, 'error_code': 400, 'description': 'Bad Request: chat not found'})
+    with _patch(cp, 'load_live_data', lambda registry=None: (tcp.SNAPSHOT, tcp.REGISTRY)):
+        env.at(12, 0)
+        assert env.run(gifs=source)['failed'] == 1
+    assert [c['method'] for c in env.tg.calls] == ['sendAnimation', 'sendMessage', 'deleteMessage']
+    assert env.tg.calls[-1]['payload'] == {'chat_id': '@kult_varshavskaya', 'message_id': 501}
+    assert env.raw(pid)['status'] == 'failed'
+
+
+def test_taplist_gif_source_failure_does_not_stop_post():
+    """Сбой кэша гифок (диск, неожиданная ошибка) — пост уходит, гифка пробуется по «страница.gif»."""
+    import test_content_plan as tcp
+
+    class Broken:
+        def __getattr__(self, name):
+            def fail(*args):
+                raise RuntimeError('кэш недоступен')
+            return fail
+
+    env, _material, (pid,) = _live_env()
+    with _patch(cp, 'load_live_data', lambda registry=None: (tcp.SNAPSHOT, tcp.REGISTRY)):
+        env.at(12, 0)
+        assert env.run(gifs=Broken())['sent'] == 1
+    (call,) = env.tg.sends()
+    assert call['method'] == 'sendAnimation' and call['payload']['animation'].endswith('.gif')
+    assert env.raw(pid)['delivery']['gif']['sent'] is True
+
+
+def test_taplist_gif_only_for_telegram_live_without_media():
+    """Свои фото у таплиста, готовая публикация, рассылка бота — без гифки."""
+    import test_content_plan as tcp
+    env = Env()
+    env.enable(bars=('varshavskaya',))
+    live = env.material(kind='live', live_source='taplist', base_text='{таплист}')
+    env.photo(live['id'])
+    p_photo = env.placement(live['id'], bars=['varshavskaya'])
+    fixed = env.material(title='Готовый', base_text='Сегодня квиз')
+    p_fixed = env.placement(fixed['id'], bars=['varshavskaya'], time='12:00')
+    env.approve(p_photo, p_fixed)
+    source, tenor = _gifs()
+    with _patch(cp, 'load_live_data', lambda registry=None: (tcp.SNAPSHOT, tcp.REGISTRY)):
+        env.at(12, 0)
+        assert env.run(gifs=source)['sent'] == 2
+    assert sorted(c['method'] for c in env.tg.sends()) == ['sendMessage', 'sendPhoto'] and tenor.calls == []
+    assert 'gif' not in env.raw(p_photo)['delivery'] and 'gif' not in env.raw(p_fixed)['delivery']
+    for channel in ('bot', 'instagram'):
+        assert cp.render_live('taplist', 'varshavskaya', '{таплист}', snapshot=tcp.SNAPSHOT,
+                              registry=tcp.REGISTRY, channel=channel)['gif'] is None
 
 
 def test_length_limit_checked_before_send():

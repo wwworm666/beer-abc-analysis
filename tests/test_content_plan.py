@@ -1164,6 +1164,25 @@ def test_render_live_ok_and_stop_rules():
     assert codes(r) == ['no_data'] and r['ok'] is False
 
 
+def test_taplist_gif_in_preview():
+    """Решение владельца 2026-10-09: «к каждому таплисту прикрепляем рандомную гифку из списка».
+    Предпросмотр говорит, какая гифка уйдёт с постом в канал бара; правило выбора —
+    tests/test_taplist_gifs.py, отправка — tests/test_content_publisher.py."""
+    from datetime import date
+    from core import taplist_gifs as tg
+    r = _render('varshavskaya', template=cp.TAPLIST_TEMPLATE, pub_date='2026-10-09', channel='telegram')
+    expected = dict(tg.gif_for(date(2026, 10, 9), 'bar4'), separate=False)
+    assert r['gif'] == expected and expected['number'] == 17
+    assert _render('varshavskaya', template=cp.TAPLIST_TEMPLATE, pub_date='2026-10-09')['gif'] == expected  # без площадки
+    # текст длиннее подписи 1024 — гифка отдельным сообщением перед ним
+    long = _render('varshavskaya', template='x' * 1100 + '\n{таплист}', channel='telegram')
+    assert long['ok'] is True and long['gif']['separate'] is True
+    # без гифки: Instagram и рассылка бота, свои фото у размещения, бар не выбран
+    for kw in ({'channel': 'instagram'}, {'channel': 'bot'}, {'channel': 'telegram', 'has_media': True}):
+        assert _render('varshavskaya', **kw)['gif'] is None, kw
+    assert _render('all', channel='telegram')['gif'] is None
+
+
 def test_taplist_phrases_vary_by_week_and_bar():
     """Решение владельца 2026-10-09: «писать по-разному, чтобы не выглядело шаблонно».
     {вступление} и {концовка} — пара фраз из набора, своя на неделю и бар; {где} — бар во
