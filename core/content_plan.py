@@ -486,6 +486,8 @@ LEGACY_TAPLIST_TEMPLATES = ('Таплист пятницы — {бар}, {дат
 # возможность выбора»): None — автоматически по правилу недели и бара (core/taplist_gifs),
 # GIF_NONE — без гифки, иначе адрес страницы гифки из набора resources/taplist_post_gifs.json.
 GIF_NONE = 'none'
+# Кто в журнале у переноса прежнего шаблона на новый (migrate_legacy_taplist_templates).
+LEGACY_MIGRATION_BY = 'сайт'
 GIF_ERROR = 'Гифка: выберите из набора, «без гифки» или «автоматически»'
 LIVE_SOURCES = {
     'taplist': {
@@ -3439,6 +3441,67 @@ class ContentPlanStore:
 
     # ----- учёт правок владельца для агента ----------------------------------
 
+    def migrate_legacy_taplist_templates(self) -> List[str]:
+        """Прежний шаблон агента (LEGACY_TAPLIST_TEMPLATES) -> TAPLIST_TEMPLATE у таплистов,
+        где ещё есть невышедшие размещения. Решение владельца 2026-10-09: «на этот месяц тоже
+        поменяй в таком же формате» (пятницы октября были утверждены со старым шаблоном).
+
+        Пост от замены не меняется: render_live и так выпускает такой шаблон как
+        TAPLIST_TEMPLATE, — поэтому утверждение сохраняется, а снимок утверждения
+        меняется вместе с текстом. Меняются: общий текст, свой текст размещения, снимок
+        утверждения невышедших размещений и версия агента (agent_original — иначе отчёт
+        о правках показал бы правку человека). Вышедшие и отменённые размещения не
+        трогаются: их снимок — история. В журнале материала — запись «edit» от «сайт».
+        Повторный вызов ничего не меняет. Зовёт get_content_plan_store при старте процесса.
+        -> id изменённых материалов."""
+        def legacy(text) -> bool:
+            return isinstance(text, str) and text.strip() in LEGACY_TAPLIST_TEMPLATES
+
+        def candidates(data: dict) -> List[str]:
+            found = []
+            for mid, material in data['materials'].items():
+                if material.get('kind') != 'live' or material.get('live_source') not in LIVE_SOURCES:
+                    continue
+                active = [p for p in material.get('placements') or []
+                          if p.get('status') not in ('published', 'cancelled')]
+                if active and (legacy(material.get('base_text')) or any(
+                        legacy(p.get('text')) or legacy((p.get('approved_snapshot') or {}).get('text'))
+                        for p in active)):
+                    found.append(mid)
+            return found
+
+        if not candidates(self._load()):
+            return []
+        changed: List[str] = []
+        now_str = self.now_str()
+        with self._tx() as (data, _after):
+            for mid in candidates(data):
+                material = data['materials'][mid]
+                if legacy(material.get('base_text')):
+                    material['base_text'] = TAPLIST_TEMPLATE
+                original = material.get('agent_original')
+                if isinstance(original, dict):
+                    if legacy(original.get('base_text')):
+                        original['base_text'] = TAPLIST_TEMPLATE
+                    for pid, text in list(original['placements'].items()):
+                        if legacy(text):
+                            original['placements'][pid] = TAPLIST_TEMPLATE
+                for placement in material['placements']:
+                    if placement.get('status') in ('published', 'cancelled'):
+                        continue
+                    if legacy(placement.get('text')):
+                        placement['text'] = TAPLIST_TEMPLATE
+                    snapshot = placement.get('approved_snapshot')
+                    if isinstance(snapshot, dict) and legacy(snapshot.get('text')):
+                        snapshot['text'] = TAPLIST_TEMPLATE
+                material['updated_at'], material['updated_by'] = now_str, LEGACY_MIGRATION_BY
+                self._log(data, now_str, LEGACY_MIGRATION_BY, 'edit', mid, None,
+                          'Шаблон таплиста — в новом формате: «{вступление}, {таплист}, {концовка}» вместо '
+                          '«Таплист пятницы — {бар}, {дата}». Пост выходит так же, утверждение сохранено '
+                          '(просьба владельца 9 октября)')
+                changed.append(mid)
+        return changed
+
     def agent_edits(self, months=None) -> dict:
         """Что люди поменяли в материалах агента за последние months месяцев.
 
@@ -3572,4 +3635,12 @@ def get_content_plan_store(data_file: Optional[str] = None) -> ContentPlanStore:
             from core import content_channels
             _store = ContentPlanStore(audience_fn=content_channels.audience_size,
                                       delivery_fn=content_channels.payload_delivery)
+            # Прежний шаблон таплиста -> новый формат (просьба владельца 2026-10-09). Повтор
+            # в другом процессе ничего не меняет; сбой — не повод не открыть план.
+            try:
+                migrated = _store.migrate_legacy_taplist_templates()
+                if migrated:
+                    print(f'[CONTENT_PLAN] шаблон таплиста переведён на новый формат: {", ".join(migrated)}')
+            except Exception as e:  # noqa: BLE001
+                print(f'[CONTENT_PLAN] перевод шаблона таплиста не удался: {e!r}')
         return _store
