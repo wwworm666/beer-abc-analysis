@@ -435,3 +435,447 @@ def test_units_and_decimals():
     assert metric_decimals('loyalty_cards_count', per_shift=True) == 2
     assert metric_decimals('total_revenue', per_shift=True) == 0
     assert metric_decimals('kitchen_share') == 1
+
+
+# ==================== доля чеков с едой (2026-10-06) ====================
+# Владелец: «доля кухни — плохой KPI, лучше доля чеков с едой». Факт = чеки
+# сотрудника, где есть хотя бы одна позиция группы «ЕДА», / все его чеки × 100.
+# Числа примеров — настоящие за сентябрь 2026 (Дамир Кизатов: 139 из 375).
+
+FOOD = {'metric': 'food_checks_share', 'name': 'Доля чеков с едой (%)'}
+
+
+def kpi_olap_for(name, total_checks, categories):
+    """kpi_olap как его отдаёт OlapReports.get_kpi_olap_data: categories —
+    [(группа, выручка, чеки)]."""
+    return {
+        'summary': {name: {'total_checks': total_checks, 'total_revenue': 100000.0,
+                           'discount_sum': 0.0}},
+        'categories': {name: [{'category': cat, 'revenue': rev, 'cost': 0.0,
+                               'markup': 0.0, 'checks': checks}
+                              for cat, rev, checks in categories]},
+    }
+
+
+def test_food_checks_share_in_catalog():
+    from core.kpi_calculator import AVAILABLE_METRICS
+    info = AVAILABLE_METRICS['food_checks_share']
+    assert info['name'] == 'Доля чеков с едой' and info['unit'] == '%' and info['decimals'] == 1
+    # долевая метрика: не на смену и не по блюдам
+    assert not is_extensive('food_checks_share') and not is_dish_based('food_checks_share')
+    assert metric_unit('food_checks_share') == '%' and metric_decimals('food_checks_share') == 1
+
+
+def test_build_kpi_metrics_food_checks_share_takes_only_food_row():
+    """Чеки строки «ЕДА» / чеки сотрудника. Чеки других групп не складываются:
+    чек с пивом и едой есть и в строке розлива, и в строке еды."""
+    from routes.employee import _build_kpi_metrics
+    olap = kpi_olap_for('Дамир Кизатов', 375, [
+        ('ЕДА', 30000.0, 139), ('Напитки Розлив', 50000.0, 281),
+        ('Напитки Фасовка', 15000.0, 124), ('Газ и Пэт', 3000.0, 63), ('', 100.0, 1),
+    ])
+    m = _build_kpi_metrics('Дамир Кизатов', olap, shifts_count=12, total_hours=120)
+    assert m['food_checks'] == 139 and m['total_checks'] == 375
+    assert m['food_checks_share'] == 37.07  # 139 / 375 × 100, округление до сотых
+
+
+def test_build_kpi_metrics_food_checks_share_edge_cases():
+    from routes.employee import _build_kpi_metrics
+    # без чеков — 0, а не деление на ноль
+    m = _build_kpi_metrics('А Б', kpi_olap_for('А Б', 0, [('ЕДА', 0.0, 0)]), 1, 1)
+    assert m['food_checks_share'] == 0
+    # ни одной позиции «ЕДА» — 0
+    m = _build_kpi_metrics('А Б', kpi_olap_for('А Б', 50, [('Напитки Розлив', 1000.0, 50)]), 1, 1)
+    assert m['food_checks'] == 0 and m['food_checks_share'] == 0
+    # имя в другом порядке слов находится так же, как для остальных метрик
+    m = _build_kpi_metrics('Кизатов Дамир', kpi_olap_for('Дамир Кизатов', 100, [('ЕДА', 1.0, 40)]), 1, 1)
+    assert m['food_checks_share'] == 40.0
+    # строка categories без поля checks (старая форма ответа) — 0, без исключения
+    olap = kpi_olap_for('А Б', 10, [('ЕДА', 1.0, 3)])
+    del olap['categories']['А Б'][0]['checks']
+    assert _build_kpi_metrics('А Б', olap, 1, 1)['food_checks_share'] == 0
+    # сотрудника нет в OLAP — 0
+    assert _build_kpi_metrics('Нет Такого', olap, 1, 1)['food_checks_share'] == 0
+
+
+OCT_FOOD_TARGETS = {  # предложение на октябрь 2026: (цель, минимум) по точкам
+    'Большой пр В.О.': {'kpi1': (28, 21)}, 'Варшавская': {'kpi1': (36, 29)},
+    'Кременчугская': {'kpi1': (36, 29)}, 'Лиговский': {'kpi1': (38, 31)},
+}
+
+
+def test_food_checks_share_kpi_weighted_by_shifts(tmp_path):
+    """Цели взвешены по сменам, факт — доля как есть (не на смену)."""
+    reader = make_reader(tmp_path, {'2026-10': month_data({'kpi1': FOOD}, OCT_FOOD_TARGETS)})
+    shift_locs = dict(shifts(15, 'Варшавская', '2026-10'))
+    shift_locs.update({'2026-10-20': 'Лиговский', '2026-10-21': 'Лиговский'})
+    res = KpiCalculator(reader).calculate_employee(
+        'Дарья Коновцова', {'food_checks_share': 34.9, 'shifts_count': 17}, shift_locs, '2026-10')
+    k = res['kpis']['kpi1']
+    assert k['metric'] == 'food_checks_share' and k['unit'] == '%' and k['per_shift'] is False
+    assert k['target'] == pytest.approx((36 * 15 + 38 * 2) / 17, abs=1e-4)
+    assert k['min'] == pytest.approx((29 * 15 + 31 * 2) / 17, abs=1e-4)
+    assert k['fact'] == 34.9
+    assert k['capped_ratio'] == pytest.approx((34.9 - k['min']) / (k['target'] - k['min']), abs=1e-3)
+    # единственный KPI месяца получает весь фонд
+    assert res['base_per_kpi'] == 15000 and res['koef'] == round(17 / 15, 2)
+
+
+def test_food_checks_share_kpi_floor_and_cap(tmp_path):
+    reader = make_reader(tmp_path, {'2026-10': month_data({'kpi1': FOOD}, OCT_FOOD_TARGETS)})
+    calc = KpiCalculator(reader)
+    big = shifts(15, 'Большой пр. В.О', '2026-10')
+    below = calc.calculate_employee('A', {'food_checks_share': 20.5}, big, '2026-10')
+    assert below['kpis']['kpi1']['capped_ratio'] == 0  # ниже минимума 21 — ×0
+    on_target = calc.calculate_employee('A', {'food_checks_share': 28.0}, big, '2026-10')
+    assert on_target['kpis']['kpi1']['capped_ratio'] == 1.0
+    above = calc.calculate_employee('A', {'food_checks_share': 40.0}, big, '2026-10')
+    assert above['kpis']['kpi1']['capped_ratio'] == 2.0  # потолок max_ratio
+
+
+def test_kpi_olap_categories_request_counts_checks_per_group():
+    """Запрос categories несёт чеки группы (UniqOrderId.OrdersCount), ответ их разбирает."""
+    from unittest.mock import patch
+    from core.olap_reports import OlapReports
+    olap = OlapReports()
+    olap.token = 't'
+    bodies = []
+
+    class Resp:
+        status_code = 200
+
+        def __init__(self, body):
+            self.body = body
+
+        def json(self):
+            if 'DishGroup.TopParent' in self.body['groupByRowFields']:
+                return {'data': [{'AuthUser': 'Дамир Кизатов', 'DishGroup.TopParent': 'ЕДА',
+                                  'DishDiscountSumInt': 30000, 'ProductCostBase.ProductCost': 9000,
+                                  'ProductCostBase.MarkUp': 2.3, 'UniqOrderId.OrdersCount': 139}]}
+            return {'data': [{'AuthUser': 'Дамир Кизатов', 'UniqOrderId.OrdersCount': 375,
+                              'DishDiscountSumInt': 100000, 'DiscountSum': 0}]}
+
+    def fake_post(url, params=None, json=None, headers=None, timeout=None):
+        bodies.append(json)
+        return Resp(json)
+
+    with patch('core.olap_reports.requests.post', fake_post):
+        data = olap.get_kpi_olap_data('2026-09-01', '2026-10-01')
+
+    cat_body = next(b for b in bodies if 'DishGroup.TopParent' in b['groupByRowFields'])
+    assert 'UniqOrderId.OrdersCount' in cat_body['aggregateFields']
+    assert cat_body['filters']['DeletedWithWriteoff']['values'] == ['NOT_DELETED']
+    assert data['categories']['Дамир Кизатов'][0]['checks'] == 139
+    assert data['summary']['Дамир Кизатов']['total_checks'] == 375
+
+
+def test_food_checks_share_row_shows_its_parts(tmp_path):
+    """Карточка KPI показывает, из чего доля: 139 / 375 (fact_parts). Только показ."""
+    reader = make_reader(tmp_path, {'2026-10': month_data({'kpi1': FOOD, 'kpi2': KITCHEN},
+                                                         {'kpi1': (38, 31), 'kpi2': (18, 13)})})
+    res = KpiCalculator(reader).calculate_employee(
+        'Дамир Кизатов',
+        {'food_checks_share': 37.07, 'food_checks': 139, 'total_checks': 375, 'kitchen_share': 16.0},
+        shifts(12, 'Лиговский', '2026-10'), '2026-10')
+    assert res['kpis']['kpi1']['fact_parts'] == {
+        'num': 139, 'den': 375, 'num_label': 'Чеки с едой', 'den_label': 'все чеки'}
+    assert 'fact_parts' not in res['kpis']['kpi2']  # у других метрик слагаемых нет
+
+
+def test_kpi_olap_fails_whole_when_categories_request_fails():
+    """Сбой запроса categories — None (роут отвечает ошибкой), а не доли = 0 и ×0 всем."""
+    from unittest.mock import patch
+    from core.olap_reports import OlapReports
+    olap = OlapReports()
+    olap.token = 't'
+
+    class Resp:
+        def __init__(self, body):
+            self.status_code = 500 if 'DishGroup.TopParent' in body['groupByRowFields'] else 200
+            self.text = 'error'
+
+        def json(self):
+            return {'data': [{'AuthUser': 'А Б', 'UniqOrderId.OrdersCount': 10,
+                              'DishDiscountSumInt': 1000, 'DiscountSum': 0}]}
+
+    with patch('core.olap_reports.requests.post',
+               lambda url, params=None, json=None, headers=None, timeout=None: Resp(json)):
+        assert olap.get_kpi_olap_data('2026-09-01', '2026-10-01') is None
+
+
+# ==================== скидка «ЯндексКарты Лагер» (2026-10-09) ====================
+# Владелец: «Добавил скидку "ЯндексКарты Лагер" 470 руб … добавить в KPI метрику
+# количество проведённых скидок с таким названием; цель 10 шт на 15 смен». Факт —
+# чеки сотрудника, где проведена скидка (не позиции): одна скидка на чек, сколько
+# бы позиций iiko ею ни задел.
+
+YANDEX = {'metric': 'yandex_lager_count', 'name': 'Отзывы на Яндекс Картах (шт)',
+          'per_shift': True}
+YANDEX_TARGET = (round(10 / 15, 4), 0)  # 10 шт на 15 смен -> 0,6667 за смену; минимум 0
+
+
+def test_yandex_lager_metric_in_catalog():
+    from core.kpi_calculator import AVAILABLE_METRICS, discount_metrics, discount_of
+    info = AVAILABLE_METRICS['yandex_lager_count']
+    assert info['unit'] == 'шт' and info['decimals'] == 0
+    assert info['discount'] == 'ЯндексКарты Лагер'
+    # штучная: считается на кассовую смену, как новые карты лояльности
+    assert is_extensive('yandex_lager_count') and not is_dish_based('yandex_lager_count')
+    assert metric_unit('yandex_lager_count', per_shift=True) == 'шт/смену'
+    assert discount_of('yandex_lager_count') == 'ЯндексКарты Лагер'
+    assert discount_of('draft_share') is None and discount_of('нет такой') is None
+    assert discount_metrics() == {'yandex_lager_count': 'ЯндексКарты Лагер'}
+
+
+def test_discount_name_matching_ignores_case_spaces_and_yo():
+    from core.kpi_calculator import normalize_discount_name
+    key = normalize_discount_name('ЯндексКарты Лагер')
+    assert normalize_discount_name('  яндекс  карты ЛАГЕР ') == key
+    assert normalize_discount_name('Ёж') == normalize_discount_name('еж')
+    assert normalize_discount_name('ЯндексКарты Эль') != key
+    assert normalize_discount_name(None) == ''
+
+
+def _discount_olap(rows=None, status=200, boom=False):
+    """OlapReports с подменой requests.post: (olap, тела запросов)."""
+    from unittest.mock import patch
+    from core.olap_reports import OlapReports
+    olap = OlapReports()
+    olap.token = 't'
+    bodies = []
+
+    class Resp:
+        status_code = status
+        text = 'error'
+
+        def json(self):
+            return {'data': rows or []}
+
+    def fake_post(url, params=None, json=None, headers=None, timeout=None):
+        bodies.append(json)
+        if boom:
+            raise TimeoutError('iiko не ответил')
+        return Resp()
+
+    return olap, bodies, patch('core.olap_reports.requests.post', fake_post)
+
+
+def test_discount_checks_request_shape_and_parsing():
+    """AuthUser × ItemSaleEventDiscountType (скидка позиции: у OrderDiscount.Type две
+    скидки чека склеены через запятую), уникальные чеки, только неудалённые, без
+    фильтра по названию. Позиции без скидки пропущены."""
+    olap, bodies, patched = _discount_olap([
+        {'AuthUser': 'Дамир Кизатов', 'ItemSaleEventDiscountType': 'ЯндексКарты Лагер',
+         'UniqOrderId.OrdersCount': 4},
+        {'AuthUser': 'Дамир Кизатов', 'ItemSaleEventDiscountType': 'Orderia',
+         'UniqOrderId.OrdersCount': 120.0},
+        {'AuthUser': 'Дамир Кизатов', 'ItemSaleEventDiscountType': '', 'UniqOrderId.OrdersCount': 375},
+        {'AuthUser': 'Анна Смирнова', 'ItemSaleEventDiscountType': None, 'UniqOrderId.OrdersCount': 90},
+        {'AuthUser': '', 'ItemSaleEventDiscountType': 'ЯндексКарты Лагер', 'UniqOrderId.OrdersCount': 1},
+    ])
+    with patched:
+        data = olap.get_discount_checks_by_waiter('2026-10-01', '2026-11-01')
+    body = bodies[0]
+    assert body['groupByRowFields'] == ['AuthUser', 'ItemSaleEventDiscountType']
+    assert body['aggregateFields'] == ['UniqOrderId.OrdersCount']
+    assert body['filters']['OpenDate.Typed']['from'] == '2026-10-01'
+    assert body['filters']['OpenDate.Typed']['to'] == '2026-11-01'
+    assert body['filters']['DeletedWithWriteoff']['values'] == ['NOT_DELETED']
+    assert body['filters']['OrderDeleted']['values'] == ['NOT_DELETED']
+    assert 'ItemSaleEventDiscountType' not in body['filters']
+    assert data == {'Дамир Кизатов': {'ЯндексКарты Лагер': 4, 'Orderia': 120}}
+
+
+def test_discount_checks_request_failure_is_none_not_zero():
+    """Сбой — None (роут отвечает ошибкой), а не пустой ответ: иначе ×0 всем молча."""
+    olap, _, patched = _discount_olap(status=500)
+    with patched:
+        assert olap.get_discount_checks_by_waiter('2026-10-01', '2026-11-01') is None
+    olap, _, patched = _discount_olap(boom=True)
+    with patched:
+        assert olap.get_discount_checks_by_waiter('2026-10-01', '2026-11-01') is None
+    from core.olap_reports import OlapReports
+    assert OlapReports().get_discount_checks_by_waiter('2026-10-01', '2026-11-01') is None
+
+
+def test_build_kpi_metrics_counts_discount_checks():
+    from routes.employee import _build_kpi_metrics
+    olap = kpi_olap_for('Дамир Кизатов', 375, [('ЕДА', 30000.0, 139)])
+    m = _build_kpi_metrics('Дамир Кизатов', olap, 12, 120,
+                           discount_checks={'Яндекс Карты лагер': 4, 'Orderia': 120})
+    assert m['yandex_lager_count'] == 4
+    # одна скидка, записанная в iiko по-разному, складывается
+    m = _build_kpi_metrics('Дамир Кизатов', olap, 12, 120,
+                           discount_checks={'ЯндексКарты Лагер': 4, 'Яндекс Карты Лагер': 1})
+    assert m['yandex_lager_count'] == 5
+    # без чеков со скидкой — 0, а не KeyError
+    assert _build_kpi_metrics('Дамир Кизатов', olap, 12, 120)['yandex_lager_count'] == 0
+
+
+def test_route_requests_discounts_only_for_discount_kpis():
+    from routes.employee import _configured_discounts
+    config = {'kpi1': {'metric': 'draft_share'}, 'kpi2': YANDEX,
+              'kpi3': dict(YANDEX, name='Тот же показатель ещё раз')}
+    assert _configured_discounts(config) == ['ЯндексКарты Лагер']
+    assert _configured_discounts({'kpi1': {'metric': 'draft_share'}}) == []
+    assert _configured_discounts(None) == []
+
+
+def test_yandex_lager_kpi_target_10_per_15_shifts(tmp_path):
+    """«10 шт на 15 смен» хранится как 0,6667 за смену. У человека с 12 кассовыми
+    сменами цель 8 шт; 6 проведённых скидок — множитель 6 / 8 = 0,75."""
+    reader = make_reader(tmp_path, {'2026-10': month_data({'kpi1': YANDEX}, {'kpi1': YANDEX_TARGET})})
+    calc = KpiCalculator(reader)
+    res = calc.calculate_employee('А Б', {'yandex_lager_count': 6, 'shifts_count': 12},
+                                  shifts(12, 'Лиговский', '2026-10'), '2026-10')
+    k = res['kpis']['kpi1']
+    assert k['per_shift'] is True and k['unit'] == 'шт/смену'
+    assert (k['fact_raw'], k['target_period'], k['min_period']) == (6, 8.0, 0)
+    assert k['capped_ratio'] == pytest.approx(0.75, abs=1e-3)
+    assert k['discount'] == 'ЯндексКарты Лагер'
+    # 10 скидок за норму 15 смен — ровно цель; 20 и больше — потолок ×2
+    full = calc.calculate_employee('А Б', {'yandex_lager_count': 10, 'shifts_count': 15},
+                                   shifts(15, 'Лиговский', '2026-10'), '2026-10')
+    assert full['kpis']['kpi1']['capped_ratio'] == pytest.approx(1.0, abs=1e-3)
+    cap = calc.calculate_employee('А Б', {'yandex_lager_count': 25, 'shifts_count': 15},
+                                  shifts(15, 'Лиговский', '2026-10'), '2026-10')
+    assert cap['kpis']['kpi1']['capped_ratio'] == 2.0
+    # ни одной скидки — ×0
+    zero = calc.calculate_employee('А Б', {'shifts_count': 15},
+                                   shifts(15, 'Лиговский', '2026-10'), '2026-10')
+    assert zero['kpis']['kpi1']['capped_ratio'] == 0.0
+    # у обычной метрики поля discount нет
+    other = make_reader(tmp_path, {'2026-10': month_data({'kpi1': KITCHEN}, {'kpi1': (18, 13)})})
+    row = KpiCalculator(other).calculate_employee(
+        'А Б', {'kitchen_share': 18.0}, shifts(15, 'Лиговский', '2026-10'), '2026-10')['kpis']['kpi1']
+    assert 'discount' not in row
+
+
+# ---- маршрут /api/kpi-calculate целиком: iiko подменён, цели — временный файл ----
+
+OCT_THREE = {
+    'kpi1': {'metric': 'draft_share', 'name': 'Доля розлива (%)'},
+    'kpi2': FOOD,
+    'kpi3': YANDEX,
+}
+
+
+def _kpi_route(monkeypatch, tmp_path, discount_data, config=None):
+    """Flask-приложение с employee_bp: смены и OLAP — подмены, цели октября —
+    три KPI месяца. Возвращает (клиент, вызовы запроса по скидкам)."""
+    import core.kpi_calculator as kc
+    import routes.employee as emp
+    from flask import Flask
+
+    targets = {'kpi1': (59, 54), 'kpi2': (38, 31), 'kpi3': YANDEX_TARGET}
+    month = month_data(config or OCT_THREE, {k: v for k, v in targets.items()
+                                             if k in (config or OCT_THREE)})
+    monkeypatch.setattr(kc, '_reader', make_reader(tmp_path, {'2026-10': month}))
+    monkeypatch.setattr(emp, 'EMPLOYEES_CACHE', {'data': None, 'timestamp': 0})
+    monkeypatch.setattr(emp, 'get_employee_plan_by_shifts', lambda locs: 0.0)
+
+    class FakeIiko:
+        def authenticate(self):
+            return True
+
+        def get_employees(self):
+            return [{'id': 'e1', 'name': 'Дамир Кизатов'}, {'id': 'e2', 'name': 'Анна Смирнова'}]
+
+        def get_employee_metrics_from_shifts(self, date_from, date_to):
+            return {
+                'e1': {'shift_locations': shifts(12, 'Лиговский', '2026-10'), 'shifts_count': 12,
+                       'total_hours': 120.0, 'late_count': 0},
+                'e2': {'shift_locations': shifts(15, 'Лиговский', '2026-10'), 'shifts_count': 15,
+                       'total_hours': 150.0, 'late_count': 0},
+            }
+
+        def logout(self):
+            pass
+
+    calls = []
+    olap_data = kpi_olap_for('Дамир Кизатов', 375, [('ЕДА', 30000.0, 139),
+                                                   ('Напитки Розлив', 60000.0, 300)])
+    olap_data['summary']['Анна Смирнова'] = {'total_checks': 100, 'total_revenue': 100000.0,
+                                            'discount_sum': 0.0}
+    olap_data['categories']['Анна Смирнова'] = [
+        {'category': 'Напитки Розлив', 'revenue': 59000.0, 'cost': 0.0, 'markup': 0.0, 'checks': 80}]
+
+    class FakeOlap:
+        def connect(self):
+            return True
+
+        def disconnect(self):
+            pass
+
+        def get_kpi_olap_data(self, date_from, date_to):
+            return olap_data
+
+        def get_cancelled_orders_by_waiter(self, date_from, date_to):
+            return {'data': []}
+
+        def get_new_loyalty_cards_by_waiter(self, date_from, date_to):
+            return {}
+
+        def get_dish_sales_by_waiter(self, date_from, date_to, names):
+            return {}
+
+        def get_discount_checks_by_waiter(self, date_from, date_to):
+            calls.append((date_from, date_to))
+            return discount_data
+
+    monkeypatch.setattr(emp, 'IikoAPI', FakeIiko)
+    monkeypatch.setattr(emp, 'OlapReports', FakeOlap)
+    app = Flask('kpi_route_discounts')
+    app.register_blueprint(emp.employee_bp)
+    return app.test_client(), calls
+
+
+def _post_october(client):
+    return client.post('/api/kpi-calculate', json={'date_from': '2026-10-01', 'date_to': '2026-10-31'})
+
+
+def test_kpi_route_counts_yandex_discounts_per_employee(monkeypatch, tmp_path):
+    """Октябрь — три KPI: доля розлива, доля чеков с едой, «ЯндексКарты Лагер».
+    Чеки скидки достаются своему сотруднику (и при другом порядке слов в имени,
+    и при другом написании скидки), карта лояльности на том же чеке не мешает."""
+    client, calls = _kpi_route(monkeypatch, tmp_path, {
+        'Дамир Кизатов': {'ЯндексКарты Лагер': 6, 'Orderia': 40},
+        'Смирнова Анна': {'Яндекс Карты лагер': 15},
+    })
+    resp = _post_october(client)
+    assert resp.status_code == 200, resp.get_data(as_text=True)
+    data = resp.get_json()
+    assert calls == [('2026-10-01', '2026-11-01')]  # OLAP — с исключающей верхней датой
+    assert data['discounts_not_found'] == []
+    rows = {e['employee_name']: e for e in data['employees']}
+    damir, anna = rows['Дамир Кизатов']['kpis'], rows['Анна Смирнова']['kpis']
+    assert rows['Дамир Кизатов']['base_per_kpi'] == 5000  # фонд 15 000 на три KPI
+    assert damir['kpi3']['fact_raw'] == 6 and damir['kpi3']['target_period'] == 8.0
+    assert damir['kpi3']['capped_ratio'] == pytest.approx(0.75, abs=1e-3)
+    assert damir['kpi3']['discount'] == 'ЯндексКарты Лагер'
+    assert anna['kpi3']['fact_raw'] == 15 and anna['kpi3']['capped_ratio'] == pytest.approx(1.5, abs=1e-3)
+    # остальные KPI месяца считаются как прежде
+    assert damir['kpi2']['fact'] == pytest.approx(37.07, abs=0.01)
+    assert anna['kpi1']['fact'] == 59.0
+
+
+def test_kpi_route_warns_when_nobody_applied_the_discount(monkeypatch, tmp_path):
+    client, _ = _kpi_route(monkeypatch, tmp_path, {'Дамир Кизатов': {'Orderia': 40}})
+    data = _post_october(client).get_json()
+    assert data['discounts_not_found'] == ['ЯндексКарты Лагер']
+    assert all(e['kpis']['kpi3']['fact_raw'] == 0 for e in data['employees'])
+
+
+def test_kpi_route_fails_loudly_when_discount_request_fails(monkeypatch, tmp_path):
+    client, _ = _kpi_route(monkeypatch, tmp_path, None)
+    resp = _post_october(client)
+    assert resp.status_code == 500
+    assert 'скидками' in resp.get_json()['error']
+
+
+def test_kpi_route_skips_discount_request_without_discount_kpi(monkeypatch, tmp_path):
+    config = {'kpi1': OCT_THREE['kpi1'], 'kpi2': OCT_THREE['kpi2']}
+    client, calls = _kpi_route(monkeypatch, tmp_path, None, config=config)
+    resp = _post_october(client)
+    assert resp.status_code == 200 and calls == []
+    assert resp.get_json()['discounts_not_found'] == []

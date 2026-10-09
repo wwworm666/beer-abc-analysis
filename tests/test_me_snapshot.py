@@ -629,5 +629,48 @@ def _run():
     return 1 if failed else 0
 
 
+def test_kpi_discount_and_missing_discount_reach_the_cabinet():
+    """KPI «ЯндексКарты Лагер»: какую скидку считает показатель (discount) и
+    предупреждение «за месяц её не провёл никто» доходят до /me — «Как
+    считается» в карточке тот же, что на странице ЗП."""
+    kpi_row = _kpi_row(ID_A, 'Юреня Роман')
+    kpi_row['kpis']['kpi3'] = {
+        'name': 'Отзывы на Яндекс Картах (шт)', 'metric': 'yandex_lager_count', 'fact': 0.5,
+        'target': 0.6667, 'min': 0, 'capped_ratio': 0.75, 'intermediate_premium': 3750.0,
+        'per_shift': True, 'fact_raw': 6, 'shifts_divisor': 12, 'target_period': 8.0,
+        'min_period': 0.0, 'period_decimals': 0, 'no_targets': False,
+        'discount': 'ЯндексКарты Лагер',
+    }
+    items = ms._kpi_for(kpi_row, ['kpi1', 'kpi2', 'kpi3'], {}, shifts_planned=15)['items']
+    assert items[2]['discount'] == 'ЯндексКарты Лагер'
+    assert items[2]['target_month'] == 10.0          # 0,6667 x 15 смен графика
+    assert 'discount' not in items[0]
+    kpi_data = _kpi_data()
+    kpi_data['discounts_not_found'] = ['ЯндексКарты Лагер']
+    snap = _assemble([_bonus_row(ID_A, 'Юреня Роман')], [_kpi_row(ID_A, 'Юреня Роман')],
+                     [_hours_row(ID_A, 'Юреня Роман')], kpi_data=kpi_data)
+    assert snap['kpi_meta']['discounts_not_found'] == ['ЯндексКарты Лагер']
+    # в расчёте поля нет — в снимке пустой список, как у блюд
+    plain = _assemble([_bonus_row(ID_A, 'Юреня Роман')], [_kpi_row(ID_A, 'Юреня Роман')],
+                      [_hours_row(ID_A, 'Юреня Роман')], kpi_data=_kpi_data())
+    assert plain['kpi_meta']['discounts_not_found'] == []
+
+
 if __name__ == '__main__':
     sys.exit(_run())
+
+
+def test_kpi_share_parts_reach_the_cabinet():
+    """«Доля чеков с едой»: числитель и знаменатель доли (fact_parts) доходят до
+    /me без изменений — «Как считается» в карточке тот же, что на странице ЗП."""
+    kpi_row = _kpi_row(ID_A, 'Юреня Роман')
+    parts = {'num': 34, 'den': 101, 'num_label': 'Чеки с едой', 'den_label': 'все чеки'}
+    kpi_row['kpis']['kpi3'] = {
+        'name': 'Доля чеков с едой (%)', 'metric': 'food_checks_share', 'fact': 33.66,
+        'target': 36.0, 'min': 29.0, 'capped_ratio': 0.6657, 'intermediate_premium': 3328.5,
+        'per_shift': False, 'no_targets': False, 'unit': '%', 'decimals': 1,
+        'fact_parts': parts,
+    }
+    items = ms._kpi_for(kpi_row, ['kpi1', 'kpi2', 'kpi3'], {}, shifts_planned=9)['items']
+    assert items[2]['fact_parts'] == parts and items[2]['unit'] == '%'
+    assert 'fact_parts' not in items[0]
