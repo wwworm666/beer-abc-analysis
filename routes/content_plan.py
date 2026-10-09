@@ -108,8 +108,10 @@ core/content_media.py; отправка в площадки — core/content_pub
     POST   /api/content-plan/channels/check               {bar} -> {check, saved, ...как GET} —
                                                           getMe/getChat/getChatMember в Telegram; сбой
                                                           связи — saved=false, прежняя проверка остаётся
-    POST   /api/content-plan/channels/test                {bar} -> {ok, message_id, error, chat} —
-                                                          сообщение «Проверка связи с сайтом» в канал
+    POST   /api/content-plan/channels/test                {bar} -> {ok, message_id, error, chat,
+                                                          connected, ...как GET} — сообщение «Проверка
+                                                          связи с сайтом» в канал; доставлено — канал
+                                                          подключается (connected: этот тест подключил)
     POST   /api/content-plan/publish-now                  {placement_id} -> {placement, material,
                                                           queued: true, message}: в очередь, уйдёт в
                                                           течение минуты (отправляет планировщик); 409 —
@@ -447,10 +449,15 @@ def check_channel():
 @_guard
 def test_channel():
     """Тестовое сообщение «Проверка связи с сайтом» в канал бара -> {ok, message_id,
-    error, chat}. Его видят подписчики канала. Только администратор."""
+    error, chat, connected} и настройки (как GET). Его видят подписчики канала.
+    Доставленное сообщение подключает неподключённый канал (connected — этот тест
+    подключил, content_publisher.send_test). Только администратор."""
     _require_admin('отправлять тестовое сообщение')
-    return jsonify(content_publisher.send_test(_bar_from_body(), current_user(), transport=_transport(),
-                                               channels=_channels()))
+    result = content_publisher.send_test(_bar_from_body(), current_user(), transport=_transport(),
+                                         channels=_channels())
+    payload = _channels_payload(result.pop('channels'))
+    payload.update(result)
+    return jsonify(payload)
 
 
 @content_plan_bp.route('/api/content-plan/publish-now', methods=['POST'])

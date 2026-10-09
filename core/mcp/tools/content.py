@@ -104,6 +104,8 @@ idempotent — сетевой вызов), content_channel_test, content_publish
   шаг про картинки в сценарии content_plan_month, уточнение у content_media_upload. По
   независимой проверке того же дня поиск — POST и draft_write (пишет файл поиска и тратит
   платный предел; в коннекторе «Только чтение» его нет), предел 60 поисков на подключение.
+- 2026-10-09 — content_channel_test: доставленное сообщение подключает канал (connected,
+  check.via=test), ответ — как content_channels_get.
 """
 import re
 from typing import Dict, List, Tuple
@@ -1337,8 +1339,10 @@ _tool(
     name='content_channel_test',
     title='Тестовое сообщение в канал',
     description=(
-        'Отправить в канал бара сообщение «Проверка связи с сайтом» — его увидят подписчики канала. Ответ {ok, '
-        'message_id, error, chat}. Только по прямой просьбе владельца.'
+        'Отправить в канал бара сообщение «Проверка связи с сайтом» — его увидят подписчики канала. Доставленное '
+        'сообщение подключает неподключённый канал (в канал пишет только администратор с правом публиковать): '
+        'проверка сохраняется с via=test. Ответ {ok, message_id, error, chat, connected (этот тест подключил '
+        'канал), ...как content_channels_get}. Только по прямой просьбе владельца.'
     ),
     input_schema=_obj({'bar': _enum(BAR_KEYS, 'Бар: ' + BAR_HELP + '.')}, required=('bar',)),
     method='POST', path='/api/content-plan/channels/test', body='json',

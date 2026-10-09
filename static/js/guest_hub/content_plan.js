@@ -5115,7 +5115,8 @@
     function chanBarStatus(bar) {
         var cfg = barCfg(bar);
         var chk = cfg.check && (!cfg.check.chat || cfg.check.chat === cfg.chat) ? cfg.check : null;
-        var checked = cfg.checked_at ? ' · проверено ' + GH.fmtDateTime(cfg.checked_at) : '';
+        var checked = cfg.checked_at ? ' · проверено ' + GH.fmtDateTime(cfg.checked_at) +
+            (chk && chk.via === 'test' ? ' тестовым сообщением' : '') : '';
         var d = chanDelivery();
         var md = (d && d.telegram && d.telegram[bar]) || {};
         if (!cfg.chat) {
@@ -5256,8 +5257,8 @@
                 'и время проверки сохраняются. Сменили адрес — нажмите «Подключить» снова.',
             'Канал подключён, если последняя проверка прошла и включена автоматическая отправка.',
             '«Тестовое сообщение» публикует в канале текст «Проверка связи с сайтом»: его увидят подписчики, ' +
-                'удалите его потом в Telegram. Если тест дошёл, а канал ещё не подключён, сайт сразу проверяет и ' +
-                'подключает его.',
+                'удалите его потом в Telegram. Дошедший тест сам подключает канал: писать в канал может только ' +
+                'администратор с правом «Публикация сообщений».',
             'Ссылка на вышедший пост есть только у публичного канала (@имя).'
         ]));
         return html + '</section>';
@@ -5676,12 +5677,18 @@
                 var sent = !!(res && res.ok !== false);
                 S.chan.tests[bar] = { at: GH.mskNow().datetime, ok: sent, error: res && res.error,
                                       link: sent ? postLink((res && res.chat) || chat, res && res.message_id) : '' };
+                // Ответ несёт и настройки (как GET /channels): доставленный тест сервер
+                // сам засчитывает проверкой и подключает канал — в том же запросе
+                // (2026-10-09: отдельная проверка после теста попала в перезапуск сайта).
+                if (res && res.channels) S.chan.data = res;
                 renderChannels();
-                GH.toast(sent ? 'Тестовое сообщение отправлено в канал ' + chat
+                GH.toast(sent ? (res && res.connected
+                    ? GH.barName(bar) + ': тестовое сообщение дошло, канал подключён'
+                    : 'Тестовое сообщение отправлено в канал ' + chat)
                     : 'Не отправлено: ' + ((res && res.error) || 'ошибка Telegram'), sent ? 'success' : 'danger');
-                // Тест дошёл, а канал не подключён (проверки не было или она была до
-                // того, как бота сделали администратором): подключаем сразу — иначе
-                // «связь есть», а посты не уходят (так и было 2026-10-04).
+                if (res && res.connected) reload();
+                // Тест дошёл, а сервер канал не подключил (Telegram не вернул чат) —
+                // отдельная проверка, как раньше.
                 if (sent && !barChecked(bar)) checkChannel(bar);
             }, function (err) {
                 if (!S.chan) return;

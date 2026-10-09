@@ -1161,6 +1161,8 @@ def test_channels_routes():
         r = c.post('/api/content-plan/channels/test', json={'bar': 'bolshoy'})
         body = r.get_json()
         assert body['ok'] is True and body['message_id'] and body['chat'] == '@kult_vo'
+        assert body['connected'] is False                       # канал уже был подключён проверкой
+        assert body['channels']['history'][-1]['text'].startswith('Тестовое сообщение в канал ВО')
         assert env.tg.calls[-1]['payload']['text'] == 'Проверка связи с сайтом'
         history = [h['text'] for h in env.channels.load()['history']]
         assert 'Отправка публикаций включена' in history and any(t.startswith('Тестовое сообщение') for t in history)
@@ -1172,7 +1174,10 @@ def test_channels_routes():
         assert body['token_source'] is None and body['delivery']['bot']['reason'] == 'рассылки гостям выключены'
         assert body['delivery']['instagram']['reason'] == 'бот не настроен'
         r = c.post('/api/content-plan/channels/test', json={'bar': 'bolshoy'})
-        assert r.get_json() == {'ok': False, 'message_id': None, 'error': pub.NO_TOKEN_TEXT, 'chat': '@kult_vo_new'}
+        body = r.get_json()
+        assert (body['ok'], body['message_id'], body['error'], body['chat'], body['connected']) == (
+            False, None, pub.NO_TOKEN_TEXT, '@kult_vo_new', False)
+        assert body['token_source'] is None and 'bot_identity' not in body['channels']
         r = c.post('/api/content-plan/channels/check', json={'bar': 'bolshoy'})
         assert r.get_json()['check']['error'] == pub.NO_TOKEN_TEXT and r.get_json()['saved'] is False
     with open(env.channels.data_file, 'w', encoding='utf-8') as f:
@@ -1201,6 +1206,95 @@ def test_channel_check_errors():
     env.tg.respond('getChat', {'ok': True, 'result': {'id': -5, 'type': 'supergroup', 'title': 'Группа'}})
     env.tg.respond('getChatMember', {'ok': True, 'result': {'status': 'member'}})
     assert pub.check_channel('bolshoy', USER, transport=env.tg, channels=env.channels)['check']['can_post'] is True
+
+
+LIG_MESSAGE = {'ok': True, 'result': {'message_id': 3, 'chat': {'id': -1004484525207, 'type': 'channel',
+                                                                 'title': 'Культура Лиговский', 'username': 'kult_lig'}}}
+
+
+def test_delivered_test_message_connects_channel():
+    """Регрессия 2026-10-09: бот — администратор канала Лиговского, тест дошёл, а канал
+    не подключался — отдельная проверка после теста попала в перезапуск сайта.
+    Доставленный тест сам подключает канал: проверка по чату из ответа Telegram."""
+    env = Env()
+    env.channels.update({'enabled': True, 'telegram': {'ligovskiy': {'chat': '@kult_lig'}}}, USER)
+    # Проверка до того, как бота сделали администратором (так было 2026-10-04 03:26).
+    env.tg.respond('getChatMember', {'ok': False, 'error_code': 400,
+                                     'description': 'Bad Request: member list is inaccessible'})
+    check = pub.check_channel('ligovskiy', USER, transport=env.tg, channels=env.channels)['check']
+    assert check['ok'] is True and check['can_post'] is False
+    env.at(16, 9, day=9)
+    env.tg.calls.clear()
+    env.tg.respond('sendMessage', LIG_MESSAGE)
+    out = pub.send_test('ligovskiy', USER, transport=env.tg, channels=env.channels)
+    assert out['ok'] is True and out['connected'] is True and out['message_id'] == 3
+    assert [c['method'] for c in env.tg.calls] == ['sendMessage']             # без getChatMember
+    cfg = env.channels.load()['telegram']['ligovskiy']
+    assert cfg['check']['via'] == 'test' and cfg['check']['can_post'] is True and cfg['check']['error'] is None
+    assert (cfg['check']['chat'], cfg['check']['chat_id'], cfg['check']['chat_title']) == (
+        '@kult_lig', -1004484525207, 'Культура Лиговский')
+    assert cfg['check']['bot_username'] == 'kult_test_bot'        # из getMe прошлой проверки, тот же токен
+    assert (cfg['checked_at'], cfg['connected_since'], cfg['connected_chat']) == (
+        '2026-10-09T16:09', '2026-10-09T16:09', '@kult_lig')
+    assert out['channels']['telegram']['ligovskiy']['connected_since'] == '2026-10-09T16:09'
+    delivery = cc.delivery_state(env.channels.load(), True, guest_token_present=True)
+    assert delivery['telegram']['ligovskiy'] == {'connected': True, 'chat': '@kult_lig', 'title': '', 'reason': None}
+    assert [h['text'] for h in env.channels.load()['history']][-2:] == [
+        'Тестовое сообщение в канал Лиг (@kult_lig): доставлено',
+        'Проверка канала Лиг (@kult_lig) по тестовому сообщению: бот может публиковать']
+    # Канал подключён: повторный тест не трогает проверку и время подключения.
+    env.at(17, 0, day=9)
+    env.tg.respond('sendMessage', LIG_MESSAGE)
+    out = pub.send_test('ligovskiy', USER, transport=env.tg, channels=env.channels)
+    assert out['ok'] is True and out['connected'] is False
+    cfg = env.channels.load()['telegram']['ligovskiy']
+    assert (cfg['checked_at'], cfg['connected_since']) == ('2026-10-09T16:09', '2026-10-09T16:09')
+    assert env.channels.load()['history'][-1]['text'] == 'Тестовое сообщение в канал Лиг (@kult_lig): доставлено'
+
+
+def test_test_message_does_not_connect_private_chat_or_failed_send():
+    env = Env()
+    env.channels.update({'telegram': {'ligovskiy': {'chat': '@kult_lig'}}}, USER)
+    # Личный чат каналом бара не становится (как PRIVATE_CHAT_TEXT у проверки).
+    env.tg.respond('sendMessage', {'ok': True, 'result': {'message_id': 4, 'chat': {'id': 77, 'type': 'private',
+                                                                                   'first_name': 'Аня'}}})
+    out = pub.send_test('ligovskiy', USER, transport=env.tg, channels=env.channels)
+    assert out['ok'] is True and out['connected'] is False
+    assert env.channels.load()['telegram']['ligovskiy']['check'] is None
+    # Ответ без чата — не подключает (страница проверит отдельно, «Подключить»).
+    out = pub.send_test('ligovskiy', USER, transport=env.tg, channels=env.channels)
+    assert out['ok'] is True and out['connected'] is False
+    assert env.channels.load()['telegram']['ligovskiy']['check'] is None
+    # Тест не дошёл — ничего не меняется.
+    env.tg.respond('sendMessage', {'ok': False, 'error_code': 403,
+                                   'description': 'Forbidden: bot is not a member of the channel chat'})
+    out = pub.send_test('ligovskiy', USER, transport=env.tg, channels=env.channels)
+    assert out['ok'] is False and out['connected'] is False and out['error'].startswith('бот не состоит в канале')
+    assert env.channels.load()['telegram']['ligovskiy']['check'] is None
+    out = pub.send_test('ligovskiy', USER, transport=None, channels=env.channels)
+    assert (out['ok'], out['connected'], out['error']) == (False, False, pub.NO_TOKEN_TEXT)
+    # Адрес сменили, пока шёл тест, — проверка старого адреса не сохраняется.
+    def moved():
+        env.channels.update({'telegram': {'ligovskiy': {'chat': '@kult_lig_new'}}}, USER)
+        return LIG_MESSAGE
+    env.tg.per_chat['@kult_lig'] = moved
+    out = pub.send_test('ligovskiy', USER, transport=env.tg, channels=env.channels)
+    assert out['ok'] is True and out['connected'] is False
+    cfg = env.channels.load()['telegram']['ligovskiy']
+    assert cfg['chat'] == '@kult_lig_new' and cfg['check'] is None and cfg['connected_since'] is None
+
+
+def test_channel_test_route_connects_channel():
+    env = Env()
+    env.channels.update({'enabled': True, 'telegram': {'ligovskiy': {'chat': '@kult_lig'}}}, USER)
+    env.tg.respond('sendMessage', LIG_MESSAGE)
+    with _client(env) as c:
+        body = c.post('/api/content-plan/channels/test', json={'bar': 'ligovskiy'}).get_json()
+    assert body['ok'] is True and body['connected'] is True and body['message_id'] == 3 and body['chat'] == '@kult_lig'
+    # Ответ несёт настройки, как GET /channels: страница сразу видит подключение.
+    assert body['delivery']['telegram']['ligovskiy']['connected'] is True
+    assert body['channels']['telegram']['ligovskiy']['check']['via'] == 'test'
+    assert 'bot_identity' not in body['channels'] and body['token_source'] == 'taplist'
 
 
 def test_publish_now_route():

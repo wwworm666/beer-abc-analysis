@@ -176,7 +176,11 @@ check_channel: getMe -> getChat -> getChatMember(бот). can_post: у кана�
 (PRIVATE_CHAT_TEXT). Результат сохраняется у бара (content_channels.save_check),
 кроме сбоя связи (нет ответа, 429, 5xx): saved=false, прежняя проверка остаётся.
 send_test: sendMessage «Проверка связи с сайтом» в канал бара — сообщение видят
-подписчики канала, его можно удалить.
+подписчики канала, его можно удалить. Доставленное сообщение подключает
+неподключённый канал в том же запросе: в канал пишут только администраторы с
+правом «Публикация сообщений», поэтому сохраняется проверка по чату из ответа
+Telegram (check.via 'test', без getChatMember); личный чат или ответ без чата —
+не подключает. Ответ — {ok, message_id, error, chat, connected}.
 
 ### Чего нет
 
@@ -193,6 +197,9 @@ send_test: sendMessage «Проверка связи с сайтом» в кан
   сохраняется, остановка идущей рассылки, бюджет рассылок и продолжение, «Отправить
   сейчас» — только очередь, _ACTIVE_ATTEMPTS, длина в UTF-16, личный чат и
   совпадение чата напоминаний с каналом (docs/content-plan.md, Changelog).
+- 2026-10-09 — доставленное тестовое сообщение само подключает канал (send_test,
+  check.via 'test'): отдельная проверка после теста попала в перезапуск сайта, и
+  канал Лиговского с работающим ботом остался не подключён.
 """
 
 import copy
@@ -1483,13 +1490,34 @@ def check_channel(bar: str, user: Optional[dict], *, transport, channels=None) -
     return {'check': dict(check, chat=chat), 'saved': True, 'channels': settings}
 
 
+def _check_from_message(message, bot_username: Optional[str]) -> Optional[dict]:
+    """Проверка канала по доставленному сообщению: чат из ответа Telegram на
+    sendMessage. Личный чат или ответ без чата — None (каналом бара не считаем)."""
+    info = message.get('chat') if isinstance(message, dict) else None
+    if not isinstance(info, dict) or info.get('type') not in ('channel', 'supergroup', 'group'):
+        return None
+    return {'ok': True, 'can_post': True, 'error': None, 'chat_title': info.get('title'),
+            'chat_type': info.get('type'), 'chat_username': info.get('username'), 'chat_id': info.get('id'),
+            'bot_username': bot_username, 'via': 'test'}
+
+
 def send_test(bar: str, user: Optional[dict], *, transport, channels=None) -> dict:
     """Тестовое сообщение «Проверка связи с сайтом» в канал бара.
-    -> {ok, message_id, error, chat}. Сообщение видят подписчики канала."""
+    -> {ok, message_id, error, chat, connected, channels (настройки)}. Сообщение
+    видят подписчики канала.
+
+    Доставленное сообщение доказывает, что бот может публиковать: в канал пишут
+    только администраторы с правом «Публикация сообщений». Поэтому неподключённый
+    канал подключается тут же, в этом же запросе, проверкой по чату из ответа
+    Telegram (check.via = 'test'), без getChatMember. connected — этот тест
+    подключил канал. 2026-10-09: тест на Лиговском дошёл, а отдельная проверка после
+    него попала в перезапуск сайта при выкладке — канал остался не подключён, и
+    «Таплист пятницы» не ушёл."""
     channels = channels or channels_mod.get_channels_store()
-    _settings, chat = _bar_chat(channels, bar)
+    settings, chat = _bar_chat(channels, bar)
     if transport is None:
-        return {'ok': False, 'message_id': None, 'error': NO_TOKEN_TEXT, 'chat': chat}
+        return {'ok': False, 'message_id': None, 'error': NO_TOKEN_TEXT, 'chat': chat, 'connected': False,
+                'channels': settings}
     kind, result, error = classify(transport.call('sendMessage', {
         'chat_id': chat, 'text': channels_mod.TEST_MESSAGE_TEXT, 'disable_web_page_preview': True}), transport)
     if kind == 'network':
@@ -1498,7 +1526,14 @@ def send_test(bar: str, user: Optional[dict], *, transport, channels=None) -> di
     ids = _message_ids(result) if ok else []
     channels.note(f'Тестовое сообщение в канал {channels_mod.bar_short(bar)} ({chat}): '
                   + ('доставлено' if ok else error), user)
-    return {'ok': ok, 'message_id': ids[0] if ids else None, 'error': None if ok else error, 'chat': chat}
+    connected = False
+    if ok and not channels_mod.telegram_bar_ready((settings.get('telegram') or {}).get(bar)):
+        check = _check_from_message(result, channels_mod.bot_username(settings, getattr(transport, 'token', None)))
+        if check:
+            saved = channels.save_check(bar, chat, check, user)
+            connected = channels_mod.telegram_bar_ready((saved.get('telegram') or {}).get(bar))
+    return {'ok': ok, 'message_id': ids[0] if ids else None, 'error': None if ok else error, 'chat': chat,
+            'connected': connected, 'channels': channels.load()}
 
 
 # ---------------------------------------------------------------------------
