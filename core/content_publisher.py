@@ -200,6 +200,8 @@ Telegram (check.via 'test', без getChatMember); личный чат или о
 - 2026-10-09 — доставленное тестовое сообщение само подключает канал (send_test,
   check.via 'test'): отдельная проверка после теста попала в перезапуск сайта, и
   канал Лиговского с работающим ботом остался не подключён.
+- 2026-10-09 — гифка к таплисту (send_with_gif): подпись до 1024 или гифка отдельным
+  сообщением перед текстом; выбор у размещения (gif_choice в build_post).
 """
 
 import copy
@@ -708,7 +710,7 @@ def build_post(run: _Run, material: dict, placement: dict, pub_date: Optional[st
     gif = None
     if material.get('kind') == 'live':
         live = cp.render_live(material.get('live_source'), placement.get('bar'), text, pub_date=pub_date,
-                              now=run.now, channel=channel, has_media=bool(names))
+                              now=run.now, channel=channel, has_media=bool(names), gif_choice=placement.get('gif'))
         # Стоп-правило: ok False — отправлять нельзя (файлы всё равно собираются:
         # напоминанию об Instagram они нужны, чтобы показать, что именно стоит).
         problems.extend(p['text'] for p in live['problems'])

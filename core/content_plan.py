@@ -173,7 +173,8 @@ stats — по этим материалам). С month — обычный ме�
 ## Правила редактирования
 
 - Изменилось СОДЕРЖАНИЕ утверждённого/стоящего на паузе размещения (канал, бар,
-  аудитория, итоговый текст, итоговые медиа, тип материала или источник) →
+  аудитория, итоговый текст, итоговые медиа, тип материала или источник, выбор гифки
+  таплиста — поле gif, с 2026-10-09) →
   размещение возвращается в черновик, утверждение снимается, в журнале
   unapprove_auto, ответ несёт unapproved: [id]. Сравнивается «подпись
   содержания» до и после правки, поэтому правка общего текста НЕ трогает
@@ -481,6 +482,11 @@ TAPLIST_TEMPLATE = '{вступление}\n\n{таплист}\n\n{концов�
 # TAPLIST_TEMPLATE. Только точное совпадение (без учёта пробелов по краям): свой текст
 # владельца выходит как написан.
 LEGACY_TAPLIST_TEMPLATES = ('Таплист пятницы — {бар}, {дата}\n\n{таплист}',)
+# Выбор гифки у размещения таплиста (поле gif, решение владельца 2026-10-09: «должна быть
+# возможность выбора»): None — автоматически по правилу недели и бара (core/taplist_gifs),
+# GIF_NONE — без гифки, иначе адрес страницы гифки из набора resources/taplist_post_gifs.json.
+GIF_NONE = 'none'
+GIF_ERROR = 'Гифка: выберите из набора, «без гифки» или «автоматически»'
 LIVE_SOURCES = {
     'taplist': {
         'key': 'taplist', 'name': 'Таплист бара',
@@ -824,6 +830,35 @@ def parse_audience(value) -> Optional[dict]:
     return {'segment': segment}
 
 
+def parse_gif(value) -> Optional[str]:
+    """Выбор гифки размещения: None, '' или 'auto' — автоматически; 'none' — без гифки;
+    адрес страницы гифки из набора или её номер с единицы (1..N) -> адрес страницы."""
+    if value is None or isinstance(value, bool):
+        if value is None:
+            return None
+        raise ValueError(GIF_ERROR)
+    text = str(value).strip()
+    if text in ('', 'auto'):
+        return None
+    if text == GIF_NONE:
+        return GIF_NONE
+    gifs = taplist_gifs.load_gifs()
+    if text.isdigit():
+        number = int(text)
+        if 1 <= number <= len(gifs):
+            return gifs[number - 1]['page']
+        raise ValueError(GIF_ERROR)
+    if any(item['page'] == text for item in gifs):
+        return text
+    raise ValueError(GIF_ERROR)
+
+
+def gif_allowed(material: dict, placement: dict) -> bool:
+    """Гифку можно выбрать: таплист (live из LIVE_SOURCES) в Telegram-канале бара."""
+    return (material.get('kind') == 'live' and material.get('live_source') in LIVE_SOURCES
+            and placement.get('channel') == 'telegram')
+
+
 def _norm_filter_bar(value) -> Optional[str]:
     """Фильтр по бару для чтения: '', None и 'all' — без фильтра."""
     text = str(value or '').strip()
@@ -1134,7 +1169,7 @@ def audience_info(placement: dict, sizer: Optional[Callable] = None) -> Optional
 # отдаются, вместо них — stats.
 DELIVERY_PUBLIC_KEYS = ('state', 'started_at', 'finished_at', 'retry_at', 'chat', 'chat_username',
                         'message_ids', 'error', 'reminded_at', 'reminded_for', 'problems', 'stats',
-                        'send_now', 'continuation', 'stop_requested')
+                        'send_now', 'continuation', 'stop_requested', 'gif')
 # Instagram: состояния «напоминание уже было» — повторно для того же времени поста
 # не шлём (reminded_for — время поста, для которого оно было; пост перенесли — снова).
 REMINDED_STATES = ('reminded', 'reminder_failed', 'reminder_late')
@@ -1352,6 +1387,43 @@ def material_summary(states: list, live: bool = False) -> dict:
     return result(10, 'scheduled', LIVE_SCHEDULED_LABEL if live else 'Запланировано', 'success')
 
 
+def gif_info(material: dict, placement: dict, media: Optional[List[str]] = None) -> Optional[dict]:
+    """Гифка размещения для экрана (карточка, блок «Гифки к постам», окно выбора):
+    {choice: 'auto'|'manual'|'none', number, total, title, page, note, auto} или None —
+    гифке здесь не место (не таплист, не канал бара, бар не выбран, свои фото или видео).
+    auto — гифка по правилу (тем же, что при выходе, core/taplist_gifs.gif_for) для даты
+    размещения: что будет, если вернуть «автоматически»; без даты — None. 'none' — без
+    полей гифки, только choice и auto.
+    Ссылку на файл экран берёт из GET /api/content-plan/gifs (здесь сети нет)."""
+    if not gif_allowed(material, placement) or placement.get('bar') not in TAPLIST_BAR_IDS:
+        return None
+    if media is None:
+        media = effective_media(material, placement)
+    if media:
+        return None
+    try:
+        gifs = taplist_gifs.load_gifs()
+    except (OSError, ValueError):
+        return None
+    auto = None
+    try:
+        if placement.get('date'):
+            day = datetime.strptime(str(placement['date']), '%Y-%m-%d').date()
+            auto = taplist_gifs.gif_for(day, TAPLIST_BAR_IDS[placement['bar']], gifs)
+    except ValueError:              # дата не читается — экран месяца из-за гифки не падает
+        auto = None
+    choice = placement.get('gif')
+    if choice == GIF_NONE:
+        return {'choice': 'none', 'auto': auto}
+    for index, item in enumerate(gifs):
+        if choice and item['page'] == choice:
+            return {'choice': 'manual', 'number': index + 1, 'total': len(gifs), 'title': item['title'],
+                    'page': item['page'], 'note': item.get('note') or '', 'auto': auto}
+    if auto is None:
+        return {'choice': 'auto', 'auto': None}
+    return dict(auto, choice='auto', auto=auto)
+
+
 def _placement_view(material: dict, placement: dict, now_str: str,
                     sizer: Optional[Callable] = None) -> Tuple[dict, str, List[dict]]:
     state, missing = display_state(material, placement, now_str)
@@ -1371,6 +1443,7 @@ def _placement_view(material: dict, placement: dict, now_str: str,
         'audience_info': audience_info(placement, sizer),
         'delivery': delivery_view(placement),
         'post_url': post_url(placement),
+        'gif_info': gif_info(material, placement, media),
     })
     return view, state, missing
 
@@ -1405,7 +1478,7 @@ def _content_signature(material: dict, placement: dict) -> tuple:
     """Всё, что уходит в публикацию: изменилось — утверждение снимается."""
     return (placement.get('channel'), placement.get('bar'), _segment(placement),
             effective_text(material, placement), tuple(effective_media(material, placement)),
-            material.get('kind'), material.get('live_source'))
+            material.get('kind'), material.get('live_source'), placement.get('gif'))
 
 
 def _placement_label(placement: dict) -> str:
@@ -1531,11 +1604,12 @@ def _post_day(day, moment: datetime) -> date:
 
 
 def render_live(source, bar, template, pub_date=None, snapshot=None, registry=None, now=None,
-                channel=None, has_media=None, names=None) -> dict:
+                channel=None, has_media=None, names=None, gif_choice=None) -> dict:
     """Подставить живые данные в шаблон и проверить правила остановки.
 
     -> {ok, text, entities, problems:[{code, text}], length, limit, limit_note,
-    channel, has_media, rows, data_at, taps_changed_at, phrase, gif, legacy_template, notes}.
+    channel, has_media, rows, data_at, taps_changed_at, phrase, gif, gif_choice, legacy_template,
+    notes}.
     notes — [{code, text}] предупреждения без остановки: unverified — кран без проверенной
     связи с Untappd выйдет без ссылки и стиля (решение владельца 2026-10-09).
     phrase — {variant, total, intro, outro}: какой вариант вступления и концовки выбран
@@ -1545,7 +1619,11 @@ def render_live(source, bar, template, pub_date=None, snapshot=None, registry=No
     gif — гифка к посту в Telegram-канале (решение владельца 2026-10-09, core/taplist_gifs):
     {number, total, title, page, note, separate}; separate — текст длиннее подписи
     (TG_CAPTION_LIMIT): гифка уйдёт отдельным сообщением перед текстом. None — бар не
-    выбран, площадка не Telegram (Instagram, бот) или у размещения свои фото/видео.
+    выбран, площадка не Telegram (Instagram, бот), у размещения свои фото/видео или
+    выбрано «без гифки». gif_choice — выбор у размещения (поле gif, parse_gif): None —
+    автоматически, GIF_NONE — без гифки, адрес страницы из набора — эта гифка; в ответе
+    gif_choice — 'auto' | 'manual' | 'none' (None — гифке здесь не место). Гифку, которой
+    больше нет в наборе, заменяет автоматическая.
     rows — строки таплиста [{tap_number, brewery, beer_name, style, abv, mapped,
     mapping_message, name, untappd_url, new, line}]: name — пивоварня и название
     так, как в посте, new — пометка «новинка». ok=False означает «публикация будет
@@ -1673,19 +1751,29 @@ def render_live(source, bar, template, pub_date=None, snapshot=None, registry=No
         add('text_too_long', f'текст длиннее {limit} знаков')
     # Гифка — только у поста в Telegram-канале без своих фото и видео: у Instagram пост
     # выкладывают вручную, рассылке бота её не просили, свои файлы выбрал человек.
-    gif = None
+    gif, gif_mode = None, None
     if bar_ok and source in LIVE_SOURCES and channel in (None, 'telegram') and not with_media:
         try:
-            gif = taplist_gifs.gif_for(_post_day(day, moment), TAPLIST_BAR_IDS[bar])
-            gif['separate'] = text_units(text, 'telegram') > TG_CAPTION_LIMIT
+            gif_mode = 'auto'
+            if gif_choice == GIF_NONE:
+                gif_mode = 'none'
+            else:
+                gif = taplist_gifs.gif_for(_post_day(day, moment), TAPLIST_BAR_IDS[bar])
+                gifs = taplist_gifs.load_gifs()
+                for index, item in enumerate(gifs):
+                    if gif_choice and item['page'] == gif_choice:
+                        gif = {'number': index + 1, 'total': len(gifs), 'title': item['title'],
+                               'page': item['page'], 'note': item.get('note') or ''}
+                        gif_mode = 'manual'
+                gif['separate'] = text_units(text, 'telegram') > TG_CAPTION_LIMIT
         except (OSError, ValueError) as e:      # набор не читается — пост без гифки
             print(f'[CONTENT_PLAN] taplist gifs unavailable: {e!r}')
-            gif = None
+            gif, gif_mode = None, None
     return {'ok': not problems, 'text': text, 'entities': entities, 'problems': problems, 'length': length,
             'limit': limit, 'limit_note': limit_note_for(channel, with_media),
             'channel': channel, 'has_media': with_media, 'rows': rows_out,
             'data_at': fmt_stamp(moment), 'taps_changed_at': fmt_stamp(changed) if changed else None,
-            'phrase': phrase, 'gif': gif, 'legacy_template': legacy, 'notes': notes}
+            'phrase': phrase, 'gif': gif, 'gif_choice': gif_mode, 'legacy_template': legacy, 'notes': notes}
 
 
 # ---------------------------------------------------------------------------
@@ -1705,17 +1793,18 @@ _PLACEMENT_DEFAULTS = {
     'bar': BAR_ALL, 'date': None, 'time': None, 'text': None, 'media': None, 'audience': None,
     'approved_at': None, 'approved_by': None, 'approved_snapshot': None, 'published_at': None,
     'published_by': None, 'failed_error': None, 'updated_at': None, 'updated_by': None,
-    'delivery': None,
+    'delivery': None, 'gif': None,
 }
 # origin сюда не входит: его ставит сервер при создании (см. `_reject_origin`).
 MATERIAL_EDITABLE = ('title', 'kind', 'live_source', 'planned_date', 'base_text', 'note', 'media_required',
                      'agent_rationale', 'shot_list')
-PLACEMENT_EDITABLE = ('channel', 'bar', 'date', 'time', 'text', 'media', 'audience')
+PLACEMENT_EDITABLE = ('channel', 'bar', 'date', 'time', 'text', 'media', 'audience', 'gif')
 FIELD_NAMES = {
     'title': 'название', 'kind': 'тип', 'live_source': 'источник данных', 'planned_date': 'дата темы',
     'base_text': 'текст', 'note': 'заметка', 'media_required': '«нужно фото»', 'channel': 'площадка',
     'bar': 'бар', 'date': 'дата', 'time': 'время', 'text': 'свой текст', 'media': 'подборка файлов',
     'audience': 'аудитория', 'agent_rationale': '«почему этот пост»', 'shot_list': '«что снять»',
+    'gif': 'гифка',
 }
 
 
@@ -1872,6 +1961,8 @@ def _clean_placement_fields(fields: dict) -> dict:
             out['media'] = unique
     if 'audience' in fields:
         out['audience'] = parse_audience(fields['audience'])
+    if 'gif' in fields:
+        out['gif'] = parse_gif(fields['gif'])
     return out
 
 
@@ -1896,6 +1987,9 @@ def _copy_placement(placement: dict, new_date: Optional[str], keep_content: bool
         'status': 'draft', 'approved_at': None, 'approved_by': None, 'approved_snapshot': None,
         'published_at': None, 'published_by': None, 'failed_error': None,
         'updated_at': now_str, 'updated_by': login, 'delivery': None,
+        # Выбор гифки не копируется: у копии (следующей пятницы) гифка по правилу, иначе
+        # одна выбранная гифка разошлась бы на весь месяц.
+        'gif': None,
     }
 
 
@@ -2707,7 +2801,7 @@ class ContentPlanStore:
                 unique.append(bar)
         if BAR_ALL in unique and len(unique) > 1:
             raise ValueError('«Вся сеть» не сочетается с отдельными барами')
-        clean = _clean_placement_fields({k: fields[k] for k in ('date', 'time', 'text', 'media', 'audience')
+        clean = _clean_placement_fields({k: fields[k] for k in ('date', 'time', 'text', 'media', 'audience', 'gif')
                                          if k in fields})
         if channel != 'bot' and clean.get('audience'):
             raise ValueError('Аудитория задаётся только для рассылки через бота')
@@ -2718,6 +2812,8 @@ class ContentPlanStore:
             material = self._material(data, material_id)
             guard_draft_mode(user, material)
             _check_media_subset(material, clean.get('media'))
+            if clean.get('gif') is not None and not gif_allowed(material, {'channel': channel}):
+                raise ValueError('Гифка выбирается только у таплиста в канале бара')
             day = clean['date'] if 'date' in clean else material.get('planned_date')
             for bar in unique:
                 placement = {
@@ -2728,6 +2824,7 @@ class ContentPlanStore:
                     'status': 'draft', 'approved_at': None, 'approved_by': None,
                     'approved_snapshot': None, 'published_at': None, 'published_by': None,
                     'failed_error': None, 'updated_at': now_str, 'updated_by': login, 'delivery': None,
+                    'gif': clean.get('gif'),
                 }
                 material['placements'].append(placement)
                 created.append(placement['id'])
@@ -2768,6 +2865,10 @@ class ContentPlanStore:
                 if clean.get('audience'):
                     raise ValueError('Аудитория задаётся только для рассылки через бота')
                 placement['audience'] = None
+            if placement.get('gif') is not None and not gif_allowed(material, placement):
+                if clean.get('gif') is not None:
+                    raise ValueError('Гифка выбирается только у таплиста в канале бара')
+                placement['gif'] = None             # площадку сменили — выбор гифки больше не к месту
             unapproved = []
             if placement['status'] in UNAPPROVE_ON_CONTENT and _content_signature(material, placement) != before:
                 _to_draft(placement)
