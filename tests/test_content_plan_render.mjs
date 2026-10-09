@@ -1518,5 +1518,36 @@ test('каналы: «Подключить»; удачное тестовое с
     assert.match(fnBody('testChannel'), /if \(sent && !barChecked\(bar\)\) checkChannel\(bar\);/);
 });
 
+test('каналы: дошедший тест подключает канал ответом сервера — без отдельной проверки', () => {
+    // Регрессия 2026-10-09: тест на Лиговском дошёл, а проверка после него попала в
+    // перезапуск сайта. Теперь канал подключает сам ответ теста (connected, настройки).
+    const { cp, GH, calls, toasts } = loadReal();
+    cp.state.month = '2026-10';
+    cp.state.data = { materials: [] };      // план уже загружен (как на странице)
+    const stale = { channels: { telegram: { ligovskiy: { chat: '@kult_lig', checked_at: '2026-10-04T03:26',
+        check: { ok: true, can_post: false, chat: '@kult_lig', error: 'Bad Request: member list is inaccessible' } } },
+        instagram: {}, bot: {} } };
+    cp.state.chan = { data: stale, busy: {}, tests: {} };
+    assert.equal(cp.chanBarStatus('ligovskiy').label, 'Нет права публиковать');
+    const answer = { ok: true, message_id: 7, error: null, chat: '@kult_lig', connected: true,
+        channels: { telegram: { ligovskiy: { chat: '@kult_lig', checked_at: '2026-10-09T16:30',
+            check: { ok: true, can_post: true, chat: '@kult_lig', via: 'test', chat_title: 'kult_lig' } } },
+            instagram: {}, bot: {} } };
+    GH.api = (...args) => {
+        calls.push(args);
+        return args[1] === '/api/content-plan/channels/test' ? { then: (fn) => fn(answer) } : new Promise(() => {});
+    };
+    cp.testChannel('ligovskiy');
+    assert.equal(cp.barChecked('ligovskiy'), true, 'ответ теста не подключил канал на странице');
+    assert.equal(cp.chanBarStatus('ligovskiy').label, 'Можно публиковать');
+    assert.match(cp.chanBarStatus('ligovskiy').note, /проверено .* тестовым сообщением/);
+    assert.match(toasts[toasts.length - 1][0], /тестовое сообщение дошло, канал подключён/);
+    assert.ok(calls.some((c) => c[0] === 'GET' && /^\/api\/content-plan\?month=/.test(c[1])),
+        'после подключения план не перечитан (баннер «что уходит само»)');
+    assert.match(fnBody('testChannel'), /if \(res && res\.channels\) S\.chan\.data = res;/);
+    // Подсказка «Как это работает» — о подключении тестом.
+    assert.match(fnBody('chanTelegramHtml'), /Дошедший тест сам подключает канал/);
+});
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed === 0 ? 0 : 1);
