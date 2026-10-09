@@ -613,6 +613,9 @@ def _assemble(month, date_from, date_to, bonus_emps, kpi_emps, hours_emps,
             # Блюда KPI, которых за месяц не продал никто (обычно переименованы
             # в iiko): без этого /me молча показывал «0», а страница ЗП — предупреждение
             'dishes_not_found': kpi_data.get('dishes_not_found') or [],
+            # То же для скидок KPI («ЯндексКарты Лагер»), которых за месяц не
+            # провёл никто: ноль на /me идёт с той же оговоркой, что на /salary
+            'discounts_not_found': kpi_data.get('discounts_not_found') or [],
         },
         'employees': employees,
         'unlinked_hours': unlinked,
@@ -732,8 +735,9 @@ def _kpi_for(kpi_row, kpi_keys, kpi_config, shifts_planned=0):
             item['dish_facts'] = src.get('dish_facts') or {}
             item['no_dishes'] = bool(src.get('no_dishes'))
         # fact_parts — числитель и знаменатель доли («Доля чеков с едой»:
-        # 139 / 375), чтобы «Как считается» в карточке совпадал со страницей ЗП
-        for extra in ('unit', 'decimals', 'no_targets', 'fact_parts'):
+        # 139 / 375), discount — какую скидку считает показатель («ЯндексКарты
+        # Лагер»): «Как считается» в карточке совпадает со страницей ЗП
+        for extra in ('unit', 'decimals', 'no_targets', 'fact_parts', 'discount'):
             if src.get(extra) is not None:
                 item[extra] = src.get(extra)
         items.append(item)

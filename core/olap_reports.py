@@ -2217,6 +2217,97 @@ class OlapReports:
         print(f"[OK] OLAP prodazhi blyud: {len(rows)} strok, sotrudnikov {len(by_waiter)}")
         return by_waiter
 
+    def get_discount_checks_by_waiter(self, date_from, date_to, bar_name=None):
+        """Чеки со скидкой по сотрудникам и названию скидки — источник KPI «сколько
+        раз провели скидку» (с октября 2026: «ЯндексКарты Лагер» за отзыв на
+        Яндекс Картах).
+
+        Группировка AuthUser + ItemSaleEventDiscountType, агрегат
+        UniqOrderId.OrdersCount: в строке «сотрудник × скидка» — уникальные чеки
+        сотрудника, где эта скидка легла хотя бы на одну позицию. Скидка на чек,
+        которую iiko разложил на несколько позиций, — всё равно один чек.
+
+        Почему не OrderDiscount.Type: это поле уровня чека, и при двух скидках
+        на чеке iiko отдаёт их одной строкой через запятую («Orderia, Брецель к
+        пиву», проверено 2026-10-09). Точное совпадение по названию потеряло бы
+        чеки, где гость ещё и провёл карту лояльности. ItemSaleEventDiscountType —
+        поле позиции, у строки ровно одно название (урок «Скидка чека в iiko —
+        список через запятую», docs/lessons.md).
+
+        Фильтра по названию в запросе нет: сопоставление делает вызывающая
+        сторона (core/kpi_calculator.normalize_discount_name — без регистра и
+        пробелов), чтобы небольшая разница в написании не превратилась молча в
+        ноль. Ответ маленький: сотрудники × названия скидок за период.
+
+        Returns:
+            {waiter_name: {discount_name: checks}} — позиции без скидки (пустое
+            название) пропущены. None — запрос не удался: вызывающая сторона
+            отвечает ошибкой, а не нулями (премия по KPI зависит от этого числа).
+        """
+        if not self.token:
+            print("[ERROR] Snachala nuzhno podklyuchitsya (vizovite connect())")
+            return None
+
+        print(f"\n[OLAP] Zaprashivayu cheki so skidkami po sotrudnikam: {date_from} - {date_to}")
+
+        request = {
+            "reportType": "SALES",
+            "buildSummary": "false",
+            "groupByRowFields": ["AuthUser", "ItemSaleEventDiscountType"],
+            "groupByColFields": [],
+            "aggregateFields": ["UniqOrderId.OrdersCount"],
+            "filters": {
+                "OpenDate.Typed": {
+                    "filterType": "DateRange",
+                    "periodType": "CUSTOM",
+                    "from": f"{date_from}",
+                    "to": f"{date_to}"
+                },
+                "DeletedWithWriteoff": {
+                    "filterType": "IncludeValues",
+                    "values": ["NOT_DELETED"]
+                },
+                "OrderDeleted": {
+                    "filterType": "IncludeValues",
+                    "values": ["NOT_DELETED"]
+                }
+            }
+        }
+        if bar_name:
+            request["filters"]["Store.Name"] = {
+                "filterType": "IncludeValues",
+                "values": [bar_name]
+            }
+
+        url = f"{self.api.base_url}/v2/reports/olap"
+        try:
+            response = requests.post(url, params={"key": self.token}, json=request,
+                                     headers={"Content-Type": "application/json"},
+                                     timeout=60)
+            if response.status_code != 200:
+                print(f"[ERROR] OLAP cheki so skidkami: HTTP {response.status_code}: {response.text[:300]}")
+                return None
+            rows = response.json().get('data', []) or []
+        except Exception as e:
+            print(f"[ERROR] OLAP cheki so skidkami: {e}")
+            return None
+
+        by_waiter = {}
+        for row in rows:
+            waiter = row.get('AuthUser', '')
+            discount = row.get('ItemSaleEventDiscountType') or ''
+            if not waiter or not str(discount).strip():
+                continue
+            try:
+                checks = int(float(row.get('UniqOrderId.OrdersCount', 0) or 0))
+            except (TypeError, ValueError):
+                continue
+            cell = by_waiter.setdefault(waiter, {})
+            cell[discount] = cell.get(discount, 0) + checks
+
+        print(f"[OK] OLAP cheki so skidkami: {len(rows)} strok, sotrudnikov {len(by_waiter)}")
+        return by_waiter
+
     def get_dish_names(self, date_from, date_to):
         """Список проданных за период блюд — каталог для выбора в KPI-целях.
 

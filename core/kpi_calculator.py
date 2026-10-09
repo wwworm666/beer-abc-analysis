@@ -24,6 +24,10 @@
 (названия из iiko), факт — сумма продаж этих позиций из OLAP. Так ставится
 цель вида «продажи брискетов и щёчек».
 
+Метрики «сколько раз провели скидку» (поле `discount` в AVAILABLE_METRICS,
+с октября 2026 — «ЯндексКарты Лагер»): факт — чеки сотрудника, где проведена
+скидка с этим названием в iiko. Штучные, поэтому тоже на кассовую смену.
+
 Направление метрики выводится из целей: цель выше минимума — «больше лучше»,
 минимум выше цели — «меньше лучше» (опоздания, отмены). Пара «цель 0 / мин 0»
 считается НЕ заданной: такая точка не участвует ни во взвешивании, ни в
@@ -101,6 +105,15 @@ AVAILABLE_METRICS = {
     'work_hours':          {'name': 'Часы работы',             'unit': 'ч',  'decimals': 1, 'extensive': True},
     'late_count':          {'name': 'Опоздания',               'unit': 'шт', 'decimals': 0, 'extensive': True, 'lower_is_better': True},
     'loyalty_cards_count': {'name': 'Новые карты лояльности',  'unit': 'шт', 'decimals': 0, 'extensive': True},
+    # Сколько раз сотрудник провёл скидку `discount` (название ровно как в iiko):
+    # чеки, где она легла хотя бы на одну позицию; один чек — один раз, сколько бы
+    # позиций ни задела скидка. Факт — core/olap_reports.py
+    # get_discount_checks_by_waiter, сопоставление по normalize_discount_name.
+    # «ЯндексКарты Лагер» (владелец 2026-10-09): 470 ₽ гостю за отзыв на Яндекс
+    # Картах — «бокал ФХ со 100% скидкой или любое пиво с хорошим дисконтом»;
+    # KPI «Отзывы на Яндекс Картах» с октября 2026, цель 10 шт на 15 смен.
+    'yandex_lager_count':  {'name': 'Скидки «ЯндексКарты Лагер»', 'unit': 'шт', 'decimals': 0,
+                            'extensive': True, 'discount': 'ЯндексКарты Лагер'},
     'plan_fact_percent':   {'name': 'План/Факт',               'unit': '%',  'decimals': 1},
     # Метрики по ВЫБРАННЫМ блюдам (custom-KPI: «продажи брискетов и щёчек»).
     # Сами блюда задаются в конфиге KPI (`dishes`), факт приходит из OLAP по
@@ -151,6 +164,26 @@ def normalize_dish_name(name: str) -> str:
     регистром или двойным пробелом — сравниваем по нормализованному виду.
     """
     return ' '.join(str(name or '').split()).lower()
+
+
+def discount_of(metric: str) -> Optional[str]:
+    """Название скидки iiko, которую считает метрика; None — метрика не про скидку."""
+    return (AVAILABLE_METRICS.get(metric) or {}).get('discount') or None
+
+
+def discount_metrics() -> Dict[str, str]:
+    """{метрика: название скидки} — все метрики «сколько раз провели скидку»."""
+    return {m: info['discount'] for m, info in AVAILABLE_METRICS.items() if info.get('discount')}
+
+
+def normalize_discount_name(name: str) -> str:
+    """Ключ сопоставления скидки: без регистра, пробелов и различия «ё»/«е».
+
+    Название скидки в каталоге метрик вписано вручную со слов владельца, а не
+    выбрано из iiko, поэтому сравнение терпимее, чем у блюд: «Яндекс Карты
+    лагер» в кассе должно совпасть с «ЯндексКарты Лагер», а не дать молча 0.
+    """
+    return ''.join(str(name or '').split()).lower().replace('ё', 'е')
 
 
 def resolve_fact(metrics: dict, metric_field: str, kpi_conf: dict = None):
@@ -684,6 +717,10 @@ class KpiCalculator:
                     'num_label': parts['num_label'],
                     'den_label': parts['den_label'],
                 }
+            discount = discount_of(metric_field)
+            if discount:
+                # Только показ: какую скидку считает показатель («Как считается»)
+                kpi_row['discount'] = discount
             if per_shift:
                 # Главные числа для человека — за ЕГО смены, в штуках: «сделал 8
                 # из 10», а не «0,80 из 2,00 за смену». Значение «за смену»

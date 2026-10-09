@@ -268,5 +268,44 @@ test('доля с fact_parts: «Как считается» — 139 / 375 × 100
     assert.doesNotMatch(plain, /Как считается/);
 });
 
+// «ЯндексКарты Лагер» (2026-10-09): что считает показатель на скидку — свёрнуто
+// в «Как считается»; скидку, которую за период не провёл никто, блок раскрывает с
+// предупреждением. Числа — прогон calculate_employee: 12 смен на Лиговском,
+// 6 скидок, цель 10 на 15 смен (0,6667 за смену), минимум 0, три KPI месяца.
+function yandex() {
+    return {
+        name: 'Отзывы на Яндекс Картах (шт)', metric: 'yandex_lager_count', per_shift: true,
+        fact: 0.5, fact_raw: 6, shifts_divisor: 12, target: 0.6667, min: 0,
+        ratio: 0.75, capped_ratio: 0.75, intermediate_premium: 3750,
+        no_targets: false, discount: 'ЯндексКарты Лагер',
+        location_targets: { 'Лиговский': { target: 0.6667, min: 0, shifts: 12 } },
+    };
+}
+const YCAT = Object.assign({}, CATALOG, {
+    yandex_lager_count: { name: 'Скидки «ЯндексКарты Лагер»', unit: 'шт', decimals: 0,
+        extensive: true, discount: 'ЯндексКарты Лагер' },
+});
+function yandexModel(over) {
+    return model(Object.assign({ items: [yandex()], catalog: YCAT, basePerKpi: 5000,
+        shiftsPerLocation: { 'Лиговский': 12 } }, over || {}));
+}
+test('скидка: «Как считается» — чеки со скидкой «ЯндексКарты Лагер», 6 за 12 смен', () => {
+    const h = render(yandexModel());
+    const t = text(h);
+    assert.match(t, /Как считается ?Чеки, где проведена скидка «ЯндексКарты Лагер»: 6 за 12 смен\./);
+    assert.match(t, /скидка на несколько позиций одного чека считается один раз/);
+    // цель 10 на 15 смен -> на его 12 смен 8 шт, факт 6 шт как есть
+    assert.match(t, /Факт: 6 шт за 12 смен/);
+    assert.match(t, /×18 шт/);
+    // пояснение свёрнуто, предупреждения нет
+    assert.doesNotMatch(h, /<details class="kb-more" open><summary>Как считается/);
+    assert.doesNotMatch(t, /не провёл никто/);
+});
+test('скидка, которую не провёл никто: блок раскрыт и предупреждает', () => {
+    const h = render(yandexModel({ discountsNotFound: ['Яндекс Карты лагер'] }));
+    assert.match(h, /<details class="kb-more" open><summary>Как считается/);
+    assert.match(text(h), /Скидку «ЯндексКарты Лагер» за период не провёл никто/);
+});
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed === 0 ? 0 : 1);

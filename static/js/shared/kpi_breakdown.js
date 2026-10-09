@@ -31,11 +31,12 @@
    model: {
      title, total, koef, totalShifts, allShifts, norm, pool, basePerKpi,
      maxRatio, shiftsPerLocation: {точка: смен}, catalog: AVAILABLE_METRICS,
-     dishesNotFound: [], plan: {open: bool, shifts: смен по графику} | null,
+     dishesNotFound: [], discountsNotFound: [],
+     plan: {open: bool, shifts: смен по графику} | null,
      items: [строка KPI расчёта: name, metric, per_shift, fact, fact_raw,
              shifts_divisor, target, min, capped_ratio (или ratio),
              intermediate_premium, no_targets, no_dishes, dishes, dish_facts,
-             location_targets]
+             location_targets, fact_parts, discount]
    } */
 (function () {
     'use strict';
@@ -329,6 +330,29 @@
             + ' × 100 = ' + esc(val(it.fact, r.unit, r.dec)) + '</span></div></details>';
     }
 
+    // Что считает показатель на скидку (it.discount из расчёта, «ЯндексКарты
+    // Лагер»): чеки, где проведена эта скидка. Скидку, которую за период не
+    // провёл никто (discountsNotFound), раскрываем с предупреждением: ноль может
+    // значить и «не проводили», и «в iiko она называется иначе».
+    function discountHtml(it, r, model) {
+        if (!it.discount) return '';
+        var key = function (s) {
+            return String(s).replace(/\s+/g, '').toLowerCase().replace(/ё/g, 'е');
+        };
+        var missing = (model.discountsNotFound || []).some(function (d) {
+            return key(d) === key(it.discount);
+        });
+        var n = r.perShift ? it.fact_raw : it.fact;
+        return '<details class="kb-more"' + (missing ? ' open' : '') + '><summary>Как считается</summary>'
+            + '<div class="kb-formula">Чеки, где проведена скидка «' + esc(it.discount) + '»: '
+            + '<span class="kb-n">' + esc(nf(n, 0, 0)) + (r.perShift ? ' за ' + esc(shiftsAcc(r.n)) : '')
+            + '</span>. Чек засчитывается тому, кто его пробил; скидка на несколько позиций '
+            + 'одного чека считается один раз.</div>'
+            + (missing ? '<div class="kb-warn">Скидку «' + esc(it.discount) + '» за период не провёл '
+                + 'никто. Если её проводили — проверьте, что в iiko она называется именно так.</div>' : '')
+            + '</details>';
+    }
+
     function ratioOf(it) {
         return it.capped_ratio != null ? it.capped_ratio : (it.ratio || 0);
     }
@@ -363,6 +387,7 @@
             + '<span class="kb-mult' + multCls + '">×' + nf(ratio, 2, 2) + '</span></div>'
             + body
             + partsHtml(it, r)
+            + discountHtml(it, r, model)
             + (it.no_targets ? '' : locationsHtml(it, r, model))
             + dishesHtml(it, r, model)
             + '</section>';
