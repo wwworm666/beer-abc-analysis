@@ -731,7 +731,9 @@ def _kpi_for(kpi_row, kpi_keys, kpi_config, shifts_planned=0):
             item['dishes'] = src.get('dishes')
             item['dish_facts'] = src.get('dish_facts') or {}
             item['no_dishes'] = bool(src.get('no_dishes'))
-        for extra in ('unit', 'decimals', 'no_targets'):
+        # fact_parts — числитель и знаменатель доли («Доля чеков с едой»:
+        # 139 / 375), чтобы «Как считается» в карточке совпадал со страницей ЗП
+        for extra in ('unit', 'decimals', 'no_targets', 'fact_parts'):
             if src.get(extra) is not None:
                 item[extra] = src.get(extra)
         items.append(item)

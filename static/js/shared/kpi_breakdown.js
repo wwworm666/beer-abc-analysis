@@ -318,6 +318,17 @@
             + '</details>';
     }
 
+    // Из чего сложена доля (fact_parts из расчёта): «Чеки с едой / все чеки × 100 =
+    // 139 / 375 × 100 = 37,1 %». Только показ — доля уже посчитана сервером.
+    function partsHtml(it, r) {
+        var p = it.fact_parts;
+        if (!p || !p.den) return '';
+        return '<details class="kb-more"><summary>Как считается</summary>'
+            + '<div class="kb-formula">' + esc(p.num_label) + ' / ' + esc(p.den_label)
+            + ' × 100 = <span class="kb-n">' + esc(nf(p.num, 0, 0)) + ' / ' + esc(nf(p.den, 0, 0))
+            + ' × 100 = ' + esc(val(it.fact, r.unit, r.dec)) + '</span></div></details>';
+    }
+
     function ratioOf(it) {
         return it.capped_ratio != null ? it.capped_ratio : (it.ratio || 0);
     }
@@ -351,6 +362,7 @@
             + '<div class="kb-head"><span class="kb-name">' + esc(it.name) + '</span>'
             + '<span class="kb-mult' + multCls + '">×' + nf(ratio, 2, 2) + '</span></div>'
             + body
+            + partsHtml(it, r)
             + (it.no_targets ? '' : locationsHtml(it, r, model))
             + dishesHtml(it, r, model)
             + '</section>';

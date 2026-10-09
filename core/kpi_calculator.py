@@ -78,6 +78,12 @@ PER_SHIFT_STORE_DECIMALS = 4
 #   цели). На формулу не влияет — направление выводится из цели и минимума.
 AVAILABLE_METRICS = {
     'kitchen_share':       {'name': 'Доля кухни',              'unit': '%',  'decimals': 1},
+    # Доля чеков с едой (владелец 2026-10-06: «доля кухни — плохой KPI, лучше доля
+    # чеков с едой»): чеки сотрудника, где есть хотя бы одна позиция группы «ЕДА»,
+    # / все его чеки × 100. Считается от чеков, а не от выручки: награждает «к пиву
+    # предложили еду», а не один дорогой заказ. Источник — routes/employee.py
+    # _build_kpi_metrics (поле checks строки «ЕДА» запроса categories).
+    'food_checks_share':   {'name': 'Доля чеков с едой',       'unit': '%',  'decimals': 1},
     'draft_share':         {'name': 'Доля розлива',            'unit': '%',  'decimals': 1},
     'bottles_share':       {'name': 'Доля фасовки',            'unit': '%',  'decimals': 1},
     'avg_check':           {'name': 'Средний чек',             'unit': '₽',  'decimals': 0},
@@ -104,6 +110,14 @@ AVAILABLE_METRICS = {
                             'extensive': True, 'dish_based': True, 'dish_source': 'count'},
     'dish_revenue':        {'name': 'Выручка по блюдам',        'unit': '₽',  'decimals': 0,
                             'extensive': True, 'dish_based': True, 'dish_source': 'revenue'},
+}
+
+# Из чего сложена доля — числитель и знаменатель для показа «139 / 375 = 37,1 %»
+# в карточке KPI (правило проекта: человек видит, как получено число, от которого
+# зависит премия). Ключи — поля metrics из routes/employee.py::_build_kpi_metrics.
+SHARE_PARTS = {
+    'food_checks_share': {'num': 'food_checks', 'den': 'total_checks',
+                          'num_label': 'Чеки с едой', 'den_label': 'все чеки'},
 }
 
 # Дефолтный конфиг KPI (если в месяце не указан kpi_config)
@@ -661,6 +675,15 @@ class KpiCalculator:
                 kpi_row['dishes'] = dishes
                 kpi_row['dish_facts'] = dish_breakdown
                 kpi_row['no_dishes'] = no_dishes
+            parts = SHARE_PARTS.get(metric_field)
+            if parts:
+                # Только показ: доля уже посчитана в metrics, здесь её слагаемые
+                kpi_row['fact_parts'] = {
+                    'num': int(metrics.get(parts['num']) or 0),
+                    'den': int(metrics.get(parts['den']) or 0),
+                    'num_label': parts['num_label'],
+                    'den_label': parts['den_label'],
+                }
             if per_shift:
                 # Главные числа для человека — за ЕГО смены, в штуках: «сделал 8
                 # из 10», а не «0,80 из 2,00 за смену». Значение «за смену»

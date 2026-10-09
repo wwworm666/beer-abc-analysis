@@ -820,7 +820,8 @@ def _build_kpi_metrics(
 
     Источники:
       summary    -> total_checks, total_revenue, discount_sum
-      categories -> draft/bottles/kitchen(ЕДА)/other revenue, markup
+      categories -> draft/bottles/kitchen(ЕДА)/other revenue, markup,
+                    food_checks (чеки строки «ЕДА») -> food_checks_share
       cashshifts -> shifts_count, total_hours, late_count
       OLAP loyalty -> loyalty_cards_count
       OLAP cancelled -> cancelled_count
@@ -846,6 +847,10 @@ def _build_kpi_metrics(
     other_revenue = 0.0
     total_cost = 0.0
     total_weighted_markup = 0.0
+    # Чеки с едой: уникальные чеки сотрудника, где есть хотя бы одна позиция
+    # группы «ЕДА» (их считает iiko в строке группы). Между группами чеки не
+    # складываются, поэтому берём ровно строку «ЕДА», а не сумму строк.
+    food_checks = 0
 
     for row in cat_rows:
         cat = row['category']
@@ -859,6 +864,7 @@ def _build_kpi_metrics(
             bottles_revenue += rev
         elif cat == 'ЕДА':
             kitchen_revenue += rev
+            food_checks += int(row.get('checks', 0) or 0)
         else:
             other_revenue += rev
 
@@ -871,6 +877,8 @@ def _build_kpi_metrics(
     bottles_share = (bottles_revenue / total_revenue * 100) if total_revenue > 0 else 0
     kitchen_share = (kitchen_revenue / total_revenue * 100) if total_revenue > 0 else 0
     other_share = (other_revenue / total_revenue * 100) if total_revenue > 0 else 0
+    # Доля чеков с едой (%) = чеки с едой / все чеки; без чеков — 0
+    food_checks_share = (food_checks / total_checks * 100) if total_checks > 0 else 0
 
     # Производные метрики
     avg_check = (total_revenue / total_checks) if total_checks > 0 else 0
@@ -893,6 +901,8 @@ def _build_kpi_metrics(
         'other_revenue': round(other_revenue, 2),
         'avg_check': round(avg_check, 2),
         'total_checks': total_checks,
+        'food_checks': food_checks,
+        'food_checks_share': round(food_checks_share, 2),
         'revenue_per_shift': round(revenue_per_shift, 2),
         'revenue_per_hour': round(revenue_per_hour, 2),
         'avg_markup': round(avg_markup, 2),
