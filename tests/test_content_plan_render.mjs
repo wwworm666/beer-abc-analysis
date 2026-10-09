@@ -280,7 +280,7 @@ test('тексты спецификации на месте', () => {
     for (const label of ['Каналы и отправка', 'Попросить агента']) {
         assert.ok(html.includes(label), `нет кнопки «${label}»`);
     }
-    assert.match(js, /При выходе подставляются данные таплиста, а \{вступление\} и \{концовка\} — фразы из ' \+\s*'набора, свои на каждую неделю и каждый бар; остальной текст не меняется\. ' \+\s*'Если данных нет или они не проверены — публикация остановится\./,
+    assert.match(js, /При выходе подставляются данные таплиста, а \{вступление\} и \{концовка\} — фразы из ' \+\s*'набора, свои на каждую неделю и каждый бар; остальной текст не меняется\. В канал бара пост уходит ' \+\s*'с гифкой из набора\. Если данных нет или они не проверены — публикация остановится\./,
         'нет пояснения к живым данным');
     // 2026-10-09: какой вариант фраз достался бару — под «Как считается» предпросмотра (phrase сервера)
     assert.match(js, /function phraseHow\(m, p\)[\s\S]*?r\.result\.phrase[\s\S]*?howHtml\('phrase-'/,
@@ -1516,6 +1516,31 @@ test('каналы: «Подключить»; удачное тестовое с
     assert.match(fnBody('chanBarHtml'), /barChecked\(b\.key\) \? 'Проверить снова' : 'Подключить'/);
     // Регрессия 2026-10-04: тест дошёл, а «Проверить» не нажали — канал оставался не подключён.
     assert.match(fnBody('testChannel'), /if \(sent && !barChecked\(bar\)\) checkChannel\(bar\);/);
+});
+
+test('предпросмотр таплиста: какая гифка уйдёт, отдельным сообщением ли, правило под «Как считается»', () => {
+    // Решение владельца 2026-10-09: «к каждому таплисту прикрепляем рандомную гифку из списка».
+    const { cp } = loadReal();
+    const m = { id: 'm1', kind: 'live' };
+    const p = { id: 'p1', channel: 'telegram', bar: 'bolshoy' };
+    const key = cp.previewKey(m, p);
+    const gif = { number: 24, total: 25, title: 'Теория большого взрыва', note: 'Пенни и Леонард смеются за пивом.',
+                  page: 'https://tenor.com/view/x-gif-1', separate: false };
+    cp.state.previewLive[key] = { result: { gif } };
+    let html = cp.gifHtml(m, p);
+    assert.match(html, /Гифка: «Теория большого взрыва» — Пенни и Леонард смеются за пивом\./);
+    assert.match(html, /href="https:\/\/tenor\.com\/view\/x-gif-1" target="_blank" rel="noopener noreferrer">открыть/);
+    assert.ok(!/отдельным сообщением перед текстом/.test(html.split('<details')[0]), 'короткий текст — подписью');
+    assert.match(html, /<details class="gh-cp-how"[\s\S]*Гифка 24 из 25\./, 'правило не свёрнуто в «Как считается»');
+    assert.match(html, /повторится через 25 недель/);
+    cp.state.previewLive[key] = { result: { gif: { ...gif, separate: true, title: '<b>' } } };
+    html = cp.gifHtml(m, p);
+    assert.match(html, /гифка уйдёт отдельным сообщением перед текстом/);
+    assert.ok(!html.includes('<b>'), 'название гифки не экранировано');
+    cp.state.previewLive[key] = { result: { gif: null } };
+    assert.equal(cp.gifHtml(m, p), '', 'без гифки (Instagram, бот, свои фото) — строки нет');
+    assert.match(fnBody('previewHtml'), /liveNotesHtml\(m, p\) \+ gifHtml\(m, p\) \+ phraseHow\(m, p\)/);
+    assert.match(css, /\.gh-cp-gif \{/);
 });
 
 test('каналы: дошедший тест подключает канал ответом сервера — без отдельной проверки', () => {

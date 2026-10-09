@@ -106,6 +106,7 @@ idempotent — сетевой вызов), content_channel_test, content_publish
   платный предел; в коннекторе «Только чтение» его нет), предел 60 поисков на подключение.
 - 2026-10-09 — content_channel_test: доставленное сообщение подключает канал (connected,
   check.via=test), ответ — как content_channels_get.
+- 2026-10-09 — content_live_preview: поле gif — гифка к таплисту в канале бара.
 """
 import re
 from typing import Dict, List, Tuple
@@ -512,7 +513,9 @@ _LIVE_PREVIEW_TEXT = (
     '[{code, text}], length, limit, limit_note, rows (краны: tap_number, brewery, beer_name, style, abv, '
     'mapped, name — пивоварня и название как в посте, untappd_url, new — пометка «новинка», line), '
     'data_at, taps_changed_at (последнее изменение на странице кранов бара), phrase (какой вариант '
-    'вступления и концовки выбран: variant из total, intro, outro — свой на каждую неделю и бар). '
+    'вступления и концовки выбран: variant из total, intro, outro — свой на каждую неделю и бар), gif '
+    '(гифка к посту в канале бара: number из total, title, page — страница Tenor, note, separate — текст '
+    'длиннее 1024 и гифка уйдёт отдельным сообщением перед ним; null — Instagram, бот или свои фото). '
     'Строка: «{кран}. {пивоварня и '
     'название} — {стиль}, {крепость}%[, новинка]», без цен. ok=false — публикация была бы остановлена: '
     'no_live_source, no_bar (нужен конкретный бар), no_data (нет активных кранов или данных), stale_taps '

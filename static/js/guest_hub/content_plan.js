@@ -163,8 +163,8 @@
         live: 'шаблон: в момент выхода в него подставляются свежие данные таплиста бара.'
     };
     var LIVE_EXPLAIN = 'При выходе подставляются данные таплиста, а {вступление} и {концовка} — фразы из ' +
-        'набора, свои на каждую неделю и каждый бар; остальной текст не меняется. ' +
-        'Если данных нет или они не проверены — публикация остановится.';
+        'набора, свои на каждую неделю и каждый бар; остальной текст не меняется. В канал бара пост уходит ' +
+        'с гифкой из набора. Если данных нет или они не проверены — публикация остановится.';
     var BOT_NOTE = 'Рассылка через бота добавляется отдельно и никогда не включается выбором всех баров.';
     var APPROVE_TEXT = 'Утверждаются только эти подготовленные материалы. Незаконченные остаются ' +
         'черновиками и не уходят.';
@@ -3471,7 +3471,7 @@
             each(problems, function (x) { texts.push(x.text); });
             foot += '<div class="gh-cp-stop"><b>Публикация будет остановлена:</b> ' + esc(texts.join('; ')) + '</div>';
         }
-        if (m.kind === 'live' && state === 'ok') foot += liveNotesHtml(m, p) + phraseHow(m, p);
+        if (m.kind === 'live' && state === 'ok') foot += liveNotesHtml(m, p) + gifHtml(m, p) + phraseHow(m, p);
         return '<div class="gh-cp-pv">' + body + foot + '</div>';
     }
 
@@ -3484,6 +3484,26 @@
         var texts = [];
         each(notes, function (x) { texts.push(x.text); });
         return '<div class="gh-cp-warn is-quiet">' + esc(texts.join('; ')) + '</div>';
+    }
+
+    // Какая гифка уйдёт с постом в канал бара (gif сервера: core/taplist_gifs, решение
+    // владельца 2026-10-09 «к каждому таплисту — гифка из списка»). Правило — под «Как считается».
+    function gifHtml(m, p) {
+        var r = S.previewLive[previewKey(m, p)];
+        var g = r && r.result && r.result.gif;
+        if (!g) return '';
+        var line = 'Гифка: «' + esc(g.title) + '»' + (g.note ? ' — ' + esc(g.note) : '') +
+            ' <a class="gh-link" href="' + esc(g.page) + '" target="_blank" rel="noopener noreferrer">открыть</a>' +
+            (g.separate ? '<br>Текст длиннее подписи к гифке (1024 знака): гифка уйдёт отдельным сообщением ' +
+                'перед текстом.' : '');
+        var how = 'Гифка ' + g.number + ' из ' + g.total + '. Выбирается по правилу, а не случайно, чтобы ' +
+            'предпросмотр совпадал с постом: номер недели выхода умножается на шаг и сдвигается на четверть ' +
+            'набора для каждого бара. В одну пятницу у баров разные гифки, в этом баре гифка повторится через ' +
+            nText(g.total, 'неделю', 'недели', 'недель') + '. Текст до 1024 знаков уходит подписью к гифке, ' +
+            'длиннее — отдельным сообщением сразу после неё. Если Telegram гифку не примет, пост выйдет ' +
+            'текстом. Только в канал бара: у Instagram и рассылки бота гифки нет, а свои фото и видео ' +
+            'размещения её заменяют.';
+        return '<div class="gh-cp-gif">' + line + '</div>' + howHtml('gif-' + previewKey(m, p), '<p>' + esc(how) + '</p>');
     }
 
     // Какие фразы {вступление} и {концовка} достались этому бару в этот день
@@ -6264,6 +6284,8 @@
         newProblem: newProblem, readyPlacements: readyPlacements, chanBarStatus: chanBarStatus, barChecked: barChecked,
         placementHtml: placementHtml, foldHtml: foldHtml, legendHtml: legendHtml,
         // Таплист 2026-10-04: названия пива в предпросмотре — ссылки на Untappd.
-        linkedText: linkedText, previewHtml: previewHtml, previewKey: previewKey
+        linkedText: linkedText, previewHtml: previewHtml, previewKey: previewKey,
+        // Гифка к таплисту 2026-10-09.
+        gifHtml: gifHtml
     };
 })();

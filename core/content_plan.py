@@ -390,7 +390,7 @@ from contextlib import contextmanager
 from datetime import date, datetime, timedelta
 from typing import Callable, Dict, List, Optional, Tuple
 
-from core import content_media, msk_time, taplist_post
+from core import content_media, msk_time, taplist_gifs, taplist_post
 from core.json_store import atomic_write_json, file_lock
 from core.storage_paths import get_data_path
 
@@ -1535,13 +1535,17 @@ def render_live(source, bar, template, pub_date=None, snapshot=None, registry=No
     """Подставить живые данные в шаблон и проверить правила остановки.
 
     -> {ok, text, entities, problems:[{code, text}], length, limit, limit_note,
-    channel, has_media, rows, data_at, taps_changed_at, phrase, legacy_template, notes}.
+    channel, has_media, rows, data_at, taps_changed_at, phrase, gif, legacy_template, notes}.
     notes — [{code, text}] предупреждения без остановки: unverified — кран без проверенной
     связи с Untappd выйдет без ссылки и стиля (решение владельца 2026-10-09).
     phrase — {variant, total, intro, outro}: какой вариант вступления и концовки выбран
     для этого бара и дня (номер с единицы из total) и их текст; None — бар не выбран.
     legacy_template — шаблон был прежним шаблоном агента (LEGACY_TAPLIST_TEMPLATES) и
     заменён на TAPLIST_TEMPLATE.
+    gif — гифка к посту в Telegram-канале (решение владельца 2026-10-09, core/taplist_gifs):
+    {number, total, title, page, note, separate}; separate — текст длиннее подписи
+    (TG_CAPTION_LIMIT): гифка уйдёт отдельным сообщением перед текстом. None — бар не
+    выбран, площадка не Telegram (Instagram, бот) или у размещения свои фото/видео.
     rows — строки таплиста [{tap_number, brewery, beer_name, style, abv, mapped,
     mapping_message, name, untappd_url, new, line}]: name — пивоварня и название
     так, как в посте, new — пометка «новинка». ok=False означает «публикация будет
@@ -1667,11 +1671,21 @@ def render_live(source, bar, template, pub_date=None, snapshot=None, registry=No
     length = text_units(text, channel)      # Telegram: единицы UTF-16 (эмодзи — 2)
     if length > limit:
         add('text_too_long', f'текст длиннее {limit} знаков')
+    # Гифка — только у поста в Telegram-канале без своих фото и видео: у Instagram пост
+    # выкладывают вручную, рассылке бота её не просили, свои файлы выбрал человек.
+    gif = None
+    if bar_ok and source in LIVE_SOURCES and channel in (None, 'telegram') and not with_media:
+        try:
+            gif = taplist_gifs.gif_for(_post_day(day, moment), TAPLIST_BAR_IDS[bar])
+            gif['separate'] = text_units(text, 'telegram') > TG_CAPTION_LIMIT
+        except (OSError, ValueError) as e:      # набор не читается — пост без гифки
+            print(f'[CONTENT_PLAN] taplist gifs unavailable: {e!r}')
+            gif = None
     return {'ok': not problems, 'text': text, 'entities': entities, 'problems': problems, 'length': length,
             'limit': limit, 'limit_note': limit_note_for(channel, with_media),
             'channel': channel, 'has_media': with_media, 'rows': rows_out,
             'data_at': fmt_stamp(moment), 'taps_changed_at': fmt_stamp(changed) if changed else None,
-            'phrase': phrase, 'legacy_template': legacy, 'notes': notes}
+            'phrase': phrase, 'gif': gif, 'legacy_template': legacy, 'notes': notes}
 
 
 # ---------------------------------------------------------------------------

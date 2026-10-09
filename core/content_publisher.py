@@ -214,7 +214,7 @@ from datetime import datetime
 from typing import Callable, Dict, List, Optional, Tuple
 
 from core import content_channels as channels_mod
-from core import content_media, msk_time
+from core import content_media, msk_time, taplist_gifs
 from core import content_plan as cp
 
 GRACE_MINUTES = cp.DELIVERY_GRACE_MINUTES              # 120 — см. core/content_plan.py
@@ -420,11 +420,14 @@ class _Run:
 
     transport — бот каналов (посты, напоминание об Instagram); guest_transport —
     гостевой бот (рассылки). file_id у каждого бота свой (file_id одного бота другой
-    не примет), поэтому кэш — отдельно по транспорту."""
+    не примет), поэтому кэш — отдельно по транспорту. gifs — источник гифок таплиста
+    (core/taplist_gifs.GifSource) или None: гифки не прикрепляются."""
 
     def __init__(self, store, channels, settings: dict, transport, now: datetime,
-                 sleep: Optional[Callable] = None, clock: Optional[Callable] = None, guest_transport=None):
+                 sleep: Optional[Callable] = None, clock: Optional[Callable] = None, guest_transport=None,
+                 gifs=None):
         self.store = store
+        self.gifs = gifs
         self.channels = channels
         self.settings = settings
         self.transport = transport
@@ -579,8 +582,111 @@ def send_post(run: _Run, chat_id, text: str, media: List[dict], caption: bool = 
     return done(kind, result, error)
 
 
+def _animation_file_id(message) -> Optional[str]:
+    """file_id гифки из ответа на sendAnimation (Telegram кладёт её в animation и document)."""
+    if not isinstance(message, dict):
+        return None
+    for key in ('animation', 'document', 'video'):
+        item = message.get(key)
+        if isinstance(item, dict) and item.get('file_id'):
+            return item['file_id']
+    return None
+
+
+def _gifs_call(run: _Run, method: str, *args):
+    """Вызов кэша гифок без права уронить публикацию: любой сбой — None (пост без гифки)."""
+    try:
+        return getattr(run.gifs, method)(*args)
+    except Exception as e:  # noqa: BLE001 — гифка — украшение поста, не повод его остановить
+        print(f'[CONTENT_PUBLISHER] taplist gif {method}: {e!r}')
+        return None
+
+
+def _send_animation(run: _Run, chat_id, gif: dict, extra: dict) -> Tuple[str, List[int], str]:
+    """Гифка в чат (sendAnimation) по очереди путей: file_id из кэша -> ссылка на файл
+    со страницы Tenor -> адрес «страница.gif» (Tenor переадресует на файл, Telegram
+    скачивает сам). Путь, который Telegram не принял, забывается в кэше.
+    -> ('ok', ids, '') | ('unknown', [], текст) — ответа нет, сообщение могло выйти,
+    другие пути не пробуются (дубль) | ('forbidden', [], текст) — бот не может писать
+    в канал | ('error', [], текст) — ни один путь не принят, сообщение точно не вышло."""
+    bot = run.transport
+    token = getattr(bot, 'token', None)
+    page = gif['page']
+    error = 'не нашлась ссылка на файл гифки'
+    for step in ('file_id', 'media', 'page'):
+        if step == 'file_id':
+            source = _gifs_call(run, 'file_id', page, token)
+        elif step == 'media':
+            source = _gifs_call(run, 'media_url', page)
+        else:
+            source = page + '.gif'
+        if not source:
+            continue
+        kind, result, text = run.request('sendAnimation', payload=dict(extra, chat_id=chat_id, animation=source),
+                                         transport=bot)
+        if kind == 'ok':
+            file_id = _animation_file_id(result)
+            if file_id and step != 'file_id':
+                _gifs_call(run, 'remember_file_id', page, token, file_id)
+            return 'ok', _message_ids(result), ''
+        if kind == 'network':
+            return 'unknown', [], text
+        if kind == 'forbidden':
+            return 'forbidden', [], text
+        error = text
+        if step == 'file_id':
+            _gifs_call(run, 'forget_file_id', page, token)
+        elif step == 'media':
+            _gifs_call(run, 'forget_media', page)
+    return 'error', [], error
+
+
+def _delete_messages(run: _Run, chat_id, ids: List[int]) -> None:
+    """Убрать уже вышедшие сообщения поста (best effort): гифка без текста осталась бы
+    в канале, а «Повторить» прислал бы её второй раз."""
+    for message_id in ids:
+        run.request('deleteMessage', payload={'chat_id': chat_id, 'message_id': message_id})
+
+
+def send_with_gif(run: _Run, chat_id, text: str, entities: List[dict], gif: dict) -> Tuple[str, List[int], str, dict]:
+    """Пост таплиста с гифкой (решение владельца 2026-10-09).
+
+    Текст влезает в подпись (TG_CAPTION_LIMIT, 1024) — одно сообщение: гифка с текстом
+    в подписи. Длиннее — гифка отдельным сообщением без звука уведомления и сразу за
+    ней текст (предел текста 4096). Гифка не ушла (Telegram не принял ни один путь) —
+    пост выходит текстом, как раньше: из-за гифки публикацию не останавливаем. Нет
+    ответа на гифку с подписью — ошибка «статус неизвестен» без повтора (пост мог
+    выйти). Текст после гифки не ушёл — гифка удаляется (best effort).
+    -> (вид, message_ids, текст ошибки, gif: {number, title, page, mode, sent, error})."""
+    separate = cp.text_units(text, 'telegram') > cp.TG_CAPTION_LIMIT
+    info = {'number': gif.get('number'), 'title': gif.get('title'), 'page': gif.get('page'),
+            'mode': 'separate' if separate else 'caption', 'sent': False, 'error': None}
+    if separate:
+        extra = {'disable_notification': True}
+    else:
+        extra = {'caption': text}
+        if entities:
+            extra['caption_entities'] = entities
+    kind, ids, error = _send_animation(run, chat_id, gif, extra)
+    if kind == 'ok':
+        info['sent'] = True
+        if not separate:
+            return 'ok', ids, '', info
+        text_kind, text_ids, text_error = send_post(run, chat_id, text, [], entities=entities)
+        if text_kind != 'ok':
+            _delete_messages(run, chat_id, ids)
+            return text_kind, text_ids, text_error, info
+        return 'ok', ids + text_ids, '', info
+    if kind == 'forbidden' or (kind == 'unknown' and not separate):
+        return 'error', [], error, info
+    info['error'] = error
+    text_kind, text_ids, text_error = send_post(run, chat_id, text, [], entities=entities)
+    return text_kind, text_ids, text_error, info
+
+
 def build_post(run: _Run, material: dict, placement: dict, pub_date: Optional[str]) -> dict:
-    """Что отправить: {text, entities, media: [{name, kind, path, filename, mime, size}], problems}.
+    """Что отправить: {text, entities, media: [{name, kind, path, filename, mime, size}], problems,
+    gif}. gif — гифка таплиста (render_live) у поста в Telegram-канале без своих файлов, иначе None.
 
     Текст и файлы — из снимка утверждения; у live — шаблон, собранный сейчас
     (render_live), и entities — ссылки на Untappd в таплисте (у готовой
@@ -599,6 +705,7 @@ def build_post(run: _Run, material: dict, placement: dict, pub_date: Optional[st
     channel = placement['channel']
     problems: List[str] = []
     entities: List[dict] = []
+    gif = None
     if material.get('kind') == 'live':
         live = cp.render_live(material.get('live_source'), placement.get('bar'), text, pub_date=pub_date,
                               now=run.now, channel=channel, has_media=bool(names))
@@ -606,6 +713,7 @@ def build_post(run: _Run, material: dict, placement: dict, pub_date: Optional[st
         # напоминанию об Instagram они нужны, чтобы показать, что именно стоит).
         problems.extend(p['text'] for p in live['problems'])
         text, entities = live['text'], live.get('entities') or []
+        gif = live.get('gif') if channel == 'telegram' and not names else None
     else:
         limit = cp.text_limit_for(channel, bool(names))
         if cp.text_units(text, channel) > limit:
@@ -631,7 +739,7 @@ def build_post(run: _Run, material: dict, placement: dict, pub_date: Optional[st
                       'mime': content_media.mimetype_of(name), 'size': size})
     if total > UPLOAD_TOTAL_MAX:
         problems.append(f'файлы вместе больше {UPLOAD_TOTAL_MAX // (1024 * 1024)} МБ — уберите часть видео')
-    return {'text': text, 'entities': entities, 'media': media, 'problems': problems}
+    return {'text': text, 'entities': entities, 'media': media, 'problems': problems, 'gif': gif}
 
 
 def route_reason(settings: dict, placement: dict) -> Optional[str]:
@@ -764,11 +872,20 @@ def _send_telegram(run: _Run, material: dict, placement: dict, attempt: str, pub
     if post['problems']:
         _fail(run, material, placement, attempt, 'Публикация остановлена: ' + '; '.join(post['problems']), report)
         return
-    kind, ids, error = send_post(run, chat, post['text'], post['media'], entities=post['entities'])
+    gif = post.get('gif') if run.gifs is not None and not post['media'] else None
+    if gif:
+        kind, ids, error, gif_done = send_with_gif(run, chat, post['text'], post['entities'], gif)
+    else:
+        kind, ids, error = send_post(run, chat, post['text'], post['media'], entities=post['entities'])
+        gif_done = None
     if kind != 'ok':
         _fail(run, material, placement, attempt, error, report)
         return
     label = cp.placement_label(placement)
+    gif_note = ''
+    if gif_done:
+        gif_note = (f', гифка «{gif_done["title"]}»' if gif_done['sent']
+                    else f', без гифки: {gif_done["error"] or "Telegram не ответил"}')
 
     def apply(_material, target, delivery, now_str):
         target['status'] = 'published'
@@ -776,8 +893,11 @@ def _send_telegram(run: _Run, material: dict, placement: dict, attempt: str, pub
         target['failed_error'] = None
         target['delivery'] = dict(delivery, state='sent', finished_at=now_str, chat=chat, send_now=None,
                                   chat_username=check.get('chat_username'), message_ids=ids, error=None)
+        if gif_done:
+            target['delivery']['gif'] = gif_done
 
-    _finish(run, material, placement, attempt, apply, 'auto_publish', f'Вышло автоматически: {label} ({chat})',
+    _finish(run, material, placement, attempt, apply, 'auto_publish',
+            f'Вышло автоматически: {label} ({chat}){gif_note}',
             lost=f'Пост вышел в канале {chat} (сообщение {ids[0] if ids else "?"}), но размещение изменили во '
                  f'время отправки — отметьте выход вручную: {label}')
     _detail(report, material, placement, 'sent', chat)
@@ -1268,9 +1388,12 @@ def _collect(run: _Run, data: dict) -> Tuple[List[tuple], List[dict]]:
     return stale, due
 
 
+_DEFAULT_GIFS = object()
+
+
 def publish_due(now: Optional[datetime] = None, transport=None, store=None, channels=None,
                 sleep: Optional[Callable] = None, clock: Optional[Callable] = None,
-                guest_transport=None) -> dict:
+                guest_transport=None, gifs=_DEFAULT_GIFS) -> dict:
     """Отправить всё, чему пора (правила — в докстроке модуля).
 
     now — момент выбора «пора» (по умолчанию — часы хранилища плана); отметки
@@ -1278,6 +1401,9 @@ def publish_due(now: Optional[datetime] = None, transport=None, store=None, chan
     гостевой бот (рассылки). Оба None — настоящие боты с токенами из окружения
     (планировщик); передан хоть один (тесты) — второй НЕ создаётся сам: без него его
     площадки пропускаются, в настоящий Telegram из теста ничего не уйдёт.
+    gifs — источник гифок таплиста (core/taplist_gifs.GifSource) или None — без гифок;
+    не передан — настоящий (кэш на томе, страницы Tenor) только вместе с настоящими
+    ботами: тест с поддельным ботом не ходит в Tenor.
     sleep / clock — для темпа рассылки, 429 и бюджета прохода (тесты — без
     настоящих пауз). -> {sent, failed, skipped, details: [{placement_id,
     material_id, title, channel, bar, result, text}], enabled}."""
@@ -1290,7 +1416,8 @@ def publish_due(now: Optional[datetime] = None, transport=None, store=None, chan
     moment = moment.replace(second=0, microsecond=0)
     report = _new_report()
     report['enabled'] = bool(settings.get('enabled'))
-    run = _Run(store, channels, settings, transport, moment, sleep, clock, guest_transport)
+    run = _Run(store, channels, settings, transport, moment, sleep, clock, guest_transport,
+               gifs=None if gifs is _DEFAULT_GIFS else gifs)
     stale, due = _collect(run, store.snapshot_data())
     for material, placement in stale:
         _resolve_stale(run, material, placement, report)
@@ -1300,6 +1427,8 @@ def publish_due(now: Optional[datetime] = None, transport=None, store=None, chan
         return report
     if run.transport is None and run.guest_transport is None:
         run.transport, run.guest_transport = default_transport(), default_guest_transport()
+        if gifs is _DEFAULT_GIFS:
+            run.gifs = taplist_gifs.default_source()
     if run.transport is None and run.guest_transport is None:
         for item in due:
             _detail(report, item['material'], item['placement'], 'skipped', NO_TOKEN_TEXT)
