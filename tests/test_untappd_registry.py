@@ -116,7 +116,7 @@ class UntappdRegistryTests(unittest.TestCase):
 
     def test_full_catalog_review_keeps_unidentifiable_card_unlinked(self):
         rows = self.registry["products"]
-        self.assertEqual(len(rows), 479)
+        self.assertEqual(len(rows), 480)   # 2026-10-09: + «Мёд и Ежевика» по ссылке владельца
         self.assertTrue(all(r["decision"] for r in rows.values()))
         unnamed = rows["5f23dad2-5ff5-4e57-ac31-1fa23b244c40"]
         self.assertEqual(unnamed["iiko_name"], "1")
