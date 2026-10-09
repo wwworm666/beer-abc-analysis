@@ -1164,6 +1164,99 @@ def test_render_live_ok_and_stop_rules():
     assert codes(r) == ['no_data'] and r['ok'] is False
 
 
+def test_taplist_gif_in_preview():
+    """Решение владельца 2026-10-09: «к каждому таплисту прикрепляем рандомную гифку из списка».
+    Предпросмотр говорит, какая гифка уйдёт с постом в канал бара; правило выбора —
+    tests/test_taplist_gifs.py, отправка — tests/test_content_publisher.py."""
+    from datetime import date
+    from core import taplist_gifs as tg
+    r = _render('varshavskaya', template=cp.TAPLIST_TEMPLATE, pub_date='2026-10-09', channel='telegram')
+    expected = dict(tg.gif_for(date(2026, 10, 9), 'bar4'), separate=False)
+    assert r['gif'] == expected and expected['number'] == 17
+    assert _render('varshavskaya', template=cp.TAPLIST_TEMPLATE, pub_date='2026-10-09')['gif'] == expected  # без площадки
+    # текст длиннее подписи 1024 — гифка отдельным сообщением перед ним
+    long = _render('varshavskaya', template='x' * 1100 + '\n{таплист}', channel='telegram')
+    assert long['ok'] is True and long['gif']['separate'] is True
+    # без гифки: Instagram и рассылка бота, свои фото у размещения, бар не выбран
+    for kw in ({'channel': 'instagram'}, {'channel': 'bot'}, {'channel': 'telegram', 'has_media': True}):
+        assert _render('varshavskaya', **kw)['gif'] is None, kw
+    assert _render('all', channel='telegram')['gif'] is None
+
+
+def test_taplist_gif_choice_in_render():
+    """Владелец 2026-10-09: «должна быть возможность выбора» гифки. Поле gif размещения:
+    None — автоматически, 'none' — без гифки, страница из набора — эта гифка."""
+    from core import taplist_gifs as tg
+    gifs = tg.load_gifs()
+    auto = _render('varshavskaya', template=cp.TAPLIST_TEMPLATE, pub_date='2026-10-09', channel='telegram')
+    assert auto['gif_choice'] == 'auto' and auto['gif']['number'] == 17
+    manual = _render('varshavskaya', template=cp.TAPLIST_TEMPLATE, pub_date='2026-10-09', channel='telegram',
+                     gif_choice=gifs[0]['page'])
+    assert manual['gif_choice'] == 'manual' and manual['gif']['number'] == 1
+    assert manual['gif']['title'] == 'Джанго освобождённый' and manual['gif']['separate'] is False
+    off = _render('varshavskaya', template=cp.TAPLIST_TEMPLATE, channel='telegram', gif_choice=cp.GIF_NONE)
+    assert off['gif'] is None and off['gif_choice'] == 'none' and off['ok'] is True
+    # гифки, которой больше нет в наборе, — автоматическая
+    gone = _render('varshavskaya', template=cp.TAPLIST_TEMPLATE, pub_date='2026-10-09', channel='telegram',
+                   gif_choice='https://tenor.com/view/old-gif-1')
+    assert gone['gif_choice'] == 'auto' and gone['gif']['number'] == 17
+    # не к месту — ни гифки, ни выбора
+    assert _render('varshavskaya', channel='instagram', gif_choice=gifs[0]['page'])['gif_choice'] is None
+
+
+def test_parse_gif_values():
+    from core import taplist_gifs as tg
+    first = tg.load_gifs()[0]['page']
+    assert [cp.parse_gif(v) for v in (None, '', 'auto', ' none ', '1', 1, first)] == [
+        None, None, None, cp.GIF_NONE, first, first, first]
+    for bad in ('0', '26', 'https://tenor.com/view/other-gif-1', 'giphy', True, 3.5):
+        try:
+            cp.parse_gif(bad)
+            raise AssertionError(f'{bad!r} принят')
+        except ValueError:
+            pass
+
+
+def test_placement_gif_choice_rules():
+    """Выбор гифки — только у таплиста в канале бара; смена у утверждённого снимает
+    утверждение (это содержание поста); у копий серии выбор не повторяется."""
+    from core import taplist_gifs as tg
+    gifs = tg.load_gifs()
+    store = _store()
+    live = _material(store, kind='live', live_source='taplist', base_text=cp.TAPLIST_TEMPLATE,
+                     planned_date='2026-10-09')
+    pid = _add(store, live['id'], gif=5)[0]
+    assert _raw(store, pid)['gif'] == gifs[4]['page']
+    with _client(store) as c:
+        url = f'/api/content-plan/placements/{pid}'
+        store.approve([pid], USER)
+        r = c.patch(url, json={'gif': gifs[4]['page']})                    # тот же выбор — не правка
+        assert r.status_code == 200 and r.get_json()['unapproved'] == []
+        r = c.patch(url, json={'gif': 'none'})
+        assert r.get_json()['unapproved'] == [pid] and _raw(store, pid)['gif'] == cp.GIF_NONE
+        assert store.log_for(live['id'])[0]['text'].endswith('изменено — гифка')
+        assert c.patch(url, json={'gif': 'giphy'}).status_code == 400
+        assert c.patch(url, json={'gif': None}).get_json()['material']['placements'][0]['gif'] is None
+        # у готовой публикации и у Instagram гифки нет
+        fixed = _material(store)
+        fixed_pid = _add(store, fixed['id'])[0]
+        r = c.patch(f'/api/content-plan/placements/{fixed_pid}', json={'gif': 3})
+        assert r.status_code == 400 and 'таплиста в канале бара' in r.get_json()['error']
+        r = c.post(f'/api/content-plan/materials/{fixed["id"]}/placements',
+                   json={'channel': 'telegram', 'bars': ['bolshoy'], 'gif': 3})
+        assert r.status_code == 400
+        # площадку сменили — выбор сбрасывается
+        c.patch(url, json={'gif': 2})
+        r = c.patch(url, json={'channel': 'instagram', 'bar': 'all'})
+        assert r.status_code == 200 and _raw(store, pid)['gif'] is None
+    # копии серии — с автоматической гифкой
+    other = _add(store, live['id'], bars=['ligovskiy'], gif=7)[0]
+    assert _raw(store, other)['gif'] == gifs[6]['page']
+    created = store.repeat(live['id'], [4], '2026-10', USER)['created']
+    copies = [p for mid in created for p in store.get_material_raw(mid)['placements']]
+    assert copies and all(p['gif'] is None for p in copies)
+
+
 def test_taplist_phrases_vary_by_week_and_bar():
     """Решение владельца 2026-10-09: «писать по-разному, чтобы не выглядело шаблонно».
     {вступление} и {концовка} — пара фраз из набора, своя на неделю и бар; {где} — бар во

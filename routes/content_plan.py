@@ -87,6 +87,8 @@ core/content_media.py; отправка в площадки — core/content_pub
     PUT    /api/content-plan/brief                        {sections: {...частично}} -> {brief, stored,
                                                           total, changed}; сливает переданные поля,
                                                           неизвестные — 400
+    GET    /api/content-plan/gifs                         -> {gifs: [{number, title, page, note, media}],
+                                                          total} — набор гифок к таплисту для выбора
     GET    /api/content-plan/live-preview                 ?source=&bar=&material_id=&placement_id=&date=
                                                           &template=&channel=&has_media=
                                                           -> render_live (POST с тем же JSON — для
@@ -155,7 +157,7 @@ from functools import wraps
 
 from flask import Blueprint, jsonify, render_template, request, send_file, send_from_directory
 
-from core import content_channels, content_image_search, content_media, content_publisher
+from core import content_channels, content_image_search, content_media, content_publisher, taplist_gifs
 from core.auth_guard import current_user
 from core.content_brief import ContentBriefUnavailable, get_content_brief_store
 from core.content_channels import ContentChannelsUnavailable, get_channels_store
@@ -172,6 +174,9 @@ content_plan_bp = Blueprint('content_plan', __name__)
 # материалов (серия «каждую пятницу» x 4 бара — ещё ~20), 500 — запас на порядок
 # и защита от случайного «выделить всё за год» одним запросом.
 BULK_MAX = 500
+# Окно выбора гифки: сколько секунд сервер ищет недостающие ссылки на файлы на страницах
+# Tenor (параллельно, по 6). Первое открытие — несколько секунд, дальше — из кэша.
+GIF_LIST_BUDGET_SEC = 12
 BULK_ACTIONS = ('shift', 'delete', 'cancel')
 
 # Верхний предел тела загрузки: самый большой допустимый файл (видео 50 МБ) +
@@ -254,6 +259,22 @@ def _image_finder():
     """Поиск картинок (core/content_image_search.py): ключ Яндекса из окружения, поиски
     на постоянном диске. Тесты подменяют поддельным Яндексом и сайтами."""
     return content_image_search.get_finder()
+
+
+def _gif_source():
+    """Ссылки на файлы гифок таплиста (core/taplist_gifs.GifSource, кэш на томе, страницы
+    Tenor). Тесты подменяют источником без сети."""
+    return taplist_gifs.default_source()
+
+
+def _gif_media(page: str):
+    """Ссылка на файл гифки для показа на экране или None (Tenor не ответил — экран
+    покажет название без картинки; на отправку это не влияет)."""
+    try:
+        return _gif_source().media_url(page)
+    except Exception as e:  # noqa: BLE001 — картинка на экране — не повод для 500
+        print(f'[CONTENT_PLAN] gif media {page}: {e!r}')
+        return None
 
 
 # ---- отправка: точки подмены для тестов (в настоящий Telegram тесты не ходят) ----
@@ -744,8 +765,31 @@ def live_preview():
         has_media = bool(content[1])
     else:
         has_media = bool((material or {}).get('media'))
-    return jsonify(render_live(source, bar, template, pub_date=pub_date, now=store.now(),
-                               channel=channel, has_media=has_media))
+    result = render_live(source, bar, template, pub_date=pub_date, now=store.now(),
+                         channel=channel, has_media=has_media, gif_choice=(placement or {}).get('gif'))
+    if result.get('gif'):
+        # Ссылка на файл — чтобы экран показал саму гифку в «Как увидят гости».
+        result['gif']['media'] = _gif_media(result['gif']['page'])
+    return jsonify(result)
+
+
+@content_plan_bp.route('/api/content-plan/gifs', methods=['GET'])
+@_guard
+def gifs_list():
+    """Набор гифок к таплисту для окна выбора (core/taplist_gifs):
+    {gifs: [{number, title, page, note, media}], total}. media — ссылка на файл гифки
+    (mp4 или gif на media.tenor.com) из кэша; которых нет — сервер ищет на страницах Tenor
+    (параллельно, не дольше GIF_LIST_BUDGET_SEC); не успел или не нашёл — null, экран
+    показывает название без картинки."""
+    gifs = taplist_gifs.load_gifs()
+    try:
+        media = _gif_source().media_many([item['page'] for item in gifs], budget_sec=GIF_LIST_BUDGET_SEC)
+    except Exception as e:  # noqa: BLE001 — без картинок окно выбора всё равно работает
+        print(f'[CONTENT_PLAN] gif list media: {e!r}')
+        media = {}
+    return jsonify({'gifs': [dict(item, number=index + 1, media=media.get(item['page']))
+                             for index, item in enumerate(gifs)],
+                    'total': len(gifs)})
 
 
 # ------------------------------------------------------------------ файлы

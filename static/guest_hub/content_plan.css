@@ -538,6 +538,69 @@ button.gh-cp-sum-i:focus-visible { outline: 2px solid var(--gh-accent-ink); outl
     font: 400 12.5px/1.45 var(--gh-sans);
     color: var(--gh-ink2);
 }
+/* Гифка к таплисту в предпросмотре: какая уйдёт с постом в канал бара. */
+.gh-cp-gif {
+    padding: 0 0 0 10px;
+    border-left: 2px solid var(--gh-line2);
+    font: 400 12px/1.45 var(--gh-sans);
+    color: var(--gh-ink3);
+}
+/* «Гифки к постам» под шаблоном таплиста: строка на бар — гифка, подпись, «Сменить». */
+.gh-cp-gifs { display: grid; gap: 6px; margin-top: 10px; }
+.gh-cp-gifs-h { font: 600 12px/1.3 var(--gh-sans); color: var(--gh-ink2); }
+.gh-cp-gif-row {
+    display: grid;
+    grid-template-columns: 64px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    font: 400 12.5px/1.4 var(--gh-sans);
+    color: var(--gh-ink3);
+}
+.gh-cp-gif-row b { color: var(--gh-ink2); font-weight: 600; }
+.gh-cp-gif-t { min-width: 0; overflow-wrap: anywhere; }
+.gh-cp-gif-media { display: block; width: 64px; height: 48px; border-radius: var(--gh-r-tile); overflow: hidden;
+                   background: var(--gh-chip); }
+.gh-cp-gif-thumb, .gh-cp-gif-empty { display: block; width: 100%; height: 100%; object-fit: cover; }
+/* Гифка в пузыре «Как увидят гости». */
+.gh-cp-bubble-gif { margin: -2px -2px 8px; border-radius: var(--gh-r-tile); overflow: hidden; background: var(--gh-chip); }
+.gh-cp-bubble.is-gif .gh-cp-bubble-gif { margin-bottom: 4px; }
+.gh-cp-bubble-gif video, .gh-cp-bubble-gif img { display: block; width: 100%; max-height: 260px; object-fit: contain; }
+.gh-cp-gif-ph { display: block; padding: 18px 10px; text-align: center; font: 500 12px/1.4 var(--gh-sans);
+                color: var(--gh-ink4); }
+/* Окно выбора гифки: плитки. */
+.gh-cp-gif-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 10px;
+    margin-top: 10px;
+}
+.gh-cp-gif-tile {
+    display: grid;
+    gap: 4px;
+    align-content: start;
+    padding: 6px;
+    border: 1px solid var(--gh-line);
+    border-radius: var(--gh-r-tile);
+    background: var(--gh-card);
+    text-align: left;
+    cursor: pointer;
+    font: inherit;
+    color: var(--gh-ink2);
+}
+.gh-cp-gif-tile:hover { background: var(--gh-hover); }
+.gh-cp-gif-tile:focus-visible { outline: 2px solid var(--gh-accent); outline-offset: 1px; }
+.gh-cp-gif-tile.is-cur { border-color: var(--gh-accent); box-shadow: 0 0 0 1px var(--gh-accent); }
+.gh-cp-gif-tile-m { display: grid; place-items: center; height: 96px; border-radius: var(--gh-r-tile);
+                    overflow: hidden; background: var(--gh-chip); }
+.gh-cp-gif-tile-m.is-none { font: 500 12px/1 var(--gh-sans); color: var(--gh-ink4); }
+.gh-cp-gif-tile-m video, .gh-cp-gif-tile-m img { width: 100%; height: 100%; object-fit: cover; }
+.gh-cp-gif-tile-t { font: 600 12.5px/1.3 var(--gh-sans); }
+.gh-cp-gif-tile-n { font: 400 11.5px/1.35 var(--gh-sans); color: var(--gh-ink4); }
+@media (max-width: 560px) {
+    .gh-cp-gif-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .gh-cp-gif-row { grid-template-columns: 56px minmax(0, 1fr) auto; }
+    .gh-cp-gif-media { width: 56px; height: 42px; }
+}
 /* Предупреждение тихой строкой (в карточке у утверждённого оно видно всегда). */
 .gh-cp-warn.is-quiet {
     padding: 0 0 0 10px;

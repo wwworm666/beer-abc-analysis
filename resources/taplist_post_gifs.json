@@ -1,0 +1,30 @@
+{
+  "about": "Гифки к таплисту в Telegram-канале бара (core/taplist_gifs.py). Решение владельца 2026-10-09: «к каждому таплисту прикрепляем рандомную гифку из списка». Гифка выбирается по правилу, а не броском монеты, чтобы предпросмотр совпадал с постом: номер недели × шаг (7 — взаимно прост с 25) плюс сдвиг бара на четверть набора. В одну пятницу у четырёх баров разные гифки, в своём баре гифка повторится только через столько недель, сколько гифок в наборе. page — страница гифки на Tenor (с неё сервер берёт ссылку на сам файл), title — фильм или сериал, note — что на гифке. Порядок — как в списке владельца.",
+  "gifs": [
+    {"title": "Джанго освобождённый", "page": "https://tenor.com/view/beer-django-tap-beer-tap-django-beer-gif-13314412", "note": "Наливают пиво из крана — под новый сорт."},
+    {"title": "Зомби по имени Шон", "page": "https://tenor.com/view/shaun-of-the-dead-cheers-simon-pegg-shaun-gif-17668340", "note": "Компания поднимает бокалы в пабе."},
+    {"title": "Армагеддец", "page": "https://tenor.com/view/cheers-pub-crawl-simon-pegg-worlds-end-gif-5213001", "note": "Друзья чокаются пинтами."},
+    {"title": "Властелин колец", "page": "https://tenor.com/view/lotr-pint-my-friend-lord-of-the-rings-gif-5335086", "note": "«Это, мой друг, пинта»."},
+    {"title": "Побег из Шоушенка", "page": "https://tenor.com/view/the-shawshank-redemption-red-beer-gif-23304791", "note": "Морган Фримен пьёт холодное пиво после работы."},
+    {"title": "Типа крутые легавые", "page": "https://tenor.com/view/simon-pegg-nick-frost-edgar-wright-hot-fuzz-cornetto-trilogy-gif-15351908", "note": "Крупный план золотистой пинты при наливе."},
+    {"title": "Тор: Рагнарёк", "page": "https://tenor.com/view/thor-beer-ragnarok-chris-hemsworth-refill-gif-11689881", "note": "Бокал Тора сам наполняется пивом."},
+    {"title": "Бойцовский клуб", "page": "https://tenor.com/view/fight-club-1999-brad-pitt-edward-norton-tyler-durden-gif-26579431", "note": "Брэд Питт с бутылкой пива и сигаретой."},
+    {"title": "Однажды в… Голливуде", "page": "https://tenor.com/view/brad-pitt-beer-opening-beer-opening-a-beer-once-upon-a-time-in-hollywood-gif-2877015270942225571", "note": "Брэд Питт открывает банку пива."},
+    {"title": "Гран Торино", "page": "https://tenor.com/view/beer-drinking-gran-torino-pbr-pabst-blue-ribbon-gif-17665105522480067756", "note": "Иствуд спокойно пьёт пиво на крыльце."},
+    {"title": "Kingsman: Секретная служба", "page": "https://tenor.com/view/colin-firth-needed-to-let-off-a-little-steam-kingsman-happy-hour-beer-gif-10182940", "note": "Колин Фёрт и Эггси отдыхают за пивом в пабе."},
+    {"title": "Евротур", "page": "https://tenor.com/view/euro-trip-opening-beer-eyes-strong-yeah-gif-9750568", "note": "Необычный способ открыть бутылки пива."},
+    {"title": "Пивной бум", "page": "https://tenor.com/view/beerfest-brokenlizard-dasboot-gif-5467877", "note": "Знаменитый пивной сапог — Das Boot."},
+    {"title": "Святые из Бундока", "page": "https://tenor.com/view/boondock-saints-irish-st-patricks-day-gif-3923028", "note": "Компания с пивом в ирландском пабе."},
+    {"title": "Умница Уилл Хантинг", "page": "https://tenor.com/view/good-will-hunting-matt-damon-good-will-hunting-1997-will-hunting-gif-8296912445735547320", "note": "Мэтт Дэймон улыбается с бутылкой пива."},
+    {"title": "Старая закалка", "page": "https://tenor.com/view/frank-the-tank-old-school-will-ferrell-gif-13571037", "note": "Уилл Феррелл и пивная воронка — для шумной вечеринки."},
+    {"title": "Джанго освобождённый — другой кадр", "page": "https://tenor.com/view/prost-christoph-waltz-django-bier-zum-wohle-gif-11041516", "note": "Шульц поднимает кружку: Prost!"},
+    {"title": "Властелин колец — тост хоббитов", "page": "https://tenor.com/view/hobbit-cheers-drinks-clink-clinking-gif-18576837", "note": "Четыре хоббита чокаются за столом."},
+    {"title": "Зомби по имени Шон — план вечера", "page": "https://tenor.com/view/winchester-pint-blow-over-shaun-of-the-dead-nice-cold-pint-gif-15144225", "note": "Пойти в «Винчестер», взять холодную пинту и переждать."},
+    {"title": "Друзья", "page": "https://tenor.com/view/friends-rachel-phoebe-monica-jennifer-aniston-gif-4571819", "note": "Рэйчел, Моника и Фиби пьют пиво в свадебных платьях."},
+    {"title": "Симпсоны", "page": "https://tenor.com/view/homer-simpson-beer-simpsons-gif-5891774", "note": "Гомер наслаждается банкой Duff."},
+    {"title": "Офис", "page": "https://tenor.com/view/dwight-schrute-the-office-jim-drinking-beer-straight-face-gif-14442242", "note": "Дуайт с пивом и невозмутимым лицом."},
+    {"title": "Как я встретил вашу маму", "page": "https://tenor.com/view/himym-barney-stinson-how-i-met-your-mother-barney-stinson-gif-5785801664764454473", "note": "Барни с бутылкой пива за столом."},
+    {"title": "Теория большого взрыва", "page": "https://tenor.com/view/leonard-hofstadter-penny-the-big-bang-theory-laughing-gif-14923965", "note": "Пенни и Леонард смеются за пивом."},
+    {"title": "Парки и зоны отдыха", "page": "https://tenor.com/view/parks-and-rec-ron-swanson-gif-25983521", "note": "Рон Суонсон с бутылкой: BEER TIME."}
+  ]
+}
