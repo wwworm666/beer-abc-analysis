@@ -47,3 +47,8 @@ _OUTBOUND_SECRETS = (
 
 for _name in _OUTBOUND_SECRETS:
     os.environ[_name] = ''
+
+# Гифки к таплисту (core/taplist_gifs.py): тесты не ходят на страницы Tenor — это сеть и
+# запись кэша ссылок на диск (без тома — в data/ репозитория). Тест, которому нужен поиск
+# ссылки, передаёт GifSource свою поддельную функцию http_get.
+os.environ['TAPLIST_GIFS_OFFLINE'] = '1'

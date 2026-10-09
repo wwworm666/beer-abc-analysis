@@ -1543,6 +1543,83 @@ test('предпросмотр таплиста: какая гифка уйдё�
     assert.match(css, /\.gh-cp-gif \{/);
 });
 
+test('гифки к постам: блок под шаблоном, гифка в пузыре, окно выбора, выбор уходит в размещение', () => {
+    // Владелец 2026-10-09: «гифка должна отображаться в шаблоне и должна быть возможность выбора».
+    const { cp, calls } = loadReal();
+    cp.state.month = '2026-11';
+    const mp4 = 'https://media.tenor.com/x/a.mp4';
+    const auto = { number: 2, total: 25, title: 'Зомби по имени Шон', page: 'https://tenor.com/view/a-gif-2',
+                   note: 'Компания поднимает бокалы в пабе.' };
+    const pl = (id, bar, info, extra) => Object.assign({ id, channel: 'telegram', bar, date: '2026-11-06', time: '16:00',
+                                                         status: 'draft', gif_info: info }, extra || {});
+    const m = { id: 'm1', kind: 'live', live_source: 'taplist', media: [], base_text: '{таплист}', placements: [
+        pl('p1', 'bolshoy', Object.assign({}, auto, { choice: 'auto', auto })),
+        pl('p2', 'ligovskiy', { choice: 'none', auto }),
+        pl('p3', 'kremenchugskaya', { number: 5, total: 25, title: '<i>', page: 'https://tenor.com/view/b-gif-5',
+                                      note: '', choice: 'manual', auto }),
+        pl('p4', 'varshavskaya', Object.assign({}, auto, { choice: 'auto', auto }),
+           { status: 'published', delivery: { gif: { title: 'Офис', page: auto.page, sent: true } } }),
+        { id: 'p5', channel: 'instagram', bar: 'all', status: 'draft', gif_info: null },
+    ] };
+    cp.state.data = { materials: [m] };
+    cp.state.gifs = { list: [Object.assign({}, auto, { media: mp4 })], byPage: { [auto.page]: { media: mp4 } } };
+    const html = cp.gifsBlockHtml(m);
+    assert.match(html, /Гифки к постам/);
+    assert.match(html, /«Зомби по имени Шон» · автоматически/);
+    assert.match(html, /<br>без гифки</);
+    assert.match(html, /· выбрана/);
+    assert.match(html, /ушла «Офис»/, 'у вышедшего — какая гифка ушла');
+    assert.ok(!html.includes('<i>'), 'название гифки не экранировано');
+    assert.match(html, /<video class="gh-cp-gif-thumb" src="https:\/\/media\.tenor\.com\/x\/a\.mp4" autoplay loop muted playsinline/);
+    assert.equal((html.match(/data-act="gif-pick"/g) || []).length, 3, '«Сменить» — у неотправленных постов канала');
+    assert.match(html, /<details class="gh-cp-how"[\s\S]*повторится\s+через 25 недель/, 'правило — под «Как считается»');
+    assert.equal(cp.gifsBlockHtml({ id: 'm2', kind: 'fixed', placements: [{ id: 'x', channel: 'telegram', bar: 'bolshoy',
+                                                                            status: 'draft', gif_info: null }] }), '');
+    // окно выбора: текущий выбор отмечен, «Автоматически» показывает гифку по правилу
+    let picker = cp.gifPickerHtml(m, m.placements[0]);
+    assert.match(picker, /data-gif="auto" aria-current="true"/);
+    assert.match(picker, /Автоматически<\/span><span class="gh-cp-gif-tile-n">по правилу: «Зомби по имени Шон»/);
+    assert.match(picker, /data-gif="none"/);
+    assert.match(picker, /data-gif="https:\/\/tenor\.com\/view\/a-gif-2"/);
+    assert.ok(!/снимет утверждение/.test(picker));
+    picker = cp.gifPickerHtml(m, pl('p6', 'bolshoy', { choice: 'none', auto }, { status: 'approved' }));
+    assert.match(picker, /data-gif="none" aria-current="true"/);
+    assert.match(picker, /смена гифки снимет утверждение/, 'у утверждённого — предупреждение');
+    // выбор -> PATCH размещения: страница, «без гифки», «автоматически» = null
+    for (const [pid, value, sent] of [['p1', 'https://tenor.com/view/b-gif-5', 'https://tenor.com/view/b-gif-5'],
+                                       ['p1', 'none', 'none'], ['p2', 'auto', null]]) {
+        cp.state.gifPick = { mid: 'm1', pid, busy: false };
+        cp.chooseGif(value);
+        const call = calls.filter((c) => c[0] === 'PATCH' && c[1].indexOf('/placements/' + pid) >= 0).pop();
+        assert.ok(call && call[2].gif === sent, `${pid} ${value} -> ${JSON.stringify(call && call[2])}`);
+    }
+    // гифка в пузыре «Как увидят гости»: с подписью — в том же сообщении, длинный — отдельным
+    const tg = pl('p7', 'bolshoy', null, { effective_text: '{таплист}', media: null });
+    const result = { text: 'Краны', entities: [], length: 5, limit: 4096, problems: [],
+                     gif: Object.assign({}, auto, { media: mp4, separate: false }) };
+    cp.state.previewLive[cp.previewKey(m, tg)] = { result };
+    let pv = cp.previewHtml(m, tg);
+    assert.match(pv, /<div class="gh-cp-bubble"><div class="gh-cp-bubble-gif"><video class="" src="https:\/\/media\.tenor\.com\/x\/a\.mp4"/);
+    result.gif.separate = true;
+    pv = cp.previewHtml(m, tg);
+    assert.match(pv, /<div class="gh-cp-bubble is-gif"><div class="gh-cp-bubble-gif"><video/);
+    assert.match(pv, /<div class="gh-cp-bubble"><div class="gh-cp-bubble-t">/, 'текст — следующим сообщением');
+    result.gif.media = null;
+    cp.state.gifs = null;
+    assert.match(cp.bubbleGifHtml(result.gif), /гифка «Зомби по имени Шон»/, 'файла нет — название вместо картинки');
+    // переключение на «актуальные данные»: пустой шаблон — шаблон таплиста нового формата
+    assert.match(fnBody('changeKind'), /if \(src && src\.template && !String\(m\.base_text \|\| ''\)\.trim\(\)\) body\.base_text = src\.template;/);
+    assert.match(html, /gh-cp-gif-row/);
+    assert.match(css, /\.gh-cp-gif-grid \{/);
+    assert.ok(html.includes('data-pid="p1"'));
+    assert.match(read('templates/content_plan.html'), /id="cpGifModal"[\s\S]*id="cpGifBody"/);
+    // предпросмотр — с выбором гифки размещения (placement_id), смена выбора — новый запрос
+    assert.match(fnBody('maybeLoadPreviewLive'), /placement_id: p\.id/);
+    const key1 = cp.previewKey(m, m.placements[0]);
+    const key2 = cp.previewKey(m, Object.assign({}, m.placements[0], { gif: 'none' }));
+    assert.notEqual(key1, key2, 'смена гифки не сбрасывает предпросмотр');
+});
+
 test('каналы: дошедший тест подключает канал ответом сервера — без отдельной проверки', () => {
     // Регрессия 2026-10-09: тест на Лиговском дошёл, а проверка после него попала в
     // перезапуск сайта. Теперь канал подключает сам ответ теста (connected, настройки).

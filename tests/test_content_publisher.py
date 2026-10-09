@@ -589,6 +589,63 @@ def test_taplist_gif_source_failure_does_not_stop_post():
     assert env.raw(pid)['delivery']['gif']['sent'] is True
 
 
+def test_taplist_gif_choice_manual_and_none():
+    """Выбор гифки у размещения (владелец 2026-10-09: «должна быть возможность выбора»):
+    выбранная гифка уходит вместо автоматической, «без гифки» — пост текстом."""
+    import test_content_plan as tcp
+    env = Env()
+    env.enable(bars=('varshavskaya', 'ligovskiy'))
+    material = env.material(kind='live', live_source='taplist', base_text='{таплист}')
+    manual = env.placement(material['id'], bars=['varshavskaya'], gif=1)
+    off = env.placement(material['id'], bars=['ligovskiy'], gif='none')
+    env.approve(manual, off)
+    source, _tenor = _gifs()
+    with _patch(cp, 'load_live_data', lambda registry=None: (tcp.SNAPSHOT, tcp.REGISTRY)):
+        env.at(12, 0)
+        assert env.run(gifs=source)['sent'] == 2
+    by_chat = {c['payload']['chat_id']: c for c in env.tg.sends()}
+    assert by_chat['@kult_varshavskaya']['method'] == 'sendAnimation'
+    gif = env.raw(manual)['delivery']['gif']
+    assert (gif['number'], gif['title'], gif['sent']) == (1, 'Джанго освобождённый', True)
+    assert by_chat['@kult_ligovskiy']['method'] == 'sendMessage' and 'gif' not in env.raw(off)['delivery']
+
+
+def test_gif_routes_list_and_preview_media():
+    """Окно выбора: набор с ссылками на файлы; предпросмотр — ссылка на файл выбранной гифки."""
+    import test_content_plan as tcp
+    env = Env()
+    env.enable(bars=('varshavskaya',))
+    material = env.material(kind='live', live_source='taplist', base_text='{таплист}')
+    pid = env.placement(material['id'], bars=['varshavskaya'], gif=2)
+    source, tenor = _gifs()
+    saved = rcp._gif_source
+    rcp._gif_source = lambda: source
+    try:
+        with _client(env) as c, _patch(cp, 'load_live_data', lambda registry=None: (tcp.SNAPSHOT, tcp.REGISTRY)):
+            body = c.get('/api/content-plan/gifs').get_json()
+            assert body['total'] == 25 and len(body['gifs']) == 25
+            assert body['gifs'][1] == dict(taplist_gifs.load_gifs()[1], number=2, media=GIF_MP4)
+            calls = len(tenor.calls)
+            assert c.get('/api/content-plan/gifs').get_json()['gifs'][0]['media'] == GIF_MP4
+            assert len(tenor.calls) == calls                                   # второй раз — из кэша
+            preview = c.get(f'/api/content-plan/live-preview?placement_id={pid}').get_json()
+            assert preview['gif_choice'] == 'manual' and preview['gif']['number'] == 2
+            assert preview['gif']['media'] == GIF_MP4
+    finally:
+        rcp._gif_source = saved
+    # Tenor не отвечает — окно выбора и предпросмотр работают без картинок
+    broken, _t = _gifs(pages={})
+    broken.http_get = lambda *a, **k: (_ for _ in ()).throw(OSError('нет сети'))
+    rcp._gif_source = lambda: broken
+    try:
+        with _client(env) as c, _patch(cp, 'load_live_data', lambda registry=None: (tcp.SNAPSHOT, tcp.REGISTRY)):
+            body = c.get('/api/content-plan/gifs').get_json()
+            assert all(item['media'] is None for item in body['gifs'])
+            assert c.get(f'/api/content-plan/live-preview?placement_id={pid}').get_json()['gif']['media'] is None
+    finally:
+        rcp._gif_source = saved
+
+
 def test_taplist_gif_only_for_telegram_live_without_media():
     """Свои фото у таплиста, готовая публикация, рассылка бота — без гифки."""
     import test_content_plan as tcp

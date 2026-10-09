@@ -329,6 +329,8 @@
         addOpen: null,           // id материала, у которого открыта форма «Добавить площадку»
         postView: 'edit',        // раздел «Пост»: 'edit' — текст и файлы, 'preview' — как увидят гости
         previewLive: {},         // ключ размещения -> {loading} | {result} | {error}
+        gifs: null,              // набор гифок таплиста: {loading} | {list, byPage} | {error} (GET /gifs)
+        gifPick: null,           // окно выбора гифки: {mid, pid, busy}
         log: null,               // {id, entries, error, all}
         shiftDays: '',
         repeatDays: [],
@@ -2715,7 +2717,7 @@
                 'aria-label="' + (live ? 'Шаблон поста' : 'Текст поста') + '" placeholder="' +
                 (live ? 'Например:\n{вступление}\n\n{таплист}\n\n{концовка}' : 'Текст поста') + '">' + esc(text) + '</textarea>' +
             '<div class="gh-cp-textfoot"><span class="gh-save" data-save></span>' + ownTextNote(m) + counter + '</div>';
-        if (live) html += liveTokensHtml(m);
+        if (live) html += liveTokensHtml(m) + gifsBlockHtml(m);
         var locked = 0;
         each(m.placements, function (p) {
             if (locksOnContent(p) && (p.text === null || p.text === undefined)) locked++;
@@ -3335,8 +3337,9 @@
     // Ключ проверки живых данных: всё, от чего зависят текст и предел длины
     // (площадка и есть ли файлы — предел подписи к фото меньше).
     function previewKey(m, p) {
+        // gif — выбор гифки размещения: сменили — предпросмотр запрашивается заново.
         return [p.id, p.bar, p.date || '', m.live_source || '', p.effective_text || '', p.channel,
-                placementFiles(m, p).length ? 'media' : 'text'].join('|');
+                placementFiles(m, p).length ? 'media' : 'text', p.gif || ''].join('|');
     }
     function previewTarget(m) {
         var list = [];
@@ -3357,7 +3360,10 @@
         // channel и has_media — предел длины этой площадки (контракт A.3):
         // Telegram и бот с файлами — подпись 1024, без файлов — 4096, Instagram
         // — 2200. Без них сервер берёт 4096.
-        var body = { source: m.live_source || '', bar: p.bar, material_id: m.id, template: p.effective_text || '',
+        // placement_id — чтобы сервер взял выбор гифки размещения (поле gif); остальное
+        // передаётся явно и главнее.
+        var body = { source: m.live_source || '', bar: p.bar, material_id: m.id, placement_id: p.id,
+                     template: p.effective_text || '',
                      channel: p.channel, has_media: placementFiles(m, p).length > 0 };
         if (p.date) body.date = p.date;
         GH.api('POST', API + '/live-preview', body).then(function (res) {
@@ -3391,6 +3397,7 @@
         var problems = [];
         var links = [];
         var state = 'ok';
+        var gif = null;
         if (m.kind === 'live') {
             var r = S.previewLive[previewKey(m, p)];
             if (!r || r.loading) {
@@ -3404,6 +3411,7 @@
                 limit = r.result.limit || 0;
                 problems = r.result.problems || [];
                 links = r.result.entities || [];
+                gif = p.channel === 'telegram' ? (r.result.gif || null) : null;
             }
         } else {
             text = p.effective_text || '';
@@ -3436,10 +3444,15 @@
                     ? 'Бот · ' + (p.audience_info ? p.audience_info.name : 'аудитория не выбрана') +
                         (p.bar !== 'all' ? ' · ' + GH.barName(p.bar) : '')
                     : 'Канал бара · ' + GH.barName(p.bar);
+                // Гифка таплиста — как в канале: с подписью — в том же сообщении над текстом,
+                // текст длиннее подписи — отдельным сообщением перед ним.
+                var gifBox = gif ? bubbleGifHtml(gif) : '';
                 body = '<div class="gh-cp-tg' + (p.channel === 'bot' ? ' is-bot' : '') + '">' +
                     '<div class="gh-cp-tg-head"><span class="gh-cp-av">' + esc(chShort(p.channel)) + '</span>' +
                         '<span>' + esc(head) + '</span></div>' +
-                    '<div class="gh-cp-bubble">' + thumbsHtml(files, '') +
+                    (gif && gif.separate ? '<div class="gh-cp-bubble is-gif">' + gifBox +
+                        '<div class="gh-cp-bubble-time">' + esc(time) + '</div></div>' : '') +
+                    '<div class="gh-cp-bubble">' + (gif && !gif.separate ? gifBox : '') + thumbsHtml(files, '') +
                         '<div class="gh-cp-bubble-t">' + textHtml + '</div>' +
                         '<div class="gh-cp-bubble-time">' + esc(time) + '</div>' +
                     '</div>' +
@@ -3491,9 +3504,15 @@
     function gifHtml(m, p) {
         var r = S.previewLive[previewKey(m, p)];
         var g = r && r.result && r.result.gif;
-        if (!g) return '';
+        var choice = r && r.result && r.result.gif_choice;
+        var pick = gifEditable(p) ? ' <button type="button" class="gh-btn gh-btn-sm gh-btn-ghost" data-act="gif-pick" ' +
+            'data-pid="' + esc(p.id) + '">Сменить</button>' : '';
+        if (!g) {
+            return choice === 'none' ? '<div class="gh-cp-gif">Гифка: без гифки (выбрано вручную)' + pick + '</div>' : '';
+        }
         var line = 'Гифка: «' + esc(g.title) + '»' + (g.note ? ' — ' + esc(g.note) : '') +
-            ' <a class="gh-link" href="' + esc(g.page) + '" target="_blank" rel="noopener noreferrer">открыть</a>' +
+            (choice === 'manual' ? ' · выбрана вручную' : ' · автоматически') +
+            ' <a class="gh-link" href="' + esc(g.page) + '" target="_blank" rel="noopener noreferrer">открыть</a>' + pick +
             (g.separate ? '<br>Текст длиннее подписи к гифке (1024 знака): гифка уйдёт отдельным сообщением ' +
                 'перед текстом.' : '');
         var how = 'Гифка ' + g.number + ' из ' + g.total + '. Выбирается по правилу, а не случайно, чтобы ' +
@@ -3502,8 +3521,162 @@
             nText(g.total, 'неделю', 'недели', 'недель') + '. Текст до 1024 знаков уходит подписью к гифке, ' +
             'длиннее — отдельным сообщением сразу после неё. Если Telegram гифку не примет, пост выйдет ' +
             'текстом. Только в канал бара: у Instagram и рассылки бота гифки нет, а свои фото и видео ' +
-            'размещения её заменяют.';
+            'размещения её заменяют. «Сменить» — выбрать гифку из набора или «без гифки»; у утверждённого ' +
+            'размещения смена гифки снимает утверждение.';
         return '<div class="gh-cp-gif">' + line + '</div>' + howHtml('gif-' + previewKey(m, p), '<p>' + esc(how) + '</p>');
+    }
+
+    // ----- гифки таплиста: показ и выбор (решение владельца 2026-10-09) -----
+
+    var GIF_EXPLAIN = 'К каждому таплисту в канале бара прикрепляется гифка из набора владельца (25 гифок). ' +
+        'Автоматически — по правилу: номер недели выхода умножается на шаг и сдвигается на четверть набора ' +
+        'для каждого бара, поэтому в одну пятницу у баров разные гифки, а в своём баре гифка повторится ' +
+        'через 25 недель. «Сменить» — выбрать любую гифку из набора или «без гифки»; у следующих пятниц ' +
+        'серии выбор не повторяется. Смена гифки у утверждённого размещения снимает утверждение.';
+
+    // Набор гифок с ссылками на файлы (GET /api/content-plan/gifs): один раз за страницу.
+    // Первый ответ может идти несколько секунд — сервер ищет ссылки на страницах Tenor.
+    function loadGifs(force) {
+        if (S.gifs && !force && (S.gifs.loading || S.gifs.list)) return;
+        S.gifs = { loading: true };
+        GH.api('GET', API + '/gifs').then(function (res) {
+            var list = (res && res.gifs) || [];
+            var byPage = {};
+            each(list, function (g) { byPage[g.page] = g; });
+            S.gifs = { list: list, byPage: byPage };
+            if (current() && drawerOpen()) renderDrawer();
+            if (S.gifPick) renderGifPicker();
+        }, function (err) {
+            S.gifs = { error: (err && err.message) || 'ошибка запроса' };
+            if (S.gifPick) renderGifPicker();
+        });
+    }
+    // Ссылка на файл гифки из набора (или '' — набор ещё не пришёл, файла нет).
+    function gifMedia(page) {
+        var g = S.gifs && S.gifs.byPage && S.gifs.byPage[page];
+        return (g && g.media) || '';
+    }
+    // Гифка на экране: mp4 — беззвучное видео по кругу, gif — картинка.
+    function gifMediaHtml(url, cls) {
+        if (!url) return '';
+        if (/\.mp4$/i.test(url)) {
+            return '<video class="' + cls + '" src="' + esc(url) + '" autoplay loop muted playsinline ' +
+                'preload="metadata" aria-hidden="true"></video>';
+        }
+        return '<img class="' + cls + '" src="' + esc(url) + '" alt="" loading="lazy">';
+    }
+    // Гифка в пузыре предпросмотра; файла нет — название вместо картинки.
+    function bubbleGifHtml(gif) {
+        var url = gif.media || gifMedia(gif.page);
+        return '<div class="gh-cp-bubble-gif">' + (url ? gifMediaHtml(url, '')
+            : '<span class="gh-cp-gif-ph">гифка «' + esc(gif.title) + '»</span>') + '</div>';
+    }
+    // Гифку можно сменить: размещение ещё не вышло и не отменено.
+    function gifEditable(p) {
+        return p.status !== 'published' && p.status !== 'cancelled';
+    }
+    // Подпись выбора гифки размещения по gif_info сервера.
+    function gifLabel(p) {
+        var g = p.gif_info;
+        var sent = p.delivery && p.delivery.gif;
+        if (p.status === 'published' && sent) {
+            return sent.sent ? 'ушла «' + sent.title + '»' : 'вышло без гифки';
+        }
+        if (g.choice === 'none') return 'без гифки';
+        if (!g.page) return 'по правилу — когда будет дата выхода';
+        return '«' + g.title + '» · ' + (g.choice === 'manual' ? 'выбрана' : 'автоматически');
+    }
+
+    // «Гифки к постам» под шаблоном таплиста: по строке на размещение в канале бара —
+    // гифка (живая), название, как выбрана, «Сменить».
+    function gifsBlockHtml(m) {
+        var rows = '';
+        each(m.placements, function (p) {
+            if (p.status === 'cancelled' || p.channel !== 'telegram' || !p.gif_info) return;
+            var g = p.gif_info;
+            var page = p.status === 'published' && p.delivery && p.delivery.gif ? p.delivery.gif.page : g.page;
+            var media = page ? gifMediaHtml(gifMedia(page), 'gh-cp-gif-thumb') : '';
+            rows += '<div class="gh-cp-gif-row">' +
+                '<span class="gh-cp-gif-media">' + (media || '<span class="gh-cp-gif-empty"></span>') + '</span>' +
+                '<span class="gh-cp-gif-t"><b>' + esc(GH.barName(p.bar)) + '</b>' +
+                    (p.date ? ' · ' + esc(GH.fmtDate(p.date)) : '') + '<br>' + esc(gifLabel(p)) + '</span>' +
+                (gifEditable(p) ? '<button type="button" class="gh-btn gh-btn-sm" data-act="gif-pick" data-pid="' +
+                    esc(p.id) + '">Сменить</button>' : '') +
+            '</div>';
+        });
+        if (!rows) return '';
+        if (!S.gifs) loadGifs();
+        return '<div class="gh-cp-gifs"><div class="gh-cp-gifs-h">Гифки к постам</div>' + rows + '</div>' +
+            howHtml('gifs', '<p>' + esc(GIF_EXPLAIN) + '</p>');
+    }
+
+    // Окно выбора гифки для размещения.
+    function openGifPicker(m, p) {
+        S.gifPick = { mid: m.id, pid: p.id, busy: false };
+        if (!S.gifs || S.gifs.error) loadGifs(true);
+        renderGifPicker();
+        GH.openModal(el.gifModal, { onClose: function () { S.gifPick = null; } });
+    }
+    function gifPickerHtml(m, p) {
+        var g = p.gif_info || {};
+        var auto = g.auto;
+        var head = '<p class="gh-cp-explain">' + esc(GH.barName(p.bar) + (p.date ? ', ' + GH.fmtDate(p.date) : '') +
+            ': гифка уйдёт вместе с таплистом в канал бара.') + '</p>';
+        if (locksOnContent(p)) {
+            head += '<div class="gh-cp-warn is-quiet">Размещение утверждено: смена гифки снимет утверждение — ' +
+                'его нужно будет утвердить снова.</div>';
+        }
+        var tile = function (value, cur, inner, title, note) {
+            return '<button type="button" class="gh-cp-gif-tile' + (cur ? ' is-cur' : '') + '" data-gif="' + esc(value) +
+                '"' + (cur ? ' aria-current="true"' : '') + '>' + inner + '<span class="gh-cp-gif-tile-t">' + esc(title) +
+                '</span>' + (note ? '<span class="gh-cp-gif-tile-n">' + esc(note) + '</span>' : '') + '</button>';
+        };
+        var tiles = tile('auto', g.choice === 'auto',
+            '<span class="gh-cp-gif-tile-m">' + (auto ? gifMediaHtml(gifMedia(auto.page), '') : '') + '</span>',
+            'Автоматически', auto ? 'по правилу: «' + auto.title + '»' : 'по правилу недели и бара');
+        tiles += tile('none', g.choice === 'none', '<span class="gh-cp-gif-tile-m is-none">нет</span>',
+            'Без гифки', 'пост выйдет текстом');
+        var list = S.gifs && S.gifs.list;
+        if (list) {
+            each(list, function (item) {
+                tiles += tile(item.page, g.choice === 'manual' && g.page === item.page,
+                    '<span class="gh-cp-gif-tile-m">' + gifMediaHtml(item.media, '') + '</span>',
+                    item.number + '. ' + item.title, item.note);
+            });
+        }
+        var status = '';
+        if (!S.gifs || S.gifs.loading) {
+            status = '<div class="gh-cp-loading"><span class="gh-spin"></span>Загружаю гифки — первый раз до 10 секунд…</div>';
+        } else if (S.gifs.error) {
+            status = '<p class="gh-field-err">Гифки не загрузились: ' + esc(S.gifs.error) + '</p>';
+        }
+        return head + '<div class="gh-cp-gif-grid">' + tiles + '</div>' + status;
+    }
+    function renderGifPicker() {
+        var g = S.gifPick;
+        if (!g || !el.gifBody) return;
+        var m = findMaterial(g.mid);
+        var p = m ? findPlacement(m, g.pid) : null;
+        if (!p) { el.gifBody.innerHTML = '<p class="gh-field-err">Размещение не найдено.</p>'; return; }
+        el.gifBody.innerHTML = gifPickerHtml(m, p);
+    }
+    // Выбор в окне: auto -> null (автоматически), none, страница гифки.
+    function chooseGif(value) {
+        var g = S.gifPick;
+        if (!g || g.busy) return;
+        var m = findMaterial(g.mid);
+        var p = m ? findPlacement(m, g.pid) : null;
+        if (!p) return;
+        var gif = value === 'auto' ? null : value;
+        var cur = p.gif_info || {};
+        var same = (gif === null && cur.choice === 'auto') || (gif === 'none' && cur.choice === 'none') ||
+            (gif && gif !== 'none' && cur.choice === 'manual' && cur.page === gif);
+        if (same) { GH.closeModal(el.gifModal); return; }
+        g.busy = true;
+        patchPlacement(p.id, { gif: gif }).then(function (res) {
+            if (S.gifPick) S.gifPick.busy = false;
+            if (res) GH.closeModal(el.gifModal);
+        });
     }
 
     // Какие фразы {вступление} и {концовка} достались этому бару в этот день
@@ -3673,6 +3846,10 @@
         // не встал в «не выбран источник данных» без причины.
         var sources = liveSources();
         if (kind === 'live' && !m.live_source && sources.length === 1) body.live_source = sources[0].key;
+        // Пустой шаблон — сразу шаблон таплиста нового формата (вступление, список, концовка;
+        // решение владельца 2026-10-09). Свой текст не трогаем.
+        var src = kind === 'live' ? findIn(sources, body.live_source || m.live_source) : null;
+        if (src && src.template && !String(m.base_text || '').trim()) body.base_text = src.template;
         var go = function () { patchMaterial(m.id, body); };
         if (!locked) { go(); return; }
         GH.confirm({
@@ -4078,6 +4255,8 @@
             if (action === 'approve') approveOne(m, p);
             else if (action === 'send_now') sendNow(m, p);
             else placementAction(m, p, action);
+        } else if (a === 'gif-pick' && p) {
+            openGifPicker(m, p);
         } else if (a === 'token') {
             insertToken(act.getAttribute('data-token'));
         } else if (a === 'media-del') {
@@ -6139,6 +6318,12 @@
         });
         el.copyGo.addEventListener('click', submitCopy);
 
+        el.gifBody.addEventListener('click', function (e) {
+            var tileBtn = closest(e.target, '[data-gif]');
+            if (tileBtn) chooseGif(tileBtn.getAttribute('data-gif'));
+        });
+        el.gifModal.addEventListener('gh:close', function () { S.gifPick = null; });
+
         // Уход со страницы с несохранённым: отправить сразу и с keepalive —
         // обычный fetch браузер обрывает вместе со страницей. flushAll шлёт
         // запросы синхронно, поэтому флаг S.keepalive действует ровно на них.
@@ -6209,7 +6394,9 @@
             moreMenu: byId('cpMoreMenu'),
             newModal: byId('cpNewModal'),
             newBody: byId('cpNewBody'),
-            newGo: byId('cpNewGo')
+            newGo: byId('cpNewGo'),
+            gifModal: byId('cpGifModal'),
+            gifBody: byId('cpGifBody')
         };
         if (!GH) {
             if (el.msg) {
@@ -6285,7 +6472,8 @@
         placementHtml: placementHtml, foldHtml: foldHtml, legendHtml: legendHtml,
         // Таплист 2026-10-04: названия пива в предпросмотре — ссылки на Untappd.
         linkedText: linkedText, previewHtml: previewHtml, previewKey: previewKey,
-        // Гифка к таплисту 2026-10-09.
-        gifHtml: gifHtml
+        // Гифка к таплисту 2026-10-09: показ и выбор.
+        gifHtml: gifHtml, gifsBlockHtml: gifsBlockHtml, gifPickerHtml: gifPickerHtml, gifMediaHtml: gifMediaHtml,
+        bubbleGifHtml: bubbleGifHtml, chooseGif: chooseGif, openGifPicker: openGifPicker
     };
 })();

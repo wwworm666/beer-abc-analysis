@@ -107,6 +107,8 @@ idempotent — сетевой вызов), content_channel_test, content_publish
 - 2026-10-09 — content_channel_test: доставленное сообщение подключает канал (connected,
   check.via=test), ответ — как content_channels_get.
 - 2026-10-09 — content_live_preview: поле gif — гифка к таплисту в канале бара.
+- 2026-10-09 — выбор гифки: поле gif у content_placements_add и content_placement_update,
+  инструмент content_taplist_gifs (набор гифок), gif_choice и gif.media в предпросмотре.
 """
 import re
 from typing import Dict, List, Tuple
@@ -322,6 +324,14 @@ _PLACEMENT_AUDIENCE = _enum(AUDIENCES, 'Только для bot (у бота о�
                                        'bot_recent_30 — были в баре за последние 30 дней; bot_lapsed_60 — не '
                                        'были 60 дней и дольше. Размер на сейчас — content_audience.')
 _PLACEMENT_MEDIA_ITEMS = {'type': 'string', 'pattern': MEDIA_NAME_PATTERN}
+_PLACEMENT_GIF = {
+    'type': ['string', 'integer', 'null'],
+    'description': ('Гифка к таплисту в канале бара (только live-материал из таплиста и площадка telegram): '
+                    'null или "auto" — автоматически по правилу недели и бара (в одну пятницу у баров '
+                    'разные); "none" — без гифки; номер гифки из набора (1..25, content_taplist_gifs) или '
+                    'адрес её страницы Tenor. У копий серии выбор не повторяется — там автоматически. Смена '
+                    'гифки у утверждённого размещения снимает утверждение. Без просьбы владельца не менять.'),
+}
 
 _FILE = {
     'type': 'object',
@@ -549,6 +559,22 @@ _tool(
 )
 
 _tool(
+    name='content_taplist_gifs',
+    title='Гифки к таплисту',
+    description=(
+        'Набор гифок к таплисту в каналах баров (решение владельца 2026-10-09: «к каждому таплисту — гифка из '
+        'списка»): {gifs: [{number, title — фильм или сериал, page — страница Tenor, note — что на гифке, '
+        'media — ссылка на файл или null}], total}. Какая гифка у поста — поле gif в content_live_preview; '
+        'выбрать другую — content_placement_update с gif (номер, «none» или null — автоматически). Первый '
+        'вызов может занять до 12 секунд: сервер ищет ссылки на файлы на страницах Tenor. Ничего не меняет.'
+    ),
+    input_schema=_obj({}),
+    method='GET', path='/api/content-plan/gifs',
+    read_only=True, idempotent=True,
+    examples=({},),
+)
+
+_tool(
     name='content_media_get',
     title='Файл материала',
     description=(
@@ -704,6 +730,7 @@ _tool(
                   'description': 'Своя подборка файлов (имена из material.media[].name); null или не '
                                  'передавать — все файлы материала; [] — без файлов.'},
         'audience': _PLACEMENT_AUDIENCE,
+        'gif': _PLACEMENT_GIF,
     }, required=('material_id', 'channel')),
     method='POST', path='/api/content-plan/materials/<material_id>/placements', path_params=('material_id',),
     body='json', read_only=False, draft_write=True,
@@ -714,7 +741,7 @@ _tool(
     title='Изменить размещение',
     description=(
         'Изменить размещение (передавайте только меняемые поля). Изменение содержания — channel, bar, '
-        'audience, итоговый текст или файлы — снимает утверждение (approved, paused, failed -> draft; id в '
+        'audience, итоговый текст, файлы или гифка — снимает утверждение (approved, paused, failed -> draft; id в '
         'unapproved). Перенос даты или времени утверждение сохраняет, но утверждённое нельзя перенести в '
         'прошлое и нельзя оставить без даты или времени (400). Вышедшее и отменённое не редактируются (400). '
         'text=null — вернуться к общему тексту; media=null — все файлы материала. В режиме «чтение и черновики» (коннектор …/draft) можно править только свои черновики: материал origin=agent, все размещения — draft или cancelled.'
@@ -731,6 +758,7 @@ _tool(
                   'description': 'Своя подборка файлов (имена из material.media[].name); null — все файлы '
                                  'материала; [] — без файлов.'},
         'audience': _PLACEMENT_AUDIENCE,
+        'gif': _PLACEMENT_GIF,
     }, required=('placement_id',)),
     method='PATCH', path='/api/content-plan/placements/<placement_id>', path_params=('placement_id',),
     body='json', read_only=False, draft_write=True, idempotent=True,
@@ -1412,7 +1440,7 @@ INSTRUCTIONS = """\
   неделю и бар — свой заголовок вместо них не пиши), размещения telegram на каждый бар, затем
   content_material_repeat(weekdays=[4]). Сорта руками не вписывать; краны бара без изменений больше
   14 дней (stale_taps) остановят пост — скажите владельцу; кран без связи с Untappd выйдет без ссылки. Пост —
-  только текст: названия — ссылки на Untappd, цен и фото нет (решение владельца 2026-10-04).
+  текст (названия — ссылки на Untappd, без цен и фото) и гифка из набора: выбирает сайт, gif — по просьбе владельца.
 - Telegram — канал каждого бара (конкретный бар): 4096 знаков без фото, 1024 с фото, до 10 файлов.
 - Instagram — один аккаунт сети (bar all): 2200 знаков, от 1 до 10 фото (см. «ФОТО»); фото бара
   нет — shot_list (кадры, бар, время суток, люди) и media_required=true.

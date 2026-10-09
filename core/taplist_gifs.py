@@ -59,6 +59,9 @@ sha256, как core/content_channels.token_hash).
 
 - 2026-10-09 — модуль создан: 25 гифок владельца, выбор по неделе и бару, ссылка на
   файл со страницы Tenor, кэш ссылок и file_id.
+- 2026-10-09 — media_many: ссылки на файлы для окна выбора (параллельно, с бюджетом
+  времени); TAPLIST_GIFS_OFFLINE=1 (tests/conftest.py) — источник без своей http_get в
+  Tenor не ходит. Выбор гифки у размещения — core/content_plan.py (поле gif).
 """
 
 import hashlib
@@ -192,6 +195,9 @@ class GifSource:
             from core.storage_paths import get_data_path
             cache_file = get_data_path(CACHE_FILE_NAME)
         self.cache_file = cache_file
+        # TAPLIST_GIFS_OFFLINE=1 (tests/conftest.py): источник без своей http_get в сеть не
+        # ходит — ссылки только из кэша. Тест с поддельной http_get работает как обычно.
+        self.offline = http_get is None and os.environ.get('TAPLIST_GIFS_OFFLINE') == '1'
         self.http_get = http_get or _default_get
         self.now_fn = now_fn or _now_stamp
         self._lock = threading.Lock()
@@ -256,7 +262,37 @@ class GifSource:
             self._update(page, lambda e: e.update({'media': url, 'media_at': stamp}))
         return url
 
+    def media_many(self, pages, budget_sec: float = 12, workers: int = 6) -> Dict[str, Optional[str]]:
+        """Ссылки на файлы для набора страниц (окно выбора гифки): из кэша, недостающие —
+        параллельно со страниц Tenor, не дольше budget_sec. Не успели — None (поиск
+        доделается в фоне и попадёт в кэш к следующему открытию)."""
+        cached = self._load()
+        out: Dict[str, Optional[str]] = {}
+        missing = []
+        for page in pages:
+            entry = cached.get(page) if isinstance(cached.get(page), dict) else {}
+            url = entry.get('media')
+            if isinstance(url, str) and MEDIA_RE.match(url):
+                out[page] = url
+            else:
+                out[page] = None
+                missing.append(page)
+        if missing:
+            from concurrent.futures import ThreadPoolExecutor, wait
+            pool = ThreadPoolExecutor(max_workers=max(1, min(workers, len(missing))))
+            futures = {pool.submit(self.media_url, page): page for page in missing}
+            done, _pending = wait(futures, timeout=budget_sec)
+            for future in done:
+                try:
+                    out[futures[future]] = future.result()
+                except Exception as e:  # noqa: BLE001 — одна гифка не валит окно выбора
+                    print(f'[TAPLIST_GIFS] {futures[future]}: {e!r}')
+            pool.shutdown(wait=False)
+        return out
+
     def _resolve(self, page: str) -> Optional[str]:
+        if self.offline:
+            return None
         headers = {'User-Agent': USER_AGENT}
         try:
             resp = self.http_get(page, timeout=FETCH_TIMEOUT, headers=headers)

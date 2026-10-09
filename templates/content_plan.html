@@ -263,6 +263,24 @@
         </div>
     </div>
 
+    <!-- Окно выбора гифки к таплисту (решение владельца 2026-10-09: «должна быть возможность
+         выбора»): «Автоматически», «Без гифки» и 25 гифок набора. Плитки рисует
+         content_plan.js (gifPickerHtml); выбор сразу сохраняется в размещении. -->
+    <div class="gh-modal" id="cpGifModal" hidden aria-labelledby="cpGifTitle">
+        <div class="gh-modal-box gh-modal-wide">
+            <div class="gh-modal-head">
+                <h2 class="gh-modal-t" id="cpGifTitle">Гифка к таплисту</h2>
+                <button type="button" class="gh-x" data-gh-close aria-label="Закрыть">
+                    <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7" stroke-width="1.6" stroke-linecap="round"/></svg>
+                </button>
+            </div>
+            <div class="gh-modal-body" id="cpGifBody"></div>
+            <div class="gh-modal-foot">
+                <button type="button" class="gh-btn" data-gh-close>Закрыть</button>
+            </div>
+        </div>
+    </div>
+
     <script src="/static/js/guest_hub/common.js?v={{ app_version }}"></script>
     <script src="/static/js/guest_hub/content_plan.js?v={{ app_version }}"></script>
     <script src="/static/logo.js"></script>
