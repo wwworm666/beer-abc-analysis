@@ -474,6 +474,12 @@ PLACEHOLDERS = ('{вступление}', '{таплист}', '{концовка
 OPTIONAL_PLACEHOLDERS = ('{концовка}',)
 # Шаблон «Таплиста пятницы» по умолчанию: подсказка в поле текста и пример агенту.
 TAPLIST_TEMPLATE = '{вступление}\n\n{таплист}\n\n{концовка}'
+# Шаблон, который агент ставил «Таплисту пятницы» до 2026-10-09. Материалы с ним утверждены
+# заранее (пятницы октября), а владелец 2026-10-09 решил: «таплист должен быть по новому
+# шаблону, сегодняшний тоже». Поэтому при выходе и в предпросмотре такой шаблон заменяется на
+# TAPLIST_TEMPLATE. Только точное совпадение (без учёта пробелов по краям): свой текст
+# владельца выходит как написан.
+LEGACY_TAPLIST_TEMPLATES = ('Таплист пятницы — {бар}, {дата}\n\n{таплист}',)
 LIVE_SOURCES = {
     'taplist': {
         'key': 'taplist', 'name': 'Таплист бара',
@@ -1531,6 +1537,8 @@ def render_live(source, bar, template, pub_date=None, snapshot=None, registry=No
     channel, has_media, rows, data_at, taps_changed_at, phrase}.
     phrase — {variant, total, intro, outro}: какой вариант вступления и концовки выбран
     для этого бара и дня (номер с единицы из total) и их текст; None — бар не выбран.
+    legacy_template — шаблон был прежним шаблоном агента (LEGACY_TAPLIST_TEMPLATES) и
+    заменён на TAPLIST_TEMPLATE.
     rows — строки таплиста [{tap_number, brewery, beer_name, style, abv, mapped,
     mapping_message, name, untappd_url, new, line}]: name — пивоварня и название
     так, как в посте, new — пометка «новинка». ok=False означает «публикация будет
@@ -1551,6 +1559,9 @@ def render_live(source, bar, template, pub_date=None, snapshot=None, registry=No
     with_media = bool(has_media)
     moment = _naive_msk(now if isinstance(now, datetime) else msk_time.now())
     template = '' if template is None else str(template)
+    legacy = source in LIVE_SOURCES and template.strip() in LEGACY_TAPLIST_TEMPLATES
+    if legacy:
+        template = TAPLIST_TEMPLATE
     problems: List[dict] = []
     rows_out: List[dict] = []
     limit = text_limit_for(channel, with_media) if channel else TG_TEXT_LIMIT
@@ -1651,7 +1662,7 @@ def render_live(source, bar, template, pub_date=None, snapshot=None, registry=No
             'limit': limit, 'limit_note': limit_note_for(channel, with_media),
             'channel': channel, 'has_media': with_media, 'rows': rows_out,
             'data_at': fmt_stamp(moment), 'taps_changed_at': fmt_stamp(changed) if changed else None,
-            'phrase': phrase}
+            'phrase': phrase, 'legacy_template': legacy}
 
 
 # ---------------------------------------------------------------------------

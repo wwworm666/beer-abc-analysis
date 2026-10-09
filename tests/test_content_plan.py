@@ -1199,6 +1199,18 @@ def test_taplist_phrases_vary_by_week_and_bar():
         assert longest + 4 <= 200, (bar['key'], longest)
 
 
+def test_legacy_agent_template_goes_out_as_new():
+    """Владелец 2026-10-09: «таплист должен быть по новому шаблону, сегодняшний тоже». Пятницы
+    октября утверждены с прежним шаблоном агента — он выходит как TAPLIST_TEMPLATE; любой другой
+    текст — как написан."""
+    new = _render('varshavskaya', template=cp.TAPLIST_TEMPLATE, pub_date='2026-10-09')
+    old = _render('varshavskaya', template='Таплист пятницы — {бар}, {дата}\n\n{таплист}', pub_date='2026-10-09')
+    assert old['text'] == new['text'] and old['entities'] == new['entities'] and old['ok'] is True
+    assert (old['legacy_template'], new['legacy_template']) == (True, False)
+    own = _render('varshavskaya', template='Таплист пятницы — {бар}, {дата}!\n\n{таплист}', pub_date='2026-10-09')
+    assert own['legacy_template'] is False and own['text'].startswith('Таплист пятницы — Варшавская, 9 октября!')
+
+
 def test_live_preview_route():
     store = _store()
     m = _material(store, title='Таплист', kind='live', live_source='taplist', base_text=TEMPLATE)
