@@ -1,6 +1,11 @@
 """
 Telegram бот для KULT Taplist - Webhook версия
-Работает внутри Flask приложения без отдельного процесса
+Работает внутри Flask приложения без отдельного процесса.
+
+Основной режим — long-polling (core/taplist_polling.py): входящие от Telegram до
+сервера не доходят. Таплист в обоих режимах один: реестр Untappd (связь по GUID
+товара iiko) и строки «Таплиста пятницы» — core/taplist_post.bar_message_html.
+Прежний справочник по названиям (beer_info_mapping.json) с 2026-10-04 не читается.
 """
 import os
 import json
@@ -39,207 +44,26 @@ bot = Bot(token=BOT_TOKEN, session=AiohttpSession(timeout=15))
 dp = Dispatcher()
 
 
-def get_taplist_data(bar_id=None, taps_manager=None, beer_mapping=None):
-    """
-    Получить данные таплиста напрямую из taps_manager
-    Работает локально без HTTP запросов
-    """
-    if not taps_manager:
-        return None
-
-    result = {
-        'success': True,
-        'taplist': []
-    }
-
-    bars = taps_manager.get_bars()
-    if isinstance(bars, dict) and 'error' in bars:
-        return None
-
-    # Если запрошен конкретный бар
-    if bar_id:
-        bars = [b for b in bars if b.get('bar_id') == bar_id]
-
-    for bar in bars:
-        b_id = bar['bar_id']
-        bar_name = bar['name']
-
-        bar_data = taps_manager.get_bar_taps(b_id)
-        if 'error' in bar_data:
-            continue
-
-        for tap in bar_data.get('taps', []):
-            if tap.get('status') != 'active':
-                continue
-
-            beer_name = tap.get('current_beer')
-            if not beer_name:
-                continue
-
-            tap_info = {
-                'bar_id': b_id,
-                'bar': bar_name,
-                'tap_number': tap['tap_number'],
-                'iiko_name': beer_name,
-                'mapped': False
-            }
-
-            # Ищем маппинг пива
-            if beer_mapping:
-                beer_info = find_beer_info_local(beer_name, beer_mapping)
-                if beer_info:
-                    tap_info.update({
-                        'mapped': True,
-                        'brewery': beer_info.get('brewery', ''),
-                        'beer_name': beer_info.get('beer_name', ''),
-                        'untappd_url': beer_info.get('untappd_url', ''),
-                        'style': beer_info.get('style', ''),
-                        'abv': beer_info.get('abv', ''),
-                        'ibu': beer_info.get('ibu', ''),
-                        'description': beer_info.get('description', '')
-                    })
-
-            result['taplist'].append(tap_info)
-
-    return result
+TAPLIST_ERROR_TEXT = 'Не удалось получить данные о кранах. Попробуйте позже.'
 
 
-def find_beer_info_local(beer_name, mapping):
-    """
-    Ищет информацию о пиве в маппинге с fuzzy matching.
-    Использует difflib для нечёткого сравнения строк.
-    """
-    if not beer_name or not mapping:
-        return None
+def taplist_messages(bar_id=None, taps_manager=None):
+    """Таплист по сообщению на бар (HTML): реестр Untappd, строки «Таплиста пятницы».
 
-    import re
-    from difflib import SequenceMatcher
-
-    def normalize(name):
-        """Нормализует название для сравнения"""
-        name = name.lower()
-        # Убираем "кег "
-        name = name.replace('кег ', '')
-        # Заменяем тире на пробел
-        name = name.replace(' — ', ' ').replace('—', ' ').replace('-', ' ')
-        # Убираем запятые и точки
-        name = name.replace(',', '').replace('.', '')
-        # Убираем объёмы и единицы измерения
-        name = re.sub(r'\d+\s*(л|l|кг|kg|ml|мл)', '', name)
-        # Убираем типичные суффиксы
-        for suffix in ['светлое', 'темное', 'тёмное', 'нефильтрованное', 'фильтрованное', 'пшеничное', 'полусухой', 'полусладкий']:
-            name = name.replace(suffix, '')
-        # Убираем лишние пробелы
-        name = ' '.join(name.split())
-        return name.strip()
-
-    def similarity(a, b):
-        """Возвращает степень схожести двух строк (0-1)"""
-        return SequenceMatcher(None, a, b).ratio()
-
-    # Прямое совпадение
-    if beer_name in mapping:
-        return mapping[beer_name]
-
-    # Нормализуем искомое название
-    normalized_search = normalize(beer_name)
-
-    # Ищем лучшее совпадение
-    best_match = None
-    best_score = 0
-    threshold = 0.75  # Минимальная схожесть 75%
-
-    for key in mapping:
-        normalized_key = normalize(key)
-
-        # Точное совпадение после нормализации
-        if normalized_search == normalized_key:
-            return mapping[key]
-
-        # Fuzzy matching
-        score = similarity(normalized_search, normalized_key)
-        if score > best_score:
-            best_score = score
-            best_match = key
-
-    # Возвращаем лучшее совпадение если оно выше порога
-    if best_match and best_score >= threshold:
-        return mapping[best_match]
-
-    return None
-
-
-def format_taplist_message(data, bar_id=None):
-    """Форматировать таплист для Telegram"""
-    if not data or not data.get('success'):
-        return "Не удалось получить данные о кранах. Попробуйте позже."
-
-    taplist = data.get('taplist', [])
-    if not taplist:
-        return "Нет активных кранов"
-
-    # Группируем по барам
-    bars_data = {}
-    for tap in taplist:
-        b_id = tap.get('bar_id', 'unknown')
-        if b_id not in bars_data:
-            bars_data[b_id] = {
-                'name': tap.get('bar', BARS_CONFIG.get(b_id, b_id)),
-                'taps': []
-            }
-        bars_data[b_id]['taps'].append(tap)
-
-    # Если запрошен конкретный бар
-    if bar_id and bar_id in bars_data:
-        bars_data = {bar_id: bars_data[bar_id]}
-
-    result_parts = []
-
-    for b_id, bar_data in bars_data.items():
-        bar_name = bar_data['name']
-        taps = sorted(bar_data['taps'], key=lambda x: x.get('tap_number', 0))
-
-        lines = [f"🍺 <b>{bar_name}</b>", ""]
-
-        for tap in taps:
-            tap_num = tap.get('tap_number', '?')
-
-            if tap.get('mapped'):
-                brewery = tap.get('brewery', '')
-                name = tap.get('beer_name', tap.get('iiko_name', ''))
-                style = tap.get('style', '')
-                abv = tap.get('abv', '')
-                ibu = tap.get('ibu', '')
-                untappd = tap.get('untappd_url', '')
-
-                line = f"<b>{tap_num}.</b> {brewery} — {name}"
-
-                details = []
-                if style:
-                    details.append(style)
-                if abv:
-                    details.append(f"ABV {abv}")
-                if ibu:
-                    details.append(f"IBU {ibu}")
-
-                if details:
-                    line += f"\n    <i>{' | '.join(details)}</i>"
-                if untappd:
-                    line += f"\n    <a href='{untappd}'>Untappd</a>"
-            else:
-                # Нет маппинга - показываем название из iiko
-                iiko_name = tap.get('iiko_name', 'Неизвестно')
-                line = f"<b>{tap_num}.</b> {iiko_name}"
-
-            lines.append(line)
-
-        result_parts.append("\n".join(lines))
-
-    if not result_parts:
-        return "Нет данных о кранах"
-
-    separator = "\n\n" + "━" * 25 + "\n\n"
-    return separator.join(result_parts)
+    bar_id None — все бары по порядку. Сбой данных бара — текст извинения вместо
+    его сообщения: остальные бары всё равно уходят."""
+    from core import taplist_post
+    manager = taps_manager or _taps_manager
+    if manager is None:
+        return [TAPLIST_ERROR_TEXT]
+    messages = []
+    for b_id in ([bar_id] if bar_id else list(BARS_CONFIG)):
+        try:
+            messages.append(taplist_post.bar_message_html(manager, b_id, BARS_CONFIG.get(b_id, b_id)))
+        except Exception as e:  # noqa: BLE001 — один бар не должен ломать ответ
+            logger.error(f"Taplist for {b_id} failed: {e!r}")
+            messages.append(TAPLIST_ERROR_TEXT)
+    return messages
 
 
 def get_bars_keyboard():
@@ -281,7 +105,7 @@ async def cmd_help(message: types.Message):
         "/taplist3 — Кременчугская\n"
         "/taplist4 — Варшавская\n"
         "/taplistall — все бары\n\n"
-        "<i>Информация включает: пивоварню, название, стиль, ABV, IBU и ссылку на Untappd</i>",
+        "<i>Название — ссылка на Untappd, дальше стиль и крепость; новые сорта помечены «новинка»</i>",
         parse_mode="HTML"
     )
 
@@ -297,30 +121,18 @@ async def cmd_taplist(message: types.Message):
 
 # Глобальные переменные для доступа к данным (будут установлены из app.py)
 _taps_manager = None
-_beer_mapping = None
 
 
-def set_data_sources(taps_manager, beer_mapping):
-    """Установить источники данных из Flask приложения"""
-    global _taps_manager, _beer_mapping
+def set_data_sources(taps_manager):
+    """Установить менеджер кранов из Flask приложения (данные о пиве — реестр Untappd)."""
+    global _taps_manager
     _taps_manager = taps_manager
-    _beer_mapping = beer_mapping
     logger.info("Data sources set for Telegram bot")
 
 
 async def send_taplist_response(message: types.Message, bar_id=None):
-    """Отправить таплист"""
-    data = get_taplist_data(bar_id, _taps_manager, _beer_mapping)
-    text = format_taplist_message(data, bar_id)
-
-    # Если сообщение слишком длинное - разбиваем
-    if len(text) > 4000:
-        for b_id in BARS_CONFIG.keys():
-            bar_data = get_taplist_data(b_id, _taps_manager, _beer_mapping)
-            bar_text = format_taplist_message(bar_data, b_id)
-            if bar_text and "Нет активных" not in bar_text:
-                await message.answer(bar_text, parse_mode="HTML", disable_web_page_preview=True)
-    else:
+    """Отправить таплист: по сообщению на бар."""
+    for text in taplist_messages(bar_id):
         await message.answer(text, parse_mode="HTML", disable_web_page_preview=True)
 
 
@@ -356,23 +168,7 @@ async def process_taplist_callback(callback: types.CallbackQuery):
 
     await callback.answer("Загрузка...")
 
-    if bar_id == 'all':
-        data = get_taplist_data(None, _taps_manager, _beer_mapping)
-        bar_id_for_format = None
-    else:
-        data = get_taplist_data(bar_id, _taps_manager, _beer_mapping)
-        bar_id_for_format = bar_id
-
-    text = format_taplist_message(data, bar_id_for_format)
-
-    if len(text) > 4000:
-        await callback.message.answer("Таплист большой, отправляю по барам:")
-        for b_id in BARS_CONFIG.keys():
-            bar_data = get_taplist_data(b_id, _taps_manager, _beer_mapping)
-            bar_text = format_taplist_message(bar_data, b_id)
-            if bar_text and "Нет активных" not in bar_text:
-                await callback.message.answer(bar_text, parse_mode="HTML", disable_web_page_preview=True)
-    else:
+    for text in taplist_messages(None if bar_id == 'all' else bar_id):
         await callback.message.answer(text, parse_mode="HTML", disable_web_page_preview=True)
 
 

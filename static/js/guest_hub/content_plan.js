@@ -162,7 +162,8 @@
         fixed: 'текст и фото утверждаются заранее и выходят ровно такими, какими их утвердили.',
         live: 'шаблон: в момент выхода в него подставляются свежие данные таплиста бара.'
     };
-    var LIVE_EXPLAIN = 'При выходе подставляются только данные таплиста; остальной текст не меняется. ' +
+    var LIVE_EXPLAIN = 'При выходе подставляются данные таплиста, а {вступление} и {концовка} — фразы из ' +
+        'набора, свои на каждую неделю и каждый бар; остальной текст не меняется. ' +
         'Если данных нет или они не проверены — публикация остановится.';
     var BOT_NOTE = 'Рассылка через бота добавляется отдельно и никогда не включается выбором всех баров.';
     var APPROVE_TEXT = 'Утверждаются только эти подготовленные материалы. Незаконченные остаются ' +
@@ -396,6 +397,23 @@
     }
     function nText(n, one, few, many) { return n + ' ' + GH.plural(n, one, few, many); }
     function multiline(text) { return esc(text).replace(/\n/g, '<br>'); }
+    // Текст со ссылками — живой таплист: названия пива ведут на Untappd. entities —
+    // как в Telegram (type text_link, offset и length в единицах UTF-16); строки JS
+    // тоже в UTF-16, поэтому offset — прямо индекс строки. Берём только https-адреса
+    // по порядку и без наложений; остальное — обычный текст.
+    function linkedText(text, entities) {
+        var html = '';
+        var pos = 0;
+        each(entities, function (e) {
+            var end = e ? e.offset + e.length : -1;
+            if (!e || e.type !== 'text_link' || !/^https:\/\//.test(e.url || '') ||
+                e.offset < pos || e.length <= 0 || end > text.length) return;
+            html += multiline(text.slice(pos, e.offset)) + '<a href="' + esc(e.url) +
+                '" target="_blank" rel="noopener noreferrer">' + multiline(text.slice(e.offset, end)) + '</a>';
+            pos = end;
+        });
+        return html + multiline(text.slice(pos));
+    }
     function closest(node, selector) {
         return node && node.closest ? node.closest(selector) : null;
     }
@@ -2695,7 +2713,7 @@
         html += '<textarea class="gh-textarea gh-cp-text" rows="' + (live ? 4 : 8) + '" data-fk="base_text" ' +
                 'data-save-key="' + esc(key) + '" ' +
                 'aria-label="' + (live ? 'Шаблон поста' : 'Текст поста') + '" placeholder="' +
-                (live ? 'Например: Сегодня на кранах {бар}:\n{таплист}' : 'Текст поста') + '">' + esc(text) + '</textarea>' +
+                (live ? 'Например:\n{вступление}\n\n{таплист}\n\n{концовка}' : 'Текст поста') + '">' + esc(text) + '</textarea>' +
             '<div class="gh-cp-textfoot"><span class="gh-save" data-save></span>' + ownTextNote(m) + counter + '</div>';
         if (live) html += liveTokensHtml(m);
         var locked = 0;
@@ -3371,6 +3389,7 @@
         var length = 0;
         var limit = 0;
         var problems = [];
+        var links = [];
         var state = 'ok';
         if (m.kind === 'live') {
             var r = S.previewLive[previewKey(m, p)];
@@ -3384,6 +3403,7 @@
                 length = r.result.length || 0;
                 limit = r.result.limit || 0;
                 problems = r.result.problems || [];
+                links = r.result.entities || [];
             }
         } else {
             text = p.effective_text || '';
@@ -3394,7 +3414,9 @@
         if (state === 'loading') {
             body = '<div class="gh-cp-loading"><span class="gh-spin"></span>Подставляю текущие данные…</div>';
         } else {
-            var textHtml = text ? multiline(text) : '<span class="gh-muted">Текста пока нет</span>';
+            // Instagram ссылок в подписи не показывает — там обычный текст.
+            var textHtml = !text ? '<span class="gh-muted">Текста пока нет</span>'
+                : p.channel === 'instagram' ? multiline(text) : linkedText(text, links);
             var time = p.time || '—';
             if (p.channel === 'instagram') {
                 var first = files[0];
@@ -3449,7 +3471,36 @@
             each(problems, function (x) { texts.push(x.text); });
             foot += '<div class="gh-cp-stop"><b>Публикация будет остановлена:</b> ' + esc(texts.join('; ')) + '</div>';
         }
+        if (m.kind === 'live' && state === 'ok') foot += liveNotesHtml(m, p) + phraseHow(m, p);
         return '<div class="gh-cp-pv">' + body + foot + '</div>';
+    }
+
+    // Предупреждения, которые пост не останавливают (notes сервера): кран без
+    // проверенной карточки Untappd выходит без ссылки (решение владельца 2026-10-09).
+    function liveNotesHtml(m, p) {
+        var r = S.previewLive[previewKey(m, p)];
+        var notes = (r && r.result && r.result.notes) || [];
+        if (!notes.length) return '';
+        var texts = [];
+        each(notes, function (x) { texts.push(x.text); });
+        return '<div class="gh-cp-warn is-quiet">' + esc(texts.join('; ')) + '</div>';
+    }
+
+    // Какие фразы {вступление} и {концовка} достались этому бару в этот день
+    // (phrase сервера: core/taplist_post.phrase_index) — под «Как считается».
+    function phraseHow(m, p) {
+        var r = S.previewLive[previewKey(m, p)];
+        var ph = r && r.result && r.result.phrase;
+        if (!ph) return '';
+        var text = 'Вступление и концовка — вариант ' + ph.variant + ' из ' + ph.total + '. Вариант зависит от ' +
+            'недели выхода и бара: в одну пятницу у баров разные фразы, в этом баре вариант повторится через ' +
+            nText(ph.total, 'неделю', 'недели', 'недель') + '. Подставляются, только если в шаблоне есть ' +
+            '{вступление} и {концовка}; пустая концовка — пост заканчивается списком.';
+        if (r.result.legacy_template) {
+            text += ' Прежний шаблон «Таплист пятницы — {бар}, {дата}» выходит по новому шаблону ' +
+                '(решение владельца 9 октября).';
+        }
+        return howHtml('phrase-' + previewKey(m, p), '<p>' + esc(text) + '</p>');
     }
 
     // Предпросмотр «как увидят гости» (переключатель в разделе «Пост»): вкладка
@@ -6204,6 +6255,8 @@
         chipGroups: chipGroups, pillGroups: pillGroups, pillTitle: pillTitle, barsLabel: barsLabel,
         primaryAction: primaryAction, onlySelected: onlySelected, newPlacementBody: newPlacementBody,
         newProblem: newProblem, readyPlacements: readyPlacements, chanBarStatus: chanBarStatus, barChecked: barChecked,
-        placementHtml: placementHtml, foldHtml: foldHtml, legendHtml: legendHtml
+        placementHtml: placementHtml, foldHtml: foldHtml, legendHtml: legendHtml,
+        // Таплист 2026-10-04: названия пива в предпросмотре — ссылки на Untappd.
+        linkedText: linkedText, previewHtml: previewHtml, previewKey: previewKey
     };
 })();

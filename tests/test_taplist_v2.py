@@ -156,7 +156,7 @@ class TaplistV2Tests(unittest.TestCase):
         bundled.write_text(json.dumps(self.registry), encoding='utf8')
         with patch.dict('os.environ', {}, clear=True), patch.object(module, 'BUNDLED_REGISTRY', bundled), \
                 patch.object(module, 'DEFAULT_REGISTRY', Path(self.temp.name) / 'missing.json'):
-            self.assertEqual(load_registry()['summary']['all_products'], 479)
+            self.assertEqual(load_registry()['summary']['all_products'], 480)
             bundled.write_text('{bad', encoding='utf8')
             with self.assertRaises(ValueError):
                 load_registry()

@@ -22,7 +22,7 @@ from core import taplist_polling as tp
 from core.guest_reviews import ReviewStore
 from core.guest_store import GuestStore
 from core.guest_subscribers import CONSENT_TEXT, CONSENT_VERSION, SubscriberStore
-from core.taplist_polling import WebhookConflict, consume_batch, label_bars, plan_update
+from core.taplist_polling import WebhookConflict, consume_batch, plan_update
 
 
 def test_empty_and_error_keep_offset():
@@ -85,11 +85,6 @@ def test_start_and_button_plan_without_network():
         {'op': 'taplist', 'chat_id': 5, 'bar_id': None},
     ]
     assert plan_update({'message': {'chat': {'id': 5}, 'text': 'привет'}}) == []
-
-
-def test_label_bars_replaces_internal_names():
-    data = {'taplist': [{'bar_id': 'bar1', 'bar': 'Бар 1'}]}
-    assert label_bars(data)['taplist'][0]['bar'] == 'Большой пр. В.О'
 
 
 # ================================================================= подписка и отзывы
@@ -511,7 +506,7 @@ def test_review_deep_link_and_cancel(bot):
 def _save(bot, message_id, text='Хорошо'):
     tp._execute([{'op': 'rev_save', 'chat_id': CHAT, 'message_id': message_id, 'prompt_message_id': message_id - 1,
                   'bar': 'bolshoy', 'rating': 4, 'text': text, 'date': None, 'user': USER}],
-                'fake-token', None, None, bot.ctx)
+                'fake-token', None, bot.ctx)
 
 
 def test_duplicate_review_is_idempotent(bot):
@@ -583,13 +578,51 @@ def test_taplist_messages_unchanged(bot, monkeypatch):
     """Краны уходят как раньше: по сообщению на бар, HTML-разметка таплиста включена."""
     import core.taps_manager as taps_mod
     monkeypatch.setattr(taps_mod, 'TapsManager', lambda data_file=None: object())
-    monkeypatch.setattr(tp, '_render_taplist', lambda bid, manager, mapping: '<b>%s</b>' % tp.BAR_NAMES[bid])
+    monkeypatch.setattr(tp, '_render_taplist', lambda bid, manager: '<b>%s</b>' % tp.BAR_NAMES[bid])
     bot.run(cb('taplist_all'))
     sent = [p for m, p in bot.api.calls if m == 'sendMessage']
     assert [p['text'] for p in sent] == ['<b>%s</b>' % name for name in tp.BAR_NAMES.values()]
     assert all(p['parse_mode'] == 'HTML' for p in sent)
     bot.run(pm('/taplist2'))
     assert bot.api.last('sendMessage')['text'] == '<b>Лиговский</b>'
+
+
+def test_taplist_from_registry_not_by_similar_name(bot, monkeypatch):
+    """Регрессия 2026-10-04: бот брал сорт из старого справочника по похожему названию и у
+    «КЕГ ФестХаус Хеллес» давал ссылку на Festhaus Weissbier. Теперь — реестр Untappd по GUID
+    товара и строки «Таплиста пятницы» (core/taplist_post.bar_message_html)."""
+    import core.taps_manager as taps_mod
+    helles = 'ba7ede81-1cf1-4155-a756-e100d51df438'                  # КЕГ ФестХаус Хеллес в реестре
+
+    class Manager:
+        def get_snapshot(self, catalog=None):
+            assert helles in catalog                                  # каталог — из реестра
+            return {'bar2': {'name': 'Лиговский', 'taps': [
+                {'tap_number': 5, 'status': 'active', 'current_beer': 'КЕГ ФестХаус Хеллес',
+                 'iiko_product_id': helles, 'started_at': '2026-06-12T04:35:43+03:00',
+                 'history': [{'timestamp': '2026-06-12T04:35:43+03:00', 'action': 'start',
+                              'beer_name': 'КЕГ ФестХаус Хеллес', 'iiko_product_id': helles}]}]}}
+
+    monkeypatch.setattr(taps_mod, 'TapsManager', lambda data_file=None: Manager())
+    bot.run(pm('/taplist2'))
+    sent = bot.api.last('sendMessage')
+    assert sent['parse_mode'] == 'HTML' and sent['disable_web_page_preview'] is True
+    assert sent['text'] == ('<b>Лиговский</b>\n\n5. <a href="https://untappd.com/b/festhaus-helles/6240484">'
+                            'Festhaus Helles</a> — светлый лагер, 4,5%')
+
+
+def test_taplist_data_failure_is_reported(bot, monkeypatch):
+    import core.taps_manager as taps_mod
+    from core import taplist_post
+
+    def broken(*args, **kwargs):
+        raise RuntimeError('реестр не читается')
+
+    monkeypatch.setattr(taps_mod, 'TapsManager', lambda data_file=None: object())
+    monkeypatch.setattr(taplist_post, 'bar_message_html', broken)
+    bot.run(pm('/taplist3'))
+    sent = bot.api.last('sendMessage')
+    assert sent['text'] == tp.TEXT_TAPLIST_ERROR and 'parse_mode' not in sent
 
 
 def test_review_fields_limits():

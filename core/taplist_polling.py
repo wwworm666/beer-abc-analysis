@@ -13,7 +13,11 @@ api.telegram.org не открывается.
 Отключение: TAPLIST_POLLING=0.
 
 ## Что умеет бот
-- Краны (как раньше): /start, /taplist, /help — меню баров; /taplist1..4, /taplistall.
+- Краны: /start, /taplist, /help — меню баров; /taplist1..4, /taplistall. С 2026-10-04 таплист —
+  из реестра Untappd (связь по GUID товара iiko, единственный источник правды) теми же строками,
+  что «Таплист пятницы»: «{кран}. {пивоварня и название} — {стиль}, {крепость}%[, новинка]», имя —
+  ссылка на Untappd (core/taplist_post.bar_message_html). Прежний справочник по названиям
+  (data/beer_info_mapping.json, подбор по похожести) больше не читается.
 - Подписка на новости (2026-09-28): кнопка «Подписаться на новости» (или /subscribe) ->
   текст согласия (core/guest_subscribers.CONSENT_TEXT) + «Согласен» -> выбор баров
   (несколько или «Все бары») + «Готово» -> по желанию телефон (кнопка Telegram
@@ -103,8 +107,10 @@ callback_data (не больше 64 байт — предел Telegram):
   выключенной записи кнопки — только из живого шага, меню команд по выключателю, версия
   согласия в «Согласен», зарубежный телефон без искажения, /stop стирает телефон в
   отзывах, подбор пропущенных уведомлений, command_name на тексте из пробелов.
+- 2026-10-04: краны — из реестра Untappd строками «Таплиста пятницы»
+  (core/taplist_post.bar_message_html); справочник по названиям, подбор по похожести и
+  label_bars удалены; сбой данных — TEXT_TAPLIST_ERROR вместо молчания.
 """
-import json
 import os
 import threading
 import time
@@ -118,7 +124,6 @@ from core import msk_time
 
 _BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LOCK_PATH = os.path.join(_BASE_DIR, 'data', '.taplist_polling.lock')
-MAPPING_PATH = os.path.join(_BASE_DIR, 'data', 'beer_info_mapping.json')
 
 POLL_TIMEOUT = 25
 HTTP_TIMEOUT = POLL_TIMEOUT + 15
@@ -239,6 +244,7 @@ TEXT_REV_STALE = 'Этот отзыв уже сохранён или время 
 TEXT_REV_LIMIT = 'Сегодня вы уже оставили {count} — спасибо! Новый отзыв можно будет оставить завтра.'
 TEXT_REV_FAILED = 'Не получилось сохранить отзыв — попробуйте позже: /start, затем «Оставить отзыв».'
 TEXT_ERROR = 'Что-то пошло не так — попробуйте ещё раз позже.'
+TEXT_TAPLIST_ERROR = 'Не удалось получить данные о кранах. Попробуйте позже.'
 # Кнопка «Согласен» со старой версией текста согласия: показываем текущий текст заново.
 TEXT_CONSENT_UPDATED = 'Текст согласия обновился — прочитайте его, пожалуйста, ещё раз.'
 # Непонятный текст в личке (нет шага диалога): подсказка вместо молчания. После
@@ -872,15 +878,6 @@ class BotContext:
 
 # ----------------------------------------------------------------- краны
 
-def label_bars(data):
-    """Подменить внутренние «Бар 1» на имена точек из меню бота."""
-    for row in (data or {}).get('taplist') or []:
-        name = BAR_NAMES.get(row.get('bar_id'))
-        if name:
-            row['bar'] = name
-    return data
-
-
 def consume_batch(data, offset, feed, on_error=None):
     """Разобрать один ответ getUpdates.
 
@@ -909,21 +906,15 @@ def _taps_path() -> str:
     return os.path.join(_BASE_DIR, 'data', 'taps_data.json')
 
 
-def _load_mapping() -> dict:
-    if not os.path.exists(MAPPING_PATH):
-        return {}
-    with open(MAPPING_PATH, encoding='utf-8') as handle:
-        return json.load(handle)
-
-
-def _render_taplist(bar_id, manager, mapping) -> str:
-    import telegram_webhook as tw
-    data = label_bars(tw.get_taplist_data(bar_id, manager, mapping))
-    text = tw.format_taplist_message(data, bar_id)
-    if not text or 'Нет активных' in text or 'Нет данных' in text:
-        title = BAR_NAMES.get(bar_id, 'Бар')
-        return f"{title}: нет активных кранов"
-    return text
+def _render_taplist(bar_id, manager) -> str:
+    """Краны бара для гостя (HTML): реестр Untappd и строки «Таплиста пятницы».
+    Сбой данных (реестр, файл кранов) — короткое извинение, а не молчание."""
+    from core import taplist_post
+    try:
+        return taplist_post.bar_message_html(manager, bar_id, BAR_NAMES.get(bar_id, 'Бар'))
+    except Exception as exc:  # noqa: BLE001 — сбой данных не должен ронять бота
+        print(f"[TAPLIST-POLL] таплист {bar_id} не собран: {exc!r}")
+        return TEXT_TAPLIST_ERROR
 
 
 # ----------------------------------------------------------------- исполнение
@@ -1268,7 +1259,7 @@ _GUEST_OPS = {
 _SILENT_OPS = ('blocked', 'unblocked', 'dialog_set', 'dialog_clear')
 
 
-def _execute(actions, token, manager, mapping, ctx=None) -> None:
+def _execute(actions, token, manager, ctx=None) -> None:
     """Исполнить план. Сбой шага подписки или отзыва не ломает остальные шаги и краны:
     он пишется в лог, гость получает TEXT_ERROR."""
     ctx = ctx or BotContext(token)
@@ -1288,7 +1279,7 @@ def _execute(actions, token, manager, mapping, ctx=None) -> None:
             bar_id = action.get('bar_id')
             targets = list(BAR_NAMES) if bar_id is None else [bar_id]
             for bid in targets:
-                _send(ctx, action['chat_id'], _render_taplist(bid, manager, mapping))
+                _send(ctx, action['chat_id'], _render_taplist(bid, manager))
             continue
         handler = _GUEST_OPS.get(op)
         if handler is None:
@@ -1330,7 +1321,7 @@ def _touch(ctx, update) -> None:
         print(f"[TAPLIST-POLL] touch failed: {_scrub_text(exc, ctx.token)}")
 
 
-def handle_update(update, ctx, token=None, mapping=None) -> list:
+def handle_update(update, ctx, token=None) -> list:
     """Один апдейт целиком: состояние диалога -> план -> «гость на связи» -> исполнение.
 
     Ответ — план (для тестов и логов).
@@ -1339,7 +1330,7 @@ def handle_update(update, ctx, token=None, mapping=None) -> list:
     dialog = ctx.dialogs.get(chat_id, ctx.now()) if chat_id is not None else None
     actions = plan_update(update, dialog, signup=ctx.signup_enabled())
     _touch(ctx, update)
-    _execute(actions, token or ctx.token, None, mapping, ctx)
+    _execute(actions, token or ctx.token, None, ctx)
     return actions
 
 
@@ -1391,8 +1382,6 @@ def _poll_loop() -> None:
 
     token = os.environ.get('TELEGRAM_BOT_TOKEN')
     ctx = BotContext(token)
-    mapping = _load_mapping()
-    print(f"[TAPLIST-POLL] справочник пива: {len(mapping)}")
     api_call('deleteWebhook', {'drop_pending_updates': False}, token=token)
     house = Housekeeping(ctx, lambda commands: api_call('setMyCommands', {'commands': commands}, token=token))
     house.tick()                             # меню команд под текущий выключатель + первый подбор
@@ -1419,8 +1408,8 @@ def _poll_loop() -> None:
                 time.sleep(60)
                 continue
             try:
-                def feed(upd, token=token, mapping=mapping, ctx=ctx):
-                    handle_update(upd, ctx, token, mapping)
+                def feed(upd, token=token, ctx=ctx):
+                    handle_update(upd, ctx, token)
 
                 def on_error(exc, token=token):
                     print(f"[TAPLIST-POLL] update failed: {_scrub(exc, token)}")

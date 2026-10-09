@@ -16,10 +16,10 @@
     "data/menu_research_output.json": "3820068d68b5c4893723cfdb78498c2e88e1f2e43cba7a086b7449a15ea39125"
   },
   "summary": {
-    "all_products": 479,
+    "all_products": 480,
     "recent_products": 233,
     "all_status_counts": {
-      "verified": 462,
+      "verified": 463,
       "needs_source": 9,
       "skipped": 5,
       "needs_identity": 2,
@@ -28,7 +28,7 @@
     "recent_status_counts": {
       "verified": 233
     },
-    "verified_beers": 436,
+    "verified_beers": 437,
     "approximate_beers": 0,
     "recent_verified_beers": 227,
     "sales_liters_total": 57605.675,
@@ -27974,6 +27974,40 @@
         },
         "untappd_beer_id": "708682"
       }
+    },
+    "fa024f9b-d307-4d5b-8520-b04f6282b239": {
+      "iiko_product_id": "fa024f9b-d307-4d5b-8520-b04f6282b239",
+      "iiko_article": "3030502580",
+      "iiko_name": "КЕГ Степь и Ветер Мёд и Ежевика",
+      "iiko_status": "Актуальная",
+      "used_last_two_years": false,
+      "sales_liters_two_years": 0,
+      "barcodes": [],
+      "status": "verified",
+      "untappd_beer_id": "2552482",
+      "candidates": [
+        {
+          "untappd_beer_id": "2552482",
+          "url": "https://untappd.com/b/steppe-and-wind-meadery-step-i-veter-blackberry-mead/2552482",
+          "historical_evidence": [],
+          "research_evidence": "Ссылку дал владелец 2026-10-09"
+        }
+      ],
+      "historical_aliases": [],
+      "decision": {
+        "status": "verified",
+        "untappd_beer_id": "2552482",
+        "reason": "Ссылку на карточку дал владелец 2026-10-09 (кран 8 ВО, «Таплист пятницы»): «КЕГ Степь и Ветер Мёд и Ежевика» — Blackberry Mead / Steppe & Wind Meadery (Степь и Ветер). Название — по адресу карточки (соседняя Black Currant Mead 2552489 — «Мёд и Смородина»); крепость и стиль не проверены: страница Untappd из среды разработки недоступна.",
+        "reviewed_at": "2026-10-09",
+        "confirmation_origin": "owner",
+        "evidence_urls": [
+          "https://untappd.com/b/steppe-and-wind-meadery-step-i-veter-blackberry-mead/2552482"
+        ],
+        "candidate_ids": [
+          "2552482"
+        ],
+        "rejected_historical_ids": []
+      }
     }
   },
   "beers": {
@@ -35886,6 +35920,17 @@
       "media_source_url": "https://untappd.com/b/eagle-brewery-young-s-london-stout/123317",
       "media_observed_at": "2026-09-20T20:43:37.345239+00:00",
       "photo_kind": "label"
+    },
+    "2552482": {
+      "id": "2552482",
+      "url": "https://untappd.com/b/steppe-and-wind-meadery-step-i-veter-blackberry-mead/2552482",
+      "beer_name": "Blackberry Mead",
+      "brewery": "Steppe & Wind Meadery (Степь и Ветер)",
+      "style": null,
+      "abv_percent": null,
+      "ibu": null,
+      "observed_at": "2026-10-09",
+      "source_method": "Ссылка владельца 2026-10-09; название — по адресу карточки, крепость и стиль не проверены"
     }
   }
 }

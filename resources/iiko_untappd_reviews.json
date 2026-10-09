@@ -10047,5 +10047,19 @@
       "confirmed_at": "2026-09-20"
     },
     "untappd_beer_id": "708682"
+  },
+  "fa024f9b-d307-4d5b-8520-b04f6282b239": {
+    "status": "verified",
+    "untappd_beer_id": "2552482",
+    "reason": "Ссылку на карточку дал владелец 2026-10-09 (кран 8 ВО, «Таплист пятницы»): «КЕГ Степь и Ветер Мёд и Ежевика» — Blackberry Mead / Steppe & Wind Meadery (Степь и Ветер). Название — по адресу карточки (соседняя Black Currant Mead 2552489 — «Мёд и Смородина»); крепость и стиль не проверены: страница Untappd из среды разработки недоступна.",
+    "reviewed_at": "2026-10-09",
+    "confirmation_origin": "owner",
+    "evidence_urls": [
+      "https://untappd.com/b/steppe-and-wind-meadery-step-i-veter-blackberry-mead/2552482"
+    ],
+    "candidate_ids": [
+      "2552482"
+    ],
+    "rejected_historical_ids": []
   }
 }

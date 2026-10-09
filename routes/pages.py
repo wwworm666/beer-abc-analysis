@@ -89,7 +89,15 @@ def _tap_bars():
 @pages_bp.route('/taps')
 def taps():
     """Главная страница управления кранами - выбор бара"""
-    return render_template('taps_main.html', bars=_tap_bars())
+    return render_template('taps_main.html', bars=_tap_bars(), app_version=APP_VERSION)
+
+
+@pages_bp.route('/taps/untappd')
+def taps_untappd():
+    """Связи кег с карточками Untappd: предложения ИИ-агента, «Верно» и «Не то»
+    администратора (API /api/untappd/*, core/untappd_live, docs/untappd-links.md).
+    Статический путь главнее /taps/<bar_id>."""
+    return render_template('taps_untappd.html', app_version=APP_VERSION)
 
 
 @pages_bp.route('/stocks')
@@ -157,7 +165,8 @@ def taps_bar(bar_id):
                          bar_id=bar_id,
                          bar_name=bar_info['name'],
                          tap_count=bar_info['taps'],
-                         bars=bars)
+                         bars=bars,
+                         app_version=APP_VERSION)
 
 
 @pages_bp.route('/schedule')

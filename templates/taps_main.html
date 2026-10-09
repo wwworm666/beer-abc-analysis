@@ -20,6 +20,12 @@
         {% include 'shared/nav.html' %}
 
         <div class="tp">
+            <div class="tp-top">
+                <nav class="tp-bars" aria-label="Раздел">
+                    <a class="tp-bar" href="/taps" aria-current="page">Бары</a>
+                    <a class="tp-bar" href="/taps/untappd" id="tp-untappd-link">Связи с Untappd<span class="tp-bar-count" id="tp-untappd-count" hidden></span></a>
+                </nav>
+            </div>
             <div class="tp-bars-grid">
                 {% for bar in bars %}
                 <a class="tp-panel tp-barcard" href="/taps/{{ bar.id }}" data-bar="{{ bar.id }}" data-taps="{{ bar.taps }}">
@@ -27,7 +33,7 @@
                     <div class="tp-meter" aria-hidden="true"><span style="width: 0%"></span></div>
                     <div class="tp-barcard-row"><span>Активных</span><b data-field="active">—</b></div>
                     <div class="tp-barcard-row"><span>Пустых</span><b data-field="empty">—</b></div>
-                    <div class="tp-barcard-row" data-row="unverified" hidden><span>Сорт не уточнён</span><b data-field="unverified">—</b></div>
+                    <div class="tp-barcard-row" data-row="unverified" hidden><span>Без карточки Untappd</span><b data-field="unverified">—</b></div>
                     <div class="tp-barcard-row" title="Доля кран-дней с подключённой кегой за последние 7 дней, включая сегодня">
                         <span>Активность за 7 дней</span><b data-field="activity">—</b>
                     </div>
@@ -61,9 +67,25 @@
                     set('active', 'не загрузилось');
                 }
             }
+            /* Сколько предложений ИИ-агента ждут решения на /taps/untappd. */
+            async function loadLinks() {
+                const badge = document.getElementById('tp-untappd-count');
+                try {
+                    const response = await fetch('/api/untappd/proposals?status=proposed&limit=1', { cache: 'no-store' });
+                    const data = await response.json();
+                    if (!response.ok) throw new Error(data.error || 'нет данных');
+                    const count = (data.counts && data.counts.proposed) || 0;
+                    badge.textContent = String(count);
+                    badge.hidden = !count;
+                    badge.title = 'Ждут решения: ' + count;
+                } catch (error) {
+                    badge.hidden = true;
+                }
+            }
             function loadAll() {
                 if (document.visibilityState !== 'visible') return;
                 document.querySelectorAll('.tp-barcard').forEach(load);
+                loadLinks();
             }
             loadAll();
             setInterval(loadAll, 60000);

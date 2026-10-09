@@ -383,23 +383,67 @@ def test_album_caption_on_first_and_file_id_reused_for_second_bar():
 def test_live_template_rendered_at_send_and_stop_rule_fails():
     import test_content_plan as tcp
     env = Env()
-    env.enable(bars=('varshavskaya', 'ligovskiy'))
+    env.enable(bars=('varshavskaya', 'ligovskiy', 'bolshoy'))
     material = env.material(kind='live', live_source='taplist', base_text=tcp.TEMPLATE)
     ok_pid = env.placement(material['id'], bars=['varshavskaya'])
-    stop_pid = env.placement(material['id'], bars=['ligovskiy'], time='12:01')
-    env.approve(ok_pid, stop_pid)
+    # кран без проверенной карточки пост не останавливает (владелец 2026-10-09: «не останавливаем
+    # публикации из-за сомнения в одном сорте, просто прикрепляем без ссылки»)
+    unlinked_pid = env.placement(material['id'], bars=['ligovskiy'], time='12:01')
+    stop_pid = env.placement(material['id'], bars=['bolshoy'], time='12:01')   # нет активных кранов
+    env.approve(ok_pid, unlinked_pid, stop_pid)
     with _patch(cp, 'load_live_data', lambda registry=None: (tcp.SNAPSHOT, tcp.REGISTRY)):
         env.at(12, 1)
         report = env.run()
-    assert (report['sent'], report['failed']) == (1, 1)
-    assert len(env.tg.sends()) == 1                                         # стоп — без отправки
-    text = env.tg.sends()[0]['payload']['text']
+    assert (report['sent'], report['failed']) == (2, 1)
+    assert len(env.tg.sends()) == 2                                         # стоп — без отправки
+    by_bar = {send['payload']['text'].split('»')[0]: send['payload'] for send in env.tg.sends()}
+    payload = by_bar['Сегодня в баре «Варшавская']
+    text = payload['text']
     assert text.startswith('Сегодня в баре «Варшавская» (7 октября), кранов: 2')
-    assert '1. Б — IPA, IPA - American, 6,5%' in text
+    assert '1. Б IPA — американский IPA, 6,5%' in text
+    # названия — ссылки на Untappd (text_link), предпросмотр ссылки выключен
+    assert payload['disable_web_page_preview'] is True
+    assert payload['entities'][0] == {'type': 'text_link', 'offset': text.index('Б IPA'), 'length': 5,
+                                      'url': 'https://untappd.com/b/beer/102'}
+    # у Лиговского краны без карточки — строками без ссылки, ссылка только у проверенного
+    lig = by_bar['Сегодня в баре «Лиговский']
+    assert '4. Неизвестное\n5. Без карточки\n' in lig['text']
+    assert [e['url'] for e in lig['entities']] == ['https://untappd.com/b/beer/101']
+    assert env.raw(unlinked_pid)['status'] == 'published'
     stopped = env.raw(stop_pid)
     assert stopped['status'] == 'failed'
-    assert stopped['failed_error'].startswith('Публикация остановлена: Кран 4: Нет проверенной связи с Untappd')
+    assert stopped['failed_error'].startswith('Публикация остановлена: На кранах бара нет активных позиций')
     assert env.raw(ok_pid)['approved_snapshot']['text'] == tcp.TEMPLATE        # снимок — шаблон
+
+
+def test_live_links_in_caption_and_album():
+    """Ссылки таплиста и с фото: у подписи — caption_entities (multipart — JSON-строкой, по
+    file_id — списком), у альбома — у первого файла. Готовая публикация — без сущностей."""
+    import test_content_plan as tcp
+    env = Env()
+    env.enable(bars=('varshavskaya', 'bolshoy'))
+    live = env.material(kind='live', live_source='taplist', base_text='{таплист}')
+    env.photo(live['id'])
+    p_first = env.placement(live['id'], bars=['varshavskaya'])
+    album = env.material(title='Альбом', kind='live', live_source='taplist', base_text='Краны:\n{таплист}')
+    env.photo(album['id'])
+    env.photo(album['id'])
+    p_album = env.placement(album['id'], bars=['varshavskaya'], time='12:01')
+    fixed = env.material(title='Готовый', base_text='Сегодня квиз https://example.org')
+    p_fixed = env.placement(fixed['id'], time='12:01')
+    env.approve(p_first, p_album, p_fixed)
+    with _patch(cp, 'load_live_data', lambda registry=None: (tcp.SNAPSHOT, tcp.REGISTRY)):
+        env.at(12, 1)
+        assert env.run()['sent'] == 3
+    by_method = {c['method']: c for c in env.tg.sends()}
+    photo, group, plain = by_method['sendPhoto'], by_method['sendMediaGroup'], by_method['sendMessage']
+    caption = photo['payload']['caption']
+    assert json.loads(photo['payload']['caption_entities'])[0] == {
+        'type': 'text_link', 'offset': caption.index('Б IPA'), 'length': 5, 'url': 'https://untappd.com/b/beer/102'}
+    first = json.loads(group['payload']['media'])[0]
+    assert first['caption'].startswith('Краны:\n1. Б IPA')
+    assert first['caption_entities'][0]['offset'] == first['caption'].index('Б IPA')
+    assert 'entities' not in plain['payload'] and plain['payload']['disable_web_page_preview'] is False
 
 
 def test_length_limit_checked_before_send():

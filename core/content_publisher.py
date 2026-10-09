@@ -113,9 +113,13 @@ content_plan.text_units), число файлов (до 10), наличие фа
 
 - Telegram-канал бара: без файлов — sendMessage (без parse_mode, предпросмотр
   ссылок включён); 1 файл — sendPhoto / sendVideo с подписью; 2..10 — sendMediaGroup
-  (подпись у первого). Файлы — multipart с диска (content_media). Загруженный файл
-  Telegram возвращает с file_id — следующие чаты за тот же проход получают его по
-  file_id без повторной загрузки (4 бара — одна загрузка).
+  (подпись у первого). Живой таплист несёт ссылки на Untappd — сущности text_link
+  (render_live, entities): у текста — entities, у подписи — caption_entities;
+  такой текст уходит без предпросмотра ссылки (иначе под постом — карточка первого
+  пива). Рассылка бота шлёт те же сущности. Файлы — multipart с диска
+  (content_media). Загруженный файл Telegram возвращает с file_id — следующие чаты
+  за тот же проход получают его по file_id без повторной загрузки (4 бара — одна
+  загрузка).
 - Instagram — ручной канал. В момент выхода минус reminder_minutes_before в чат
   напоминаний уходят: заголовок «Instagram: пора выложить — «<название>», <дата
   время>» со ссылкой на карточку https://beerkultura.ru/content-plan?open=<id>;
@@ -487,10 +491,15 @@ def _message_ids(result) -> List[int]:
 
 
 def send_post(run: _Run, chat_id, text: str, media: List[dict], caption: bool = True,
-              transport=None, on_rate: str = 'wait') -> Tuple[str, List[int], str]:
+              transport=None, on_rate: str = 'wait',
+              entities: Optional[List[dict]] = None) -> Tuple[str, List[int], str]:
     """Одно сообщение в чат: текст (sendMessage), 1 файл (sendPhoto / sendVideo) или
     2..10 (sendMediaGroup, подпись у первого). caption=False — файлы без подписи.
     transport — какой бот (по умолчанию бот каналов; рассылка — гостевой).
+    entities — ссылки в тексте (таплист: названия -> Untappd), offset и length в
+    единицах UTF-16; у текста — entities, у подписи — caption_entities. Текст со
+    ссылками уходит без предпросмотра ссылки: иначе под постом встала бы карточка
+    первого пива. Без entities — как раньше: без parse_mode, предпросмотр включён.
     -> (вид, message_ids, текст ошибки); у вида 'rate' второй элемент — retry_after."""
     bot = transport or run.transport
     known = run.file_ids(bot)
@@ -503,10 +512,14 @@ def send_post(run: _Run, chat_id, text: str, media: List[dict], caption: bool = 
             return kind, result, error
         return kind, _message_ids(result) if kind == 'ok' else [], error
 
+    entities = list(entities or [])
     if not media:
-        return done(*req('sendMessage', payload={'chat_id': chat_id, 'text': text,
-                                                 'disable_web_page_preview': False}))
+        payload = {'chat_id': chat_id, 'text': text, 'disable_web_page_preview': bool(entities)}
+        if entities:
+            payload['entities'] = entities
+        return done(*req('sendMessage', payload=payload))
     caption_text = text if caption and text and text.strip() else ''
+    caption_entities = entities if caption_text else []
     if len(media) == 1:
         item = media[0]
         method, field = ('sendVideo', 'video') if item['kind'] == 'video' else ('sendPhoto', 'photo')
@@ -515,11 +528,15 @@ def send_post(run: _Run, chat_id, text: str, media: List[dict], caption: bool = 
             payload = {'chat_id': chat_id, field: cached}
             if caption_text:
                 payload['caption'] = caption_text
+            if caption_entities:
+                payload['caption_entities'] = caption_entities
             kind, result, error = req(method, payload=payload)
         else:
             fields = {'chat_id': str(chat_id)}
             if caption_text:
                 fields['caption'] = caption_text
+            if caption_entities:
+                fields['caption_entities'] = json.dumps(caption_entities, ensure_ascii=False)
             kind, result, error = req(method, fields=fields,
                                       files=[(field, item['filename'], _read(item), item['mime'])])
             if kind == 'ok':
@@ -539,6 +556,8 @@ def send_post(run: _Run, chat_id, text: str, media: List[dict], caption: bool = 
         entry = {'type': 'video' if item['kind'] == 'video' else 'photo', 'media': ref}
         if index == 0 and caption_text:
             entry['caption'] = caption_text
+            if caption_entities:
+                entry['caption_entities'] = caption_entities
         entries.append(entry)
     if files:
         kind, result, error = req('sendMediaGroup', fields={
@@ -554,12 +573,13 @@ def send_post(run: _Run, chat_id, text: str, media: List[dict], caption: bool = 
 
 
 def build_post(run: _Run, material: dict, placement: dict, pub_date: Optional[str]) -> dict:
-    """Что отправить: {text, media: [{name, kind, path, filename, mime, size}], problems}.
+    """Что отправить: {text, entities, media: [{name, kind, path, filename, mime, size}], problems}.
 
     Текст и файлы — из снимка утверждения; у live — шаблон, собранный сейчас
-    (render_live). problems — почему отправлять нельзя (стоп-правило, длина,
-    файлы); непустой список — отправка не делается. Длина — как считает площадка
-    (content_plan.text_units: Telegram и бот — единицы UTF-16, эмодзи — 2)."""
+    (render_live), и entities — ссылки на Untappd в таплисте (у готовой
+    публикации — пусто). problems — почему отправлять нельзя (стоп-правило,
+    длина, файлы); непустой список — отправка не делается. Длина — как считает
+    площадка (content_plan.text_units: Telegram и бот — единицы UTF-16, эмодзи — 2)."""
     snapshot = placement.get('approved_snapshot')
     if isinstance(snapshot, dict):
         text = '' if snapshot.get('text') is None else str(snapshot.get('text'))
@@ -571,13 +591,14 @@ def build_post(run: _Run, material: dict, placement: dict, pub_date: Optional[st
         text, names = cp.effective_text(material, placement), cp.effective_media(material, placement)
     channel = placement['channel']
     problems: List[str] = []
+    entities: List[dict] = []
     if material.get('kind') == 'live':
         live = cp.render_live(material.get('live_source'), placement.get('bar'), text, pub_date=pub_date,
                               now=run.now, channel=channel, has_media=bool(names))
         # Стоп-правило: ok False — отправлять нельзя (файлы всё равно собираются:
         # напоминанию об Instagram они нужны, чтобы показать, что именно стоит).
         problems.extend(p['text'] for p in live['problems'])
-        text = live['text']
+        text, entities = live['text'], live.get('entities') or []
     else:
         limit = cp.text_limit_for(channel, bool(names))
         if cp.text_units(text, channel) > limit:
@@ -603,7 +624,7 @@ def build_post(run: _Run, material: dict, placement: dict, pub_date: Optional[st
                       'mime': content_media.mimetype_of(name), 'size': size})
     if total > UPLOAD_TOTAL_MAX:
         problems.append(f'файлы вместе больше {UPLOAD_TOTAL_MAX // (1024 * 1024)} МБ — уберите часть видео')
-    return {'text': text, 'media': media, 'problems': problems}
+    return {'text': text, 'entities': entities, 'media': media, 'problems': problems}
 
 
 def route_reason(settings: dict, placement: dict) -> Optional[str]:
@@ -736,7 +757,7 @@ def _send_telegram(run: _Run, material: dict, placement: dict, attempt: str, pub
     if post['problems']:
         _fail(run, material, placement, attempt, 'Публикация остановлена: ' + '; '.join(post['problems']), report)
         return
-    kind, ids, error = send_post(run, chat, post['text'], post['media'])
+    kind, ids, error = send_post(run, chat, post['text'], post['media'], entities=post['entities'])
     if kind != 'ok':
         _fail(run, material, placement, attempt, error, report)
         return
@@ -930,7 +951,8 @@ def _send_bot(run: _Run, material: dict, placement: dict, attempt: str, pub_date
             run.rate.wait(max(1, len(post['media'])))
             try:
                 kind, extra, error = send_post(run, originals.get(chat, chat), post['text'], post['media'],
-                                               transport=run.guest_transport, on_rate='return')
+                                               transport=run.guest_transport, on_rate='return',
+                                               entities=post['entities'])
             except Exception as e:  # noqa: BLE001 — сбой на одном госте не останавливает рассылку
                 # Сообщение могло уйти до сбоя: статус неизвестен, повтор ему не шлём.
                 print(f'[CONTENT-PUBLISH] рассылка {pid}, чат {chat}: сбой {e!r}')

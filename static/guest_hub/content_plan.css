@@ -775,6 +775,13 @@ button.gh-cp-media-add:hover { border-color: var(--gh-accent); color: var(--gh-a
     color: var(--gh-ink);
     overflow-wrap: anywhere;
 }
+/* Ссылки в пузыре предпросмотра: названия пива в таплисте ведут на Untappd. */
+.gh-cp-bubble-t a {
+    color: var(--gh-accent-ink);
+    text-decoration: none;
+}
+.gh-cp-bubble-t a:hover,
+.gh-cp-bubble-t a:focus-visible { text-decoration: underline; }
 .gh-cp-bubble-time {
     position: absolute;
     right: 10px;

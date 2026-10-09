@@ -17,11 +17,14 @@ class Beer(BaseModel):
     ibu: Optional[int] = Field(None, description="Горечь IBU")
     description: Optional[str] = Field(None, description="Описание")
     untappd_url: Optional[str] = Field(None, description="Ссылка на Untappd")
+    untappd_id: Optional[str] = Field(None, description="ID пива в Untappd (реестр)")
     country: Optional[str] = Field(None, description="Страна")
 
     def to_cypher_props(self) -> dict:
         """Convert to Cypher properties dict"""
         props = {"name": self.name}
+        if self.untappd_id:
+            props["untappd_id"] = self.untappd_id
         if self.abv is not None:
             props["abv"] = self.abv
         if self.ibu is not None:
