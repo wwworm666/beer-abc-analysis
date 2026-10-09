@@ -2,10 +2,11 @@
 
 Зачем. Отзывы с Яндекс Карт и из бота собираются в одном месте, чтобы на
 каждый ответили и было видно, сколько отзывов ждут ответа и как быстро
-отвечаем. Откуда приходят (2026-09-28): Яндекс — ежедневная сверка
-(core/yandex_reviews_sync.py), бот — гость пишет @kult_taplist_bot
+отвечаем. Откуда приходят: Яндекс — публичная страница бара на Картах, раз в
+3 часа и полный проход раз в сутки (core/yandex_reviews_sync.py, с 2026-10-09;
+до того — кабинет Яндекс Бизнеса), бот — гость пишет @kult_taplist_bot
 (core/taplist_polling.py). Ответ на отзыв Яндекса копируют и публикуют в
-кабинете руками (сверка потом ставит reply.delivered); ответ на отзыв из бота
+кабинете руками (полный проход по Картам потом ставит reply.delivered); ответ на отзыв из бота
 владелец отправляет гостю кнопкой (start_reply_delivery / finish_reply_delivery).
 
 Хранение. guest_reviews.json на постоянном томе (/kultura) или в data/ локально
@@ -169,9 +170,11 @@ material_lookup(ids) -> {id: bool} | None: модуль отзывов от ко
 round(4.35, 1) в Python даёт 4.3 из-за двоичного представления.
 Те же формулы — строками в FORMULAS (API отдаёт их для подсказок в интерфейсе).
 
-Загрузка из источника (upsert_imported, Яндекс Бизнес — docs/yandex-reviews.md):
+Загрузка из источника (upsert_imported, Яндекс Карты — docs/yandex-reviews.md):
 запись с origin 'import' ищется по паре (source, external_id); нет — создаётся,
-есть — обновляются оценка, текст, автор, фото. Статус новой записи:
+есть — обновляются оценка, текст, автор, фото (только поля, которые источник
+прислал: публичная страница Карт фото, аватар и public_rating не даёт — они
+остаются от кабинета; дата отзыва created_at не обновляется). Статус новой записи:
     в источнике есть ответ организации  -> answered, reply = ответ источника
                                            ({text, at: время ответа в источнике,
                                            by, delivered: true, source});
@@ -732,6 +735,9 @@ def _import_item(item: Mapping) -> dict:
         'photos': photos,
         'author_avatar': item.get('author_avatar') if isinstance(item.get('author_avatar'), str) else None,
         'public_rating': public if isinstance(public, bool) else None,
+        # Поля, которые источник прислал: остальные у загруженного отзыва не трогаются
+        # (публичная страница Карт не даёт фото, аватар и public_rating кабинета).
+        'supplied': tuple(k for k in ReviewStore.IMPORT_FIELDS if k in item),
     }
 
 
@@ -1326,8 +1332,10 @@ class ReviewStore:
                         history_cutoff: str, complete: bool, by: str) -> dict:
         """Загрузить отзывы одного бара из источника; правила — докстринг модуля.
 
-        items — отзывы как у core.yandex_business.parse_review (external_id,
-        created_at, rating, text, author, owner_reply {text, at}, photos, ...).
+        items — отзывы как у core.yandex_maps_reviews.parse_review или
+        core.yandex_business.parse_review (external_id, created_at, rating, text,
+        author, owner_reply {text, at}[, photos, author_avatar, public_rating]).
+        У существующей записи меняются только поля, которые есть в item.
         history_cutoff — 'YYYY-MM-DD': новый отзыв без ответа с датой раньше
         него получает skipped с HISTORY_SKIP_REASON. complete=True — items
         содержат ВСЕ отзывы бара в источнике: пропавшие получают gone_at
@@ -1402,8 +1410,9 @@ class ReviewStore:
                     continue
 
                 changed = False
-                if any(rec.get(k) != fields[k] for k in self.IMPORT_FIELDS):
-                    rec.update({k: fields[k] for k in self.IMPORT_FIELDS})
+                supplied = fields['supplied']
+                if any(rec.get(k) != fields[k] for k in supplied):
+                    rec.update({k: fields[k] for k in supplied})
                     stats['updated'] += 1
                     changed = True
                 if rec.get('gone_at'):

@@ -116,8 +116,8 @@
           <div class="gh-menu is-right" id="rvStatusMenu" role="menu" hidden></div>
         </div>
 
-        <!-- Кнопки добавления отзыва нет: ручного ввода нет, отзывы приходят из
-             Яндекс Бизнеса (решение владельца 2026-09-28, docs/yandex-reviews.md). -->
+        <!-- Кнопки добавления отзыва нет: ручного ввода нет, отзывы приходят с
+             Яндекс Карт и из бота (решение владельца 2026-09-28, docs/yandex-reviews.md). -->
       </div>
 
       <!-- Хранилище недоступно (503) или другая ошибка загрузки. -->
@@ -134,8 +134,9 @@
         </span>
       </div>
 
-      <!-- Сверка с Яндекс Бизнесом (раз в сутки): когда была и не сломалась ли.
-           Текст и тон — reviews.js, renderSync; данные — yandex_sync в GET /api/reviews. -->
+      <!-- Проверка Яндекс Карт (раз в 3 часа, полная — раз в сутки): когда была и не
+           сломалась ли, тревоги сторожа. Текст и тон — reviews.js, renderSync; данные —
+           yandex_sync в GET /api/reviews. -->
       <div class="gh-banner gh-rv-sync" id="rvSync" hidden>
         <span class="gh-banner-ico">
           <svg viewBox="0 0 18 18" aria-hidden="true">
@@ -175,7 +176,7 @@
 
       <div class="gh-empty" id="rvEmpty" hidden>
         <div class="gh-empty-t" id="rvEmptyTitle">Отзывов за период нет</div>
-        <div class="gh-empty-s" id="rvEmptyText">Отзывы приходят из Яндекс Бизнеса раз в сутки.</div>
+        <div class="gh-empty-s" id="rvEmptyText">Отзывы приходят с Яндекс Карт раз в 3 часа и из бота — сразу.</div>
         <div class="gh-empty-a">
           <button type="button" class="gh-btn" id="rvEmptyReset" hidden>Сбросить фильтры</button>
         </div>

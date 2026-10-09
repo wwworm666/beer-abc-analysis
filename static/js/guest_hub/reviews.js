@@ -3,14 +3,15 @@
    Что делает: список отзывов, ответ на каждый, пять карточек показателей
    (вся сеть и четыре бара), «Сделать материалом» для контент-плана.
 
-   Отзывы приходят из Яндекс Бизнеса: сервер сверяется с кабинетом раз в
-   сутки (core/yandex_reviews_sync.py, docs/yandex-reviews.md), состояние
-   сверки — yandex_sync в ответе списка, строка над показателями (renderSync).
-   И из гостевого бота @kult_taplist_bot (core/taplist_polling.py).
+   Отзывы приходят с публичной страницы бара на Яндекс Картах: сервер читает
+   её раз в 3 часа и целиком раз в сутки (core/yandex_reviews_sync.py,
+   docs/yandex-reviews.md), состояние — yandex_sync в ответе списка, строка над
+   показателями (renderSync). И из гостевого бота @kult_taplist_bot
+   (core/taplist_polling.py).
    Ручного ввода нет (решение владельца 2026-09-28): кнопки добавления отзыва
    нет, диалог правки остался только для внесённых вручную раньше. Ответ
-   отсюда в Яндекс не уходит: его публикуют в кабинете, и при следующей
-   сверке отзыв отмечается «Отвечен» / «Опубликован в Яндексе». Ответ на
+   отсюда в Яндекс не уходит: его публикуют в кабинете, и при следующем полном
+   проходе отзыв отмечается «Отвечен» / «Опубликован в Яндексе». Ответ на
    отзыв из бота (can_send_to_guest) владелец отправляет гостю в Telegram
    кнопкой «Отправить гостю в Telegram» (с подтверждением) — POST send-reply;
    после — «Отправлено гостю <время>» (reply.delivered_at).
@@ -75,14 +76,15 @@
     var MONTH_MIN = '2010-01';
     // Сколько держится подсветка карточки после действия.
     var FLASH_MS = 1600;
-    // Сверка с Яндексом, «идущая» дольше часа, считается прерванной (процесс
+    // Проверка Карт, «идущая» дольше часа, считается прерванной (процесс
     // перезапустили посреди): полный проход четырёх баров занимает минуту.
     var SYNC_STALE_MIN = 60;
-    // Тон строки сверки: вход устарел или ошибка — отзывы перестали
-    // обновляться (опасность); капча, прерванная и неполная сверка — внимание.
+    // Тон строки проверки: ни один бар не прочитан или загрузка выключена —
+    // отзывы не обновляются (опасность); капча, прерванная и неполная проверка —
+    // внимание. Тревоги сторожа (alerts) тон усиливают — см. renderSync.
     var SYNC_TONE = {
         ok: 'muted', never: 'muted', running: 'muted', partial: 'warning', captcha: 'warning',
-        stale: 'warning', expired: 'danger', error: 'danger', not_configured: 'danger'
+        stale: 'warning', error: 'danger', disabled: 'danger'
     };
     // Поиск гостя в «Маркетинге» (/api/guests/search) ищет ПОДСТРОКОЙ по
     // телефону, номеру карты и имени. Телефон там хранится одними цифрами и
@@ -375,22 +377,44 @@
 
     function syncText(s, status) {
         var last = s.last_success_at ? fmtWhen(s.last_success_at) : '';
-        if (status === 'ok') return 'Яндекс Бизнес: сверено ' + fmtWhen(s.finished_at) + '. Сверка раз в сутки, утром.';
-        if (status === 'running') return 'Яндекс Бизнес: идёт сверка…';
-        if (status === 'never') return 'Яндекс Бизнес: первая сверка ещё не прошла.';
-        if (status === 'stale') return 'Яндекс Бизнес: сверка прервалась' +
-            (last ? ', отзывы — по сверке ' + last : '') + '. Следующая — завтра утром.';
-        if (status === 'partial') return 'Яндекс Бизнес: сверено ' + fmtWhen(s.finished_at) + ' не полностью. ' + (s.error || '');
-        if (status === 'captcha') return 'Яндекс попросил капчу — сверка не прошла' +
-            (last ? ', отзывы — по сверке ' + last : '') + '. Следующая попытка — завтра утром.';
-        if (status === 'expired') return 'Вход в Яндекс Бизнес устарел — отзывы не обновляются' +
-            (last ? ' с ' + last : '') + '. Сообщите администратору: нужны новые cookies.';
-        if (status === 'not_configured') return 'Яндекс Бизнес не подключён — отзывы не загружаются.';
-        return 'Сверка с Яндекс Бизнесом не прошла' + (s.error ? ': ' + s.error : '') + '.';
+        var sched = s.schedule || {};
+        var every = 'Проверка раз в ' + (sched.quick_every_hours || 3) + ' ч, полная — раз в сутки' +
+            (sched.full_at ? ' в ' + sched.full_at : '') + '.';
+        if (status === 'ok') return 'Яндекс Карты: проверено ' + fmtWhen(s.finished_at) + '. ' + every;
+        if (status === 'running') return 'Яндекс Карты: идёт проверка…';
+        if (status === 'never') return 'Яндекс Карты: первая проверка ещё не прошла' +
+            (last ? ', отзывы — по загрузке ' + last : '') + '.';
+        if (status === 'stale') return 'Яндекс Карты: проверка прервалась' +
+            (last ? ', отзывы — по проверке ' + last : '') + '. ' + every;
+        if (status === 'partial') return 'Яндекс Карты: проверено ' + fmtWhen(s.finished_at) + ' не полностью. ' + (s.error || '');
+        if (status === 'captcha') return 'Яндекс попросил капчу — проверка не прошла' +
+            (last ? ', отзывы — по проверке ' + last : '') + '. Следующая попытка — через ' +
+            (sched.quick_every_hours || 3) + ' ч.';
+        if (status === 'disabled') return 'Загрузка отзывов с Яндекс Карт выключена — отзывы не обновляются.';
+        return 'Проверка Яндекс Карт не прошла' + (s.error ? ': ' + s.error : '') + '.';
     }
 
-    // Строка сверки над показателями: когда была и не сломалась ли. Подсказка —
-    // по барам: сколько отзывов получено и сколько насчитывает сам Яндекс.
+    // Тревоги сторожа (core/yandex_reviews_watchdog.py) — те же, о которых он
+    // пишет в Telegram: бар не читался больше суток, на Картах больше отзывов
+    // дольше 6 часов. Текст — перед строкой проверки.
+    function alertText(s) {
+        var a = s.alerts || {};
+        var parts = [];
+        if (a.stale && a.stale.length) {
+            parts.push('Отзывы не обновлялись больше суток: ' + a.stale.map(function (x) {
+                return GH.barName(x.bar) + (x.never ? ' (ни одной удачной проверки)' : ' (с ' + fmtWhen(x.since) + ')');
+            }).join(', ') + '.');
+        }
+        if (a.behind && a.behind.length) {
+            parts.push('На Картах больше отзывов, чем здесь, дольше 6 часов: ' + a.behind.map(function (x) {
+                return GH.barName(x.bar) + ' — ' + x.count + ' и ' + x.ours;
+            }).join(', ') + '.');
+        }
+        return parts.join(' ');
+    }
+
+    // Строка проверки над показателями: когда была и не сломалась ли. Подсказка —
+    // по барам: сколько отзывов на Картах и сколько здесь.
     function renderSync() {
         var s = state.data && state.data.yandex_sync;
         if (!s) { el.sync.hidden = true; return; }
@@ -399,19 +423,28 @@
             var age = minutesBetween(s.started_at, state.data.now);
             if (age !== null && age > SYNC_STALE_MIN) status = 'stale';
         }
-        el.sync.className = 'gh-banner gh-rv-sync ' + GH.toneClass(SYNC_TONE[status] || 'danger');
-        el.syncText.textContent = syncText(s, status);
+        var alarm = alertText(s);
+        var tone = SYNC_TONE[status] || 'danger';
+        if (alarm) tone = (s.alerts.stale && s.alerts.stale.length) ? 'danger' : (tone === 'danger' ? tone : 'warning');
+        el.sync.className = 'gh-banner gh-rv-sync ' + GH.toneClass(tone);
+        el.syncText.textContent = (alarm ? alarm + ' ' : '') + syncText(s, status);
         var lines = [];
         var bars = s.bars || {};
         for (var i = 0; i < GH.BARS.length; i++) {
             var b = bars[GH.BARS[i].key];
             if (!b) continue;
-            lines.push(GH.BARS[i].name + ': получено ' + (b.received || 0) +
-                (b.total !== null && b.total !== undefined ? ' из ' + b.total + ' по счётчику Яндекса' : '') +
+            lines.push(GH.BARS[i].name + ': ' +
+                (b.count !== null && b.count !== undefined ? 'на Картах ' + b.count + ', ' : '') +
+                'здесь ' + (b.ours !== null && b.ours !== undefined ? b.ours : '—') +
+                (b.synced_at ? ' · прочитано ' + fmtWhen(b.synced_at) : '') +
                 (b.error ? ' — ' + b.error : ''));
         }
-        var tip = 'Сверка раз в сутки: сервер читает кабинет Яндекс Бизнеса (только чтение — ответить или удалить ' +
-            'оттуда нельзя) и обновляет отзывы, оценки и ответы.' + (lines.length ? '\n\n' + lines.join('\n') : '');
+        var tip = 'Сервер читает публичную страницу бара на Яндекс Картах — как гость, без входа в кабинет: ' +
+            'раз в 3 часа первую страницу отзывов (остальные — если на Картах отзывов больше, чем здесь), ' +
+            'раз в сутки — все страницы, чтобы подхватить ответы и пропавшие отзывы. Ответить или удалить ' +
+            'отзыв оттуда нельзя. Если отзывы не обновлялись больше суток или на Картах их больше дольше 6 ' +
+            'часов, подписчикам бота kulturaopenclosed приходит сообщение.' +
+            (lines.length ? '\n\n' + lines.join('\n') : '');
         el.sync.setAttribute('data-tip', tip);
         el.sync.hidden = false;
     }
@@ -705,8 +738,8 @@
             '</div>';
         }
         if (r.status === 'answered' && r.reply && r.reply.source) {
-            // Ответ пришёл из кабинета Яндекса при сверке: править и возвращать в
-            // работу здесь нечего — следующая сверка вернула бы его как было.
+            // Ответ пришёл из Яндекса при загрузке: править и возвращать в
+            // работу здесь нечего — следующая проверка вернула бы его как было.
             var smeta = 'Ответ в Яндексе, ' + fmtWhen(r.reply.at);
             if (r.reply.edited_at) smeta += ' · изменён ' + fmtWhen(r.reply.edited_at);
             return '<div class="gh-rv-reply">' +
@@ -786,11 +819,11 @@
         var cls = classes.join(' ');
         var added = r.origin === 'manual'
             ? 'Внесён вручную: ' + (r.added_by || '—') + ', ' + fmtWhen(r.added_at)
-            : 'Загружен из Яндекс Бизнеса ' + fmtWhen(r.added_at);
+            : 'Загружен: ' + (r.added_by || sourceName(r.source)) + ', ' + fmtWhen(r.added_at);
         // Отзыва больше нет в Яндексе (удалил автор или модерация): запись не
-        // удаляется, только помечается — сверка ставит gone_at.
+        // удаляется, только помечается — полная проверка Карт ставит gone_at.
         var gone = r.gone_at
-            ? '<span class="gh-badge ' + GH.toneClass('muted') + '" data-tip="' + GH.esc('При сверке ' + fmtWhen(r.gone_at) +
+            ? '<span class="gh-badge ' + GH.toneClass('muted') + '" data-tip="' + GH.esc('При полной проверке ' + fmtWhen(r.gone_at) +
                 ' этого отзыва в Яндексе не было: его удалил автор или модерация. Здесь он сохранён.') +
                 '">нет в Яндексе</span>'
             : '';
@@ -864,7 +897,7 @@
         var noneAtAll = !(total.count > 0) && !state.source;
         if (noneAtAll) {
             el.emptyTitle.textContent = state.all ? 'Отзывов пока нет' : 'Отзывов за период нет';
-            el.emptyText.textContent = 'Отзывы приходят из Яндекс Бизнеса раз в сутки.';
+            el.emptyText.textContent = 'Отзывы приходят с Яндекс Карт раз в 3 часа и из бота — сразу.';
         } else {
             el.emptyTitle.textContent = 'Под выбранные фильтры отзывов нет';
             el.emptyText.textContent = (state.all ? 'Отзывы есть' : 'За ' + GH.monthLabel(state.month).toLowerCase() +

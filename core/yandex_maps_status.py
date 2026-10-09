@@ -24,6 +24,8 @@ import portalocker
 
 from core.json_store import atomic_write_json
 from core.storage_paths import get_data_path
+# Заголовки браузера и признаки капчи — общие для страниц Карт (отзывы и прайс).
+from core.yandex_maps_reviews import CAPTCHA_MARKERS as _CAPTCHA_MARKERS, HEADERS
 from core.yandex_reviews_sync import BAR_BY_PERMANENT_ID
 
 MOSCOW = ZoneInfo('Europe/Moscow')
@@ -39,12 +41,6 @@ CHECK_EVERY = timedelta(hours=3)
 # Кнопка «Проверить сейчас» не чаще раза в 2 минуты: ответ Карт не изменится.
 MANUAL_MIN_INTERVAL = timedelta(minutes=2)
 PAUSE_BETWEEN_BARS = 1.5
-HEADERS = {
-    'User-Agent': ('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
-                   '(KHTML, like Gecko) Chrome/140.0 Safari/537.36'),
-    'Accept-Language': 'ru-RU,ru;q=0.9',
-}
-_CAPTCHA_MARKERS = ('showcaptcha', 'checkcaptcha', 'SmartCaptcha', 'Подтвердите, что запросы')
 
 _BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RUN_LOCK_PATH = os.path.join(_BASE_DIR, 'data', '.yml_maps_check.lock')

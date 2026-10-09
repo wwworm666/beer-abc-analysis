@@ -260,7 +260,8 @@ test('пользовательский текст экранируется', () 
 
 test('тексты страницы по спецификации', () => {
     assert.match(html, /Отзывов за период нет/, 'нет пустого состояния');
-    assert.match(html, /Отзывы приходят из Яндекс Бизнеса раз в сутки\./, 'нет пояснения пустого состояния');
+    assert.match(html, /Отзывы приходят с Яндекс Карт раз в 3 часа и из бота — сразу\./, 'нет пояснения пустого состояния');
+    assert.match(js, /Отзывы приходят с Яндекс Карт раз в 3 часа и из бота — сразу\./, 'пояснение в JS расходится с шаблоном');
     // Ручного ввода нет (решение владельца 2026-09-28): ни кнопки, ни вызова диалога «Новый отзыв».
     assert.ok(!(html + js).includes('Добавить отзыв'), 'вернулась кнопка «Добавить отзыв»');
     assert.ok(!/openDialog\(null\)/.test(js), 'диалог нового отзыва снова открывается');
@@ -789,6 +790,50 @@ atest('/guests?q=…#guest: вкладка «Гость» подставляет
     assert.equal(fetched.length, 1, 'поиск повторился при перерисовке вкладки');
 });
 
+// Ответ GET /api/reviews с yandex_sync — как core/yandex_reviews_sync.public_state.
+function syncPayload(over) {
+    return Object.assign(listPayload([], 0), {
+        yandex_sync: Object.assign({
+            status: 'ok', kind: 'quick', started_at: '2026-09-27T11:30', finished_at: '2026-09-27T11:31',
+            last_success_at: '2026-09-27T11:31', last_full_at: '2026-09-27T08:31', error: null,
+            schedule: { quick_every_hours: 3, full_at: '08:30' },
+            bars: { kremenchugskaya: { count: 108, received: 50, ours: 108, error: null,
+                                       synced_at: '2026-09-27T11:31', full_at: '2026-09-27T08:31', behind_since: null } },
+            alerts: { stale: [], behind: [] },
+        }, over),
+    });
+}
+
+atest('строка проверки Карт: обычная, тревоги сторожа, подсказка по барам', async () => {
+    let page = bootPage({ search: '', respond: fakeServer({ attn: { reviews_unanswered: 0 }, list: syncPayload({}) }) });
+    await tick();
+    await tick();
+    assert.equal(page.ids.rvSync.hidden, false);
+    assert.equal(page.ids.rvSyncText.textContent,
+        'Яндекс Карты: проверено 27 сентября, 11:31. Проверка раз в 3 ч, полная — раз в сутки в 08:30.');
+    assert.match(page.ids.rvSync.className, /muted/);
+    assert.match(page.ids.rvSync.getAttribute('data-tip'), /Кременчугская: на Картах 108, здесь 108 · прочитано/);
+    assert.match(page.ids.rvSync.getAttribute('data-tip'), /без входа в кабинет/);
+    const alarm = syncPayload({
+        status: 'partial', error: 'Не прочитаны: Варшавская — Карты ответили кодом 503',
+        alerts: { stale: [{ bar: 'varshavskaya', since: '2026-09-26T08:00', never: false }],
+                  behind: [{ bar: 'kremenchugskaya', count: 110, ours: 108, since: '2026-09-27T05:00' }] },
+    });
+    page = bootPage({ search: '', respond: fakeServer({ attn: { reviews_unanswered: 0 }, list: alarm }) });
+    await tick();
+    await tick();
+    const text = page.ids.rvSyncText.textContent;
+    assert.match(text, /^Отзывы не обновлялись больше суток: Варшавская \(с 26 сентября, 08:00\)\./);
+    assert.match(text, /На Картах больше отзывов, чем здесь, дольше 6 часов: Кременчугская — 110 и 108\./);
+    assert.match(text, /не полностью\. Не прочитаны: Варшавская/);
+    assert.match(page.ids.rvSync.className, /danger/, 'тревога «не обновлялись» — опасность');
+    page = bootPage({ search: '', respond: fakeServer({ attn: { reviews_unanswered: 0 },
+        list: syncPayload({ alerts: { stale: [], behind: [{ bar: 'bolshoy', count: 2, ours: 1, since: 'x' }] } }) }) });
+    await tick();
+    await tick();
+    assert.match(page.ids.rvSync.className, /warning/, 'только «на Картах больше» — внимание');
+});
+
 for (const { name, fn } of asyncTests) {
     try {
         await fn();
@@ -802,13 +847,14 @@ for (const { name, fn } of asyncTests) {
 }
 
 
-test('сверка с Яндекс Бизнесом: строка статуса, ответы из Яндекса, пропавшие отзывы', () => {
-    assert.match(html, /id="rvSync"/, 'нет строки сверки');
+test('загрузка с Яндекс Карт: строка статуса, ответы из Яндекса, пропавшие отзывы', () => {
+    assert.match(html, /id="rvSync"/, 'нет строки проверки');
     assert.match(routes, /payload\['yandex_sync'\]/, 'список не отдаёт yandex_sync');
-    for (const status of ['ok', 'running', 'never', 'partial', 'captcha', 'expired', 'not_configured', 'stale']) {
-        assert.match(js, new RegExp(`status === '${status}'|${status}: '`), `статус сверки ${status} не обработан`);
+    for (const status of ['ok', 'running', 'never', 'partial', 'captcha', 'error', 'disabled', 'stale']) {
+        assert.match(js, new RegExp(`status === '${status}'|${status}: '`), `статус проверки ${status} не обработан`);
     }
-    assert.match(js, /var SYNC_STALE_MIN = 60;/, 'нет константы прерванной сверки');
+    assert.ok(!/Яндекс Бизнес:|Вход в Яндекс Бизнес устарел|not_configured/.test(js), 'остались тексты сверки кабинета');
+    assert.match(js, /var SYNC_STALE_MIN = 60;/, 'нет константы прерванной проверки');
     assert.match(js, /r\.reply\.source/, 'ответ из Яндекса не отличается от сохранённого здесь');
     assert.match(js, /Опубликован в Яндексе/, 'нет отметки «Опубликован в Яндексе»');
     assert.match(js, /r\.gone_at/, 'пропавший из Яндекса отзыв не помечается');

@@ -1,28 +1,32 @@
 """
-Тесты загрузки отзывов из Яндекс Бизнеса: ReviewStore.upsert_imported
-(core/guest_reviews.py), сверка sync_all (core/yandex_reviews_sync.py) и
-расчёт времени планировщика (core/yandex_reviews_scheduler.py).
+Тесты загрузки отзывов с Яндекс Карт: ReviewStore.upsert_imported
+(core/guest_reviews.py), проверка sync_all (core/yandex_reviews_sync.py) и
+расписание планировщика (core/yandex_reviews_scheduler.py).
 
 Self-runnable: `py -3 tests/test_yandex_reviews_sync.py` (совместимо с pytest).
 
-Сети нет: клиент кабинета подменяется фейком, файлы — временные, часы
+Сети нет: страницы Карт подменяются фейком, файлы — временные, часы
 подменяются. Что проверяется:
 - новый отзыв: с ответом в Яндексе -> «Отвечен» со временем из Яндекса;
   без ответа до границы истории -> «Без ответа по решению» с причиной; после
   границы -> «Без ответа»;
 - повторная загрузка не плодит дублей; правка оценки и текста обновляется;
+  обновляются только поля, которые прислал источник (фото, аватар и
+  public_rating кабинета остаются), дата отзыва не меняется;
 - ответ в Яндексе у ждущего -> «Отвечен»; у сохранённого здесь -> отметка
   «опубликован», момент ответа не меняется; правка ответа в Яндексе не
   «молодит» время; ответ пропал -> снова ждёт, прежний остаётся;
 - пропавший из полного прохода -> gone_at без удаления; вернулся -> снят;
   неполный проход пропавших не отмечает; не разобравшийся — не «пропавший»;
 - ручные отзывы загрузка не трогает;
-- sync_all: без cookies — not_configured; бары по permanent_id, не-бары не
-  читаются; граница истории ставится один раз; сессия не принята -> expired
-  и cookies не попадают в состояние; капча; сбой одного бара не ломает
-  остальные; организации нет -> partial; получено меньше счётчика —
-  предупреждение без пометки пропавших; вторая сверка в это же время — пропуск;
-- планировщик: время до сверки по МСК, стартовая сверка только без свежей.
+- sync_all: полный проход и сводка для экрана; первый запуск после кабинета
+  переносит границу истории и notify_since, id совпадают — дублей нет;
+  быстрая проверка читает первую страницу и догружает остальные, только когда
+  на Картах больше отзывов; защита от дублей при несовпадении id; сломанное
+  листание — ошибка бара, отставание отмечено; капча останавливает проверку;
+  сбой бара сохраняет прежние числа; вторая проверка в это же время — пропуск;
+- планировщик: что делать на такте (полный проход раз в сутки, быстрая
+  проверка раз в 3 часа, повтор неудачного полного), такт зовёт сторожа.
 """
 import atexit
 import json
@@ -35,15 +39,17 @@ from datetime import datetime, timedelta
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
+import pytest  # noqa: E402
+
 from core import msk_time  # noqa: E402
+from core import yandex_maps_reviews as mr  # noqa: E402
 from core import yandex_reviews_scheduler as sched  # noqa: E402
 from core import yandex_reviews_sync as ys  # noqa: E402
+from core import yandex_reviews_watchdog as wd  # noqa: E402
 from core.guest_reviews import HISTORY_SKIP_REASON, ReviewStore  # noqa: E402
-from core.yandex_business import YandexAuthError, YandexCaptchaError, YandexTemporaryError  # noqa: E402
 
 TMP = tempfile.mkdtemp(prefix='yrs_test_')
 atexit.register(shutil.rmtree, TMP, ignore_errors=True)
-SID, SID2 = 'SECRET-sid-aaa', 'SECRET-sid2-bbb'
 NOW = datetime(2026, 9, 28, 8, 30)
 CUTOFF = '2026-08-29'
 BY = 'Яндекс Бизнес'
@@ -191,173 +197,270 @@ def test_imported_record_survives_reload():
     assert r['photos'][0]['link'] == '/get-altay/1/x/orig' and r['origin'] == 'import'
 
 
-# ----------------------------------------------------------------- sync_all
-
-class FakeClient:
-    def __init__(self, orgs, pages, fail=None):
-        self.orgs, self.pages, self.fail = orgs, pages, fail or {}
-        self.read = []
-        self.closed = False
-
-    def branches(self):
-        if 'branches' in self.fail:
-            raise self.fail['branches']
-        return [{'permanent_id': pid, 'name': name} for pid, name in self.orgs.items()]
-
-    def iter_review_pages(self, pid, max_pages=200):
-        self.read.append(pid)
-        if pid in self.fail:
-            raise self.fail[pid]
-        items = self.pages.get(pid, [])
-        total = len(items) + self.pages.get(('extra', pid), 0)
-        yield {'page': 1, 'total': total, 'offset': 0, 'items': items}
-
-    def close(self):
-        self.closed = True
+def test_only_supplied_fields_are_updated():
+    """Страница Карт не даёт фото, аватар и public_rating: у отзыва из кабинета они остаются."""
+    s = _store()
+    _up(s, [_item('a', photos=[{'link': '/p/1', 'width': 1, 'height': 1}], author_avatar='/a/1',
+                  public_rating=False)])
+    maps_item = {'external_id': 'a', 'created_at': '2026-10-01T09:00', 'rating': 5, 'text': 'Отлично',
+                 'author': 'Иван', 'owner_reply': None}
+    st = _up(s, [maps_item])
+    r = _by_ext(s)['a']
+    assert st['updated'] == 0
+    assert r['photos'] == [{'link': '/p/1', 'width': 1, 'height': 1}] and r['author_avatar'] == '/a/1'
+    assert r['public_rating'] is False and r['created_at'] == '2026-09-20T12:00'   # дата не «молодеет»
+    st = _up(s, [dict(maps_item, text='Отлично, но шумно')])
+    assert st['updated'] == 1 and _by_ext(s)['a']['text'] == 'Отлично, но шумно'
+    assert _by_ext(s)['a']['photos'][0]['link'] == '/p/1'
+    st = _up(s, [dict(maps_item, external_id='b')])     # новый без фото — значения по умолчанию
+    b = _by_ext(s)['b']
+    assert st['added_new'] == 1 and b['photos'] == [] and b['author_avatar'] is None and b['public_rating'] is None
 
 
-def _raw(rid, ts=None, reply=None):
-    ts = ts or int(datetime(2026, 9, 20, 12, 0, tzinfo=msk_time.MOSCOW_TZ).timestamp())
-    r = {'id': rid, 'rating': 5, 'full_text': 'Хорошо', 'time_created': ts, 'author': {'user': 'Гость'}}
+# ----------------------------------------------------------------- sync_all (Яндекс Карты)
+
+PIDS = list(ys.BAR_BY_PERMANENT_ID)
+KREM = 31434555884                      # kremenchugskaya
+
+
+def _rv(i, when='2026-10-01T10:00:00Z', reply=None):
+    r = {'reviewId': str(i), 'author': {'name': 'Гость'}, 'text': f'Отзыв {i}', 'rating': 5,
+         'updatedTime': when}
     if reply:
-        r['owner_comment'] = reply
+        r['businessComment'] = {'text': reply, 'updatedTime': '2026-10-02T09:00:00Z'}
     return r
 
 
-ALL_ORGS = {pid: 'Культура' for pid in ys.BAR_BY_PERMANENT_ID}
-ALL_ORGS.update(ys.NOT_BARS)
+class Maps:
+    """Публичные страницы Карт в памяти: {org_id: [сырые отзывы]}, по 50 на страницу.
+
+    fail — {org_id: исключение} на любую страницу; ignore_page — организации, у
+    которых страница N отдаёт первую (листание сломано); count_extra — сколько
+    отзывов Карты насчитывают сверх списка.
+    """
+
+    def __init__(self, reviews, fail=None, ignore_page=(), count_extra=None):
+        self.reviews, self.fail = reviews, fail or {}
+        self.ignore_page, self.count_extra = set(ignore_page), count_extra or {}
+        self.asked = []
+
+    def fetch(self, org, page):
+        self.asked.append((org, page))
+        if org in self.fail:
+            raise self.fail[org]
+        items = self.reviews.get(org, [])
+        shown = 1 if org in self.ignore_page else page
+        return {'reviews': items[(shown - 1) * 50:shown * 50], 'count': len(items) + self.count_extra.get(org, 0),
+                'count_source': 'params', 'page': shown, 'total_pages': max(1, -(-len(items) // 50))}
+
+    def pages(self, org):
+        return [p for o, p in self.asked if o == org]
 
 
-class _Env:
-    def __init__(self, sid=SID, sid2=SID2):
-        self.vals = {ys.ENV_SESSION_ID: sid, ys.ENV_SESSION_ID2: sid2}
-
-    def __enter__(self):
-        self.saved = {k: os.environ.get(k) for k in self.vals}
-        for k, v in self.vals.items():
-            if v is None:
-                os.environ.pop(k, None)
-            else:
-                os.environ[k] = v
-
-    def __exit__(self, *exc):
-        for k, v in self.saved.items():
-            if v is None:
-                os.environ.pop(k, None)
-            else:
-                os.environ[k] = v
+def _maps(n=3, extra=None):
+    """У каждого бара n отзывов с id '<org>-<i>'."""
+    data = {pid: [_rv(f'{pid}-{i}') for i in range(n)] for pid in PIDS}
+    data.update(extra or {})
+    return data
 
 
-def _sync(client, store=None, now=NOW, path=None):
-    path = path or os.path.join(TMP, f'state_{_n[0]}_{id(client)}.json')
+def _sync(maps, store=None, now=NOW, path=None, kind='full', notifier=None):
+    path = path or os.path.join(TMP, f'state_{_n[0]}_{id(maps)}.json')
     clock = lambda: now.replace(tzinfo=msk_time.MOSCOW_TZ)   # noqa: E731
-    return ys.sync_all(store=store or _store(now), client_factory=lambda a, b: client, clock=clock,
-                       path=path), path
+    return ys.sync_all(kind, store=store or _store(now), fetch=maps.fetch, sleep=lambda s: None,
+                       clock=clock, path=path, notifier=notifier), path
 
 
-def test_sync_not_configured():
-    with _Env(None, None):
-        state, path = _sync(FakeClient(ALL_ORGS, {}))
-        assert state['status'] == 'not_configured'
-        assert ys.public_state(path)['status'] == 'not_configured'
-
-
-def test_sync_ok_maps_bars_and_skips_not_bars():
-    pages = {pid: [_raw(f'r{pid}')] for pid in ys.BAR_BY_PERMANENT_ID}
-    client = FakeClient(ALL_ORGS, pages)
+def test_sync_full_ok_and_public_state():
+    maps = Maps(_maps())
     store = _store()
-    with _Env():
-        state, path = _sync(client, store)
-        assert state['status'] == 'ok', state
-        assert sorted(client.read) == sorted(ys.BAR_BY_PERMANENT_ID)    # Draftmasters и First не читались
-        assert client.closed
-        bars = {r['bar'] for r in store.all()}
-        assert bars == set(ys.BAR_BY_PERMANENT_ID.values())
-        assert state['history_cutoff'] == '2026-08-29' and state['last_success_at']
-        text = json.dumps(state, ensure_ascii=False)
-        assert SID not in text and SID2 not in text
-        pub = ys.public_state(path)
-        assert pub['status'] == 'ok' and pub['bars']['bolshoy'] == {
-            'total': 1, 'received': 1, 'error': None, 'synced_at': '2026-09-28T08:30'}
-        # Вторая сверка через 10 дней: граница истории прежняя, дублей нет.
-        later = NOW + timedelta(days=10)
-        state2 = ys.sync_all(store=store, client_factory=lambda a, b: client,
-                             clock=lambda: later.replace(tzinfo=msk_time.MOSCOW_TZ), path=path)
-        assert state2['history_cutoff'] == '2026-08-29' and len(store.all()) == 4
+    state, path = _sync(maps, store)
+    assert state['status'] == 'ok', state
+    assert state['source'] == 'maps' and state['source_since'] == '2026-09-28T08:30'
+    assert state['history_cutoff'] == '2026-08-29' and state['last_success_at'] == '2026-09-28T08:30'
+    assert state['last_full_at'] == state['last_full_attempt_at'] == '2026-09-28T08:30'
+    assert {r['bar'] for r in store.all()} == set(ys.BAR_BY_PERMANENT_ID.values())
+    assert all(r['added_by'] == 'Яндекс Карты' for r in store.all())
+    b = state['bars']['kremenchugskaya']
+    assert (b['org_id'], b['count'], b['received'], b['ours'], b['pages']) == (KREM, 3, 3, 3, 1)
+    assert b['full_at'] == b['synced_at'] == '2026-09-28T08:30' and b['behind_since'] is None
+    pub = ys.public_state(path, now=NOW)
+    assert pub['status'] == 'ok' and pub['kind'] == 'full'
+    assert pub['bars']['kremenchugskaya'] == {'count': 3, 'received': 3, 'ours': 3, 'error': None,
+                                              'synced_at': '2026-09-28T08:30', 'full_at': '2026-09-28T08:30',
+                                              'behind_since': None}
+    assert pub['schedule'] == {'quick_every_hours': 3, 'full_at': '08:30'}
+    assert pub['alerts'] == {'stale': [], 'behind': []}
+    # Повтор через 10 дней: граница истории прежняя, дублей нет.
+    state2, _ = _sync(maps, store, now=NOW + timedelta(days=10), path=path)
+    assert state2['history_cutoff'] == '2026-08-29' and len(store.all()) == 12
 
 
-def test_sync_auth_expired_and_captcha():
-    with _Env():
-        state, _ = _sync(FakeClient(ALL_ORGS, {}, fail={'branches': YandexAuthError('нужны новые cookies')}))
-        assert state['status'] == 'expired' and 'cookies' in state['error']
-        pid = next(iter(ys.BAR_BY_PERMANENT_ID))
-        state, _ = _sync(FakeClient(ALL_ORGS, {}, fail={pid: YandexCaptchaError('капча')}))
-        assert state['status'] == 'captcha'
-        # Сообщение с cookie внутри вырезается.
-        state, _ = _sync(FakeClient(ALL_ORGS, {}, fail={'branches': RuntimeError('boom ' + SID)}))
-        assert state['status'] == 'error' and SID not in state['error']
+def test_first_run_after_cabinet_keeps_history_and_matches_ids():
+    """Файл состояния от кабинета: переносятся граница истории, notify_since, synced_at; id те же."""
+    path = os.path.join(TMP, 'state_cabinet.json')
+    with open(path, 'w', encoding='utf-8') as f:
+        json.dump({'status': 'expired', 'error': 'Сессия Яндекса не принята', 'history_cutoff': '2026-08-29',
+                   'notify_since': '2026-09-28T00:38', 'last_success_at': '2026-09-28T08:30',
+                   'bars': {'kremenchugskaya': {'permanent_id': KREM, 'total': 12, 'received': 12,
+                                                'synced_at': '2026-09-28T08:30'}}}, f)
+    pub = ys.public_state(path, now=datetime(2026, 10, 9, 15, 0))
+    assert pub['status'] == 'never' and pub['bars'] == {} and pub['error'] is None
+    store = _store(datetime(2026, 10, 9, 15, 0))
+    cabinet = [_item(f'k{i}', photos=[{'link': f'/p/{i}'}], public_rating=True) for i in range(12)]
+    store.upsert_imported('yandex', 'kremenchugskaya', cabinet, history_cutoff=CUTOFF, complete=True, by=BY)
+    on_maps = [_rv('k-new', when='2026-10-05T10:00:00Z')] + [_rv(f'k{i}') for i in range(11)]   # k11 удалён
+    maps = Maps(_maps(extra={KREM: on_maps}))
+    state, _ = _sync(maps, store, now=datetime(2026, 10, 9, 15, 0), path=path)
+    assert state['status'] == 'ok', state
+    assert state['history_cutoff'] == '2026-08-29' and state['notify_since'] == '2026-09-28T00:38'
+    assert 'total' not in state['bars']['kremenchugskaya'] and 'permanent_id' not in state['bars']['kremenchugskaya']
+    by_ext = _by_ext(store)
+    assert len([r for r in store.all() if r['bar'] == 'kremenchugskaya']) == 13          # 12 + 1 новый, без дублей
+    assert by_ext['k-new']['status'] == 'new' and by_ext['k-new']['added_by'] == 'Яндекс Карты'
+    assert by_ext['k11']['gone_at'] == '2026-10-09T15:00'                                    # полный проход
+    assert by_ext['k0']['photos'] == [{'link': '/p/0'}] and by_ext['k0']['public_rating'] is True
+    assert by_ext['k0']['created_at'] == '2026-09-20T12:00'
 
 
-def test_sync_one_bar_fails_others_imported():
-    pids = list(ys.BAR_BY_PERMANENT_ID)
-    pages = {pid: [_raw(f'r{pid}')] for pid in pids}
-    client = FakeClient(ALL_ORGS, pages, fail={pids[0]: YandexTemporaryError('HTTP 503 после 3 попыток')})
+def test_quick_reads_first_page_and_loads_rest_only_when_behind():
+    reviews = {pid: [_rv(f'{pid}-{i}') for i in range(120)] for pid in PIDS}
+    maps = Maps(reviews)
     store = _store()
-    with _Env():
-        state, _ = _sync(client, store)
+    _, path = _sync(maps, store)
+    assert maps.pages(KREM) == [1, 2, 3]
+    maps.asked.clear()
+    later = NOW + timedelta(hours=3)
+    state, _ = _sync(maps, store, now=later, path=path, kind='quick')
+    assert state['status'] == 'ok' and all(maps.pages(pid) == [1] for pid in PIDS)    # 4 запроса
+    assert state['last_full_at'] == '2026-09-28T08:30' and state['kind'] == 'quick'
+    b = state['bars']['kremenchugskaya']
+    assert (b['count'], b['received'], b['ours'], b['pages']) == (120, 50, 120, 1)
+    # Новый отзыв не на первой странице (порядок Карт — по умолчанию): на Картах 121 > 120 у нас.
+    reviews[KREM].insert(70, _rv('late', when='2026-09-28T10:00:00Z'))
+    maps.asked.clear()
+    state, _ = _sync(maps, store, now=later + timedelta(hours=3), path=path, kind='quick')
+    assert maps.pages(KREM) == [1, 2, 3] and maps.pages(PIDS[1]) == [1]
+    b = state['bars']['kremenchugskaya']
+    assert (b['count'], b['received'], b['ours']) == (121, 121, 121) and b['behind_since'] is None
+    assert _by_ext(store)['late']['status'] == 'new'
+    # Новый на первой странице — догружать не нужно.
+    reviews[KREM].insert(0, _rv('top', when='2026-09-28T16:00:00Z'))
+    maps.asked.clear()
+    state, _ = _sync(maps, store, now=later + timedelta(hours=6), path=path, kind='quick')
+    assert maps.pages(KREM) == [1] and state['bars']['kremenchugskaya']['ours'] == 122
+
+
+def test_id_mismatch_guard_does_not_duplicate():
+    store = _store()
+    store.upsert_imported('yandex', 'kremenchugskaya', [_item(f'old{i}') for i in range(20)],
+                          history_cutoff=CUTOFF, complete=True, by=BY)
+    maps = Maps(_maps(extra={KREM: [_rv(f'other{i}') for i in range(20)]}))
+    state, _ = _sync(maps, store)
     assert state['status'] == 'partial'
-    assert len(store.all()) == 3
-    bad = ys.BAR_BY_PERMANENT_ID[pids[0]]
-    assert '503' in state['bars'][bad]['error']
+    assert 'id не совпадают' in state['bars']['kremenchugskaya']['error']
+    assert 'Кременчугская' in state['error']
+    assert len([r for r in store.all() if r['bar'] == 'kremenchugskaya']) == 20
+    assert not any(r.get('gone_at') for r in store.all())
+    # Ниже порога проверки (меньше 10 отзывов у нас) — грузится как есть.
+    assert ys.id_mismatch({'a', 'b'}, {'c'} | {f'x{i}' for i in range(20)}) is None
+    assert ys.id_mismatch({f'x{i}' for i in range(10)}, {f'x{i}' for i in range(5)} | {f'y{i}' for i in range(5)}) is None
 
 
-def test_sync_missing_org_and_incomplete_count():
-    pids = list(ys.BAR_BY_PERMANENT_ID)
-    orgs = {pid: 'Культура' for pid in pids[1:]}
-    pages = {pid: [_raw(f'r{pid}')] for pid in pids}
-    pages[('extra', pids[1])] = 5          # Яндекс насчитывает больше, чем отдал
+def test_broken_pagination_keeps_first_page_and_marks_behind():
+    reviews = {pid: [_rv(f'{pid}-{i}') for i in range(3)] for pid in PIDS}
+    reviews[KREM] = [_rv(f'k{i}') for i in range(120)]
     store = _store()
-    _up_bar = ys.BAR_BY_PERMANENT_ID[pids[1]]
-    store.upsert_imported('yandex', _up_bar, [_item('old')], history_cutoff=CUTOFF, complete=True, by=BY)
-    with _Env():
-        state, _ = _sync(FakeClient(orgs, pages), store)
-    assert state['status'] == 'partial'
-    assert 'нет в аккаунте' in state['bars'][ys.BAR_BY_PERMANENT_ID[pids[0]]]['error']
-    b = state['bars'][_up_bar]
-    assert b['received'] == 1 and b['total'] == 6 and 'пропавшие не отмечались' in b['error']
-    assert _by_ext(store)['old']['gone_at'] is None
+    store.upsert_imported('yandex', 'kremenchugskaya', [_item('kabinet-only')], history_cutoff=CUTOFF,
+                          complete=True, by=BY)
+    maps = Maps(reviews, ignore_page={KREM})
+    state, path = _sync(maps, store)
+    b = state['bars']['kremenchugskaya']
+    assert state['status'] == 'partial' and 'не листают' in b['error']
+    assert (b['count'], b['received'], b['ours']) == (120, 50, 51)
+    assert b['behind_since'] == '2026-09-28T08:30' and b['full_at'] is None
+    assert _by_ext(store)['kabinet-only']['gone_at'] is None          # неполный проход — пропавших нет
+    # Следующая проверка: отставание длится, отсчёт прежний.
+    state, _ = _sync(maps, store, now=NOW + timedelta(hours=3), path=path, kind='quick')
+    assert state['bars']['kremenchugskaya']['behind_since'] == '2026-09-28T08:30'
 
 
-def test_sync_single_flight():
+def test_captcha_stops_the_run_and_errors():
+    maps = Maps(_maps(), fail={PIDS[0]: mr.MapsCaptchaError('капча')})
+    state, _ = _sync(maps)
+    assert state['status'] == 'captcha' and state['error'] == 'капча'
+    assert [o for o, _ in maps.asked] == [PIDS[0]]                                   # остальные не дёргали
+    maps = Maps(_maps(), fail={PIDS[1]: mr.MapsReviewsError('Карты ответили кодом 503')})
+    store = _store()
+    state, _ = _sync(maps, store)
+    assert state['status'] == 'partial' and '503' in state['bars'][ys.BAR_BY_PERMANENT_ID[PIDS[1]]]['error']
+    assert len(store.all()) == 9 and 'last_success_at' not in state
+    maps = Maps(_maps(), fail={pid: mr.MapsReviewsError('Карты не ответили (Timeout)') for pid in PIDS})
+    state, _ = _sync(maps)
+    assert state['status'] == 'error' and state['error'].startswith('Не прочитаны: ')
+    with pytest.raises(ValueError):
+        ys.sync_all('weekly')
+
+
+def test_failed_bar_keeps_previous_numbers():
+    maps = Maps(_maps())
+    store = _store()
+    _, path = _sync(maps, store)
+    maps.fail = {KREM: mr.MapsReviewsError('Карты ответили кодом 500')}
+    state, _ = _sync(maps, store, now=NOW + timedelta(hours=3), path=path, kind='quick')
+    b = state['bars']['kremenchugskaya']
+    assert b['error'] == 'Карты ответили кодом 500' and b['synced_at'] == '2026-09-28T08:30'
+    assert (b['count'], b['ours'], b['received']) == (3, 3, None)
+
+
+def test_sync_single_flight_and_disabled_state():
     import portalocker
     path = os.path.join(TMP, 'state_lock.json')
     with portalocker.Lock(path + '.lock', mode='a', timeout=0):
-        with _Env():
-            state, _ = _sync(FakeClient(ALL_ORGS, {}), path=path)
+        state, _ = _sync(Maps(_maps()), path=path)
     assert state == {'skipped': 'already_running'}
+    _, path = _sync(Maps(_maps()))
+    os.environ['YANDEX_REVIEWS_SYNC_ENABLED'] = '0'
+    try:
+        assert ys.public_state(path, now=NOW)['status'] == 'disabled'
+    finally:
+        os.environ.pop('YANDEX_REVIEWS_SYNC_ENABLED')
 
 
 # ----------------------------------------------------------------- планировщик
 
-def test_scheduler_timing():
-    assert sched.seconds_until(8, 30, datetime(2026, 9, 28, 8, 0)) == 1800
-    assert sched.seconds_until(8, 30, datetime(2026, 9, 28, 8, 30)) == 24 * 3600
-    now = datetime(2026, 9, 28, 14, 0)
-    assert sched.needs_startup_sync({}, now)
-    assert not sched.needs_startup_sync({'last_success_at': '2026-09-28T08:30'}, now)
-    assert sched.needs_startup_sync({'last_success_at': '2026-09-27T08:30'}, now)
-    assert sched.needs_startup_sync({'last_success_at': 'мусор'}, now)
+def test_scheduler_due_kind():
+    slot_today = datetime(2026, 10, 9, 8, 30)
+    assert sched.last_full_slot(datetime(2026, 10, 9, 8, 29)) == slot_today - timedelta(days=1)
+    assert sched.last_full_slot(datetime(2026, 10, 9, 8, 30)) == slot_today
+    now = datetime(2026, 10, 9, 15, 0)
+    maps = {'source': 'maps'}
+    assert sched.due_kind({}, now) == 'full'                                          # ещё ни одной
+    assert sched.due_kind({'last_full_attempt_at': '2026-10-09T09:00', 'last_attempt_at': '2026-10-09T14:00'},
+                          now) == 'full'                                              # файл от кабинета
+    done = dict(maps, last_full_attempt_at='2026-10-09T08:30', last_full_at='2026-10-09T08:31')
+    assert sched.due_kind(dict(done, last_attempt_at='2026-10-09T12:01'), now) is None   # меньше 3 ч
+    assert sched.due_kind(dict(done, last_attempt_at='2026-10-09T12:00'), now) == 'quick'
+    failed = dict(maps, last_full_attempt_at='2026-10-09T08:30', last_full_at='2026-10-08T08:31')
+    assert sched.due_kind(dict(failed, last_attempt_at='2026-10-09T11:30'), now) == 'full'   # повтор полного
+    assert sched.due_kind(dict(failed, last_attempt_at='2026-10-09T13:00'), now) is None
+    assert sched.due_kind(dict(done, last_attempt_at='2026-10-09T08:31'), datetime(2026, 10, 10, 8, 30)) == 'full'
+
+
+def test_scheduler_tick_runs_due_check_and_watchdog():
+    calls = []
+    saved = (ys.sync_all, ys.load_state, wd.check)
+    ys.sync_all = lambda kind, notifier=None: calls.append((kind, notifier is not None)) or {'status': 'ok'}
+    ys.load_state = lambda path=None: {}
+    wd.check = lambda: {'skipped': 'test'}
+    os.environ['YANDEX_REVIEWS_NOTIFY'] = '0'
+    try:
+        result = sched.tick(datetime(2026, 10, 9, 15, 0))
+    finally:
+        ys.sync_all, ys.load_state, wd.check = saved
+        os.environ.pop('YANDEX_REVIEWS_NOTIFY')
+    assert calls == [('full', False)] and result == {'kind': 'full', 'status': 'ok', 'watchdog': {'skipped': 'test'}}
 
 
 if __name__ == '__main__':
-    import inspect
-    failed = 0
-    for name, fn in sorted(globals().items()):
-        if name.startswith('test_') and inspect.isfunction(fn):
-            try:
-                fn()
-                print(f'ok   {name}')
-            except Exception as e:  # noqa: BLE001
-                failed += 1
-                print(f'FAIL {name}: {e!r}')
-    sys.exit(1 if failed else 0)
+    sys.exit(pytest.main([__file__, '-q']))
