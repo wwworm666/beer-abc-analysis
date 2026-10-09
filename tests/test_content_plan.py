@@ -1141,10 +1141,12 @@ def test_render_live_ok_and_stop_rules():
     assert codes(r) == ['no_data'] and r['problems'][0]['text'] == 'На кранах бара нет активных позиций'
     r = _render('kremenchugskaya')                                              # бара нет в снимке
     assert codes(r) == ['no_data']
+    # кран без проверенной карточки пост не останавливает (владелец 2026-10-09: «не останавливаем
+    # публикации из-за сомнения в одном сорте, просто прикрепляем без ссылки») — предупреждение в notes
     r = _render('ligovskiy')
-    assert codes(r) == ['unverified', 'unverified']
-    assert [p['text'] for p in r['problems']] == ['Кран 4: Нет проверенной связи с Untappd',
-                                                   'Кран 5: Уточните сорт на кране']
+    assert r['ok'] is True and codes(r) == [] and [n['code'] for n in r['notes']] == ['unverified', 'unverified']
+    assert [n['text'] for n in r['notes']] == ['Кран 4: Нет проверенной связи с Untappd — выйдет без ссылки на Untappd',
+                                               'Кран 5: Уточните сорт на кране — выйдет без ссылки на Untappd']
     # кран без карточки — имя кеги из iiko без «КЕГ» и объёма (core/taplist_post.iiko_display)
     assert '4. Неизвестное\n5. Без карточки\n' in r['text']
     assert '6. Пивоварня А Пилзнер — чешский пилснер, 5%' in r['text']

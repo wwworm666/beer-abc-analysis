@@ -243,9 +243,10 @@ resources/taplist_post_names.json; пустые части опускаются;
 6.5 → «6,5»; 0 и пусто — не пишется. «Новинка» — сорт подключили в баре за 7 дней
 до поста, а 30 дней до этого его там не было.
 Публикация будет остановлена, если: бар не выбран; на кранах нет активных
-позиций; краны бара не обновлялись больше 14 дней (stale_taps); у крана нет
-проверенной связи с Untappd; есть неизвестная подстановка; итоговый текст
-длиннее предела площадки.
+позиций; краны бара не обновлялись больше 14 дней (stale_taps); есть неизвестная
+подстановка; итоговый текст длиннее предела площадки. Кран без проверенной связи с
+Untappd пост НЕ останавливает (решение владельца 2026-10-09): строка выходит без
+ссылки и стиля, предупреждение — в notes (unverified).
 
 Предел площадки (`text_limit_for`) — тот же, что у готовой публикации: если
 передана площадка (channel), то Telegram и бот — 1024 (подпись), когда у
@@ -1534,7 +1535,9 @@ def render_live(source, bar, template, pub_date=None, snapshot=None, registry=No
     """Подставить живые данные в шаблон и проверить правила остановки.
 
     -> {ok, text, entities, problems:[{code, text}], length, limit, limit_note,
-    channel, has_media, rows, data_at, taps_changed_at, phrase}.
+    channel, has_media, rows, data_at, taps_changed_at, phrase, legacy_template, notes}.
+    notes — [{code, text}] предупреждения без остановки: unverified — кран без проверенной
+    связи с Untappd выйдет без ссылки и стиля (решение владельца 2026-10-09).
     phrase — {variant, total, intro, outro}: какой вариант вступления и концовки выбран
     для этого бара и дня (номер с единицы из total) и их текст; None — бар не выбран.
     legacy_template — шаблон был прежним шаблоном агента (LEGACY_TAPLIST_TEMPLATES) и
@@ -1563,6 +1566,7 @@ def render_live(source, bar, template, pub_date=None, snapshot=None, registry=No
     if legacy:
         template = TAPLIST_TEMPLATE
     problems: List[dict] = []
+    notes: List[dict] = []          # предупреждения, которые пост не останавливают
     rows_out: List[dict] = []
     limit = text_limit_for(channel, with_media) if channel else TG_TEXT_LIMIT
 
@@ -1601,9 +1605,14 @@ def render_live(source, bar, template, pub_date=None, snapshot=None, registry=No
                 add('no_data', 'На кранах бара нет активных позиций')
             if rows and stale:
                 add('stale_taps', stale)
+            # Кран без проверенной карточки Untappd пост не останавливает (решение владельца
+            # 2026-10-09: «не останавливаем публикации из-за сомнения в одном сорте, просто
+            # прикрепляем без ссылки»): строка выходит без ссылки и стиля, предупреждение — в notes.
             for row in rows:
                 if not row.get('mapped'):
-                    add('unverified', f'Кран {row.get("tap_number")}: {row.get("mapping_message") or "нет проверенной связи"}')
+                    notes.append({'code': 'unverified',
+                                  'text': f'Кран {row.get("tap_number")}: {row.get("mapping_message") or "нет проверенной связи"}'
+                                          ' — выйдет без ссылки на Untappd'})
     for token in unknown_placeholders(template):
         add('bad_placeholder', f'неизвестная подстановка {token}')
 
@@ -1662,7 +1671,7 @@ def render_live(source, bar, template, pub_date=None, snapshot=None, registry=No
             'limit': limit, 'limit_note': limit_note_for(channel, with_media),
             'channel': channel, 'has_media': with_media, 'rows': rows_out,
             'data_at': fmt_stamp(moment), 'taps_changed_at': fmt_stamp(changed) if changed else None,
-            'phrase': phrase, 'legacy_template': legacy}
+            'phrase': phrase, 'legacy_template': legacy, 'notes': notes}
 
 
 # ---------------------------------------------------------------------------
