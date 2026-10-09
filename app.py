@@ -105,8 +105,9 @@ def _start_background_jobs():
     from core.me_snapshot_scheduler import start_scheduler as start_me_snapshot_scheduler
     start_me_snapshot_scheduler(app)
 
-    # Сверка отзывов Яндекс Бизнеса раз в сутки (08:30 МСК) + стартовая, если
-    # свежей нет. Только чтение кабинета. Молча не стартует без cookies Яндекса.
+    # Отзывы с Яндекс Карт: публичная страница бара (без входа) раз в 3 часа, полный
+    # проход раз в сутки (08:30 МСК), сторож пишет в Telegram, если загрузка сломалась.
+    # YANDEX_REVIEWS_SYNC_ENABLED=0 — не запускать. См. docs/yandex-reviews.md.
     from core.yandex_reviews_scheduler import start_scheduler as start_yandex_reviews_scheduler
     start_yandex_reviews_scheduler()
 

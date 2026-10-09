@@ -39,7 +39,9 @@ beer-abc-analysis/
 │                           #   test_mcp_admin_render.mjs, test_mcp_narrowing.py, test_mcp_eval.py +
 │                           #   mcp_eval_questions.json (эталонные вопросы к агенту);
 │                           #   отправка и бот: test_content_publisher.py, test_guest_subscribers.py,
-│                           #   test_taplist_polling.py, test_review_notify.py; старые ошибки:
+│                           #   test_taplist_polling.py, test_review_notify.py; отзывы с Яндекс Карт:
+│                           #   test_yandex_maps_reviews.py, test_yandex_reviews_sync.py,
+│                           #   test_yandex_reviews_watchdog.py; старые ошибки:
 │                           #   test_dashboard_comments.py, test_dashboard_compare_export.py,
 │                           #   test_msk_today_routes.py, test_schedule_employee_update.py,
 │                           #   test_docs_secrets_moved.py; приёмка на РЦ: test_receiving_*.py,
@@ -129,10 +131,12 @@ beer-abc-analysis/
 | `content_media.py` | Фото и видео контент-плана на диске: имя `cp_<дата>_<12 hex>`, проверка сигнатуры, атомарная запись (`content_media/`) |
 | `content_image_search.py` | **Картинки к постам** (с 2026-10-02): поиск через Yandex Search API, отбор, поиски на диске (`content_image_search/`, 3 суток), коллаж вариантов для агента, безопасное скачивание, JPEG для Telegram — [content-plan.md](content-plan.md), раздел «Картинки к постам» |
 | `guest_reviews.py` | **Отзывы гостей**: хранилище, проверка полей, статусы, метрики и формулы, слой календаря (`guest_reviews.json`) — [reviews.md](reviews.md) |
-| `yandex_business.py` | Клиент кабинета Яндекс Бизнеса (только чтение): организации, филиалы сетей, отзывы, разбор — [yandex-reviews.md](yandex-reviews.md) |
-| `yandex_reviews_sync.py` | Сверка отзывов Яндекса с «Отзывами» (бары по `permanent_id`, состояние `yandex_reviews_sync.json`) — [yandex-reviews.md](yandex-reviews.md) |
-| `yandex_reviews_scheduler.py` | Сверка раз в сутки, 08:30 МСК, + стартовая, если свежей нет |
-| `review_notify.py` | Новые отзывы — подписчикам бота kulturaopenclosed: из Яндекса — после сверки; из гостевого бота — сразу, только бар, оценка, дата и ссылка, не больше 20 в час, подбор пропущенных раз в 10 минут |
+| `yandex_maps_reviews.py` | **Отзывы с публичной страницы Яндекс Карт** (без входа): страница `/maps/org/<id>/reviews/`, разбор JSON страницы и отзыва, листание `?page=N`; общие заголовки и признаки капчи страниц Карт — [yandex-reviews.md](yandex-reviews.md) |
+| `yandex_reviews_sync.py` | Загрузка отзывов с Карт в «Отзывы»: быстрая проверка (первая страница) и полный проход, защита от дублей, состояние `yandex_reviews_sync.json` — [yandex-reviews.md](yandex-reviews.md) |
+| `yandex_reviews_scheduler.py` | Такт 15 минут: проверка раз в 3 часа, полный проход в 08:30 МСК, затем сторож |
+| `yandex_reviews_watchdog.py` | Сторож отзывов: сообщение в Telegram, если не обновлялись больше суток или на Картах больше отзывов дольше 6 часов |
+| `yandex_business.py` | Клиент кабинета Яндекс Бизнеса (только чтение): для загрузки с 2026-10-09 не используется, остаётся для диагностики и будущего ответа из сервиса — [yandex-reviews.md](yandex-reviews.md) |
+| `review_notify.py` | Новые отзывы — подписчикам бота kulturaopenclosed: из Яндекса — после каждой проверки Карт; из гостевого бота — сразу, только бар, оценка, дата и ссылка, не больше 20 в час, подбор пропущенных раз в 10 минут; сообщения сторожа (`notify_subscribers`) |
 
 ### Краны и остатки (3)
 | Файл | Что делает |
@@ -470,7 +474,8 @@ scripts/
 ├── maintenance/             # backup.bat, daily_update_mapping.bat, convert_pdf_to_md.py
 ├── fill_plan_defaults.py    # Проставить дефолты планов (cardChecksShare = 70) во все месяцы; --dry-run; на проде через docker exec
 ├── mcp_eval.py              # Эталонные вопросы к ИИ-агенту (tests/mcp_eval_questions.json): по умолчанию сухой план; --run — прогон через claude -p в режиме read (тратит токены подписки) — docs/mcp.md
-└── yandex_reviews_probe.py  # Диагностика отзывов Яндекс Бизнеса: вход, филиалы, последние отзывы (только чтение) — docs/yandex-reviews.md
+├── yandex_maps_reviews_probe.py  # Проверка отзывов на публичных страницах Яндекс Карт: число, страницы, листание (только чтение) — docs/yandex-reviews.md
+└── yandex_reviews_probe.py  # Диагностика кабинета Яндекс Бизнеса: вход, филиалы, последние отзывы (только чтение) — docs/yandex-reviews.md
 ```
 
 > `scripts/import_export/` удалён в 2026-05-15 (Excel-импорт планов заменён UI-only редактированием).

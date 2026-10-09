@@ -1,6 +1,6 @@
 """
 Тесты рассылки новых отзывов в бот kulturaopenclosed (core/review_notify.py)
-и её вызова из сверки (core/yandex_reviews_sync.sync_all).
+и её вызова из проверки Яндекс Карт (core/yandex_reviews_sync.sync_all).
 
 Self-runnable: `py -3 tests/test_review_notify.py` (совместимо с pytest).
 
@@ -17,7 +17,7 @@ Self-runnable: `py -3 tests/test_review_notify.py` (совместимо с pyte
 - текст: HTML экранирован, длинный отзыв обрезан, низкая оценка в заголовке,
   ответ из Яндекса и ссылка на страницу;
 - sync_all без notifier ничего не шлёт; с notifier — после загрузки; сбой
-  рассылки не меняет статус сверки.
+  рассылки не меняет статус проверки.
 """
 import atexit
 import os
@@ -243,27 +243,19 @@ def test_bot_button_and_command_send_latest():
         tg.send_message, tg.answer_callback, rnmod.latest_reviews_text, tg.api_call = saved
 
 
-# ----------------------------------------------------------------- из сверки
+# ----------------------------------------------------------------- из проверки Карт
 
-class _Client:
-    def branches(self):
-        return [{'permanent_id': pid, 'name': 'Культура'} for pid in ys.BAR_BY_PERMANENT_ID]
-
-    def iter_review_pages(self, pid, max_pages=200):
-        ts = int(datetime(2026, 9, 27, 18, 30, tzinfo=msk_time.MOSCOW_TZ).timestamp())
-        items = [{'id': f'r{pid}', 'rating': 5, 'full_text': 'Хорошо', 'time_created': ts,
-                  'author': {'user': 'Гость'}}]
-        yield {'page': 1, 'total': 1, 'offset': 0, 'items': items}
-
-    def close(self):
-        pass
+def _fetch(org, page):
+    """Страница Карт: у каждого бара один отзыв r<org> от 27.09 18:30 МСК."""
+    return {'reviews': [{'reviewId': f'r{org}', 'rating': 5, 'text': 'Хорошо', 'updatedTime': '2026-09-27T15:30:00Z',
+                         'author': {'name': 'Гость'}}], 'count': 1, 'page': 1, 'total_pages': 1}
 
 
 def _sync(notifier, store):
     now = datetime(2026, 9, 28, 8, 30, tzinfo=msk_time.MOSCOW_TZ)
     _n[0] += 1
-    with _Env(YANDEX_BUSINESS_SESSION_ID='test-sid-one', YANDEX_BUSINESS_SESSION_ID2='test-sid-two', **TOKEN):
-        return ys.sync_all(store=store, client_factory=lambda a, b: _Client(), clock=lambda: now,
+    with _Env(**TOKEN):
+        return ys.sync_all('quick', store=store, fetch=_fetch, sleep=lambda s: None, clock=lambda: now,
                            path=os.path.join(TMP, f'state_{_n[0]}.json'), notifier=notifier)
 
 

@@ -7,18 +7,20 @@
 а отзывы бывают резкими — это решает владелец.
 
 Три пути отправки:
-- отзывы Яндекса — после ежедневной сверки (core/yandex_reviews_sync.py зовёт
-  notify_new_reviews);
+- отзывы Яндекса — после каждой проверки Яндекс Карт, раз в 3 часа
+  (core/yandex_reviews_sync.py зовёт notify_new_reviews);
 - отзыв из гостевого бота @kult_taplist_bot — СРАЗУ после сохранения
   (core/taplist_polling.py зовёт notify_review_in_background -> notify_review_now);
 - подбор пропущенных отзывов из бота — раз в SWEEP_INTERVAL_SEC (10 минут) из цикла
   опроса бота (notify_pending_in_background -> notify_pending_bot_reviews): отзыв,
   о котором сразу не сообщили (воркер перезапустился сразу после сохранения, не было
-  подписчиков, упёрлись в потолок), иначе ждал бы сверки Яндекса — а она не
-  запускается без cookies, при истёкшем входе и капче (проверка 2026-09-28).
+  подписчиков, упёрлись в потолок), иначе ждал бы проверки Яндекса, а она бывает
+  только раз в 3 часа и не проходит при капче (проверка 2026-09-28).
+Тем же подписчикам и тем же транспортом сторож отзывов шлёт сообщения о поломке
+загрузки (notify_subscribers, core/yandex_reviews_watchdog.py).
 
 Что считается новым отзывом: загруженный (origin 'import' — из Яндекса или из
-бота) и ещё не отправленный (нет tg_notified_at); для ежедневного пути — ещё и
+бота) и ещё не отправленный (нет tg_notified_at); для пути проверки Карт — ещё и
 добавленный в хранилище не раньше notify_since (начало первой сверки с
 уведомлениями: 358 отзывов истории не рассылаются); для подбора — добавленный за
 последние PENDING_WINDOW_HOURS (72 часа: старше — уже есть на сайте, лавину после
@@ -76,7 +78,7 @@ PENDING_WINDOW_HOURS = 72
 # с запасом на заголовок и ответ; длиннее — обрезка с «…» и ссылка на страницу.
 TEXT_PREVIEW_LEN = 1500
 REPLY_PREVIEW_LEN = 300
-# Сколько ждать блокировку рассылки. Ежедневная сверка держит её, пока шлёт до
+# Сколько ждать блокировку рассылки. Проверка Карт держит её, пока шлёт до
 # NOTIFY_MAX_PER_RUN + 1 сообщений с повторами; при лежащем Telegram это минуты
 # (до ~45 с на провальную отправку, open_check_bot.SEND_PASSES). 10 минут — с
 # запасом; дольше — немедленная отправка сдаётся, отзыв подберёт следующий подбор.
@@ -319,6 +321,31 @@ def _deliverer(chats: List[str], now_str: str, summary: dict, send: Callable, qu
             summary['sent_messages'] += 1
         return bool(sent) or bool(failed and not dry)
     return deliver
+
+
+def notify_subscribers(text: str, now_str: str, *, send: Optional[Callable] = None,
+                       recipients: Optional[Callable] = None, queue: Optional[Callable] = None) -> dict:
+    """Служебное сообщение подписчикам бота (сторож отзывов, core/yandex_reviews_watchdog.py).
+
+    Тот же транспорт, DRY-RUN и очередь досылки, что у новых отзывов; выключатель
+    YANDEX_REVIEWS_NOTIFY его не касается (у сторожа свой). text — готовый HTML.
+    -> {delivered, sent_messages, queued_chats, skipped: no_token | no_recipients | None};
+    delivered — доставлено хоть кому-то или (не в DRY-RUN) поставлено в очередь досылки.
+    """
+    summary = {'delivered': False, 'sent_messages': 0, 'queued_chats': 0, 'skipped': None}
+    if not os.environ.get('TELEGRAM_OPEN_CHECK_BOT_TOKEN', '').strip():
+        summary['skipped'] = 'no_token'
+        return summary
+    chats = (recipients or _default_recipients)()
+    if not chats:
+        summary['skipped'] = 'no_recipients'
+        return summary
+    dry = _is_dry_run()
+    if dry:
+        chats = chats[:1]
+    deliver = _deliverer(chats, now_str, summary, send or _default_send, queue or _default_queue, dry)
+    summary['delivered'] = deliver(text)
+    return summary
 
 
 def notify_new_reviews(store, state: dict, now_str: str, *,
