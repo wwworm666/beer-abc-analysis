@@ -1054,23 +1054,39 @@ def _card(bid, name, brewery, style, abv):
 REGISTRY = {
     'schema_version': 1,
     'products': {GUID_A: _registry_row(GUID_A, '101'), GUID_B: _registry_row(GUID_B, '102')},
-    'beers': {'101': _card('101', 'Пилзнер', 'Пивоварня А', 'Lager', 5.0),
+    'beers': {'101': _card('101', 'Пилзнер', 'Пивоварня А', 'Pilsner - Czech / Bohemian', 5.0),
               '102': _card('102', 'IPA', 'Б', 'IPA - American', 6.5)},
 }
+# Краны стоят с 20 сентября: на NOW (7 октября) это не новинки. Свежесть кранов —
+# по снятию 1 октября (_fresh): без него последнее изменение было бы 20 сентября,
+# 17 дней назад, и пост остановило бы правило stale_taps.
+TAP_STARTED = '2026-09-20T12:00:00+03:00'
 
 
-def _tap(number, beer, guid, status='active'):
-    return {'tap_number': number, 'current_beer': beer, 'status': status, 'iiko_product_id': guid}
+def _tap(number, beer, guid, status='active', started=TAP_STARTED, history=None):
+    active = status == 'active'
+    if history is None:
+        history = [{'timestamp': started, 'action': 'start', 'beer_name': beer,
+                    'iiko_product_id': guid}] if active and beer else []
+    return {'tap_number': number, 'current_beer': beer, 'status': status, 'iiko_product_id': guid,
+            'started_at': started if active else None, 'history': history}
+
+
+def _fresh(number):
+    """Пустой кран, с которого 1 октября сняли кегу: свежая отметка на странице кранов."""
+    return _tap(number, None, None, status='empty', history=[
+        {'timestamp': '2026-09-10T12:00:00+03:00', 'action': 'start', 'beer_name': 'КЕГ Старое'},
+        {'timestamp': '2026-10-01T12:00:00+03:00', 'action': 'stop', 'beer_name': 'КЕГ Старое'}])
 
 
 SNAPSHOT = {
     'bar1': {'name': 'Большой пр. В.О', 'taps': [_tap(1, None, None, status='empty')]},
     'bar2': {'name': 'Лиговский', 'taps': [_tap(4, 'КЕГ Неизвестное', GUID_UNKNOWN),
                                            _tap(5, 'КЕГ Без карточки', None),
-                                           _tap(6, 'КЕГ Пилзнер', GUID_A)]},
+                                           _tap(6, 'КЕГ Пилзнер', GUID_A), _fresh(9)]},
     'bar4': {'name': 'Варшавская', 'taps': [_tap(2, 'КЕГ Пилзнер', GUID_A), _tap(1, 'КЕГ IPA', GUID_B),
                                             _tap(3, None, None, status='empty'),
-                                            _tap(7, 'КЕГ Старое', GUID_A, status='finished')]},
+                                            _tap(7, 'КЕГ Старое', GUID_A, status='finished'), _fresh(8)]},
 }
 TEMPLATE = 'Сегодня в баре «{бар}» ({дата}), кранов: {кранов}\n{таплист}'
 
@@ -1082,23 +1098,36 @@ def _render(bar, template=TEMPLATE, **kw):
 
 
 def test_taplist_line_format():
+    """Формат владельца 2026-10-04: «{кран}. {пивоварня и название} — {стиль}, {крепость}%[, новинка]»,
+    стиль по-русски из словаря, без цен. Правила имени — tests/test_taplist_post.py."""
     assert cp.format_abv(5.0) == '5' and cp.format_abv(6.5) == '6,5' and cp.format_abv('7.25') == '7,25'
     assert cp.format_abv(4.555) == '4,56' and cp.format_abv(4.545) == '4,55' and cp.format_abv('abc') is None
     assert cp.taplist_line({'tap_number': 3, 'beer_name': 'Лагер'}) == '3. Лагер'
-    assert cp.taplist_line({'tap_number': 3, 'beer_name': 'Лагер', 'brewery': 'АФ', 'style': 'Lager',
-                            'abv': 4.7}) == '3. АФ — Лагер, Lager, 4,7%'
-    assert cp.taplist_line({'tap_number': 3, 'beer_name': 'Лагер', 'brewery': 'АФ', 'abv': 0}) == '3. АФ — Лагер'
-    assert cp.taplist_line({'tap_number': 3, 'beer_name': 'Сидр', 'abv': 6}) == '3. Сидр, 6%'
+    row = {'tap_number': 3, 'beer_name': 'Лагер', 'brewery': 'АФ', 'style': 'Lager - Helles', 'abv': 4.7}
+    assert cp.taplist_line(row) == '3. АФ Лагер — светлый лагер, 4,7%'
+    assert cp.taplist_line(row, is_new=True) == '3. АФ Лагер — светлый лагер, 4,7%, новинка'
+    assert cp.taplist_line({'tap_number': 3, 'beer_name': 'Лагер', 'brewery': 'АФ', 'abv': 0}) == '3. АФ Лагер'
+    assert cp.taplist_line({'tap_number': 3, 'beer_name': 'Сидр', 'abv': 6}) == '3. Сидр — 6%'
+    # стиля нет в словаре — по-английски в пост не пишем
+    assert cp.taplist_line({'tap_number': 3, 'beer_name': 'Сидр', 'style': 'Unknown Style', 'abv': 6}) == '3. Сидр — 6%'
 
 
 def test_render_live_ok_and_stop_rules():
     r = _render('varshavskaya', pub_date='2026-10-09')
     assert r['ok'] is True and r['problems'] == []
     assert r['text'] == ('Сегодня в баре «Варшавская» (9 октября), кранов: 2\n'
-                         '1. Б — IPA, IPA - American, 6,5%\n'
-                         '2. Пивоварня А — Пилзнер, Lager, 5%')
+                         '1. Б IPA — американский IPA, 6,5%\n'
+                         '2. Пивоварня А Пилзнер — чешский пилснер, 5%')
     assert (r['length'], r['limit'], r['data_at']) == (len(r['text']), 4096, NOW_STR)
     assert [row['tap_number'] for row in r['rows']] == [1, 2] and r['rows'][0]['line'].startswith('1. Б')
+    assert (r['rows'][0]['name'], r['rows'][0]['new'], r['rows'][0]['untappd_url']) == (
+        'Б IPA', False, 'https://untappd.com/b/beer/102')
+    # названия — ссылки на Untappd: сущности Telegram, offset и length в UTF-16
+    assert r['entities'] == [
+        {'type': 'text_link', 'offset': r['text'].index('Б IPA'), 'length': 5, 'url': 'https://untappd.com/b/beer/102'},
+        {'type': 'text_link', 'offset': r['text'].index('Пивоварня А Пилзнер'), 'length': 19,
+         'url': 'https://untappd.com/b/beer/101'}]
+    assert r['taps_changed_at'] == '2026-10-01T12:00'
     assert '(7 октября)' in _render('varshavskaya')['text']                    # {дата} по умолчанию — сегодня
 
     def codes(result):
@@ -1116,7 +1145,11 @@ def test_render_live_ok_and_stop_rules():
     assert codes(r) == ['unverified', 'unverified']
     assert [p['text'] for p in r['problems']] == ['Кран 4: Нет проверенной связи с Untappd',
                                                    'Кран 5: Уточните сорт на кране']
-    assert '4. КЕГ Неизвестное' in r['text'] and '6. Пивоварня А — Пилзнер' in r['text']
+    # кран без карточки — имя кеги из iiko без «КЕГ» и объёма (core/taplist_post.iiko_display)
+    assert '4. Неизвестное\n5. Без карточки\n' in r['text']
+    assert '6. Пивоварня А Пилзнер — чешский пилснер, 5%' in r['text']
+    # у крана без карточки Untappd ссылки нет
+    assert [e['url'] for e in r['entities']] == ['https://untappd.com/b/beer/101']
     r = _render('varshavskaya', template='{таплист} {цена}')
     assert codes(r) == ['bad_placeholder'] and r['problems'][0]['text'] == 'неизвестная подстановка {цена}'
     r = _render('varshavskaya', template='x' * 4097)
@@ -1127,6 +1160,55 @@ def test_render_live_ok_and_stop_rules():
     # сбой чтения данных — проблема, а не 500
     r = cp.render_live('taplist', 'varshavskaya', TEMPLATE, snapshot={'bar4': None}, registry=REGISTRY, now=NOW)
     assert codes(r) == ['no_data'] and r['ok'] is False
+
+
+def test_taplist_phrases_vary_by_week_and_bar():
+    """Решение владельца 2026-10-09: «писать по-разному, чтобы не выглядело шаблонно».
+    {вступление} и {концовка} — пара фраз из набора, своя на неделю и бар; {где} — бар во
+    фразе. Правило выбора — tests/test_taplist_post.py."""
+    from datetime import date, timedelta
+    from core import taplist_post as tp
+    lines = '1. Б IPA — американский IPA, 6,5%\n2. Пивоварня А Пилзнер — чешский пилснер, 5%'
+    inner = {'{где}': 'на Варшавской', '{бар}': 'Варшавская', '{дата}': '9 октября'}
+    r = _render('varshavskaya', template=cp.TAPLIST_TEMPLATE, pub_date='2026-10-09')
+    intro, outro, number, total = tp.phrases_for(date(2026, 10, 9), 'bar4', inner)
+    assert r['ok'] is True and r['problems'] == []
+    assert r['phrase'] == {'variant': number, 'total': total, 'intro': intro, 'outro': outro}
+    assert r['text'] == intro + '\n\n' + lines + ('\n\n' + outro if outro else '')
+    # ссылки по-прежнему ровно на названия
+    assert [r['text'][e['offset']:e['offset'] + e['length']] for e in r['entities']] == ['Б IPA', 'Пивоварня А Пилзнер']
+    # в тот же день у Лиговского другая фраза, через неделю у Варшавской — тоже другая
+    assert _render('ligovskiy', template=cp.TAPLIST_TEMPLATE, pub_date='2026-10-09')['phrase']['intro'] != intro
+    assert _render('varshavskaya', template=cp.TAPLIST_TEMPLATE, pub_date='2026-10-16')['phrase']['intro'] != intro
+    # пустая концовка забирает пустые строки: пост кончается списком, текст после неё — сразу за списком
+    fridays = [date(2026, 10, 9) + timedelta(weeks=week) for week in range(total)]
+    empty_day = next(day for day in fridays if not tp.phrases_for(day, 'bar4', inner)[1])
+    r = _render('varshavskaya', template=cp.TAPLIST_TEMPLATE, pub_date=empty_day.isoformat())
+    assert r['phrase']['outro'] == '' and r['text'].endswith('5%') and r['text'].startswith(r['phrase']['intro'])
+    r = _render('varshavskaya', template=cp.TAPLIST_TEMPLATE + '\n\nЖдём', pub_date=empty_day.isoformat())
+    assert r['text'].endswith('чешский пилснер, 5%\n\nЖдём')
+    # {где} работает и в самом шаблоне; бар не выбран — фраз нет
+    assert _render('varshavskaya', template='Краны {где}:\n{таплист}')['text'].startswith('Краны на Варшавской:\n1.')
+    assert _render('all', template=cp.TAPLIST_TEMPLATE)['phrase'] is None
+    # у каждого бара есть {где}, и самая длинная пара фраз с ним не съедает подпись 1024
+    for bar in cp.BARS:
+        assert bar['where'].startswith('на ')
+        longest = max(len(tp.phrases_for(date(2026, 10, 9), 'bar1', {'{где}': bar['where']}, (pair,))[0]) +
+                      len(tp.phrases_for(date(2026, 10, 9), 'bar1', {'{где}': bar['where']}, (pair,))[1])
+                      for pair in tp.load_phrases())
+        assert longest + 4 <= 200, (bar['key'], longest)
+
+
+def test_legacy_agent_template_goes_out_as_new():
+    """Владелец 2026-10-09: «таплист должен быть по новому шаблону, сегодняшний тоже». Пятницы
+    октября утверждены с прежним шаблоном агента — он выходит как TAPLIST_TEMPLATE; любой другой
+    текст — как написан."""
+    new = _render('varshavskaya', template=cp.TAPLIST_TEMPLATE, pub_date='2026-10-09')
+    old = _render('varshavskaya', template='Таплист пятницы — {бар}, {дата}\n\n{таплист}', pub_date='2026-10-09')
+    assert old['text'] == new['text'] and old['entities'] == new['entities'] and old['ok'] is True
+    assert (old['legacy_template'], new['legacy_template']) == (True, False)
+    own = _render('varshavskaya', template='Таплист пятницы — {бар}, {дата}!\n\n{таплист}', pub_date='2026-10-09')
+    assert own['legacy_template'] is False and own['text'].startswith('Таплист пятницы — Варшавская, 9 октября!')
 
 
 def test_live_preview_route():
@@ -1498,7 +1580,8 @@ def test_month_scope_and_payload():
         default = c.get('/api/content-plan').get_json()
         assert (default['month'], default['now'], default['today']) == (MONTH, NOW_STR, '2026-10-07')
         assert [b_['key'] for b_ in default['bars']] == ['bolshoy', 'ligovskiy', 'kremenchugskaya', 'varshavskaya']
-        assert default['bars'][0] == {'key': 'bolshoy', 'name': 'Большой пр. В.О', 'short': 'ВО'}
+        assert default['bars'][0] == {'key': 'bolshoy', 'name': 'Большой пр. В.О', 'short': 'ВО',
+                                      'where': 'на Васильевском'}
         channels = {ch['key']: ch for ch in default['channels']}
         assert channels['telegram'] == {'key': 'telegram', 'name': 'Telegram', 'bar_rule': 'required',
                                         'text_limit': 4096, 'caption_limit': 1024, 'media_max': 10,
@@ -1510,8 +1593,9 @@ def test_month_scope_and_payload():
         assert all(x['size'] is None and x['size_note'] for x in default['audiences'])
         assert default['audiences'][1]['needs_bar'] is True
         assert default['live_sources'][0]['key'] == 'taplist'
-        assert [p['token'] for p in default['live_sources'][0]['placeholders']] == ['{бар}', '{дата}', '{таплист}',
-                                                                                    '{кранов}']
+        assert [p['token'] for p in default['live_sources'][0]['placeholders']] == [
+            '{вступление}', '{таплист}', '{концовка}', '{бар}', '{где}', '{дата}', '{кранов}']
+        assert default['live_sources'][0]['template'] == '{вступление}\n\n{таплист}\n\n{концовка}'
         assert default['delivery_connected'] == {'telegram': False, 'instagram': False, 'bot': False}
         view = ids[a['id']]
         assert view['date'] == '2026-10-20' and view['summary']['label'] == 'Готово к утверждению'

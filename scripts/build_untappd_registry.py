@@ -59,8 +59,11 @@ def beer_id(url):
 
 def historical_records():
     records = []
+    # Старый справочник по названиям давал только подсказки первой сверки 2026-09-20.
+    # С 2026-10-04 источник правды — реестр (решения в iiko_untappd_reviews.json),
+    # сайт и бот справочник не читают; нет файла — сборка идёт без этих подсказок.
     legacy = ROOT / "data/beer_info_mapping.json"
-    for alias, info in read(legacy).items():
+    for alias, info in (read(legacy).items() if legacy.exists() else ()):
         records.append({"alias": alias, "brewery": info.get("brewery"),
             "beer_name": info.get("beer_name"), "urls": [info["untappd_url"]] if info.get("untappd_url") else [],
             "source_file": str(legacy.relative_to(ROOT)), "source_key": alias})

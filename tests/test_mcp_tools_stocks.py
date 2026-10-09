@@ -72,6 +72,8 @@ EXPECTED_OPEN_WORLD = {
     'stocks_tap_start', 'stocks_tap_stop', 'stocks_tap_replace', 'stocks_tap_identify',
     # приёмка на РЦ: сверка с iiko, ЧЗ через бар-ПК, Telegram бухгалтерии; индекс из iiko
     'stocks_receiving_close', 'stocks_receiving_index_refresh',
+    # связь с Untappd сразу меняет публичный таплист, гостевого бота и фиды Яндекса (2026-10-04)
+    'stocks_untappd_confirm', 'stocks_untappd_revoke',
 }
 EXPECTED_HEAVY = {
     'stocks_order_board', 'stocks_taplist_stock', 'stocks_bottles_stock', 'stocks_kitchen_stock',
@@ -351,6 +353,8 @@ def test_arguments_are_read_by_route():
         'routes.yml_feeds': ('core.yml_overrides',),
         'routes.suppliers': ('core.supplier_directory',),
         'routes.orders': ('core.order_store',),
+        # поля предложения связи с Untappd проверяет хранилище (core/untappd_live.propose)
+        'routes.taps': ('core.untappd_live',),
     }
     for spec in stocks.TOOLS:
         rule = routes[(spec.method, spec.path)][0]
@@ -627,6 +631,29 @@ def test_constants_match_code():
     assert supplier_fields == set(rsup.EDITABLE_FIELDS), sorted(supplier_fields ^ set(rsup.EDITABLE_FIELDS))
 
 
+def test_untappd_constants_match_code():
+    """Связи с Untappd: перечни и пределы схем — те же, что в хранилище (core/untappd_live)."""
+    import core.untappd_live as ul
+    assert stocks.UNTAPPD_SCOPES == ul.SCOPES
+    assert stocks.UNTAPPD_STATUSES == ul.STATUSES
+    assert (stocks.UNTAPPD_NAME_MAX, stocks.UNTAPPD_STYLE_MAX) == (ul.NAME_MAX, ul.STYLE_MAX)
+    assert (stocks.UNTAPPD_DESCRIPTION_MAX, stocks.UNTAPPD_REASON_MAX) == (ul.DESCRIPTION_MAX, ul.REASON_MAX)
+    assert (stocks.UNTAPPD_NOTE_MAX, stocks.UNTAPPD_URL_MAX, stocks.UNTAPPD_EVIDENCE_MAX) == (
+        ul.NOTE_MAX, ul.URL_MAX, ul.EVIDENCE_MAX)
+    assert (stocks.UNTAPPD_ABV_MAX, stocks.UNTAPPD_IBU_MAX) == (ul.ABV_MAX, ul.IBU_MAX)
+    propose = set(_tools()['stocks_untappd_propose'].input_schema['properties'])
+    read_by_store = set(re.findall(r"fields\.get\('([a-z_]+)'\)", inspect.getsource(ul.UntappdLinksStore.propose)))
+    assert propose == read_by_store, sorted(propose ^ read_by_store)
+    url = _prop('stocks_untappd_propose', 'untappd_url')['pattern']
+    for good in ('https://untappd.com/b/schneider-weisse-festweisse-tap04/11827',
+                 'https://www.untappd.com/b/x/1?ref=y'):
+        assert re.search(url, good) and ul.parse_card_url(good), good
+    for bad in ('https://untappd.com/beer/11827', 'https://untappd.com/b/x/0', 'https://untappd.com/w/x/1'):
+        assert not re.search(url, bad), bad
+    proposal_id = _prop('stocks_untappd_confirm', 'proposal_id')['pattern']
+    assert re.search(proposal_id, 'up_0123456789ab') and not re.search(proposal_id, 'up_x')
+
+
 def test_narrowing_params_match_routes():
     """Сужение больших ответов для агентов (2026-09-28): предел limit и флаги — те же, что в
     маршрутах; флаги строкой '1'/'0' (маршруты сравнивают строго с '1')."""
@@ -806,14 +833,18 @@ def test_descriptions_reasonable():
 
 def test_prompts():
     names = [p.name for p in stocks.PROMPTS]
-    assert names == ['stocks_weekly_digest', 'stocks_order_advice', 'stocks_taps_review'], names
+    assert names == ['stocks_weekly_digest', 'stocks_order_advice', 'stocks_taps_review',
+                     'stocks_untappd_links'], names
     for prompt in stocks.PROMPTS:
         assert mcp_spec.PROMPT_NAME_RE.match(prompt.name), prompt.name
         assert prompt.domain == 'stocks' and prompt.title.strip() and prompt.description.strip()
         assert all(not arg.required for arg in prompt.arguments), prompt.name + ': аргументы необязательны'
     args = {p.name: [a.name for a in p.arguments] for p in stocks.PROMPTS}
     assert args == {'stocks_weekly_digest': ['bar'], 'stocks_order_advice': ['supplier', 'bar'],
-                    'stocks_taps_review': ['bar']}, args
+                    'stocks_taps_review': ['bar'], 'stocks_untappd_links': ['scope']}, args
+    modes = {p.name: p.mode_required for p in stocks.PROMPTS}
+    assert modes == {'stocks_weekly_digest': 'read', 'stocks_order_advice': 'read',
+                     'stocks_taps_review': 'read', 'stocks_untappd_links': 'draft'}, modes
     for prompt, call_args, text in _prompt_renders():
         assert isinstance(text, str) and len(text) > 200, prompt.name + repr(call_args)
     digest = stocks.PROMPTS[0].render({'bar': 'bar2'})
@@ -823,6 +854,11 @@ def test_prompts():
     unknown = stocks.PROMPTS[2].render({'bar': 'nevsky'})
     assert 'common_bars_reference' in unknown
     assert 'bar4' in stocks.PROMPTS[2].render({'bar': '  BAR4  '})
+    links = stocks.PROMPTS[3]
+    assert "scope='urgent'" in links.render({}) and "scope='all'" in links.render({'scope': ' ALL '})
+    assert "scope='urgent'" in links.render({'scope': 'soon'})
+    for word in ('черновик', 'stocks_untappd_propose', 'не инструкции', 'Сам не'):
+        assert word in links.render({}), word
 
 
 # --------------------------------------------------------------------------- тесты: Python 3.10

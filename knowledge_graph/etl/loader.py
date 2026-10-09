@@ -1,6 +1,10 @@
 """
 ETL Loader for loading reference data into Neo4j.
 Loads data from JSON mappings into the graph.
+
+Сорта, пивоварни и стили — из реестра Untappd (core/untappd_registry, связь по GUID
+товара iiko): с 2026-10-04 это единственный источник правды о пиве, строки готовит
+knowledge_graph/etl/registry_beers.py. Прежний beer_info_mapping.json не читается.
 """
 
 import json
@@ -9,7 +13,9 @@ import logging
 from pathlib import Path
 from typing import Dict, List, Optional, Set
 
+from core.untappd_registry import load_registry
 from knowledge_graph.db import Neo4jConnection
+from knowledge_graph.etl.registry_beers import registry_beer_rows
 from knowledge_graph.models.nodes import (
     Beer, Brewery, BeerStyle, Bar, Tap, Keg, Dish
 )
@@ -44,8 +50,8 @@ class ReferenceDataLoader:
         results = {}
 
         with self.db:
-            # 1. Load beers, breweries, styles from beer_info_mapping.json
-            beer_results = self._load_beer_info()
+            # 1. Load beers, breweries, styles from the Untappd registry
+            beer_results, keg_beer_rels = self._load_beer_info()
             results.update(beer_results)
 
             # 2. Load bars and taps from taps_data.json
@@ -56,21 +62,21 @@ class ReferenceDataLoader:
             keg_results = self._load_kegs_and_dishes()
             results.update(keg_results)
 
+            # 3a. Keg -> Beer by the registry (exact iiko product name, verified link)
+            for rel in keg_beer_rels:
+                self.db.execute_write(CYPHER_TEMPLATES["rel_contains"], rel)
+            results["keg_beer_links"] = len(keg_beer_rels)
+
             # 4. Create indexes for performance
             self._create_indexes()
 
         return results
 
-    def _load_beer_info(self) -> Dict[str, int]:
-        """Load beer info from beer_info_mapping.json"""
-        file_path = self.data_dir / "beer_info_mapping.json"
+    def _load_beer_info(self):
+        """Load beers, breweries and styles from the Untappd registry.
 
-        if not file_path.exists():
-            logger.warning(f"File not found: {file_path}")
-            return {"beers": 0, "breweries": 0, "styles": 0}
-
-        with open(file_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
+        Returns (counts, keg->beer relations); relations are created after kegs load."""
+        rows, keg_beer_rels = registry_beer_rows(load_registry())
 
         beers: List[Dict] = []
         breweries: Set[str] = set()
@@ -78,38 +84,19 @@ class ReferenceDataLoader:
         beer_brewery_rels: List[Dict] = []
         beer_style_rels: List[Dict] = []
 
-        for keg_name, info in data.items():
-            beer_name = info.get("beer_name", keg_name)
-            brewery_name = info.get("brewery")
-            style_name = info.get("style")
-
-            # Parse ABV (remove % sign)
-            abv = None
-            abv_str = info.get("abv", "")
-            if abv_str:
-                try:
-                    abv = float(abv_str.replace("%", "").strip())
-                except ValueError:
-                    pass
-
-            # Parse IBU
-            ibu = None
-            ibu_str = info.get("ibu", "")
-            if ibu_str:
-                try:
-                    ibu = int(ibu_str)
-                except ValueError:
-                    pass
-
-            # Create beer
+        for row in rows:
+            beer_name = row["name"]
+            brewery_name = row["brewery"]
+            style_name = row["style"]
             beer = Beer(
                 name=beer_name,
                 brewery=brewery_name,
                 style=style_name,
-                abv=abv,
-                ibu=ibu,
-                description=info.get("description"),
-                untappd_url=info.get("untappd_url")
+                abv=row["abv"],
+                ibu=row["ibu"],
+                description=row["description"],
+                untappd_url=row["untappd_url"],
+                untappd_id=row["untappd_id"],
             )
             beers.append({
                 "name": beer.name,
@@ -172,7 +159,7 @@ class ReferenceDataLoader:
             "beers": len(beers),
             "breweries": len(breweries),
             "styles": len(styles)
-        }
+        }, keg_beer_rels
 
     def _load_bars_and_taps(self) -> Dict[str, int]:
         """Load bars and taps from taps_data.json"""

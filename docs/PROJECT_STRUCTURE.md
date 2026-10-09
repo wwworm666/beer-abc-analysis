@@ -12,8 +12,8 @@ beer-abc-analysis/
 ├── requirements.txt        # Python deps (Flask, pandas, gunicorn, aiogram, paramiko, portalocker)
 ├── .env.example            # Шаблон переменных окружения
 ├── remote_exec.py          # SSH/SFTP к бар-ПК через paramiko (для ЧЗ refresh)
-├── telegram_bot.py         # KULT Taplist бот (polling режим)
-├── telegram_webhook.py     # KULT Taplist бот (webhook режим)
+├── telegram_bot.py         # отдельный таплист-бот через API /api/taps/taplist-full (не запускается)
+├── telegram_webhook.py     # webhook-вариант гостевого бота (основной — core/taplist_polling.py)
 ├── README.md               # Главная документация
 │
 ├── core/                   # Бизнес-логика (63 модуля)
@@ -134,10 +134,11 @@ beer-abc-analysis/
 | `yandex_reviews_scheduler.py` | Сверка раз в сутки, 08:30 МСК, + стартовая, если свежей нет |
 | `review_notify.py` | Новые отзывы — подписчикам бота kulturaopenclosed: из Яндекса — после сверки; из гостевого бота — сразу, только бар, оценка, дата и ссылка, не больше 20 в час, подбор пропущенных раз в 10 минут |
 
-### Краны и остатки (2)
+### Краны и остатки (3)
 | Файл | Что делает |
 |---|---|
 | `taps_manager.py` | CRUD 60 кранов, atomic-write через tmp+fsync+replace |
+| `untappd_live.py` | Связи кег с Untappd без деплоя (с 2026-10-04): очередь «Нужна связь», предложения ИИ-агента, «Верно» / «Не то» / отмена администратором, наложение на реестр (`untappd_links.json` на /kultura) — [untappd-links.md](untappd-links.md) |
 | `expiry_recommend.py` | `classify_tier()` + `recommend()` для Shelf-Life Cockpit |
 
 ### Приёмка на РЦ (7, с 2026-10-03, [receiving.md](receiving.md))
@@ -159,6 +160,7 @@ beer-abc-analysis/
 | `open_check_scheduler.py` | Daemon-thread, open-check в 14:59 МСК + atomic lock |
 | `content_publisher_scheduler.py` | Daemon-thread, отправка контент-плана раз в минуту (hh:mm:01), один процесс (flock `data/.content_publisher.lock`); без токена бота и при `CONTENT_PUBLISH=0` не стартует |
 | `taplist_polling.py` | Long-polling гостевого бота @kult_taplist_bot: краны, подписка на новости с согласием, отзывы, выключатель `bot.signup` и меню команд |
+| `taplist_post.py` | **Таплист текстом** (с 2026-10-04): строка крана «{кран}. {пивоварня и название} — {стиль}, {крепость}%[, новинка]», ссылка на Untappd, «новинка» по истории кранов, свежесть кранов; общая для «Таплиста пятницы» (`content_plan.render_live`) и гостевого бота (`bar_message_html`). Данные о пиве — только реестр Untappd, словарь имён — `resources/taplist_post_names.json`; вступление и концовка поста — `resources/taplist_post_phrases.json`, свой вариант на неделю и бар (с 2026-10-09) |
 | `open_check_bot.py` | Логика проверки + форматирование |
 | `open_check_telegram.py` | Telegram Bot API sync с обходом блокировок (`api_call`, файлы — `api_call_files`; `safe_resend` — запасной путь только при доказанном «не ушло»), меню подписки (кнопка) + команды /start /status |
 | `open_check_subscribers.py` | Хранилище самоподписавшихся чатов (единый список, portalocker) |
@@ -233,6 +235,7 @@ templates/
 ├── dashboard.html       # Дашборд /dashboard: 4 точки + Общая, 17 карточек (20 метрик в API), AI
 ├── employee.html        # Дашборд сотрудника, KPI, бонусы
 ├── taps_bar.html        # Краны одного бара
+├── taps_untappd.html    # «Связи с Untappd» (/taps/untappd): предложения агента, «Верно» / «Не то»
 ├── stocks.html          # 6 вкладок: К заказу / К отправке / Таплист / Фасовка / Сроки / Меню кухни
 ├── suppliers.html       # Справочник поставщиков (/suppliers)
 ├── receiving.html       # Приёмка на РЦ: экран приёмщика (/receiving)
@@ -277,7 +280,7 @@ static/
 │   ├── admin_mcp.js     # страница «Доступ агентов» (/admin/mcp)
 │   ├── me/
 │   ├── schedule/
-│   ├── taps/
+│   ├── taps/            # bar.js (/taps/<bar>), untappd.js («Связи с Untappd», строка таплиста — паритет с core/taplist_post.py)
 │   ├── receiving/       # codes.js (разбор кода, паритет с core/receiving_codes.py), scan.js (/receiving), review.js (/receiving/review)
 │   └── stocks/
 ├── draft/               # draft.css — оформление /draft по макету (токены --dr-*)
@@ -304,6 +307,7 @@ data/
 ├── daily_plans.json        # Ежедневные планы (авто, Пт/Сб = weight 2x)
 ├── kpi_targets.json        # KPI цели
 ├── taps_data.json          # 60 кранов + история (atomic-write)
+├── untappd_links.json      # Связи кег с Untappd, подтверждённые на сайте, и предложения агента (на проде /kultura, в git нет)
 ├── meeting_notes.json      # Заметки совещаний
 ├── orders.json             # Заказы поставщикам: черновик + история (на проде /kultura, в git нет)
 ├── suppliers.json          # Справочник поставщиков (на проде /kultura, в git нет; без файла — стартовый набор из кода)
@@ -520,6 +524,7 @@ docker compose up -d
 | `/kitchen` | «Кухня»: ABC/XYZ и потери группы «ЕДА», баланс склада в рублях по закупке |
 | `/explorer` | Конструктор отчётов |
 | `/taps/<bar_id>` | Управление кранами |
+| `/taps/untappd` | «Связи с Untappd»: предложения ИИ-агента и подтверждение связей новых кег |
 | `/stocks` | Заказы и остатки: экран «К заказу» |
 | `/suppliers` | Справочник поставщиков |
 | `/receiving`, `/receiving/review` | Приёмка на РЦ: сканирование (приёмщик) и «Разбор приёмок» (бухгалтерия) |

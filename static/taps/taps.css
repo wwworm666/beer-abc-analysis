@@ -147,7 +147,7 @@ body.tp-page { background: var(--tp-bg); }
 }
 .tp *, .tp *::before, .tp *::after,
 .tp-sheet-wrap *, .tp-toast { box-sizing: border-box; }
-.tp a { color: var(--tp-accent-ink); }
+.tp a, .tp-sheet a { color: var(--tp-accent-ink); }
 .tp-num { font-family: var(--tp-mono); font-variant-numeric: tabular-nums; }
 
 .tp-panel {
@@ -243,6 +243,21 @@ body.tp-page { background: var(--tp-bg); }
 .tp .tp-bar:hover { color: var(--tp-ink); }
 .tp .tp-bar[aria-current="page"] { background: var(--tp-card); color: var(--tp-ink); box-shadow: var(--tp-shadow); }
 .tp-top-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.tp-bar-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    margin-left: 7px;
+    padding: 0 6px;
+    border-radius: var(--tp-r-pill);
+    background: var(--tp-warn-soft);
+    color: var(--tp-warn-ink);
+    font-family: var(--tp-mono);
+    font-size: 12px;
+    font-weight: 600;
+}
 
 /* ==================== Сводка ==================== */
 
@@ -534,6 +549,68 @@ button.tp-stat:focus-visible { outline: none; box-shadow: inset var(--tp-focus);
 .tp-barcard-row.is-warn, .tp-barcard-row.is-warn b { color: var(--tp-warn-ink); }
 .tp-barcard-foot { font-size: 13px; color: var(--tp-accent-ink); }
 
+/* ==================== Связи с Untappd (/taps/untappd) ==================== */
+
+/* «Как это работает» и «Почему эта карточка»: пояснения свёрнуты по умолчанию. */
+.tp-how { margin-bottom: 12px; font-size: 13px; color: var(--tp-ink3); }
+.tp-how summary {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    color: var(--tp-ink3);
+    list-style: none;
+}
+.tp-how summary::-webkit-details-marker { display: none; }
+.tp-how summary::before {
+    content: '';
+    width: 6px; height: 6px;
+    border-right: 1.5px solid currentColor;
+    border-bottom: 1.5px solid currentColor;
+    transform: rotate(-45deg);
+    transition: transform .15s ease;
+}
+.tp-how[open] summary::before { transform: rotate(45deg); }
+.tp-how summary:hover { color: var(--tp-ink); }
+.tp-how summary:focus-visible { outline: none; box-shadow: var(--tp-focus); border-radius: 4px; }
+.tp-how-body { margin-top: 8px; padding: 10px 12px; border-radius: var(--tp-r-ctl); background: var(--tp-soft); color: var(--tp-ink2); }
+.tp-how-body p { margin: 0 0 6px; }
+.tp-how-body p:last-child { margin-bottom: 0; }
+
+.tp-links-list { display: flex; flex-direction: column; gap: 10px; }
+.tp-link { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; }
+.tp-link-head { display: flex; gap: 10px; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; }
+.tp-link-keg { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.tp-link-keg b { font-weight: 600; font-size: 14px; }
+.tp-link-meta { font-size: 12px; color: var(--tp-ink4); }
+.tp-link-head .tp-badge { height: auto; min-height: 20px; padding: 2px 8px; }
+.tp-link-beer { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border-radius: var(--tp-r-ctl); background: var(--tp-soft); }
+.tp-link-photo { width: 56px; height: 56px; flex: none; border-radius: 8px; object-fit: cover; background: var(--tp-card); }
+.tp-link-beer-text { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.tp-link-url { font-size: 12px; word-break: break-all; margin-top: 4px; }
+.tp-link-desc { margin: 0; font-size: 13px; color: var(--tp-ink3); }
+.tp-link-line { display: flex; flex-direction: column; gap: 2px; }
+.tp-link-line-label { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--tp-ink4); }
+.tp-link-line-text { font-size: 15px; color: var(--tp-ink); }
+.tp-link-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+.tp-link-field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--tp-ink3); }
+.tp-input.tp-input-plain { padding: 0 12px; font-size: 14px; }
+textarea.tp-input.tp-input-plain { height: auto; min-height: 64px; padding: 8px 12px; resize: vertical; line-height: 1.4; }
+.tp-link-why { margin: 0; }
+.tp-link-sources { margin: 0 0 6px; padding-left: 18px; }
+.tp-link-sources a { word-break: break-all; }
+.tp-link-actions .tp-btn { flex: 0 1 160px; }
+.tp-link-reject { display: flex; flex-direction: column; gap: 8px; }
+.tp-link-reject .tp-actions-row .tp-btn, .tp-link-row .tp-actions-row .tp-btn { flex: 0 1 160px; }
+.tp-link-rows { padding: 4px 0; }
+.tp-link-row { display: flex; flex-direction: column; gap: 6px; padding: 12px 16px; border-top: 1px solid var(--tp-hair); }
+.tp-link-row:first-child { border-top: none; }
+.tp-link-row .tp-hint, .tp-link-row .tp-question { margin: 0; }
+.tp-link-row .tp-link-line-text { font-size: 14px; }
+.tp-link-row .tp-link-btn { align-self: flex-start; }
+.tp-link-subhead { margin: 0; padding: 12px 16px 0; font-size: 15px; font-weight: 600; }
+.tp-link-subnote { margin: 4px 0 0; padding: 0 16px 8px; }
+
 /* ==================== Телефон ==================== */
 
 @media (max-width: 768px) {
@@ -559,4 +636,8 @@ button.tp-stat:focus-visible { outline: none; box-shadow: inset var(--tp-focus);
     }
     .tp-results { max-height: 46vh; }
     .tp-toast { bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
+    .tp-link { padding: 12px; }
+    .tp-link-actions .tp-btn, .tp-link-reject .tp-actions-row .tp-btn,
+    .tp-link-row .tp-actions-row .tp-btn { flex: 1; }
+    .tp-link-row { padding: 12px; }
 }

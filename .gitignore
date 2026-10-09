@@ -58,6 +58,8 @@ data/content_channels.json*
 # (токены, OAuth, журнал вызовов — core/mcp/db.py); на проде живут на /kultura
 data/content_brief.json
 data/mcp.db
+# Связи кег с Untappd, подтверждённые на сайте (core/untappd_live.py; на проде — /kultura)
+data/untappd_links.json*
 data/mcp.db-*
 # Фиды Яндекса: правки позиций и снимок пива (на проде живут на /kultura)
 data/yml_*.json
