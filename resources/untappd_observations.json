@@ -9168,5 +9168,16 @@
     "media_source_url": "https://untappd.com/b/gas-brew-saltmelier-naryan-mar/6029292",
     "media_observed_at": "2026-09-20T20:43:42.360647+00:00",
     "photo_kind": "label"
+  },
+  "2552482": {
+    "id": "2552482",
+    "url": "https://untappd.com/b/steppe-and-wind-meadery-step-i-veter-blackberry-mead/2552482",
+    "beer_name": "Blackberry Mead",
+    "brewery": "Steppe & Wind Meadery (Степь и Ветер)",
+    "style": null,
+    "abv_percent": null,
+    "ibu": null,
+    "observed_at": "2026-10-09",
+    "source_method": "Ссылка владельца 2026-10-09; название — по адресу карточки, крепость и стиль не проверены"
   }
 }
