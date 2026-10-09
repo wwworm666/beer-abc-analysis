@@ -3471,8 +3471,19 @@
             each(problems, function (x) { texts.push(x.text); });
             foot += '<div class="gh-cp-stop"><b>Публикация будет остановлена:</b> ' + esc(texts.join('; ')) + '</div>';
         }
-        if (m.kind === 'live' && state === 'ok') foot += phraseHow(m, p);
+        if (m.kind === 'live' && state === 'ok') foot += liveNotesHtml(m, p) + phraseHow(m, p);
         return '<div class="gh-cp-pv">' + body + foot + '</div>';
+    }
+
+    // Предупреждения, которые пост не останавливают (notes сервера): кран без
+    // проверенной карточки Untappd выходит без ссылки (решение владельца 2026-10-09).
+    function liveNotesHtml(m, p) {
+        var r = S.previewLive[previewKey(m, p)];
+        var notes = (r && r.result && r.result.notes) || [];
+        if (!notes.length) return '';
+        var texts = [];
+        each(notes, function (x) { texts.push(x.text); });
+        return '<div class="gh-cp-warn is-quiet">' + esc(texts.join('; ')) + '</div>';
     }
 
     // Какие фразы {вступление} и {концовка} достались этому бару в этот день
