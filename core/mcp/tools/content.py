@@ -127,7 +127,9 @@ CHANNELS = ('telegram', 'instagram', 'bot')                              # conte
 AUDIENCES = ('bot_all', 'bot_bar', 'bot_recent_30', 'bot_lapsed_60')     # content_plan.AUDIENCES
 KINDS = ('fixed', 'live')                                                # content_plan.KINDS
 LIVE_SOURCES = ('taplist',)                                              # content_plan.LIVE_SOURCES
-PLACEHOLDERS = ('{бар}', '{дата}', '{таплист}', '{кранов}')              # content_plan.PLACEHOLDERS
+PLACEHOLDERS = ('{вступление}', '{таплист}', '{концовка}', '{бар}', '{где}', '{дата}',
+                '{кранов}')                                               # content_plan.PLACEHOLDERS
+TAPLIST_TEMPLATE = '{вступление}\n\n{таплист}\n\n{концовка}'          # content_plan.TAPLIST_TEMPLATE
 PLACEMENT_ACTIONS = ('pause', 'resume', 'unapprove', 'mark_published',   # content_plan.ACTIONS
                      'cancel', 'restore', 'retry', 'retry_failed')
 CROSS_MONTH_STATES = ('overdue', 'failed')                               # content_plan.CROSS_MONTH_STATES
@@ -287,8 +289,10 @@ _MATERIAL_FIELDS = {
                                        'крепость, «новинка»; без цен). У fixed — 400.'),
     'planned_date': _nullable_str('Дата темы YYYY-MM-DD: задаёт месяц материала и дату новых размещений по '
                                   'умолчанию; пустая строка или null — снять.', pattern=DATE_OR_EMPTY_PATTERN),
-    'base_text': _str('Общий текст поста (у live — шаблон с подстановками {бар}, {дата}, {таплист}, '
-                      '{кранов}; у fixed подстановки не работают), до 10 000 знаков. Предел публикации '
+    'base_text': _str('Общий текст поста (у live — шаблон с подстановками {вступление}, {таплист}, '
+                      '{концовка}, {бар}, {где}, {дата}, {кранов}; у fixed подстановки не работают), до '
+                      '10 000 знаков. Пятничный таплист — «{вступление}\\n\\n{таплист}\\n\\n{концовка}»: '
+                      'вступление и концовку сайт берёт свои на каждую неделю и бар. Предел публикации '
                       'проверяется по площадкам: Telegram и бот — 4096 без фото и 1024 с фото (подпись), '
                       'Instagram — 2200.', maxLength=TEXT_MAX),
     'note': _str('Заметка для команды, до 2000 знаков; в публикацию не уходит. Сюда — «нужно решение '
@@ -491,8 +495,8 @@ _LIVE_PREVIEW_PROPS = {
                          'ли у него файлы. Главнее material_id; размещение чужого материала — 400.'),
     'date': _str('Дата для {дата}, YYYY-MM-DD; по умолчанию дата размещения, иначе сегодня.',
                  pattern=DATE_PATTERN, format='date'),
-    'template': _str('Шаблон явно (главнее текста материала и размещения); подстановки {бар}, {дата}, '
-                     '{таплист}, {кранов}.', maxLength=TEXT_MAX),
+    'template': _str('Шаблон явно (главнее текста материала и размещения); подстановки {вступление}, '
+                     '{таплист}, {концовка}, {бар}, {где}, {дата}, {кранов}.', maxLength=TEXT_MAX),
     'channel': _enum(CHANNELS, 'Площадка — задаёт предел длины: telegram и bot — 1024 с фото и 4096 без, '
                                'instagram — 2200; без площадки — 4096.'),
     'has_media': _bool('Есть ли у размещения фото или видео (для предела длины); по умолчанию — по '
@@ -505,7 +509,9 @@ _LIVE_PREVIEW_TEXT = (
     '(ссылки на Untappd в text: type text_link, offset и length в единицах UTF-16, url), problems '
     '[{code, text}], length, limit, limit_note, rows (краны: tap_number, brewery, beer_name, style, abv, '
     'mapped, name — пивоварня и название как в посте, untappd_url, new — пометка «новинка», line), '
-    'data_at, taps_changed_at (последнее изменение на странице кранов бара). Строка: «{кран}. {пивоварня и '
+    'data_at, taps_changed_at (последнее изменение на странице кранов бара), phrase (какой вариант '
+    'вступления и концовки выбран: variant из total, intro, outro — свой на каждую неделю и бар). '
+    'Строка: «{кран}. {пивоварня и '
     'название} — {стиль}, {крепость}%[, новинка]», без цен. ok=false — публикация была бы остановлена: '
     'no_live_source, no_bar (нужен конкретный бар), no_data (нет активных кранов или данных), stale_taps '
     '(краны бара не обновлялись больше 14 дней — список мог устареть), unverified (у крана нет проверенной '
@@ -521,7 +527,7 @@ _tool(
     method='GET', path='/api/content-plan/live-preview', query_params=tuple(_LIVE_PREVIEW_PROPS),
     read_only=True, idempotent=True,
     examples=({'source': 'taplist', 'bar': 'bolshoy', 'channel': 'telegram', 'has_media': False,
-               'template': 'Сегодня в {бар} на кранах {кранов}:\n{таплист}'},),
+               'template': '{вступление}\n\n{таплист}\n\n{концовка}'},),
 )
 
 _tool(
@@ -1391,12 +1397,12 @@ INSTRUCTIONS = """\
 
 ПЛОЩАДКИ И РИТМ
 - Ритм — из брифа (rhythm) или из задания владельца; равномерно по неделям и барам.
-- Таплист — каждую пятницу, ЖИВЫМ материалом: kind='live', live_source='taplist', шаблон с
-  {бар}, {дата}, {таплист}, {кранов}, размещения telegram на каждый бар, затем
-  content_material_repeat(weekdays=[4]). Сорта руками не вписывать: список подставится при выходе,
-  а кран без проверенной связи с Untappd остановит публикацию. Пост — только текст, без фото и
-  видео (решение владельца 2026-10-04): названия — ссылки на Untappd, цен нет. Пост бара, где
-  краны не обновляли больше 14 дней, не уйдёт (stale_taps) — скажите владельцу заранее.
+- Таплист — каждую пятницу, ЖИВЫМ материалом: kind='live', live_source='taplist', шаблон
+  «{вступление}\\n\\n{таплист}\\n\\n{концовка}» (вступление и концовку сайт подставит свои на каждую
+  неделю и бар — свой заголовок вместо них не пиши), размещения telegram на каждый бар, затем
+  content_material_repeat(weekdays=[4]). Сорта руками не вписывать; кран без связи с Untappd и краны
+  бара без изменений больше 14 дней (stale_taps) остановят пост — скажите владельцу заранее. Пост —
+  только текст: названия — ссылки на Untappd, цен и фото нет (решение владельца 2026-10-04).
 - Telegram — канал каждого бара (конкретный бар): 4096 знаков без фото, 1024 с фото, до 10 файлов.
 - Instagram — один аккаунт сети (bar all): 2200 знаков, от 1 до 10 фото (см. «ФОТО»); фото бара
   нет — shot_list (кадры, бар, время суток, люди) и media_required=true.
@@ -1532,7 +1538,8 @@ def _render_plan_month(args: dict) -> str:
         '5. ' + rhythm_text,
         '6. ' + focus_text,
         '7. Таплист каждую пятницу месяца, если его ещё нет: один live-материал (live_source=taplist, шаблон '
-        'с {бар}, {дата}, {таплист}, {кранов}, planned_date — первая ещё не прошедшая пятница месяца), '
+        '«{вступление}\\n\\n{таплист}\\n\\n{концовка}» — вступление и концовку сайт подставит свои на каждую '
+        'неделю и бар, planned_date — первая ещё не прошедшая пятница месяца), '
         'размещения telegram на каждый '
         "бар со временем, затем content_material_repeat(weekdays=[4], month='" + month_arg + "'). Проверить "
         'content_live_preview(placement_id=...) у одного размещения каждого бара.',

@@ -1162,6 +1162,43 @@ def test_render_live_ok_and_stop_rules():
     assert codes(r) == ['no_data'] and r['ok'] is False
 
 
+def test_taplist_phrases_vary_by_week_and_bar():
+    """Решение владельца 2026-10-09: «писать по-разному, чтобы не выглядело шаблонно».
+    {вступление} и {концовка} — пара фраз из набора, своя на неделю и бар; {где} — бар во
+    фразе. Правило выбора — tests/test_taplist_post.py."""
+    from datetime import date, timedelta
+    from core import taplist_post as tp
+    lines = '1. Б IPA — американский IPA, 6,5%\n2. Пивоварня А Пилзнер — чешский пилснер, 5%'
+    inner = {'{где}': 'на Варшавской', '{бар}': 'Варшавская', '{дата}': '9 октября'}
+    r = _render('varshavskaya', template=cp.TAPLIST_TEMPLATE, pub_date='2026-10-09')
+    intro, outro, number, total = tp.phrases_for(date(2026, 10, 9), 'bar4', inner)
+    assert r['ok'] is True and r['problems'] == []
+    assert r['phrase'] == {'variant': number, 'total': total, 'intro': intro, 'outro': outro}
+    assert r['text'] == intro + '\n\n' + lines + ('\n\n' + outro if outro else '')
+    # ссылки по-прежнему ровно на названия
+    assert [r['text'][e['offset']:e['offset'] + e['length']] for e in r['entities']] == ['Б IPA', 'Пивоварня А Пилзнер']
+    # в тот же день у Лиговского другая фраза, через неделю у Варшавской — тоже другая
+    assert _render('ligovskiy', template=cp.TAPLIST_TEMPLATE, pub_date='2026-10-09')['phrase']['intro'] != intro
+    assert _render('varshavskaya', template=cp.TAPLIST_TEMPLATE, pub_date='2026-10-16')['phrase']['intro'] != intro
+    # пустая концовка забирает пустые строки: пост кончается списком, текст после неё — сразу за списком
+    fridays = [date(2026, 10, 9) + timedelta(weeks=week) for week in range(total)]
+    empty_day = next(day for day in fridays if not tp.phrases_for(day, 'bar4', inner)[1])
+    r = _render('varshavskaya', template=cp.TAPLIST_TEMPLATE, pub_date=empty_day.isoformat())
+    assert r['phrase']['outro'] == '' and r['text'].endswith('5%') and r['text'].startswith(r['phrase']['intro'])
+    r = _render('varshavskaya', template=cp.TAPLIST_TEMPLATE + '\n\nЖдём', pub_date=empty_day.isoformat())
+    assert r['text'].endswith('чешский пилснер, 5%\n\nЖдём')
+    # {где} работает и в самом шаблоне; бар не выбран — фраз нет
+    assert _render('varshavskaya', template='Краны {где}:\n{таплист}')['text'].startswith('Краны на Варшавской:\n1.')
+    assert _render('all', template=cp.TAPLIST_TEMPLATE)['phrase'] is None
+    # у каждого бара есть {где}, и самая длинная пара фраз с ним не съедает подпись 1024
+    for bar in cp.BARS:
+        assert bar['where'].startswith('на ')
+        longest = max(len(tp.phrases_for(date(2026, 10, 9), 'bar1', {'{где}': bar['where']}, (pair,))[0]) +
+                      len(tp.phrases_for(date(2026, 10, 9), 'bar1', {'{где}': bar['where']}, (pair,))[1])
+                      for pair in tp.load_phrases())
+        assert longest + 4 <= 200, (bar['key'], longest)
+
+
 def test_live_preview_route():
     store = _store()
     m = _material(store, title='Таплист', kind='live', live_source='taplist', base_text=TEMPLATE)
@@ -1531,7 +1568,8 @@ def test_month_scope_and_payload():
         default = c.get('/api/content-plan').get_json()
         assert (default['month'], default['now'], default['today']) == (MONTH, NOW_STR, '2026-10-07')
         assert [b_['key'] for b_ in default['bars']] == ['bolshoy', 'ligovskiy', 'kremenchugskaya', 'varshavskaya']
-        assert default['bars'][0] == {'key': 'bolshoy', 'name': 'Большой пр. В.О', 'short': 'ВО'}
+        assert default['bars'][0] == {'key': 'bolshoy', 'name': 'Большой пр. В.О', 'short': 'ВО',
+                                      'where': 'на Васильевском'}
         channels = {ch['key']: ch for ch in default['channels']}
         assert channels['telegram'] == {'key': 'telegram', 'name': 'Telegram', 'bar_rule': 'required',
                                         'text_limit': 4096, 'caption_limit': 1024, 'media_max': 10,
@@ -1543,8 +1581,9 @@ def test_month_scope_and_payload():
         assert all(x['size'] is None and x['size_note'] for x in default['audiences'])
         assert default['audiences'][1]['needs_bar'] is True
         assert default['live_sources'][0]['key'] == 'taplist'
-        assert [p['token'] for p in default['live_sources'][0]['placeholders']] == ['{бар}', '{дата}', '{таплист}',
-                                                                                    '{кранов}']
+        assert [p['token'] for p in default['live_sources'][0]['placeholders']] == [
+            '{вступление}', '{таплист}', '{концовка}', '{бар}', '{где}', '{дата}', '{кранов}']
+        assert default['live_sources'][0]['template'] == '{вступление}\n\n{таплист}\n\n{концовка}'
         assert default['delivery_connected'] == {'telegram': False, 'instagram': False, 'bot': False}
         view = ids[a['id']]
         assert view['date'] == '2026-10-20' and view['summary']['label'] == 'Готово к утверждению'

@@ -12,12 +12,17 @@ text_link, в боте — <a href> разметки HTML). Данные о пи
 2026-10-04; имена и стили — из словаря resources/taplist_post_names.json. Правила с
 примерами — docs/content-plan.md, раздел «Живые данные (таплист)».
 
-Модуль без I/O при импорте: словарь читается при первом вызове load_names().
+Вступление и концовка поста (решение владельца 2026-10-09: «писать по-разному, чтобы
+не выглядело шаблонно») — из набора resources/taplist_post_phrases.json, свой вариант
+на каждую неделю и каждый бар (phrases_for, правило выбора — phrase_index).
+
+Модуль без I/O при импорте: словарь и фразы читаются при первом вызове load_names() и
+load_phrases().
 """
 import html
 import json
 import re
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from functools import lru_cache
 from pathlib import Path
@@ -28,6 +33,18 @@ from core.taplist import full_taplist, product_catalog
 from core.untappd_registry import load_registry, resolve_beer
 
 NAMES_PATH = Path(__file__).resolve().parents[1] / 'resources/taplist_post_names.json'
+PHRASES_PATH = Path(__file__).resolve().parents[1] / 'resources/taplist_post_phrases.json'
+
+# Фразы поста: неделя считается от понедельника 5 января 2026, а не по номеру ISO-недели —
+# тот на стыке лет прыгает с 52 или 53 на 1, и в первую неделю года повторилась бы фраза.
+PHRASE_EPOCH = date(2026, 1, 5)
+# Бары по порядку сдвига: в одну пятницу у каждого бара свой вариант.
+PHRASE_BARS = ('bar1', 'bar2', 'bar3', 'bar4')
+# Подстановки внутри фраз (значения даёт вызывающий: core/content_plan.render_live).
+PHRASE_TOKENS = ('{где}', '{бар}', '{дата}')
+PHRASE_INTRO_MAX = 80       # вступление — одна строка над списком
+PHRASE_OUTRO_MAX = 100      # концовка — одна строка под списком; вместе не больше ~190 знаков,
+                            # чтобы подпись 12 кранов с фото (около 750 знаков) влезала в 1024
 
 # «Новинка» (бриф, рубрика «Таплист пятницы»): сорт подключили в баре за NEW_DAYS
 # дней до поста, а NEW_ABSENT_DAYS дней до этого его не было ни на одном кране бара.
@@ -128,6 +145,56 @@ def _load_names(path: str) -> dict:
             beers[str(bid)] = _clean(post)
     return {'styles': dict(data.get('styles') or {}), 'breweries': dict(data.get('breweries') or {}),
             'beers': beers}
+
+
+def load_phrases(path=None) -> Tuple[Tuple[str, str], ...]:
+    """Варианты (вступление, концовка) из resources/taplist_post_phrases.json по порядку.
+    Файл в репозитории и меняется только деплоем, поэтому читается один раз на путь.
+    Пустой набор или вариант без вступления — ValueError (тест набора ловит это до деплоя)."""
+    return _load_phrases(str(path or PHRASES_PATH))
+
+
+@lru_cache(maxsize=4)
+def _load_phrases(path: str) -> Tuple[Tuple[str, str], ...]:
+    data = json.loads(Path(path).read_text(encoding='utf-8'))
+    variants = tuple((_clean(item.get('intro')), _clean(item.get('outro'))) for item in data.get('variants') or [])
+    if not variants or not all(intro for intro, _outro in variants):
+        raise ValueError(f'{path}: нужен хотя бы один вариант, и у каждого — вступление')
+    return variants
+
+
+def phrase_index(day: date, bar_id: str, total: int) -> int:
+    """Номер варианта (с нуля) для поста бара в этот день.
+
+    Неделя (номер недели от PHRASE_EPOCH) плюс сдвиг бара на четверть набора:
+    bar1 — 0, bar2 — total // 4, bar3 — 2 × total // 4, bar4 — 3 × total // 4.
+    Так в одну пятницу у четырёх баров разные фразы (если вариантов не меньше четырёх),
+    в своём баре фраза повторяется через total недель, а в соседнем встречается не
+    раньше чем через total // 4 недель. Пример при 16 вариантах: пятница 9 октября
+    2026 — неделя 39, у bar1 вариант 39 mod 16 = 7, у bar3 — (39 + 8) mod 16 = 15.
+    Бар не из PHRASE_BARS — без сдвига."""
+    week = (day - PHRASE_EPOCH).days // 7
+    position = PHRASE_BARS.index(bar_id) if bar_id in PHRASE_BARS else 0
+    step = max(1, total // len(PHRASE_BARS))
+    return (week + position * step) % total
+
+
+def phrases_for(day: date, bar_id: str, values: Dict[str, str],
+                variants: Optional[Tuple[Tuple[str, str], ...]] = None) -> Tuple[str, str, int, int]:
+    """(вступление, концовка, номер варианта с единицы, всего вариантов) для поста бара в
+    этот день. values — значения подстановок внутри фраз ({где}, {бар}, {дата});
+    подставленное значение повторно не разбирается."""
+    variants = variants if variants is not None else load_phrases()
+    index = phrase_index(day, bar_id, len(variants))
+    intro, outro = variants[index]
+    return _fill_phrase(intro, values), _fill_phrase(outro, values), index + 1, len(variants)
+
+
+_PHRASE_TOKEN_RE = re.compile(r'\{[^{}\n]*\}')
+
+
+def _fill_phrase(text: str, values: Dict[str, str]) -> str:
+    return _PHRASE_TOKEN_RE.sub(lambda match: values.get(match.group(0), match.group(0)), text)
 
 
 def post_name(row: dict, names: dict) -> str:

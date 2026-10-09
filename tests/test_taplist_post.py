@@ -6,8 +6,10 @@
 """
 import json
 import re
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
+
+import pytest
 
 from core import content_plan as cp
 from core import taplist_post as tp
@@ -279,3 +281,70 @@ def test_bot_message_from_registry():
     empty = FakeManager({'bar2': {'name': 'Лиговский', 'taps': [tap(1)]}})
     assert tp.bar_message_html(empty, 'bar2', 'Лиговский & Ко', moment=POST, registry=REGISTRY) == \
         'Лиговский &amp; Ко: нет активных кранов'
+
+
+# ---------------------------------------------------------------------------
+# Вступление и концовка (решение владельца 2026-10-09: «писать по-разному»)
+# ---------------------------------------------------------------------------
+
+EMOJI_RE = re.compile('[\U0001F000-\U0001FAFF\u2600-\u27BF\u2B00-\u2BFF\uFE0F\u200D]')
+
+
+def test_phrase_bank_is_valid():
+    variants = tp.load_phrases()
+    assert len(variants) >= 8
+    intros = [intro for intro, _outro in variants]
+    assert len(set(intros)) == len(intros), 'вступления не повторяются'
+    # первые четыре — примеры владельца 2026-10-09, слово в слово
+    assert variants[:4] == (
+        ('Идеальный набор для пятницы.', 'Культурное разнообразие: всё свежее, разное и вкусное. Ждём!'),
+        ('Друзья, ловите актуальный пятничный таплист!', 'Всем хороших выходных, и конечно же, ждём на бокальчик'),
+        ('Традиционный пятничный таплист!', ''),
+        ('Пятничный таплист {где}!', ''))
+    for intro, outro in variants:
+        assert intro and len(intro) <= tp.PHRASE_INTRO_MAX and len(outro) <= tp.PHRASE_OUTRO_MAX, intro
+        for text in (intro, outro):
+            assert not EMOJI_RE.search(text) and '\n' not in text, text
+            assert set(re.findall(r'\{[^{}]*\}', text)) <= set(tp.PHRASE_TOKENS), text
+
+
+def test_phrase_rotation_by_week_and_bar():
+    total = len(tp.load_phrases())
+    friday = date(2026, 10, 9)
+    # пример из докстроки phrase_index: неделя 39, у bar1 — 39 mod 16, у bar3 — (39 + 8) mod 16
+    assert (tp.phrase_index(friday, 'bar1', 16), tp.phrase_index(friday, 'bar3', 16)) == (7, 15)
+    # в одну пятницу у четырёх баров разные фразы
+    assert len({tp.phrase_index(friday, bar, total) for bar in tp.PHRASE_BARS}) == 4
+    for bar in tp.PHRASE_BARS:
+        seen = [tp.phrase_index(friday + timedelta(weeks=week), bar, total) for week in range(total)]
+        assert sorted(seen) == list(range(total)), 'за total недель — каждый вариант по разу'
+        assert all(a != b for a, b in zip(seen, seen[1:])), 'две пятницы подряд — разные фразы'
+    # пост перенесли на субботу той же недели — фраза та же; новая неделя — следующая фраза
+    assert tp.phrase_index(friday + timedelta(days=1), 'bar2', total) == tp.phrase_index(friday, 'bar2', total)
+    assert tp.phrase_index(friday + timedelta(days=3), 'bar2', total) == (
+        tp.phrase_index(friday, 'bar2', total) + 1) % total
+    # стык годов: недели идут подряд (номер ISO-недели прыгнул бы с 53 на 1)
+    assert tp.phrase_index(date(2027, 1, 1), 'bar1', total) == (tp.phrase_index(date(2026, 12, 25), 'bar1', total) + 1) % total
+    # даты до начала отсчёта и маленький набор — номер в пределах
+    assert 0 <= tp.phrase_index(date(2025, 6, 6), 'bar4', total) < total
+    assert {tp.phrase_index(friday, bar, 2) for bar in tp.PHRASE_BARS} <= {0, 1}
+    assert tp.phrase_index(friday, 'bar9', total) == tp.phrase_index(friday, 'bar1', total)   # чужой бар — без сдвига
+
+
+def test_phrases_fill_their_own_placeholders():
+    variants = (('Таплист {где}, {дата}!', 'До встречи {где}. {цена}'),)
+    values = {'{где}': 'на Кременчугской', '{дата}': '9 октября'}
+    assert tp.phrases_for(date(2026, 10, 9), 'bar3', values, variants) == (
+        'Таплист на Кременчугской, 9 октября!', 'До встречи на Кременчугской. {цена}', 1, 1)
+    # подставленное значение повторно не разбирается
+    assert tp.phrases_for(date(2026, 10, 9), 'bar1', {'{где}': '{дата}', '{дата}': 'X'}, (('{где}', ''),))[0] == '{дата}'
+
+
+def test_broken_phrase_bank_fails_loudly(tmp_path):
+    blank = tmp_path / 'blank.json'
+    blank.write_text('{"variants": [{"intro": " ", "outro": "x"}]}', encoding='utf-8')
+    empty = tmp_path / 'empty.json'
+    empty.write_text('{"variants": []}', encoding='utf-8')
+    for path in (blank, empty):
+        with pytest.raises(ValueError):
+            tp.load_phrases(path)

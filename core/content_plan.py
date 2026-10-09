@@ -228,7 +228,13 @@ stats — по этим материалам). С month — обычный ме�
 
 ## Живые данные (render_live)
 
-Шаблон с подстановками {бар}, {дата}, {таплист}, {кранов}. Строка таплиста
+Шаблон с подстановками {вступление}, {таплист}, {концовка}, {бар}, {где}, {дата},
+{кранов}. {вступление} и {концовка} (решение владельца 2026-10-09: «писать по-разному,
+чтобы не выглядело шаблонно») — пара фраз из resources/taplist_post_phrases.json,
+своя на каждую неделю и каждый бар (core/taplist_post.phrase_index: номер недели плюс
+сдвиг бара на четверть набора); внутри фраз работают {где}, {бар}, {дата}. Пустая
+концовка забирает пустые строки перед собой: пост кончается списком. {где} — бар
+для фразы: «на Кременчугской» (BARS[...]['where']). Строка таплиста
 (core/taplist_post.py, формат владельца 2026-10-04, без цен):
 «{кран}. {пивоварня и название} — {стиль}, {крепость}%[, новинка]». Пивоварня и
 название — ссылка на Untappd (entities, text_link), стиль — по-русски из словаря
@@ -393,11 +399,12 @@ DATA_FILE_NAME = 'content_plan.json'
 # ---------------------------------------------------------------------------
 # Бары (ключи как в core/venues_config.PHYSICAL_VENUES), порядок отображения.
 # ---------------------------------------------------------------------------
+# where — бар во фразе поста («Пятничный таплист {где}!»): как его называют гости.
 BARS = (
-    {'key': 'bolshoy', 'name': 'Большой пр. В.О', 'short': 'ВО'},
-    {'key': 'ligovskiy', 'name': 'Лиговский', 'short': 'Лиг'},
-    {'key': 'kremenchugskaya', 'name': 'Кременчугская', 'short': 'Крем'},
-    {'key': 'varshavskaya', 'name': 'Варшавская', 'short': 'Вар'},
+    {'key': 'bolshoy', 'name': 'Большой пр. В.О', 'short': 'ВО', 'where': 'на Васильевском'},
+    {'key': 'ligovskiy', 'name': 'Лиговский', 'short': 'Лиг', 'where': 'на Лиговском'},
+    {'key': 'kremenchugskaya', 'name': 'Кременчугская', 'short': 'Крем', 'where': 'на Кременчугской'},
+    {'key': 'varshavskaya', 'name': 'Варшавская', 'short': 'Вар', 'where': 'на Варшавской'},
 )
 BAR_KEYS = tuple(b['key'] for b in BARS)
 BAR_BY_KEY = {b['key']: b for b in BARS}
@@ -462,15 +469,24 @@ AUDIENCE_SIZE_NOTE = 'Бот не подключён: размер аудито�
 AUDIENCE_ERROR_NOTE = 'Не удалось прочитать подписчиков бота — размер неизвестен'
 
 # Живые данные: единственный источник — таплист бара.
-PLACEHOLDERS = ('{бар}', '{дата}', '{таплист}', '{кранов}')
+PLACEHOLDERS = ('{вступление}', '{таплист}', '{концовка}', '{бар}', '{где}', '{дата}', '{кранов}')
+# Подстановки, которые могут оказаться пустыми: пустая забирает пустые строки перед собой.
+OPTIONAL_PLACEHOLDERS = ('{концовка}',)
+# Шаблон «Таплиста пятницы» по умолчанию: подсказка в поле текста и пример агенту.
+TAPLIST_TEMPLATE = '{вступление}\n\n{таплист}\n\n{концовка}'
 LIVE_SOURCES = {
     'taplist': {
         'key': 'taplist', 'name': 'Таплист бара',
+        'template': TAPLIST_TEMPLATE,
         'placeholders': [
-            {'token': '{бар}', 'hint': 'полное название бара'},
-            {'token': '{дата}', 'hint': 'дата выхода, например «9 октября»'},
+            {'token': '{вступление}', 'hint': 'первая строка поста — каждую неделю и в каждом баре своя '
+                                              '(«Традиционный пятничный таплист!»)'},
             {'token': '{таплист}', 'hint': 'список кранов: номер, пивоварня и название (ссылка на Untappd), '
                                               'стиль, крепость, «новинка»'},
+            {'token': '{концовка}', 'hint': 'последняя строка в пару к вступлению («Ждём!»); бывает пустой'},
+            {'token': '{бар}', 'hint': 'полное название бара'},
+            {'token': '{где}', 'hint': 'бар для фразы: «на Кременчугской»'},
+            {'token': '{дата}', 'hint': 'дата выхода, например «9 октября»'},
             {'token': '{кранов}', 'hint': 'число активных кранов'},
         ],
     },
@@ -1499,12 +1515,22 @@ def load_live_data(registry=None):
     return snapshot, registry
 
 
+def _post_day(day, moment: datetime) -> date:
+    """Дата выхода для выбора фраз: 'YYYY-MM-DD' -> date; нечитаемая — день момента."""
+    try:
+        return datetime.strptime(str(day), '%Y-%m-%d').date()
+    except ValueError:
+        return moment.date()
+
+
 def render_live(source, bar, template, pub_date=None, snapshot=None, registry=None, now=None,
                 channel=None, has_media=None, names=None) -> dict:
     """Подставить живые данные в шаблон и проверить правила остановки.
 
     -> {ok, text, entities, problems:[{code, text}], length, limit, limit_note,
-    channel, has_media, rows, data_at, taps_changed_at}.
+    channel, has_media, rows, data_at, taps_changed_at, phrase}.
+    phrase — {variant, total, intro, outro}: какой вариант вступления и концовки выбран
+    для этого бара и дня (номер с единицы из total) и их текст; None — бар не выбран.
     rows — строки таплиста [{tap_number, brewery, beer_name, style, abv, mapped,
     mapping_message, name, untappd_url, new, line}]: name — пивоварня и название
     так, как в посте, new — пометка «новинка». ok=False означает «публикация будет
@@ -1589,8 +1615,14 @@ def render_live(source, bar, template, pub_date=None, snapshot=None, registry=No
     day = pub_date or moment.date().isoformat()
     values = {'{дата}': fmt_date_ru(day)}
     block = '\n'.join(lines)
+    phrase = None
     if bar_ok and source in LIVE_SOURCES:
-        values.update({'{бар}': BAR_BY_KEY[bar]['name'], '{таплист}': block, '{кранов}': str(len(rows))})
+        info = BAR_BY_KEY[bar]
+        inner = {'{бар}': info['name'], '{где}': info['where'], '{дата}': values['{дата}']}
+        intro, outro, number, total = taplist_post.phrases_for(_post_day(day, moment), TAPLIST_BAR_IDS[bar], inner)
+        phrase = {'variant': number, 'total': total, 'intro': intro, 'outro': outro}
+        values.update({'{бар}': info['name'], '{где}': info['where'], '{вступление}': intro,
+                       '{концовка}': outro, '{таплист}': block, '{кранов}': str(len(rows))})
     # Один проход по шаблону: подставленное значение (название пива с «{…}»)
     # повторно не разбирается. По ходу считается позиция каждого {таплист} в
     # единицах UTF-16 — от неё отсчитываются ссылки на Untappd.
@@ -1600,6 +1632,8 @@ def render_live(source, bar, template, pub_date=None, snapshot=None, registry=No
     for match in _TOKEN_RE.finditer(template):
         before, token = template[last:match.start()], match.group(0)
         value = values.get(token, token)
+        if token in OPTIONAL_PLACEHOLDERS and token in values and not value:
+            before = before.rstrip()    # пустая концовка: без пустых строк в конце поста
         units += taplist_post.utf16_len(before)
         if token == '{таплист}' and token in values:
             for begin, end, url in links:
@@ -1616,7 +1650,8 @@ def render_live(source, bar, template, pub_date=None, snapshot=None, registry=No
     return {'ok': not problems, 'text': text, 'entities': entities, 'problems': problems, 'length': length,
             'limit': limit, 'limit_note': limit_note_for(channel, with_media),
             'channel': channel, 'has_media': with_media, 'rows': rows_out,
-            'data_at': fmt_stamp(moment), 'taps_changed_at': fmt_stamp(changed) if changed else None}
+            'data_at': fmt_stamp(moment), 'taps_changed_at': fmt_stamp(changed) if changed else None,
+            'phrase': phrase}
 
 
 # ---------------------------------------------------------------------------

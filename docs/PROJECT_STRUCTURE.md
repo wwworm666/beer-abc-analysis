@@ -160,7 +160,7 @@ beer-abc-analysis/
 | `open_check_scheduler.py` | Daemon-thread, open-check в 14:59 МСК + atomic lock |
 | `content_publisher_scheduler.py` | Daemon-thread, отправка контент-плана раз в минуту (hh:mm:01), один процесс (flock `data/.content_publisher.lock`); без токена бота и при `CONTENT_PUBLISH=0` не стартует |
 | `taplist_polling.py` | Long-polling гостевого бота @kult_taplist_bot: краны, подписка на новости с согласием, отзывы, выключатель `bot.signup` и меню команд |
-| `taplist_post.py` | **Таплист текстом** (с 2026-10-04): строка крана «{кран}. {пивоварня и название} — {стиль}, {крепость}%[, новинка]», ссылка на Untappd, «новинка» по истории кранов, свежесть кранов; общая для «Таплиста пятницы» (`content_plan.render_live`) и гостевого бота (`bar_message_html`). Данные о пиве — только реестр Untappd, словарь имён — `resources/taplist_post_names.json` |
+| `taplist_post.py` | **Таплист текстом** (с 2026-10-04): строка крана «{кран}. {пивоварня и название} — {стиль}, {крепость}%[, новинка]», ссылка на Untappd, «новинка» по истории кранов, свежесть кранов; общая для «Таплиста пятницы» (`content_plan.render_live`) и гостевого бота (`bar_message_html`). Данные о пиве — только реестр Untappd, словарь имён — `resources/taplist_post_names.json`; вступление и концовка поста — `resources/taplist_post_phrases.json`, свой вариант на неделю и бар (с 2026-10-09) |
 | `open_check_bot.py` | Логика проверки + форматирование |
 | `open_check_telegram.py` | Telegram Bot API sync с обходом блокировок (`api_call`, файлы — `api_call_files`; `safe_resend` — запасной путь только при доказанном «не ушло»), меню подписки (кнопка) + команды /start /status |
 | `open_check_subscribers.py` | Хранилище самоподписавшихся чатов (единый список, portalocker) |
