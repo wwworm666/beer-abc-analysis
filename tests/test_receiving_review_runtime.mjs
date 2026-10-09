@@ -68,7 +68,10 @@ class El {
         this.colSpan = 1;
         this.maxLength = -1;
         this.scrolled = 0;
+        this.scrollOpts = null;
         this.blurred = 0;
+        this.selected = 0;
+        this.focused = 0;
     }
     get classList() {
         const self = this;
@@ -106,6 +109,21 @@ class El {
         child.parentNode = null;
         return child;
     }
+    // Как в DOM: ref = null — в конец; узел переезжает из прежнего родителя.
+    insertBefore(child, ref) {
+        if (!ref) return this.appendChild(child);
+        if (child.parentNode) child.parentNode.removeChild(child);
+        const i = this.children.indexOf(ref);
+        if (i < 0) throw new Error('insertBefore: ref не ребёнок этого узла');
+        child.parentNode = this;
+        this.children.splice(i, 0, child);
+        return child;
+    }
+    get nextSibling() {
+        if (!this.parentNode) return null;
+        const list = this.parentNode.children;
+        return list[list.indexOf(this) + 1] || null;
+    }
     setAttribute(name, value) {
         const v = String(value);
         this.attributes[name] = v;
@@ -138,10 +156,10 @@ class El {
         if (this.disabled) return null;
         return this.dispatch('click', Object.assign({ button: 0 }, init || {}));
     }
-    focus() { if (El.doc) El.doc.activeElement = this; }
+    focus(opts) { this.focused++; this.focusOpts = opts || null; if (El.doc) El.doc.activeElement = this; }
     blur() { this.blurred++; if (El.doc && El.doc.activeElement === this) El.doc.activeElement = null; }
-    select() {}
-    scrollIntoView() { this.scrolled++; }
+    select() { this.selected++; }
+    scrollIntoView(opts) { this.scrolled++; this.scrollOpts = opts || null; }
 }
 
 function walk(node, fn) {
@@ -265,11 +283,18 @@ const RECEIPTS = [
     { id: 12, status: 'closed', note: '', created_at: '2026-10-03T08:00:00+03:00', created_by: 'Пётр',
       closed_at: '2026-10-03T09:00:00+03:00', closed_by: 'Пётр', process_state: 'done',
       processed_at: '2026-10-03T09:01:00+03:00', process_note: '',
-      counts: { units: 340, gtins: 18, rejected: 2, repeats: 5, invoices: 1 } },
+      counts: { units: 340, gtins: 18, rejected: 2, repeats: 5, invoices: 1 },
+      review: { open: 3, closed: 15, missing: 0 }, reviewed: false, can_delete: true },
     { id: 11, status: 'closed', note: 'Машина Бирмаркета', created_at: '2026-10-02T17:00:00+03:00', created_by: 'Пётр',
       closed_at: '2026-10-02T18:00:00+03:00', closed_by: 'Пётр', process_state: 'error',
       processed_at: '2026-10-02T18:01:00+03:00', process_note: 'Нет индекса iiko: Не настроено подключение к iiko',
-      counts: { units: 11, gtins: 3, rejected: 0, repeats: 0, invoices: 0 } },
+      counts: { units: 11, gtins: 3, rejected: 0, repeats: 0, invoices: 0 },
+      review: { open: 0, closed: 0, missing: 3 }, reviewed: false, can_delete: true },
+    { id: 10, status: 'closed', note: '', created_at: '2026-10-01T10:00:00+03:00', created_by: 'Анна',
+      closed_at: '2026-10-01T11:00:00+03:00', closed_by: 'Анна', process_state: 'done',
+      processed_at: '2026-10-01T11:01:00+03:00', process_note: '',
+      counts: { units: 24, gtins: 2, rejected: 0, repeats: 0, invoices: 0 },
+      review: { open: 0, closed: 2, missing: 0 }, reviewed: true, can_delete: false },
 ];
 
 const SUPPLIERS = ['Бирмаркет', 'Пивторг', 'Солодовня'];
@@ -290,6 +315,9 @@ function makeServer() {
         putReply: null,        // принудительный ответ PUT
         deferred: [],          // запросы, ответ на которые тест отдаст сам
         holdNext: null,        // предикат: какой запрос задержать
+        receipts: JSON.parse(JSON.stringify(RECEIPTS)),
+        deleteReply: null,     // принудительный ответ DELETE /api/receiving/<id>
+        receiptReply: null,    // принудительный ответ GET /api/receiving/<id>
     };
 
     function counts(items) {
@@ -309,16 +337,16 @@ function makeServer() {
         const u = new URL(url, 'http://test');
         const st = u.searchParams.get('state') || 'open';
         const statuses = (u.searchParams.get('status') || '').split(',').filter(Boolean);
-        const rid = u.searchParams.get('receipt_id');
+        const rids = (u.searchParams.get('receipt_id') || '').split(',').filter(Boolean);
         const q = (u.searchParams.get('q') || '').toLowerCase().replace(/ё/g, 'е');
         let items = db.rows;
-        if (rid) items = items.filter((r) => r.receipts.some((x) => String(x.id) === rid));
+        if (rids.length) items = items.filter((r) => r.receipts.some((x) => rids.includes(String(x.id))));
         if (q) items = items.filter((r) => JSON.stringify(r).toLowerCase().replace(/ё/g, 'е').includes(q));
         const selected = items.filter((r) => (st === 'all' || r.state === st)
             && (!statuses.length || statuses.includes(r.status)));
         selected.sort((a, b) => (a.state === b.state ? 0 : a.state === 'open' ? -1 : 1));
         return { rows: selected, total: selected.length + db.totalExtra, counts: counts(items),
-                 index: db.index, job: db.job, suppliers: SUPPLIERS, receipts: RECEIPTS };
+                 index: db.index, job: db.job, suppliers: SUPPLIERS, receipts: db.receipts };
     }
 
     function put(gtin, body) {
@@ -389,7 +417,15 @@ function makeServer() {
             return next;
         }
         const m = /^\/api\/receiving\/(\d+)$/.exec(url);
-        if (method === 'GET' && m) return receipt(m[1]);
+        if (method === 'GET' && m) return db.receiptReply || receipt(m[1]);
+        if (method === 'DELETE' && m) {
+            if (db.deleteReply) return db.deleteReply;
+            const gone = db.receipts.find((r) => String(r.id) === m[1]);
+            if (!gone) return { status: 404, data: { error: 'Приёмка не найдена' } };
+            db.receipts = db.receipts.filter((r) => r !== gone);
+            return { status: 200, data: { deleted: true, receipt: gone, rows_deleted: 2, rows_kept: 1,
+                                          invoices_deleted: gone.counts.invoices } };
+        }
         return { status: 404, data: { error: 'нет маршрута ' + method + ' ' + url } };
     }
 
@@ -408,6 +444,8 @@ function boot(opts) {
     const clipboard = [];
     const urls = [];
     const execCalls = [];
+    const confirms = [];
+    let confirmAnswer = options.confirm !== false;
     let timers = [];
     let timerSeq = 0;
     const body = new El('body');
@@ -455,6 +493,10 @@ function boot(opts) {
             clipboard: { writeText: (text) => { clipboard.push(text); return Promise.resolve(); } },
         },
         fetch: fetchStub,
+        // Мышь (fine pointer) — только по просьбе теста: по умолчанию matchMedia нет,
+        // как в старом браузере, и страница ведёт себя как на сенсорном экране.
+        matchMedia: options.finePointer ? (query) => ({ media: query, matches: /pointer: fine/.test(query) }) : undefined,
+        confirm: (text) => { confirms.push(text); return confirmAnswer; },
         setTimeout: (fn, ms) => { const id = ++timerSeq; timers.push({ id, fn, ms }); return id; },
         clearTimeout: (id) => { timers = timers.filter((t) => t.id !== id); },
     };
@@ -465,7 +507,9 @@ function boot(opts) {
     new vm.Script(JS, { filename: 'review.js' }).runInContext(sandbox);
 
     const env = {
-        sandbox, byId, server, db: server.db, calls, clipboard, urls, execCalls, body, docListeners,
+        sandbox, byId, server, db: server.db, calls, clipboard, urls, execCalls, body, docListeners, confirms,
+        setConfirm(value) { confirmAnswer = value; },
+        chip(id) { return byId.rvPickList.children.find((n) => n.dataset.receipt === String(id)); },
         api: sandbox.__rvReview,
         timers: () => timers.slice(),
         async runTimers(ms) {
@@ -481,6 +525,11 @@ function boot(opts) {
         },
         document: sandbox.document,
         rows() { return byId.rvRows.children.filter((tr) => tr.dataset.gtin); },
+        // Строка таблицы с панелью «Поиск в iiko» под позицией (без data-gtin) или null.
+        drawer() { return byId.rvRows.children.find((tr) => tr.className === 'rv-find-tr') || null; },
+        // Что сейчас сразу под строкой разбора.
+        after(tr) { const list = byId.rvRows.children; return list[list.indexOf(tr) + 1] || null; },
+        gets(url) { return calls.filter((c) => c.method === 'GET' && c.url === url).length; },
         row(gtin) { return byId.rvRows.children.find((tr) => tr.dataset.gtin === gtin); },
         button(tr, action) { return findAll(tr, (n) => n.tagName === 'BUTTON' && n.dataset.action === action)[0]; },
         tab(id) { return byId.rvTabs.children.find((b) => b.dataset.tab === id); },
@@ -504,7 +553,7 @@ await test('при старте один запрос разбора: вклад
     assert.equal(gets.length, 1, 'страница не сходила за данными или сходила дважды');
     assert.equal(gets[0].url, '/api/receiving/review?state=open&limit=200');
     assert.equal(gets[0].method, 'GET');
-    assert.equal(b.rvReceiptChip.hidden, true, 'плашка приёмки без ?receipt=');
+    assert.ok(env.chip('all').classList.contains('is-on'), 'без ?receipt= выбраны «Все приёмки»');
     assert.equal(b.rvError.hidden, true);
 });
 
@@ -519,6 +568,10 @@ await test('шапка: дата индекса и число карточек, 
     assert.equal(b.rvJob.hidden, true, 'строка хода видна без обновления');
     assert.equal(b.rvRefresh.disabled, false);
     assert.equal(b.rvRefreshLabel.textContent, 'Обновить из iiko');
+    // Индекс свежий — кнопка тихая: обновлять нечего, индекс собирается сам.
+    assert.ok(b.rvRefresh.classList.contains('rv-btn-ghost'));
+    assert.ok(!b.rvRefresh.classList.contains('rv-btn-primary'));
+    assert.ok(!b.rvIndex.classList.contains('is-stale'));
 });
 
 await test('вкладки со счётчиками сервера; активна «К разбору»', () => {
@@ -552,7 +605,13 @@ await test('строки всех открытых статусов: табле�
         assert.ok(!tr.classList.contains('is-closed'));
     });
     const cells = findAll(rows[0], byTag('td')).map((td) => td.className);
-    assert.deepEqual(cells, ['rv-td-st', 'rv-td-pos', 'rv-td-qty', 'rv-td-cards', 'rv-td-sup', 'rv-td-note', 'rv-td-act']);
+    assert.deepEqual(cells, ['rv-td-pos', 'rv-td-qty', 'rv-td-cards', 'rv-td-edit', 'rv-td-act']);
+    // Статус — верхней строкой ячейки позиции, поставщик и заметка — одной ячейкой.
+    const pos = findAll(rows[0], hasClass('rv-td-pos'))[0];
+    assert.equal(pos.children[0].className, 'rv-pos-top');
+    assert.equal(findAll(pos.children[0], hasClass('rv-pill')).length, 1);
+    const edit = findAll(rows[0], hasClass('rv-edit'))[0];
+    assert.deepEqual(edit.children.map((n) => n.className), ['rv-edit-sup', 'rv-edit-note']);
 });
 
 await test('позиция: название ЧЗ, бренд/группа/объём, штрихкод для iiko и GTIN; без ЧЗ — «нет данных ЧЗ»', () => {
@@ -622,24 +681,35 @@ await test('поставщик: выбор из справочника у нов
     assert.equal(select('04650075420019').value, '');
     const hint = findAll(env.row('00000046123456'), hasClass('rv-sup-hint'))[0];
     assert.equal(hint.textContent, 'у карточки iiko: Пивторг');
-    const dupSup = findAll(env.row('14600000000005'), hasClass('rv-td-sup'))[0];
+    const dupSup = findAll(env.row('14600000000005'), hasClass('rv-td-edit'))[0];
     assert.equal(dupSup.textContent, 'Солодовнякатегория карточки iiko');
 });
 
-await test('кнопки: «Скопировать» у новой и похожей, «Найти», «Сделано», «Не нужно» у открытых', () => {
+await test('кнопки: «Найти в iiko» у открытых, «Скопировать» у новой и похожей, «Сделано», «Не нужно»', () => {
     const actions = (gtin) => findAll(env.row(gtin), byTag('button')).map((n) => n.dataset.action);
-    assert.deepEqual(actions('04650075420019'), ['copy', 'find', 'done', 'not_needed']);
-    assert.deepEqual(actions('04607043562301'), ['copy', 'find', 'done', 'not_needed']);
+    assert.deepEqual(actions('04650075420019'), ['find', 'copy', 'done', 'not_needed']);
+    assert.deepEqual(actions('04607043562301'), ['find', 'copy', 'done', 'not_needed']);
     assert.deepEqual(actions('00000046123456'), ['find', 'done', 'not_needed']);
     assert.deepEqual(actions('14600000000005'), ['find', 'done', 'not_needed']);
     const done = env.button(env.row('04650075420019'), 'done');
     assert.equal(done.textContent, 'Сделано');
     assert.ok(done.classList.contains('rv-btn-primary'));
+    // Инструменты строки — ссылками под позицией, решение — своей колонкой.
+    const tr = env.row('04650075420019');
+    const tools = findAll(tr, hasClass('rv-pos-acts'))[0];
+    assert.ok(findAll(tr, hasClass('rv-td-pos'))[0].children.includes(tools), 'инструменты не в ячейке позиции');
+    assert.deepEqual(tools.children.map((n) => [n.dataset.action, n.className, n.textContent]),
+        [['find', 'rv-link', 'Найти в iiko'], ['copy', 'rv-link', 'Скопировать для iiko']]);
+    assert.equal(env.button(tr, 'find').getAttribute('aria-controls'), 'rvIiko');
+    assert.equal(env.button(tr, 'find').getAttribute('aria-expanded'), 'false');
+    const acts = findAll(findAll(tr, hasClass('rv-td-act'))[0], byTag('button')).map((n) => n.dataset.action);
+    assert.deepEqual(acts, ['done', 'not_needed']);
+    assert.equal(findAll(tr, hasClass('rv-acts'))[0].children.length, 2, 'кнопки решения не прямо в колонке');
 });
 
 await test('блок «Приёмки»: номер, кто и когда, шт., позиции, сверка, ошибка сверки', () => {
     const items = b.rvReceipts.children;
-    assert.equal(items.length, 2);
+    assert.equal(items.length, 3);
     const first = flat(items[0].textContent);
     assert.match(first, /^№1203\.10 09:00 · Пётрсверена/);
     assert.match(first, /340 шт\. · 18 позиций · отклонено 2 · повторов 5 · фото накладных 1/);
@@ -736,7 +806,9 @@ await test('«Сделано»: PUT state=done, строка заблокиро�
     assert.equal(env.calls.length, 1, 'второй щелчок отправил второй PUT');
     await env.release();
     assert.equal(env.calls[1].url, '/api/receiving/review?state=open&limit=200', 'список не перечитан');
-    assert.equal(flat(b.rvToast.textContent), 'Сделано: Пиво светлое нефильтрованное «Жигулёвское Барное»');
+    // Текст уведомления и кнопка «Вернуть» после него.
+    assert.equal(flat(b.rvToast.textContent), 'Сделано: Пиво светлое нефильтрованное «Жигулёвское Барное»Вернуть');
+    assert.equal(findAll(b.rvToast, hasClass('rv-toast-act'))[0].textContent, 'Вернуть');
     assert.equal(b.rvToast.hidden, false);
     assert.equal(env.row('04650075420019'), undefined, 'закрытая строка осталась на вкладке «К разбору»');
     assert.equal(flat(env.tab('open').textContent), 'К разбору3');
@@ -749,7 +821,8 @@ await test('«Не нужно»: PUT state=not_needed', async () => {
     await flush();
     assert.equal(env.calls[0].url, '/api/receiving/review/14600000000005');
     assert.deepEqual(env.calls[0].body, { state: 'not_needed' });
-    assert.match(flat(b.rvToast.textContent), /^Не нужно: Kriek Boon$/);
+    assert.match(flat(b.rvToast.textContent), /^Не нужно: Kriek BoonВернуть$/);
+    assert.equal(findAll(b.rvToast, hasClass('rv-toast-act')).length, 1);
 });
 
 await test('вкладка «Закрытые»: state=closed, решение и кто закрыл, «Вернуть в разбор» — PUT state=open', async () => {
@@ -768,7 +841,8 @@ await test('вкладка «Закрытые»: state=closed, решение и
     assert.ok(findAll(env.row('04601234567891'), hasClass('rv-pill'))[0].classList.contains('is-ok'));
     assert.deepEqual(findAll(env.row('04600000000017'), byTag('button')).map((n) => n.dataset.action), ['open']);
     assert.equal(findAll(env.row('04600000000017'), byTag('select')).length, 0, 'у закрытой строки выбор поставщика');
-    assert.equal(findAll(env.row('04600000000017'), hasClass('rv-td-sup'))[0].textContent, 'Солодовня');
+    assert.equal(findAll(env.row('04600000000017'), hasClass('rv-td-edit'))[0].textContent, 'Солодовня');
+    assert.equal(findAll(env.row('04600000000017'), hasClass('rv-pos-acts')).length, 0, 'у закрытой строки «Найти в iiko»');
     env.clearCalls();
     env.button(env.row('04600000000017'), 'open').click();
     await flush();
@@ -776,6 +850,7 @@ await test('вкладка «Закрытые»: state=closed, решение и
     assert.deepEqual(env.calls[0].body, { state: 'open' });
     assert.equal(env.calls[1].url, '/api/receiving/review?state=closed&limit=200');
     assert.match(flat(b.rvToast.textContent), /^Возвращена в разбор: Эль Тёмный$/);
+    assert.equal(findAll(b.rvToast, hasClass('rv-toast-act')).length, 0, 'у возврата в разбор своя отмена не нужна');
     assert.equal(env.row('04600000000017'), undefined);
 });
 
@@ -794,6 +869,7 @@ await test('вкладки статусов: state=open&status=...; «Все» �
     await flush();
     assert.equal(env.rows().length, 0);
     assert.equal(b.rvRows.textContent, 'Строк со статусом «Дубль штрихкода» нет');
+    assert.equal(b.rvRows.children[0].children[0].colSpan, 5, 'пустая строка не на все колонки');
     env.tab('open').click();
     await flush();
 });
@@ -841,7 +917,7 @@ await test('поиск по таблице: пауза в наборе, зате
 await test('поставщик: PUT supplier, «сохранено»; не из справочника — откат и ошибка; пусто — снят', async () => {
     const tr = env.row('00000046123456');
     const select = findAll(tr, byTag('select'))[0];
-    const status = findAll(findAll(tr, hasClass('rv-td-sup'))[0], hasClass('rv-saved'))[0];
+    const status = findAll(findAll(tr, hasClass('rv-td-edit'))[0], hasClass('rv-saved'))[0];
     env.clearCalls();
     select.value = 'Солодовня';
     select.dispatch('change');
@@ -941,12 +1017,31 @@ await test('«Найти в iiko»: слова названия без стоп-
     const tr = env.row('04650075420019');
     env.clearCalls();
     const before = b.rvIiko.scrolled;
+    const focusedBefore = b.rvIikoQ.focused;
     env.button(tr, 'find').click();
     await flush();
     assert.equal(b.rvIikoQ.value, 'жигулевское барное');
     assert.equal(env.calls.length, 1);
     assert.equal(env.calls[0].url, '/api/receiving/products?q=' + encodeURIComponent('жигулевское барное') + '&limit=20');
     assert.equal(b.rvIiko.scrolled, before + 1, 'блок поиска не прокручен в вид');
+    // Прокрутка «ближайшая»: строка, которая открыла поиск, не уезжает вверх за экран.
+    assert.equal(JSON.stringify(b.rvIiko.scrollOpts), JSON.stringify({ behavior: 'smooth', block: 'nearest' }));
+    // Панель — прямо под строкой, в строке таблицы на все колонки, без data-gtin.
+    assert.equal(b.rvIiko.hidden, false);
+    const td = b.rvIiko.parentNode;
+    assert.equal(td.className, 'rv-find-td');
+    assert.equal(td.colSpan, 5);
+    const drawer = td.parentNode;
+    assert.equal(drawer.className, 'rv-find-tr');
+    assert.equal(drawer.dataset.gtin, undefined, 'строка поиска выглядит как строка разбора');
+    assert.equal(env.after(tr), drawer, 'поиск не сразу под строкой');
+    assert.ok(!env.rows().includes(drawer), 'строка поиска попала в строки разбора');
+    assert.ok(tr.classList.contains('is-finding'));
+    const find = env.button(tr, 'find');
+    assert.equal(find.getAttribute('aria-expanded'), 'true');
+    assert.equal(find.textContent, 'Скрыть поиск');
+    // Фокус El.doc — у последнего окружения, поэтому здесь считаем вызовы focus().
+    assert.equal(b.rvIikoQ.focused, focusedBefore, 'на сенсорном экране фокус в поле поднял бы клавиатуру');
     const hits = b.rvIikoResults.children;
     assert.equal(hits.length, 2);
     assert.equal(flat(hits[0].textContent),
@@ -955,6 +1050,18 @@ await test('«Найти в iiko»: слова названия без стоп-
     assert.match(hits[1].textContent, /штрихкодов нет/);
     assert.equal(b.rvIikoMsg.textContent, 'Найдено: 2');
     assert.equal(b.rvIikoInfo.textContent, 'индекс от 03.10.2026 07:30');
+    // Второй щелчок по той же строке закрывает поиск: панель — домой, фокус — на кнопку.
+    find.click();
+    await flush();
+    assert.equal(env.calls.length, 1, 'закрытие поиска ушло на сервер');
+    assert.equal(b.rvIiko.hidden, true);
+    assert.equal(b.rvIiko.parentNode, b.rvIikoHome, 'панель не вернулась под шапку таблицы');
+    assert.equal(env.drawer(), null, 'строка поиска осталась в таблице');
+    assert.ok(!tr.classList.contains('is-finding'));
+    assert.equal(find.getAttribute('aria-expanded'), 'false');
+    assert.equal(find.textContent, 'Найти в iiko');
+    assert.equal(find.focused, 1, 'фокус не вернулся на «Найти в iiko»');
+    assert.equal(JSON.stringify(find.focusOpts), JSON.stringify({ preventScroll: true }));
     env.api.load();
     await flush();
 });
@@ -973,6 +1080,9 @@ await test('ключевые слова — те же правила, что у 
     assert.deepEqual([...k('Пиво светлое пастеризованное "Балтика 7 Экспортное" 0,45 бут.')], ['балтика', 'экспортное']);
     assert.deepEqual([...k('Ёлка ёлка  ЁЛКА')], ['елка']);
     assert.deepEqual([...k('ab 12345 IPA')], ['ipa']);
+    // Ревью 2026-10-04: объём одним словом — не слово, описания ЧЗ мужского рода — стоп-слова.
+    assert.deepEqual([...k('КЕГ Варка Лагер 30л. 500мл')], ['варка', 'лагер']);
+    assert.deepEqual([...k('Сидр традиционный газированный Майзельс')], ['сидр', 'майзельс']);
     assert.deepEqual([...k('')], []);
     assert.equal(env.api.searchQueryFor({ chz: { name: 'Напиток пивной Хугарден Вит Бланш' }, barcode: '1' }), 'хугарден вит');
 });
@@ -1012,6 +1122,7 @@ await test('«Обновить из iiko»: POST, опрос каждые 4 с �
     assert.equal(b.rvRefresh.disabled, true);
     assert.ok(b.rvRefresh.classList.contains('is-busy'));
     assert.equal(b.rvRefreshLabel.textContent, 'Обновляем...');
+    assert.ok(!b.rvRefresh.classList.contains('rv-btn-primary'), 'идущее обновление не просит нажать ещё раз');
     assert.equal(b.rvJob.hidden, false);
     assert.match(b.rvJob.textContent, /^Обновляется из iiko/);
     assert.ok(env.timers().some((t) => t.ms === 4000), 'опрос не запланирован через 4 с');
@@ -1063,6 +1174,9 @@ await test('обновление: 409 — тоже опрос; ошибка в j
     assert.ok(b.rvJob.classList.contains('is-bad'));
     assert.equal(b.rvJob.textContent, 'Последнее обновление не удалось (03.10 10:06): iiko не отвечает');
     assert.equal(b.rvRefresh.disabled, false);
+    // Обновление не удалось — кнопка выделяется: без неё индекс так и останется старым.
+    assert.ok(b.rvRefresh.classList.contains('rv-btn-primary'));
+    assert.ok(!b.rvRefresh.classList.contains('rv-btn-ghost'));
     env.db.job = JOB_IDLE;
     env.db.refreshReply = { status: 202, data: { status: 'started' } };
 });
@@ -1108,21 +1222,60 @@ await test('обновление уже идёт при открытии стр�
     assert.equal(e2.byId.rvRefresh.disabled, false);
 });
 
-await test('?receipt=12: фильтр в запросе и плашка; крестик снимает фильтр и чистит адрес', async () => {
+await test('?receipt=12: фильтр в запросе и выбранная приёмка; «Все приёмки» снимает выбор и чистит адрес', async () => {
     const e2 = boot({ search: '?receipt=12' });
     await flush();
     assert.equal(e2.calls[0].url, '/api/receiving/review?state=open&receipt_id=12&limit=200');
-    assert.equal(e2.byId.rvReceiptChip.hidden, false);
-    assert.equal(e2.byId.rvReceiptLabel.textContent, 'Приёмка №12');
+    assert.ok(e2.chip(12).classList.contains('is-on'));
+    assert.equal(e2.chip(12).getAttribute('aria-pressed'), 'true');
+    assert.ok(!e2.chip('all').classList.contains('is-on'));
+    assert.equal(e2.byId.rvPickSub.textContent, 'выбрана приёмка №12 — показаны только её позиции');
     assert.deepEqual(e2.rows().map((r) => r.dataset.gtin), ['04650075420019', '04607043562301', '14600000000005']);
     assert.ok(e2.byId.rvReceipts.children[0].classList.contains('is-current'), 'приёмка не подсвечена в списке');
     e2.clearCalls();
-    e2.byId.rvReceiptClear.click();
+    e2.chip('all').click();
     await flush();
     assert.deepEqual(e2.urls, ['/receiving/review']);
     assert.equal(e2.calls[0].url, '/api/receiving/review?state=open&limit=200');
-    assert.equal(e2.byId.rvReceiptChip.hidden, true);
+    assert.ok(e2.chip('all').classList.contains('is-on'));
     assert.equal(e2.rows().length, 4);
+});
+
+await test('выбор приёмок: неразобранные вверху, щелчок добавляет и убирает, можно несколько', async () => {
+    const e2 = boot();
+    await flush();
+    const chips = e2.byId.rvPickList.children.map((n) => n.dataset.receipt);
+    assert.deepEqual(chips, ['all', '12', '11'], 'разобранная №10 в выбор не попадает');
+    assert.equal(flat(e2.chip(12).textContent), '№12 · 03.103 к разбору');
+    assert.equal(flat(e2.chip(11).textContent), '№11 · 02.10ошибка сверки');
+    assert.match(e2.chip(12).title, /Приёмка №12: 03\.10 09:00, Пётр; 340 шт\., 18 позиций/);
+    assert.equal(e2.byId.rvPickSub.textContent, 'неразобранных 2');
+    e2.clearCalls();
+    e2.chip(12).click();
+    await flush();
+    e2.chip(11).click();
+    await flush();
+    assert.equal(e2.lastGet('/api/receiving/review?').url, '/api/receiving/review?state=open&receipt_id=12,11&limit=200');
+    assert.deepEqual(e2.urls.slice(-1), ['/receiving/review?receipt=12,11']);
+    assert.ok(e2.chip(12).classList.contains('is-on') && e2.chip(11).classList.contains('is-on'));
+    assert.equal(e2.byId.rvPickSub.textContent, 'выбрано приёмок: 2 — показаны только их позиции');
+    assert.equal(e2.rows().length, 4, 'строки обеих приёмок');
+    e2.chip(12).click();
+    await flush();
+    assert.equal(e2.lastGet('/api/receiving/review?').url, '/api/receiving/review?state=open&receipt_id=11&limit=200');
+    assert.ok(!e2.chip(12).classList.contains('is-on'), 'повторный щелчок не снял выбор');
+});
+
+await test('?receipt=12,10,99: выбранные видны, даже разобранная и несуществующая', async () => {
+    const e2 = boot({ search: '?receipt=12,10,99' });
+    await flush();
+    assert.equal(e2.calls[0].url, '/api/receiving/review?state=open&receipt_id=12,10,99&limit=200');
+    assert.deepEqual(e2.byId.rvPickList.children.map((n) => n.dataset.receipt), ['all', '12', '11', '10', '99']);
+    assert.equal(flat(e2.chip(10).textContent), '№10 · 01.10разобрана');
+    assert.equal(flat(e2.chip(99).textContent), '№99не найдена');
+    e2.chip(99).click();
+    await flush();
+    assert.deepEqual(e2.urls.slice(-1), ['/receiving/review?receipt=12,10']);
 });
 
 await test('щелчок по приёмке в строке и «Показать позиции» ставят фильтр без перехода', async () => {
@@ -1135,7 +1288,8 @@ await test('щелчок по приёмке в строке и «Показат
     assert.ok(ev.defaultPrevented, 'ссылка перезагрузила страницу');
     assert.deepEqual(e2.urls, ['/receiving/review?receipt=11']);
     assert.equal(e2.calls[0].url, '/api/receiving/review?state=open&receipt_id=11&limit=200');
-    assert.equal(e2.byId.rvReceiptLabel.textContent, 'Приёмка №11');
+    assert.equal(JSON.stringify(e2.api.state.picked), '[11]');     // массив из другого контекста vm
+    assert.ok(e2.chip(11).classList.contains('is-on'));
     assert.equal(e2.byId.rvTabs.scrolled, 1, 'таблица не прокручена в вид');
     const ctrl = findAll(e2.row('00000046123456'), byTag('a'))[0].click({ ctrlKey: true });
     assert.ok(!ctrl.defaultPrevented, 'Ctrl-щелчок не открыл новую вкладку');
@@ -1143,8 +1297,133 @@ await test('щелчок по приёмке в строке и «Показат
     e2.clearCalls();
     show.click();
     await flush();
-    assert.equal(e2.calls[0].url, '/api/receiving/review?state=open&receipt_id=12&limit=200');
+    assert.equal(e2.lastGet('/api/receiving/review?').url, '/api/receiving/review?state=open&receipt_id=12&limit=200');
+    assert.equal(e2.calls.filter((c) => c.url.startsWith('/api/receiving/review?')).length, 1);
+    // Одна выбранная приёмка — заодно фото её накладной (строка под выбором).
+    assert.equal(e2.gets('/api/receiving/12'), 1);
     assert.deepEqual(e2.urls.slice(-1), ['/receiving/review?receipt=12']);
+});
+
+await test('история: прогресс разбора, «Удалить приёмку» только у разобранных не полностью', async () => {
+    const e2 = boot();
+    await flush();
+    const [r12, r11, r10] = e2.byId.rvReceipts.children;
+    assert.equal(findAll(r12, hasClass('rv-rc-prog'))[0].textContent, 'к разбору 3 из 18');
+    assert.equal(findAll(r11, hasClass('rv-rc-prog'))[0].textContent, 'не сверено 3');
+    const done = findAll(r10, hasClass('rv-rc-prog'))[0];
+    assert.equal(done.textContent, 'разобрана');
+    assert.ok(done.classList.contains('is-done'));
+    const del = (box) => findAll(box, (n) => n.dataset.action === 'delete');
+    assert.equal(del(r12).length, 1);
+    assert.equal(del(r12)[0].textContent, 'Удалить приёмку');
+    assert.equal(del(r11).length, 1);
+    assert.equal(del(r10).length, 0, 'у разобранной полностью кнопки нет');
+});
+
+await test('«Удалить приёмку»: подтверждение, DELETE, выбор снят, список перечитан', async () => {
+    const e2 = boot({ search: '?receipt=12,11' });
+    await flush();
+    const button = () => findAll(e2.byId.rvReceipts.children.find((n) => /№12/.test(n.textContent)),
+        (n) => n.dataset.action === 'delete')[0];
+    e2.setConfirm(false);
+    e2.clearCalls();
+    button().click();
+    await flush();
+    assert.equal(e2.calls.length, 0, 'без подтверждения ушёл запрос');
+    assert.equal(e2.confirms.length, 1);
+    assert.match(e2.confirms[0], /^Удалить приёмку №12 \(03\.10 09:00, Пётр\)\?/);
+    assert.match(e2.confirms[0], /340 шт\., 18 позиций, фото накладных 1/);
+    assert.match(e2.confirms[0], /Вернуть нельзя\.$/);
+
+    e2.setConfirm(true);
+    button().click();
+    await flush();
+    assert.equal(e2.calls[0].method, 'DELETE');
+    assert.equal(e2.calls[0].url, '/api/receiving/12');
+    assert.equal(e2.lastGet('/api/receiving/review?').url, '/api/receiving/review?state=open&receipt_id=11&limit=200');
+    assert.deepEqual(e2.urls.slice(-1), ['/receiving/review?receipt=11']);
+    assert.equal(e2.byId.rvToast.textContent, 'Приёмка №12 удалена; убрано из разбора позиций: 2');
+    assert.ok(!e2.byId.rvReceipts.children.some((n) => /№12/.test(n.textContent)), 'удалённая осталась в истории');
+});
+
+await test('«Удалить приёмку»: 409 — текст сервера и перечитанный список; нет связи — сообщение', async () => {
+    const e2 = boot({ setup: (db) => {
+        db.deleteReply = { status: 409, data: { error: 'Приёмка разобрана полностью — она остаётся в истории',
+                                                 code: 'receipt_reviewed' } };
+    } });
+    await flush();
+    const del = () => findAll(e2.byId.rvReceipts.children[0], (n) => n.dataset.action === 'delete')[0];
+    e2.clearCalls();
+    del().click();
+    await flush();
+    assert.equal(e2.byId.rvToast.textContent, 'Приёмка разобрана полностью — она остаётся в истории');
+    assert.ok(e2.byId.rvToast.classList.contains('is-bad'));
+    assert.ok(e2.calls.some((c) => c.method === 'GET' && c.url.startsWith('/api/receiving/review?')), 'список не перечитан');
+    e2.db.network = true;
+    del().click();
+    await flush();
+    e2.db.network = false;
+    assert.equal(e2.byId.rvToast.textContent, 'Нет связи с сервером — приёмка не удалена');
+    assert.equal(del().textContent, 'Удалить приёмку', 'кнопка не вернулась после сбоя');
+});
+
+await test('удаление: приёмка уходит из истории и выбора сразу, даже если перечитать не удалось', async () => {
+    const e2 = boot();
+    await flush();
+    const box = () => e2.byId.rvReceipts.children.find((n) => /№12/.test(n.textContent));
+    e2.db.holdNext = (call) => call.method === 'GET' && call.url.startsWith('/api/receiving/review?');
+    findAll(box(), (n) => n.dataset.action === 'delete')[0].click();
+    await flush();
+    assert.equal(box(), undefined, 'удалённая приёмка ещё в истории до ответа');
+    assert.equal(e2.chip(12), undefined, 'удалённая приёмка ещё в выборе');
+    e2.db.reviewReply = { status: 503, data: { error: 'База приёмки недоступна' } };   // перечитать не удалось
+    await e2.release();
+    assert.equal(box(), undefined, 'после сбоя перечитывания удалённая вернулась');
+    assert.equal(e2.chip(12), undefined);
+});
+
+await test('пустая таблица у выбранных приёмок объясняет, почему: сверяется, не прошла, нет такой', async () => {
+    const e2 = boot({ search: '?receipt=11', setup: (db) => { db.rows = []; } });
+    await flush();
+    assert.equal(e2.byId.rvRows.textContent,
+        'Сверка приёмки №11 с iiko не прошла: Нет индекса iiko: Не настроено подключение к iiko');
+    const e3 = boot({ search: '?receipt=99', setup: (db) => { db.rows = []; } });
+    await flush();
+    assert.equal(e3.byId.rvRows.textContent, 'Приёмки №99 нет — удалена или номер неверный');
+    assert.equal(flat(e3.chip(99).textContent), '№99не найдена');
+    const e4 = boot({ search: '?receipt=12', setup: (db) => {
+        db.rows = [];
+        db.receipts[0] = Object.assign({}, db.receipts[0], { process_state: 'running', can_delete: false });
+    } });
+    await flush();
+    assert.equal(e4.byId.rvRows.textContent, 'Приёмка №12 ещё сверяется с iiko — позиции появятся после сверки');
+    assert.equal(findAll(e4.byId.rvReceipts.children[0], (n) => n.dataset.action === 'delete').length, 0,
+        'у сверяемой приёмки кнопки удаления нет');
+});
+
+await test('выбранная из строки приёмка не «не найдена», пока список перечитывается', async () => {
+    const e2 = boot();
+    await flush();
+    e2.db.holdNext = (call) => call.method === 'GET' && call.url.startsWith('/api/receiving/review?');
+    e2.api.setReceipt(7);
+    await flush();
+    assert.equal(flat(e2.chip(7).textContent), '№7', 'до ответа приёмка помечена «не найдена»');
+    e2.db.reviewReply = { status: 503, data: { error: 'База приёмки недоступна' } };   // загрузка не удалась
+    await e2.release();
+    assert.equal(flat(e2.chip(7).textContent), '№7', 'после сбоя загрузки приёмка помечена «не найдена»');
+});
+
+await test('фокус клавиатуры остаётся на чипе приёмки после щелчка', async () => {
+    const e2 = boot();
+    await flush();
+    e2.chip(11).focus();
+    e2.chip(11).click();
+    await flush();
+    assert.equal(e2.document.activeElement, e2.chip(11), 'фокус ушёл с чипа');
+    assert.ok(e2.chip(11).classList.contains('is-on'));
+    // Ревью 2026-10-04: фокус возвращается без прокрутки — автообновление списка не
+    // уводит страницу от строки, с которой работают, обратно к чипу.
+    assert.equal(JSON.stringify(e2.chip(11).focusOpts), JSON.stringify({ preventScroll: true }));
 });
 
 await test('кривой ?receipt= игнорируется', async () => {
@@ -1189,6 +1468,8 @@ await test('индекса нет — шапка просит обновить',
     assert.equal(e2.byId.rvIndex.textContent, 'Индекс iiko ещё не собран — нажмите «Обновить из iiko»');
     assert.ok(e2.byId.rvIndex.classList.contains('is-missing'));
     assert.equal(e2.byId.rvIndexDiag.textContent, '');
+    assert.ok(e2.byId.rvRefresh.classList.contains('rv-btn-primary'), 'без индекса кнопка обновления не выделена');
+    assert.ok(!e2.byId.rvRefresh.classList.contains('rv-btn-ghost'));
 });
 
 await test('пустая очередь — «разбирать нечего»', async () => {
@@ -1263,6 +1544,287 @@ await test('мультипак: кандидат — единица упаков
     assert.match(text, /единица этой упаковки \(в упаковке 6 шт\.\)/);
     assert.doesNotMatch(text, /совпало слов/);
     assert.match(e5.api.buildCopyText(row), /^Упаковка: 6 шт\. товара GTIN 04600000000011$/m);
+});
+
+// ---------------------------------------------------------------- интерфейс 2026-10-04
+
+await test('индекс старше 26 ч: пометка у даты и выделенная «Обновить из iiko»; ровно 26 ч — ещё свежий', async () => {
+    const stale = boot({ setup: (db) => { db.index = Object.assign({}, IDX_MORNING, { age_minutes: 1600 }); } });
+    await flush();
+    const s = stale.byId;
+    assert.equal(flat(s.rvIndex.textContent),
+        'Индекс iiko: 03.10.2026 07:30, 9 120 карточек — утреннее обновление не прошло');
+    assert.ok(s.rvIndex.classList.contains('is-stale'));
+    assert.ok(!s.rvIndex.classList.contains('is-missing'));
+    assert.ok(s.rvRefresh.classList.contains('rv-btn-primary'));
+    assert.ok(!s.rvRefresh.classList.contains('rv-btn-ghost'));
+    // Пока обновление идёт, кнопка не выделена (она и не нажимается), после — снова по индексу.
+    stale.db.statusQueue.push({ status: 200, data: { index: IDX_FRESH, job: JOB_IDLE } });
+    s.rvRefresh.click();
+    await flush();
+    assert.ok(!s.rvRefresh.classList.contains('rv-btn-primary'));
+    assert.equal(s.rvRefresh.disabled, true);
+    stale.db.index = IDX_FRESH;                         // сервер собрал индекс заново
+    await stale.runTimers(4000);
+    assert.ok(s.rvRefresh.classList.contains('rv-btn-ghost'), 'свежий индекс — кнопка снова тихая');
+    assert.ok(!s.rvIndex.classList.contains('is-stale'));
+
+    // Сервер: «старше 26 ч» — строго больше 26 * 60 минут; возраст неизвестен — не устарел.
+    for (const [age, want] of [[26 * 60, false], [26 * 60 + 1, true], [null, false]]) {
+        const e = boot({ setup: (db) => { db.index = Object.assign({}, IDX_MORNING, { age_minutes: age }); } });
+        await flush();
+        assert.equal(e.byId.rvIndex.classList.contains('is-stale'), want, `age_minutes ${age}`);
+        assert.equal(e.byId.rvRefresh.classList.contains('rv-btn-primary'), want, `кнопка при age_minutes ${age}`);
+    }
+});
+
+await test('поиск под строкой переживает перечитывание: та же строка, тот же запрос, фокус в поле', async () => {
+    const e = boot({ finePointer: true });
+    await flush();
+    const first = e.row('04650075420019');
+    e.button(first, 'find').click();
+    await flush();
+    // Мышь: курсор сразу в поле, запрос выделен, страница не прыгает к полю.
+    assert.equal(e.document.activeElement, e.byId.rvIikoQ);
+    assert.equal(JSON.stringify(e.byId.rvIikoQ.focusOpts), JSON.stringify({ preventScroll: true }));
+    assert.equal(e.byId.rvIikoQ.selected, 1);
+    assert.equal(e.byId.rvIiko.scrolled, 1, 'прокрутка не одна');
+    e.byId.rvIikoQ.value = 'жигулевское';             // запрос сократили руками
+    e.clearCalls();
+    await e.api.load();                                 // конец обновления индекса, возврат на вкладку
+    const fresh = e.row('04650075420019');
+    assert.notEqual(fresh, first, 'строки не перерисованы — проверка бессмысленна');
+    assert.equal(e.after(fresh), e.drawer(), 'панель не под своей строкой');
+    assert.equal(e.byId.rvIiko.parentNode.parentNode, e.drawer());
+    assert.equal(e.byId.rvRows.children.filter((n) => n.className === 'rv-find-tr').length, 1);
+    assert.equal(e.byId.rvIikoQ.value, 'жигулевское', 'запрос пропал');
+    assert.equal(e.byId.rvIikoResults.children.length, 2, 'результаты пропали');
+    assert.equal(e.document.activeElement, e.byId.rvIikoQ, 'фокус не вернулся в поле поиска');
+    assert.ok(fresh.classList.contains('is-finding'));
+    assert.equal(e.button(fresh, 'find').textContent, 'Скрыть поиск');
+    assert.equal(e.byId.rvIiko.scrolled, 1, 'перечитывание прокрутило страницу');
+    assert.equal(e.calls.filter((c) => c.url.startsWith('/api/receiving/products')).length, 0, 'поиск повторён');
+
+    // «Сделано» по этой строке: строка ушла из «К разбору» — поиск закрылся вместе с ней.
+    e.button(fresh, 'done').click();
+    await flush();
+    assert.equal(e.row('04650075420019'), undefined);
+    assert.equal(e.byId.rvIiko.hidden, true);
+    assert.equal(e.byId.rvIiko.parentNode, e.byId.rvIikoHome);
+    assert.equal(e.drawer(), null);
+    assert.equal(e.api.state.iiko.gtin, null);
+    assert.equal(e.byId.rvIikoOpen.getAttribute('aria-expanded'), 'false');
+});
+
+await test('«Найти в iiko» в другой строке: панель переезжает под неё, прежние результаты и поздний ответ — нет', async () => {
+    const e = boot();
+    await flush();
+    const r1 = e.row('04650075420019');
+    const r2 = e.row('04607043562301');
+    e.db.holdNext = (call) => call.url.startsWith('/api/receiving/products');
+    e.button(r1, 'find').click();                       // ответ первой строки задержан
+    await flush();
+    e.button(r2, 'find').click();
+    await flush();
+    assert.equal(e.byId.rvIikoQ.value, 'сидр mystery');
+    assert.equal(e.after(r2), e.drawer(), 'панель не под второй строкой');
+    assert.equal(e.after(r1), r2, 'под первой строкой что-то осталось');
+    assert.ok(!r1.classList.contains('is-finding') && r2.classList.contains('is-finding'));
+    assert.equal(e.button(r1, 'find').textContent, 'Найти в iiko');
+    assert.equal(e.button(r1, 'find').getAttribute('aria-expanded'), 'false');
+    assert.equal(e.button(r2, 'find').getAttribute('aria-expanded'), 'true');
+    assert.equal(e.byId.rvIikoMsg.textContent, 'Ничего не нашлось — попробуйте одно слово, артикул или штрихкод');
+    await e.release();                                  // поздний ответ про первую строку
+    assert.equal(e.byId.rvIikoResults.children.length, 0, 'результаты первой строки попали под вторую');
+    assert.equal(e.byId.rvIikoMsg.textContent, 'Ничего не нашлось — попробуйте одно слово, артикул или штрихкод');
+});
+
+await test('«Поиск в iiko» в шапке: пустая панель под шапкой, курсор в поле; «Скрыть» и второй щелчок закрывают', async () => {
+    const e = boot();
+    await flush();
+    e.clearCalls();
+    e.byId.rvIikoOpen.click();
+    assert.equal(e.byId.rvIiko.hidden, false);
+    assert.equal(e.byId.rvIiko.parentNode, e.byId.rvIikoHome, 'панель не под шапкой таблицы');
+    assert.equal(e.drawer(), null);
+    assert.equal(e.byId.rvIikoQ.value, '');
+    assert.equal(e.document.activeElement, e.byId.rvIikoQ, 'курсор не в поле запроса');
+    assert.equal(e.byId.rvIikoOpen.getAttribute('aria-expanded'), 'true');
+    assert.equal(e.calls.length, 0, 'пустой поиск ушёл на сервер');
+    e.byId.rvIikoQ.value = 'жигулевское';
+    e.byId.rvIikoForm.dispatch('submit');
+    await flush();
+    assert.equal(e.calls[0].url, '/api/receiving/products?q=' + encodeURIComponent('жигулевское') + '&limit=20');
+    assert.equal(e.byId.rvIikoResults.children.length, 2);
+    // Перечитывание списка поиск без строки не трогает.
+    await e.api.load();
+    assert.equal(e.byId.rvIiko.hidden, false);
+    assert.equal(e.byId.rvIiko.parentNode, e.byId.rvIikoHome);
+    assert.equal(e.byId.rvIikoResults.children.length, 2);
+    // «Скрыть»: панель спрятана, фокус — на кнопку, которая её открыла.
+    e.byId.rvIikoClose.click();
+    assert.equal(e.byId.rvIiko.hidden, true);
+    assert.equal(e.byId.rvIikoOpen.getAttribute('aria-expanded'), 'false');
+    assert.equal(e.document.activeElement, e.byId.rvIikoOpen);
+    // Кнопка в шапке — переключатель; «Найти в iiko» в строке забирает панель под строку.
+    e.byId.rvIikoOpen.click();
+    e.byId.rvIikoOpen.click();
+    assert.equal(e.byId.rvIiko.hidden, true);
+    e.byId.rvIikoOpen.click();
+    e.button(e.row('00000046123456'), 'find').click();
+    await flush();
+    assert.equal(e.byId.rvIikoOpen.getAttribute('aria-expanded'), 'false');
+    assert.equal(e.after(e.row('00000046123456')), e.drawer());
+    assert.equal(e.byId.rvIikoQ.value, '46123456');
+});
+
+await test('Esc в панели закрывает поиск и возвращает фокус на «Найти в iiko» строки', async () => {
+    const e = boot();
+    await flush();
+    const tr = e.row('00000046123456');
+    e.button(tr, 'find').click();
+    await flush();
+    const other = e.byId.rvIiko.dispatch('keydown', { key: 'Enter' });
+    assert.ok(!other.defaultPrevented);
+    assert.equal(e.byId.rvIiko.hidden, false, 'панель закрылась не по Esc');
+    const esc = e.byId.rvIiko.dispatch('keydown', { key: 'Escape' });
+    assert.ok(esc.defaultPrevented, 'Esc ушёл дальше (поле поиска стёрло бы запрос)');
+    assert.equal(e.byId.rvIiko.hidden, true);
+    assert.equal(e.byId.rvIiko.parentNode, e.byId.rvIikoHome);
+    assert.equal(e.drawer(), null);
+    const find = e.button(tr, 'find');
+    assert.equal(e.document.activeElement, find, 'фокус не вернулся на кнопку строки');
+    assert.equal(JSON.stringify(find.focusOpts), JSON.stringify({ preventScroll: true }));
+    assert.equal(find.getAttribute('aria-expanded'), 'false');
+});
+
+await test('«Вернуть» в уведомлении «Сделано»: PUT state=open, строка снова в «К разбору», один раз', async () => {
+    const e = boot();
+    await flush();
+    e.button(e.row('04650075420019'), 'done').click();
+    await flush();
+    assert.equal(e.row('04650075420019'), undefined);
+    const act = findAll(e.byId.rvToast, hasClass('rv-toast-act'))[0];
+    assert.equal(act.tagName, 'BUTTON');
+    assert.equal(act.type, 'button');
+    assert.equal(act.textContent, 'Вернуть');
+    e.clearCalls();
+    act.click();
+    act.click();                                        // второй щелчок — уже ничего
+    await flush();
+    const puts = e.calls.filter((c) => c.method === 'PUT');
+    assert.equal(puts.length, 1, '«Вернуть» сработал дважды');
+    assert.equal(puts[0].url, '/api/receiving/review/04650075420019');
+    assert.deepEqual(puts[0].body, { state: 'open' });
+    assert.equal(e.lastGet('/api/receiving/review?').url, '/api/receiving/review?state=open&limit=200', 'список не перечитан');
+    assert.ok(e.row('04650075420019'), 'строка не вернулась в «К разбору»');
+    assert.equal(flat(e.tab('open').textContent), 'К разбору4');
+    assert.equal(flat(e.byId.rvToast.textContent), 'Возвращена в разбор: Пиво светлое нефильтрованное «Жигулёвское Барное»');
+    assert.equal(e.byId.rvToast.hidden, false);
+});
+
+await test('уведомление с «Вернуть» держится 8 с, а пока кнопка в фокусе — не прячется', async () => {
+    const e = boot();
+    await flush();
+    e.button(e.row('00000046123456'), 'not_needed').click();
+    await flush();
+    const note = e.byId.rvToast;
+    assert.ok(e.timers().some((t) => t.ms === 8000), 'уведомление с кнопкой не на 8 с');
+    assert.ok(!e.timers().some((t) => t.ms === 4000), 'уведомление с кнопкой на 4 с');
+    const act = findAll(note, hasClass('rv-toast-act'))[0];
+    act.focus();                                        // дошли до «Вернуть» клавиатурой
+    await e.runTimers(8000);
+    assert.equal(note.hidden, false, 'уведомление спряталось из-под фокуса');
+    await e.runTimers(4000);
+    assert.equal(note.hidden, false);
+    act.blur();
+    await e.runTimers(4000);
+    assert.equal(note.hidden, true, 'уведомление не спряталось, когда фокус ушёл');
+    // Уведомление без кнопки («Вернуть в разбор» на вкладке «Закрытые») — по-прежнему 4 с.
+    e.tab('closed').click();
+    await flush();
+    e.button(e.row('00000046123456'), 'open').click();
+    await flush();
+    assert.match(flat(note.textContent), /^Возвращена в разбор: /);
+    assert.equal(findAll(note, hasClass('rv-toast-act')).length, 0);
+    assert.ok(!e.timers().some((t) => t.ms === 8000));
+    await e.runTimers(4000);
+    assert.equal(note.hidden, true);
+});
+
+await test('?receipt=12: под выбором ссылка на фото накладной (один запрос), «История» берёт её из кэша', async () => {
+    const e = boot({ search: '?receipt=12' });
+    await flush();
+    assert.equal(e.gets('/api/receiving/12'), 1);
+    const line = e.byId.rvPickPhotos;
+    assert.equal(line.hidden, false);
+    assert.equal(flat(line.textContent), 'Накладная №12:Фото 1');
+    const links = findAll(line, byTag('a'));
+    assert.equal(links.length, 1, 'ссылка javascript: не отфильтрована');
+    assert.equal(links[0].getAttribute('href'), '/api/receiving/invoice/r12_20261003T085000_ab12cd34.jpg');
+    assert.equal(links[0].getAttribute('target'), '_blank');
+    assert.equal(links[0].getAttribute('rel'), 'noopener');
+    // Перечитывание списка и «Фото и отклонённые сканы» в истории — без второго запроса.
+    await e.api.load();
+    const box = e.byId.rvReceipts.children[0];
+    findAll(box, (n) => n.dataset.action === 'details')[0].click();
+    await flush();
+    assert.equal(e.gets('/api/receiving/12'), 1, 'подробности приёмки загружены второй раз');
+    const holder = findAll(box, hasClass('rv-rc-more'))[0];
+    assert.equal(holder.hidden, false);
+    assert.equal(findAll(holder, byTag('a')).length, 1);
+    assert.match(flat(findAll(holder, byTag('a'))[0].textContent), /^Фото 1 · 03\.10 08:50$/);
+    // Две приёмки — строки нет; приёмка без фото — так и сказано, без запроса.
+    e.chip(11).click();
+    await flush();
+    assert.equal(e.byId.rvPickPhotos.hidden, true);
+    e.api.setReceipt(11);
+    await flush();
+    assert.equal(e.byId.rvPickPhotos.hidden, false);
+    assert.equal(flat(e.byId.rvPickPhotos.textContent), 'Фото накладной в приёмке №11 нет');
+    assert.equal(findAll(e.byId.rvPickPhotos, hasClass('rv-muted')).length, 1);
+    assert.equal(e.gets('/api/receiving/11'), 0, 'за фото приёмки без фото сходили на сервер');
+    e.api.setPicked([]);
+    await flush();
+    assert.equal(e.byId.rvPickPhotos.hidden, true);
+});
+
+await test('строка «Накладная»: пока грузится — «загрузка...», сбой — «не загрузилась» без повторов на каждой перерисовке', async () => {
+    const e = boot({ search: '?receipt=12', setup: (db) => {
+        db.holdNext = (call) => call.url === '/api/receiving/12';
+    } });
+    await flush();
+    assert.equal(flat(e.byId.rvPickPhotos.textContent), 'Накладная №12: загрузка...');
+    await e.api.load();                                 // перерисовка во время загрузки — без второго запроса
+    assert.equal(e.gets('/api/receiving/12'), 1);
+    e.db.receiptReply = { status: 500, data: {} };
+    await e.release();
+    assert.equal(flat(e.byId.rvPickPhotos.textContent), 'Накладная №12: не загрузилась');
+    await e.api.load();
+    assert.equal(e.gets('/api/receiving/12'), 1, 'неудачная загрузка повторяется на каждой перерисовке');
+    // Повтор — по щелчку «Фото и отклонённые сканы» в истории.
+    e.db.receiptReply = null;
+    const box = e.byId.rvReceipts.children[0];
+    findAll(box, (n) => n.dataset.action === 'details')[0].click();
+    await flush();
+    assert.equal(e.gets('/api/receiving/12'), 2);
+    assert.equal(flat(e.byId.rvPickPhotos.textContent), 'Накладная №12:Фото 1');
+    assert.equal(findAll(findAll(box, hasClass('rv-rc-more'))[0], byTag('a')).length, 1);
+});
+
+await test('история компактная: факты в первой строке, прогресс — первым в строке ссылок, «Удалить» — последней', async () => {
+    const e = boot();
+    await flush();
+    const [r12, r11] = e.byId.rvReceipts.children;
+    const head = findAll(r12, hasClass('rv-rc-head'))[0];
+    assert.deepEqual(head.children.map((n) => n.className), ['rv-rc-no', 'rv-rc-when', 'rv-rc-proc is-done', 'rv-rc-facts']);
+    const act = findAll(r12, hasClass('rv-rc-act'))[0];
+    assert.equal(act.children[0].className, 'rv-rc-prog');
+    assert.deepEqual(act.children.slice(1).map((n) => n.dataset.action), ['receipt', 'details', 'delete']);
+    assert.ok(findAll(act, (n) => n.dataset.action === 'delete')[0].classList.contains('rv-link-bad'));
+    // Ошибка сверки и заметка приёмщика — своими строками между ними.
+    assert.deepEqual(r11.children.map((n) => n.className),
+        ['rv-rc-head', 'rv-rc-note is-bad', 'rv-rc-note', 'rv-rc-act', 'rv-rc-more']);
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

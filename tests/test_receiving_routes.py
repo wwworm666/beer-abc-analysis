@@ -609,6 +609,8 @@ def test_review_filters(env):
     assert gtins('state=all') == [GTIN_A, GTIN_B, GTIN_C]
     assert gtins('state=all&receipt_id=%d' % second) == [GTIN_A, GTIN_C]
     assert gtins('state=all&receipt_id=%d' % first) == [GTIN_A, GTIN_B]
+    assert gtins('state=all&receipt_id=%d,%d' % (first, second)) == [GTIN_A, GTIN_B, GTIN_C]
+    assert gtins('state=all&receipt_id=%d,%d' % (second, second)) == [GTIN_A, GTIN_C]
     assert gtins('q=' + 'жигули') == [GTIN_B]                # имя кандидата, регистр не важен
     assert gtins('q=' + EAN_A[:7]) == [GTIN_A]
     assert gtins('state=all&q=маркетбир') == []               # поставщик карточки в q не ищется
@@ -617,11 +619,99 @@ def test_review_filters(env):
 
 
 @pytest.mark.parametrize('query', ['state=done', 'status=open', 'status=new,bogus', 'receipt_id=abc',
-                                   'receipt_id=-1', 'receipt_id=1234567890', 'limit=0', 'limit=1001',
-                                   'q=' + 'x' * 201])
+                                   'receipt_id=-1', 'receipt_id=1234567890', 'receipt_id=0',
+                                   'receipt_id=1,', 'receipt_id=1,x', 'receipt_id=1;2',
+                                   'receipt_id=' + ','.join(str(n) for n in range(1, 52)),
+                                   'limit=0', 'limit=1001', 'q=' + 'x' * 201])
 def test_review_rejects_bad_filters(env, query):
     r = env.client.get('/api/receiving/review?' + query)
     assert r.status_code == 400 and r.get_json()['error']
+
+
+def test_review_receipts_pending_recent_and_selected(env):
+    c = env.client
+    first, second = _seed_review(c)
+    for rid in (first, second):
+        receiving_store.claim_processing(rid)
+        receiving_store.finish_processing(rid, 'done')
+    scanning = _new_receipt(c)
+    _scan(c, scanning, EAN_B)
+    data = c.get('/api/receiving/review').get_json()
+    assert [x['id'] for x in data['receipts']] == [second, first]          # открытая не в списке
+    by_id = {x['id']: x for x in data['receipts']}
+    assert by_id[first]['review'] == {'open': 2, 'closed': 0, 'missing': 0}   # A и B ждут разбора
+    assert by_id[second]['review'] == {'open': 1, 'closed': 1, 'missing': 0}  # A общая, C есть в iiko
+    assert by_id[first]['can_delete'] and not by_id[first]['reviewed']
+    data = c.get('/api/receiving/review?receipt_id=%d' % scanning).get_json()
+    assert [x['id'] for x in data['receipts']] == [scanning, second, first]   # выбранная — тоже
+    assert data['receipts'][0]['review'] is None and data['receipts'][0]['can_delete'] is False
+
+
+def test_delete_receipt_route(env):
+    c = env.client
+    first, second = _seed_review(c)
+    code, body = _upload(c, first, JPEG)
+    assert code == 201
+    photo = body['invoice']['name']
+    assert receiving_photo_store.exists(photo)
+
+    r = c.delete('/api/receiving/%d' % first)
+    assert r.status_code == 200, r.get_json()
+    data = r.get_json()
+    assert data['deleted'] is True and data['receipt']['id'] == first
+    assert (data['rows_deleted'], data['rows_kept'], data['invoices_deleted']) == (1, 1, 1)
+    assert not receiving_photo_store.exists(photo)                        # файл фото удалён
+    assert c.get('/api/receiving/%d' % first).status_code == 404
+    rows = {row['gtin']: row for row in c.get('/api/receiving/review?state=all').get_json()['rows']}
+    assert set(rows) == {GTIN_A, GTIN_C}                                  # B была только в первой
+    assert rows[GTIN_A]['qty'] == 1 and [x['id'] for x in rows[GTIN_A]['receipts']] == [second]
+
+    r = c.delete('/api/receiving/%d' % first)                             # повтор — уже нет
+    assert r.status_code == 404 and r.get_json()['error'] == 'Приёмка не найдена'
+
+
+def test_scan_into_deleted_receipt_is_409_so_phone_keeps_scans(env):
+    c = env.client
+    rid = _new_receipt(c)
+    _scan(c, rid, EAN_A)
+    c.post('/api/receiving/%d/close' % rid)
+    assert c.delete('/api/receiving/%d' % rid).status_code == 200
+    code, body = _scan(c, rid, EAN_B)                                     # телефон досылает очередь
+    assert code == 409 and body['code'] == 'receipt_deleted'
+    assert body['error'] == 'Приёмку удалили в «Разборе приёмок» — сканы в неё не записываются'
+    code, body = _scan(c, rid + 100, EAN_B)
+    assert code == 404                                                     # такой приёмки не было
+
+
+def test_delete_receipt_route_refuses_while_processing(env):
+    c = env.client
+    env.service.claim = True                                              # «Завершить» берёт обработку
+    rid = _new_receipt(c)
+    _scan(c, rid, EAN_A)
+    assert c.post('/api/receiving/%d/close' % rid).status_code == 202
+    assert receiving_store.get_receipt(rid)['process_state'] == 'running'
+    r = c.delete('/api/receiving/%d' % rid)
+    assert r.status_code == 409 and r.get_json()['code'] == 'receipt_processing'
+    assert c.get('/api/receiving/%d' % rid).status_code == 200
+
+
+def test_delete_receipt_route_refuses_open_and_reviewed(env):
+    c = env.client
+    scanning = _new_receipt(c)
+    _scan(c, scanning, EAN_A)
+    r = c.delete('/api/receiving/%d' % scanning)
+    assert r.status_code == 409 and r.get_json()['code'] == 'receipt_open'
+    done = _new_receipt(c)
+    _scan(c, done, EAN_B)
+    c.post('/api/receiving/%d/close' % done)
+    receiving_store.upsert_review(GTIN_B, done, 'found', [], [], {}, '2026-10-03T07:30:00+03:00')
+    receiving_store.claim_processing(done)
+    receiving_store.finish_processing(done, 'done')
+    r = c.delete('/api/receiving/%d' % done)
+    assert r.status_code == 409 and r.get_json()['code'] == 'receipt_reviewed'
+    assert r.get_json()['error'] == 'Приёмка разобрана полностью — она остаётся в истории'
+    assert c.get('/api/receiving/%d' % done).status_code == 200
+    assert c.get('/api/receiving/%d' % scanning).get_json()['receipt']['status'] == 'open'
 
 
 def test_review_includes_index_info(env):
@@ -797,7 +887,7 @@ def test_routes_and_methods_registered():
     expected = {
         ('GET', '/receiving'), ('GET', '/receiving/review'),
         ('GET', '/api/receiving'), ('POST', '/api/receiving'),
-        ('GET', '/api/receiving/<int:receipt_id>'),
+        ('GET', '/api/receiving/<int:receipt_id>'), ('DELETE', '/api/receiving/<int:receipt_id>'),
         ('POST', '/api/receiving/<int:receipt_id>/scan'),
         ('DELETE', '/api/receiving/<int:receipt_id>/scans/<int:scan_id>'),
         ('POST', '/api/receiving/<int:receipt_id>/invoice'),

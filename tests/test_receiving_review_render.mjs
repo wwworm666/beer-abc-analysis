@@ -29,6 +29,7 @@ const nav = read('templates/shared/nav.html');
 const routes = readOpt('routes/receiving.py');
 const indexPy = readOpt('core/receiving_index.py');
 const storePy = readOpt('core/receiving_store.py');
+const schedulerPy = readOpt('core/receiving_scheduler.py');
 
 let passed = 0;
 let failed = 0;
@@ -112,7 +113,7 @@ test('id в шаблоне уникальны, все id, которые ище�
 });
 
 test('скрытые изначально узлы помечены hidden, а скрывающее правило есть в CSS', () => {
-    for (const id of ['rvJob', 'rvReceiptChip', 'rvError', 'rvMore', 'rvIikoMsg', 'rvToast']) {
+    for (const id of ['rvJob', 'rvError', 'rvMore', 'rvIikoMsg', 'rvToast', 'rvIiko', 'rvPickPhotos']) {
         assert.match(html, new RegExp(`id="${id}"[^>]*\\shidden`), `${id} виден до загрузки`);
     }
     assert.match(html, /<body class="rv-page rv-scope">/);
@@ -144,6 +145,8 @@ test('модификаторы, которые ставит JS, описаны �
         'rv-row.is-closed', 'rv-row.is-busy', 'rv-btn.is-busy', 'rv-name.is-none', 'rv-index.is-missing',
         'rv-job.is-bad', 'rv-msg.is-bad', 'rv-saved.is-bad', 'rv-toast.is-bad', 'rv-rc.is-current',
         'rv-rc-note.is-bad', 'rv-flag.is-plain', 'rv-rc-proc.is-done', 'rv-rc-proc.is-wait', 'rv-rc-proc.is-error',
+        'rv-chip.is-on', 'rv-chip-n.is-wait', 'rv-chip-n.is-error', 'rv-rc-prog.is-done',
+        'rv-index.is-stale', 'rv-row.is-finding',
     ];
     const missing = pairs.filter((p) => !body.includes('.' + p));
     assert.deepEqual(missing, [], `нет правил: ${missing.join(', ')}`);
@@ -211,9 +214,62 @@ test('телефон: брейкпоинт 768px, таблица превращ�
     const m = mobile[1];
     assert.match(m, /\.rv-table thead \{ display: none; \}/);
     assert.match(m, /\.rv-table tr \{[\s\S]*?display: grid;/);
-    assert.match(m, /\.rv-td-st \{ grid-column: 1; grid-row: 1; \}/);
+    assert.match(m, /\.rv-td-pos \{ grid-column: 1; grid-row: 1; \}/);
+    // Строка с «Поиском в iiko» под карточкой — не карточка-сетка, а блок во всю ширину:
+    // правило сильнее общего .rv-table tr { display: grid }.
+    assert.match(m, /\.rv-table tr\.rv-find-tr \{ display: block;/);
+    // Прилипшая колонка «Решение» на телефоне — обычный блок карточки.
+    assert.match(m, /\.rv-td-act, \.rv-th-act \{ position: static;/);
+    assert.match(m, /\.rv-iiko-list \{ max-height: none; overflow: visible; \}/);
     assert.match(m, /font-size: 16px/, 'поля мельче 16px — iOS увеличит страницу при фокусе');
     assert.ok(!/@media \(max-width: (?!768px)/.test(css), 'брейкпоинт не из дизайн-системы');
+});
+
+test('таблица — пять колонок, «Решение» прилипает справа, список поиска в iiko — до 320px', () => {
+    const heads = [.../<thead>([\s\S]*?)<\/thead>/.exec(html)[1].matchAll(/<th[^>]*>([^<]*)<\/th>/g)].map((m) => m[1]);
+    assert.deepEqual(heads, ['Позиция', 'Кол-во', 'Карточки iiko', 'Поставщик и заметка', 'Решение']);
+    assert.equal(jsConst('COLS'), String(heads.length), 'COLS не равно числу колонок шапки');
+    assert.match(html, /<th class="rv-th-act">Решение<\/th>/);
+    const body = stripComments(css);
+    assert.match(body, /\.rv-table \{[^}]*border-collapse: separate;/, 'collapse: прилипшая колонка теряет границы');
+    assert.match(body, /\.rv-td-act, \.rv-th-act \{[^}]*position: sticky;[^}]*right: 0;[^}]*background: var\(--rv-card\)/);
+    assert.match(body, /\.rv-iiko-list \{[^}]*max-height: 320px;[^}]*overflow-y: auto;/);
+    // Ячейки строки — в том же порядке, что колонки шапки.
+    const cells = /function rowNode\(row\) \{([\s\S]*?)\n    \}/.exec(js)[1];
+    const order = [...cells.matchAll(/tr\.appendChild\((\w+)\(row\)\)/g)].map((m) => m[1]);
+    assert.deepEqual(order, ['positionCell', 'qtyCell', 'cardsCell', 'editCell', 'actionsCell']);
+});
+
+test('шапка таблицы: число строк, индекс, тихие «Обновить из iiko» и «Поиск в iiko»; панель поиска — одна', () => {
+    const list = /<section class="rv-panel rv-list"[\s\S]*?<\/section>/.exec(html)[0];
+    const cap = /<div class="rv-cap">([\s\S]*?)\n {16}<\/div>/.exec(list);
+    assert.ok(cap, 'нет шапки таблицы .rv-cap');
+    const order = [...cap[1].matchAll(/\sid="([^"]+)"/g)].map((m) => m[1]);
+    assert.deepEqual(order, ['rvCount', 'rvIndex', 'rvRefresh', 'rvRefreshLabel', 'rvIikoOpen', 'rvIndexDiag', 'rvJob']);
+    assert.match(cap[1], /class="rv-btn rv-btn-sm rv-btn-ghost" id="rvRefresh"/);
+    assert.match(cap[1], /id="rvIikoOpen" type="button"\s+aria-controls="rvIiko" aria-expanded="false"/);
+    // Панель — div с ролью региона в «домике» между шапкой и таблицей (секции не вкладываются).
+    assert.match(list, /<div class="rv-iiko-home" id="rvIikoHome">\s*<div class="rv-iiko" id="rvIiko" role="region" aria-label="Поиск в iiko" hidden>/);
+    assert.ok(list.indexOf('id="rvIikoHome"') < list.indexOf('<table'), 'панель поиска не над таблицей');
+    assert.equal([...html.matchAll(/id="rvIiko"/g)].length, 1);
+    assert.match(html, /id="rvIikoClose"[^>]*>Скрыть<\//);
+    // Порядок блоков страницы: выбор приёмок, вкладки с поиском, ошибка, таблица, история.
+    const at = (s) => html.indexOf(s);
+    assert.ok(at('class="rv-pick"') < at('class="rv-bar"') && at('class="rv-bar"') < at('id="rvError"')
+        && at('id="rvError"') < at('rv-panel rv-list') && at('rv-panel rv-list') < at('id="rvReceipts"'));
+    assert.match(html, /<div class="rv-bar">\s*<div class="rv-tabs" id="rvTabs"[\s\S]*?id="rvSearch"/);
+    assert.match(html, /<p class="rv-pick-photos" id="rvPickPhotos" hidden><\/p>/);
+});
+
+test('устаревший индекс — как у сервера: старше STARTUP_MAX_AGE_HOURS (26 ч)', () => {
+    assert.equal(jsConst('INDEX_STALE_MIN'), '26 * 60');
+    if (schedulerPy) {
+        assert.equal(Number(pyConst(schedulerPy, 'STARTUP_MAX_AGE_HOURS')) * 60, 26 * 60,
+            'правило «индекс устарел» разошлось с core/receiving_scheduler.py');
+        assert.match(schedulerPy, /return age > STARTUP_MAX_AGE_HOURS \* 60/, 'сервер сравнивает возраст иначе');
+    }
+    assert.match(js, /age > INDEX_STALE_MIN \? 'stale' : 'ok'/, 'страница сравнивает возраст не как сервер (строго больше)');
+    assert.equal(jsConst('TOAST_ACTION_MS'), '8000', '«Вернуть» в уведомлении — 8 с');
 });
 
 // ---------------------------------------------------------------- безопасность и стиль
@@ -266,6 +322,8 @@ test('пути API — из раздела 7 спецификации, друг�
     assert.match(js, /request\('POST', API_REFRESH\)/);
     assert.match(js, /request\('GET', API_STATUS\)/);
     assert.match(js, /request\('GET', API_RECEIPT \+ Number\(id\)\)/);
+    assert.match(js, /request\('DELETE', API_RECEIPT \+ id\)/);
+    assert.match(js, /window\.confirm\(deleteQuestion\(r\)\)/, 'удаление без подтверждения');
     assert.match(js, /API_PRODUCTS \+ '\?q=' \+ encodeURIComponent\(q\) \+ '&limit=' \+ IIKO_LIMIT/);
 });
 
@@ -278,6 +336,7 @@ test('маршруты, которые зовёт страница, объявл
         ["'/api/receiving/barcodes/refresh'", "'POST'"],
         ["'/api/receiving/barcodes/status'", "'GET'"],
         ["'/api/receiving/<int:receipt_id>'", "'GET'"],
+        ["'/api/receiving/<int:receipt_id>'", "'DELETE'"],
         ["'/api/receiving/invoice/<name>'", "'GET'"],
     ];
     for (const [route, method] of want) {
@@ -336,6 +395,8 @@ test('пределы совпадают с маршрутом и хранили�
         }
     }
     if (storePy) assert.equal(jsConst('NOTE_LIMIT'), pyConst(storePy, 'NOTE_LIMIT'), 'NOTE_LIMIT');
+    if (storePy) assert.equal(jsConst('PICK_MAX'), pyConst(storePy, 'RECEIPT_FILTER_MAX'), 'PICK_MAX');
+    if (routes) assert.equal(pyConst(routes, 'REVIEW_RECEIPTS_MAX'), 'receiving_store.RECEIPT_FILTER_MAX');
     assert.equal(jsConst('POLL_MS'), '4000', 'опрос — каждые 4 с (раздел 9)');
 });
 
@@ -343,13 +404,17 @@ test('стоп-слова и длина слова «Найти в iiko» — к
     const jsWords = /const STOP_WORDS = new Set\(\[([\s\S]*?)\]\);/.exec(js);
     assert.ok(jsWords, 'нет STOP_WORDS в JS');
     const mine = [...jsWords[1].matchAll(/'([^']+)'/g)].map((m) => m[1]).sort();
-    assert.equal(mine.length, 21, 'список стоп-слов не из спецификации (21 слово)');
+    assert.equal(mine.length, 35, 'список стоп-слов не из спецификации (35 слов, ревью 2026-10-04)');
     if (indexPy) {
         const py = /STOP_WORDS = frozenset\(\{([\s\S]*?)\}\)/.exec(indexPy);
         assert.ok(py, 'нет STOP_WORDS в core/receiving_index.py');
         const theirs = [...py[1].matchAll(/'([^']+)'/g)].map((m) => m[1]).sort();
         assert.deepEqual(mine, theirs, 'стоп-слова разошлись с core/receiving_index.py');
         assert.equal(jsConst('MIN_WORD_LEN'), pyConst(indexPy, 'MIN_WORD_LEN'), 'MIN_WORD_LEN');
+        const pyVolume = /VOLUME_WORD_RE = re\.compile\(r'(.*?)\\Z'\)/.exec(indexPy);
+        const jsVolume = /const VOLUME_WORD_RE = \/\^(.*?)\$\/;/.exec(js);
+        assert.ok(pyVolume && jsVolume, 'нет VOLUME_WORD_RE');
+        assert.equal(jsVolume[1], pyVolume[1], 'объём-слово разошлось с core/receiving_index.py');
     }
 });
 
@@ -357,16 +422,22 @@ test('стоп-слова и длина слова «Найти в iiko» — к
 
 test('пояснения свёрнуты в «Как считается» у каждого блока, на экране — только числа', () => {
     const how = [...html.matchAll(/<details class="rv-how[^"]*">\s*<summary>Как считается<\/summary>/g)];
-    assert.equal(how.length, 4, 'у шапки, таблицы, поиска в iiko и приёмок — по раскрывашке');
+    assert.equal(how.length, 4, 'у выбора приёмок, шапки таблицы (индекс и таблица), поиска в iiko и истории — по раскрывашке');
     const sections = [...html.matchAll(/<section[\s\S]*?<\/section>/g)].map((m) => m[0]);
-    assert.equal(sections.length, 4);
+    assert.equal(sections.length, 3);
     sections.forEach((s, i) => assert.match(s, /<details class="rv-how/, `секция ${i + 1} без пояснения`));
+    assert.ok(!sections.some((s) => /<section/.test(s.slice(1))), 'вложенная секция');
+    // Пояснение стоит у своего блока: индекс и правила таблицы — в шапке таблицы, поиск —
+    // внутри панели «Поиск в iiko».
+    assert.match(html, /<div class="rv-cap">[\s\S]*?<details class="rv-how">[\s\S]*?id="rvIndexDiag"/);
+    assert.match(html, /id="rvIiko"[\s\S]*?<details class="rv-how">[\s\S]*?Esc закрывают/);
     const loose = visibleHtml.replace(/<details[\s\S]*?<\/details>/g, '');
     assert.ok(!/<ul>|<li>/.test(loose), 'правила висят на экране вне раскрывашки');
     assert.ok(!/Похожая карточка|EAN-13|стоп-слов/.test(loose), 'пояснение расчёта вне раскрывашки');
     assert.ok(!/<details[^>]*\sopen/.test(html), 'раскрывашка открыта по умолчанию');
     const listHow = /<section class="rv-panel rv-list"[\s\S]*?<\/section>/.exec(html)[0];
-    for (const topic of ['Закрытие', 'Название', 'Поставщик', 'Кол-во', 'Штрихкод для iiko', 'нашлась сама']) {
+    for (const topic of ['Закрытие', 'Название', 'Поставщик', 'Кол-во', 'Штрихкод для iiko', 'нашлась сама',
+                         'Индекс', '26', 'Вернуть']) {
         assert.ok(listHow.includes(topic), `в пояснении таблицы нет «${topic}»`);
     }
 });

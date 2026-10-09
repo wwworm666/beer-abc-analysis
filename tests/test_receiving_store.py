@@ -52,7 +52,8 @@ ANNA = {'login': 'anna', 'display_name': 'Анна'}
 AGENT = {'login': 'owner', 'display_name': 'Владелец', 'via_mcp': True}
 
 RECEIPT_KEYS = {'id', 'status', 'note', 'created_at', 'created_by', 'closed_at', 'closed_by',
-                'process_state', 'processed_at', 'process_note', 'notified_at', 'counts'}
+                'process_state', 'processed_at', 'process_note', 'notified_at', 'counts',
+                'review', 'reviewed', 'reviewed_at', 'can_delete'}
 COUNT_KEYS = {'units', 'gtins', 'rejected', 'repeats', 'invoices'}
 SCAN_KEYS = {'id', 'gtin', 'kind', 'accepted', 'reason', 'raw_short', 'scanned_at', 'source', 'by'}
 INVOICE_KEYS = {'name', 'url', 'size', 'uploaded_at', 'uploaded_by'}
@@ -165,11 +166,11 @@ def test_schema_version_pragmas_and_foreign_keys(db, clock):
     rs.create_receipt(USER)
     conn = sqlite3.connect(db)
     try:
-        assert conn.execute('PRAGMA user_version').fetchone()[0] == rs.SCHEMA_VERSION == 1
+        assert conn.execute('PRAGMA user_version').fetchone()[0] == rs.SCHEMA_VERSION == 3
         assert conn.execute('PRAGMA journal_mode').fetchone()[0] == 'wal'
         tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
         assert {'receipts', 'receipt_scans', 'receipt_invoices', 'review_items',
-                'chz_products'} <= tables
+                'chz_products', 'receipt_deletions'} <= tables
         indexes = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type = 'index'")}
         assert {'ux_scans_client', 'ux_scans_dm', 'ix_scans_receipt', 'ix_review_state'} <= indexes
     finally:
@@ -1237,8 +1238,440 @@ def test_with_real_parse_code(db, clock):
 def test_api_dicts_are_json_serializable(db, clock):
     r1, _ = _review_fixture(clock)
     payload = {'receipt': rs.get_receipt(r1), 'lines': rs.receipt_lines(r1),
-               'recent': rs.recent_scans(r1), 'review': rs.list_review(state='all')}
+               'recent': rs.recent_scans(r1), 'review': rs.list_review(state='all'),
+               'receipts': rs.review_receipts()}
     json.dumps(payload, ensure_ascii=False)
+
+
+# ------------------------------------------------------------------ прогресс разбора и удаление
+
+def _processed(rid):
+    rs.claim_processing(rid)
+    rs.finish_processing(rid, 'done')
+
+
+def test_receipt_review_progress_and_flags(db, clock):
+    open_rid = rs.create_receipt(USER)['id']
+    _scan(open_rid, _dm(G1, 'o1'))
+    r = rs.get_receipt(open_rid)
+    assert (r['review'], r['reviewed'], r['can_delete']) == (None, False, False)
+
+    rid = _closed_receipt_with([_dm(G1, 'a1'), _dm(G1, 'a2'), _ean(G2), _bad()])
+    r = rs.get_receipt(rid)
+    assert r['review'] == {'open': 0, 'closed': 0, 'missing': 2}        # сверка ещё не прошла
+    assert (r['reviewed'], r['can_delete']) == (False, True)
+
+    rs.upsert_review(G1, rid, 'new', [], [], CHZ, 'idx')
+    rs.upsert_review(G2, rid, 'found', [_card('k2', 'Балтика')], [], {}, 'idx')
+    _processed(rid)
+    r = rs.get_receipt(rid)
+    assert r['review'] == {'open': 1, 'closed': 1, 'missing': 0}
+    assert (r['reviewed'], r['can_delete']) == (False, True)
+
+    rs.update_review(G1, USER, state='done')
+    r = rs.get_receipt(rid)
+    assert r['review'] == {'open': 0, 'closed': 2, 'missing': 0}
+    assert (r['reviewed'], r['can_delete']) == (True, False)
+    assert [x['reviewed'] for x in rs.list_receipts()] == [True, False]   # новые сверху: rid, open_rid
+
+    empty = _closed_receipt_with([_bad()])                               # «Пустая приёмка»
+    _processed(empty)
+    r = rs.get_receipt(empty)
+    assert r['review'] == {'open': 0, 'closed': 0, 'missing': 0}
+    assert (r['reviewed'], r['can_delete']) == (False, True)             # разбирать нечего, удалить можно
+
+
+def test_delete_receipt_rules(db, clock):
+    open_rid = rs.create_receipt(USER)['id']
+    with pytest.raises(rs.ReceiptOpen):
+        rs.delete_receipt(open_rid, USER)
+    done = _closed_receipt_with([_ean(G1)])
+    rs.upsert_review(G1, done, 'found', [_card('k1', 'Жигули')], [], {}, 'idx')
+    _processed(done)
+    with pytest.raises(rs.ReceiptReviewed):
+        rs.delete_receipt(done, USER)
+    with pytest.raises(rs.ReceiptNotFound):
+        rs.delete_receipt(999, USER)
+    with pytest.raises(rs.ReceiptNotFound):
+        rs.delete_receipt('abc', USER)
+    assert rs.get_receipt(open_rid)['status'] == 'open'                  # отказ ничего не трогает
+    assert rs.get_receipt(done)['reviewed'] is True
+
+    pending = _closed_receipt_with([_ean(G2)])                           # сверка не прошла — можно
+    res = rs.delete_receipt(pending, USER)
+    assert res['receipt']['id'] == pending and res['deleted_by'] == 'Иван'
+    assert res['lines'] == [{'gtin': G2, 'qty': 1, 'kind': 'ean'}]
+    with pytest.raises(rs.ReceiptNotFound):
+        rs.get_receipt(pending)
+    with pytest.raises(rs.ReceiptNotFound):
+        rs.delete_receipt(pending, USER)                                 # повтор — уже нет
+    assert rs.create_receipt(USER)['id'] > pending                       # номер не переиспользуется
+
+
+def test_delete_receipt_removes_own_rows_keeps_shared(db, clock):
+    r1 = _closed_receipt_with([_dm(G1, 'a1'), _dm(G2, 'b1'), _dm(G2, 'b2')])
+    rs.upsert_review(G1, r1, 'new', [], [], CHZ, 'idx-1')
+    rs.upsert_review(G2, r1, 'new', [], [], {}, 'idx-1')
+    rs.update_review(G1, USER, supplier='МаркетБир', note='завести')
+    _processed(r1)
+    clock.move(minutes=5)
+    r2 = _closed_receipt_with([_ean(G2), _ean(G3)])
+    rs.upsert_review(G2, r2, 'new', [], [], {}, 'idx-1')
+    rs.upsert_review(G3, r2, 'found', [_card('k3', 'Балтика')], [], {}, 'idx-1')
+    _processed(r2)
+    assert rs.get_review_item(G2)['qty'] == 3
+
+    res = rs.delete_receipt(r1, AGENT)
+    assert (res['rows_deleted'], res['rows_kept']) == (1, 1)
+    assert res['deleted_by'] == 'Владелец · агент'
+    with pytest.raises(rs.ReviewItemNotFound):
+        rs.get_review_item(G1)                                           # был только в r1
+    shared = rs.get_review_item(G2)
+    assert shared['qty'] == 1 and [x['id'] for x in shared['receipts']] == [r2]
+    assert shared['state'] == 'open'                                     # r2 его ещё не разобрала
+    assert rs.rows_to_notify(r1) == []
+    with rs._read() as conn:
+        ref = conn.execute('SELECT first_receipt_id, last_receipt_id, notify_receipt_id FROM review_items'
+                           ' WHERE gtin = ?', (G2,)).fetchone()
+        # Сообщения о r1 ещё не было (notified_at пусто) — объявит r2, которая тоже ещё не объявлена.
+        assert (ref['first_receipt_id'], ref['last_receipt_id'], ref['notify_receipt_id']) == (r2, r2, r2)
+        tomb = conn.execute('SELECT * FROM receipt_deletions WHERE receipt_id = ?', (r1,)).fetchone()
+    assert tomb['deleted_by_name'] == 'Владелец · агент' and tomb['deleted_at'] == clock.iso()
+    snap = json.loads(tomb['snapshot_json'])
+    assert snap['receipt']['id'] == r1 and snap['rows_kept'] == 1
+    assert [(x['gtin'], x['supplier'], x['note'], x['chz_name']) for x in snap['rows_deleted']] == \
+        [(G1, 'МаркетБир', 'завести', CHZ['name'])]
+    assert [x['gtin'] for x in rs.list_review(state='all')['rows']] == [G2, G3]
+    assert rs.get_receipt(r2)['review'] == {'open': 1, 'closed': 1, 'missing': 0}
+
+
+def test_delete_receipt_removes_scans_and_invoices(db, clock):
+    rid = _closed_receipt_with([_ean(G1), _bad()])
+    rs.add_invoice(rid, 'r%d_20261003T140500_0123abcd.jpg' % rid, 1000, USER)
+    keep = _closed_receipt_with([_ean(G1)])
+    rs.add_invoice(keep, 'r%d_20261003T140500_89abcdef.jpg' % keep, 1000, USER)
+    res = rs.delete_receipt(rid, USER)
+    assert res['invoices'] == ['r%d_20261003T140500_0123abcd.jpg' % rid]
+    with rs._read() as conn:
+        assert conn.execute('SELECT COUNT(*) FROM receipt_scans WHERE receipt_id = ?', (rid,)).fetchone()[0] == 0
+        assert conn.execute('SELECT COUNT(*) FROM receipt_invoices WHERE receipt_id = ?', (rid,)).fetchone()[0] == 0
+    assert len(rs.list_invoices(keep)) == 1 and rs.receipt_lines(keep)[0]['gtin'] == G1
+
+
+def test_upsert_review_refuses_deleted_receipt(db, clock):
+    rid = _closed_receipt_with([_ean(G1)])
+    rs.delete_receipt(rid, USER)
+    with pytest.raises(rs.ReceiptNotFound):
+        rs.upsert_review(G1, rid, 'new', [], [], CHZ, 'idx')
+    with pytest.raises(rs.ReviewItemNotFound):
+        rs.get_review_item(G1)
+    assert rs.upsert_review(G1, None, 'new', [], [], {}, 'idx')['opened'] is True   # без приёмки — как раньше
+
+
+def test_review_receipts_pending_recent_and_selected(db, clock):
+    reviewed = _closed_receipt_with([_ean(G1)])
+    rs.upsert_review(G1, reviewed, 'found', [_card('k1', 'Жигули')], [], {}, 'idx')
+    _processed(reviewed)
+    with_open_row = _closed_receipt_with([_ean(G2)])
+    rs.upsert_review(G2, with_open_row, 'new', [], [], {}, 'idx')
+    _processed(with_open_row)
+    scanning = rs.create_receipt(USER)['id']
+    _scan(scanning, _ean(G3))
+    pending = _closed_receipt_with([_ean(G3)])                           # сверка ещё не прошла
+    empty = _closed_receipt_with([_bad()])
+    _processed(empty)
+
+    ids = [r['id'] for r in rs.review_receipts(recent=1)]
+    assert ids == [empty, pending, with_open_row]                       # последняя закрытая + неразобранные
+    ids = [r['id'] for r in rs.review_receipts(recent=1, selected=[reviewed, scanning, 999])]
+    assert ids == [empty, pending, scanning, with_open_row, reviewed]   # выбранные — какие есть
+    assert [r['id'] for r in rs.review_receipts(recent=20)] == [empty, pending, with_open_row, reviewed]
+    with pytest.raises(ValueError):
+        rs.review_receipts(selected='1,x')
+
+
+def test_list_review_several_receipts(db, clock):
+    r1 = _closed_receipt_with([_ean(G1)])
+    r2 = _closed_receipt_with([_ean(G2)])
+    r3 = _closed_receipt_with([_ean(G3), _ean(G1)])
+    for gtin, rid in ((G1, r1), (G2, r2), (G3, r3)):
+        rs.upsert_review(gtin, rid, 'new', [], [], {}, 'idx')
+    pick = lambda value: sorted(x['gtin'] for x in rs.list_review(receipt_id=value)['rows'])  # noqa: E731
+    assert pick([r1, r2]) == sorted([G1, G2])
+    assert pick('%d,%d' % (r2, r3)) == sorted([G1, G2, G3])
+    assert pick([r1, r1]) == [G1]
+    assert pick(r2) == [G2] and pick(str(r2)) == [G2]
+    assert pick('') == pick(None) == sorted([G1, G2, G3])
+    assert rs.list_review(receipt_id=[r1, r2])['counts']['open_total'] == 2
+    for bad in ('x', [0], [True], '1,,x', list(range(1, rs.RECEIPT_FILTER_MAX + 2))):
+        with pytest.raises(ValueError):
+            rs.list_review(receipt_id=bad)
+
+
+def test_reviewed_sticks_when_shared_row_reopened_later(db, clock):
+    # R1 разобрана полностью; через 20 дней R2 с тем же GTIN переоткрывает общую строку
+    # (карточку в iiko заархивировали) — это работа R2, R1 остаётся разобранной.
+    r1 = _closed_receipt_with([_ean(G1), _ean(G2)])
+    rs.upsert_review(G1, r1, 'found', [_card('k1', 'Жигули')], [], {}, IDX_0700)
+    rs.upsert_review(G2, r1, 'new', [], [], CHZ, IDX_0700)
+    _processed(r1)
+    assert rs.get_receipt(r1)['reviewed'] is False
+    rs.update_review(G2, USER, state='done', supplier='МаркетБир', note='завели')
+    stamped = rs.get_receipt(r1)
+    assert stamped['reviewed'] is True and stamped['reviewed_at'] == clock.iso()
+    clock.move(days=20)
+    r2 = _closed_receipt_with([_ean(G1)])
+    later = clock.iso()
+    rs.upsert_review(G1, r2, 'restore', [_card('k1', 'Жигули', archived=True)], [], {}, later)
+    assert rs.get_review_item(G1)['state'] == 'open'
+    again = rs.get_receipt(r1)
+    assert again['review'] == {'open': 1, 'closed': 1, 'missing': 0}     # прогресс — как сейчас
+    assert (again['reviewed'], again['can_delete']) == (True, False)
+    with pytest.raises(rs.ReceiptReviewed):
+        rs.delete_receipt(r1, USER)
+    assert [r['id'] for r in rs.review_receipts(recent=1)] == [r2]         # в выборе только новая
+    assert rs.get_receipt(r2)['reviewed'] is False
+
+
+def test_reviewed_cleared_when_own_decision_is_reverted(db, clock):
+    # Ревью 2026-10-04: «Вернуть в разбор» и «Сделано», не подтверждённое индексом
+    # (опечатка в штрихкоде), — пересмотр решения: приёмка снова не разобрана — в выборе
+    # приёмок и удаляется; чужие отметки не трогаются.
+    rid = _closed_receipt_with([_ean(G2)])
+    rs.upsert_review(G2, rid, 'new', [], [], CHZ, IDX_0700)
+    _processed(rid)
+    later = _closed_receipt_with([_ean(G1)])                              # новее: в recent=1 — она
+    rs.upsert_review(G1, later, 'found', [_card('k1', 'Жигули')], [], {}, IDX_0700)
+    _processed(later)
+
+    def picked():
+        return [r['id'] for r in rs.review_receipts(recent=1)]
+
+    rs.update_review(G2, USER, state='not_needed')
+    assert rs.get_receipt(rid)['reviewed'] is True and picked() == [later]
+    clock.move(minutes=1)
+    rs.update_review(G2, USER, state='open')                              # «Вернуть в разбор»
+    back = rs.get_receipt(rid)
+    assert (back['reviewed'], back['reviewed_at'], back['can_delete']) == (False, None, True)
+    assert picked() == [later, rid]
+    rs.update_review(G2, USER, state='done')
+    assert rs.get_receipt(rid)['reviewed'] is True and picked() == [later]
+    clock.move(hours=1)
+    assert rs.recheck_done(G2, 'new', [], [], clock.iso())['reopened'] is True
+    again = rs.get_receipt(rid)
+    assert (again['reviewed'], again['can_delete']) == (False, True)
+    assert picked() == [later, rid]
+    assert rs.get_receipt(later)['reviewed'] is True
+    rs.update_review(G2, USER, state='open')                              # уже открыта — ничего
+    assert rs.get_receipt(later)['reviewed'] is True
+
+
+def test_redecided_closed_row_then_reverted_unstamps(db, clock):
+    # Ревью 2026-10-04: решение по уже закрытой строке (устаревшая вкладка, агент) сдвигает
+    # resolved_at, но не начало закрытого периода (closed_since) — «Вернуть в разбор» и
+    # после него снимает отметку приёмки.
+    rid = _closed_receipt_with([_ean(G2)])
+    rs.upsert_review(G2, rid, 'new', [], [], CHZ, IDX_0700)
+    _processed(rid)
+    rs.update_review(G2, USER, state='not_needed')
+    stamped = rs.get_receipt(rid)['reviewed_at']
+    assert stamped == clock.iso()
+    clock.move(minutes=5)
+    rs.update_review(G2, USER, state='done')
+    assert rs.get_receipt(rid)['reviewed_at'] == stamped                   # отметка не двигается
+    clock.move(minutes=5)
+    rs.update_review(G2, USER, state='open')
+    back = rs.get_receipt(rid)
+    assert (back['reviewed'], back['can_delete']) == (False, True)
+
+
+def test_redecision_of_other_row_keeps_previous_cycle_stamp(db, clock):
+    # Ревью 2026-10-04: приёмка A (G1+G2) разобрана в прошлом круге; B переоткрыла G2, её
+    # решили заново; повторное решение по закрытой G1 (устаревшая вкладка) и затем
+    # «Вернуть в разбор» у G2 снимают отметку только у B.
+    a = _closed_receipt_with([_ean(G1), _ean(G2)])
+    rs.upsert_review(G1, a, 'new', [], [], CHZ, IDX_0700)
+    rs.upsert_review(G2, a, 'new', [], [], CHZ, IDX_0700)
+    _processed(a)
+    rs.update_review(G1, USER, state='done')
+    rs.update_review(G2, USER, state='done')
+    assert rs.get_receipt(a)['reviewed'] is True
+    clock.move(days=20)
+    b = _closed_receipt_with([_ean(G2)])
+    rs.upsert_review(G2, b, 'restore', [_card('k2', 'Балтика', archived=True)], [], {}, clock.iso())
+    _processed(b)
+    clock.move(minutes=5)
+    rs.update_review(G2, USER, state='done')
+    clock.move(minutes=5)
+    rs.update_review(G1, USER, state='not_needed')                         # G1 уже закрыта
+    clock.move(minutes=5)
+    rs.update_review(G2, USER, state='open')
+    assert rs.get_receipt(a)['reviewed'] is True
+    assert rs.get_receipt(b)['reviewed'] is False
+
+
+def test_closed_since_backfilled_for_existing_closed_rows(db, clock):
+    # База до колонки closed_since: у закрытых строк — время решения.
+    rid = _closed_receipt_with([_ean(G1)])
+    rs.upsert_review(G1, rid, 'new', [], [], CHZ, IDX_0700)
+    rs.update_review(G1, USER, state='done')
+    resolved = rs.get_review_item(G1)['resolved_at']
+    path = rs.db_path()
+    conn = sqlite3.connect(path)
+    conn.execute('ALTER TABLE review_items DROP COLUMN closed_since')
+    conn.commit()
+    conn.close()
+    rs.set_db_path(path)                                                   # схема заново
+    assert rs.get_review_item(G1)['state'] == 'closed'                     # первое обращение
+    conn = sqlite3.connect(path)
+    assert conn.execute('SELECT closed_since FROM review_items WHERE gtin = ?', (G1,)).fetchone()[0] == resolved
+    conn.close()
+
+
+def test_revert_keeps_stamps_of_previous_cycle(db, clock):
+    # R1 разобрана («Сделано»); через 20 дней R2 переоткрыла общую строку, бухгалтер решил
+    # её снова и вернул в разбор: отметку теряет только R2 — R1 разобрана в прошлом круге.
+    r1 = _closed_receipt_with([_ean(G1)])
+    rs.upsert_review(G1, r1, 'new', [], [], CHZ, IDX_0700)
+    _processed(r1)
+    rs.update_review(G1, USER, state='done')
+    clock.move(days=20)
+    r2 = _closed_receipt_with([_ean(G1)])
+    rs.upsert_review(G1, r2, 'restore', [_card('k1', 'Жигули', archived=True)], [], {}, clock.iso())
+    _processed(r2)
+    clock.move(minutes=5)
+    rs.update_review(G1, USER, state='done')
+    assert rs.get_receipt(r2)['reviewed'] is True
+    clock.move(minutes=5)
+    rs.update_review(G1, USER, state='open')
+    assert rs.get_receipt(r1)['reviewed'] is True
+    assert rs.get_receipt(r2)['reviewed'] is False
+
+
+def test_v1_copy_restored_on_the_fly_does_not_break_receipt_lists(db, clock, tmp_path):
+    # Ревью 2026-10-04: файл БД заменили копией до v3 (без reviewed_at), не перезапуская
+    # сервис: списки приёмок не падают, а схема догоняется при первом запросе к колонке.
+    rid = _closed_receipt_with([_ean(G1)])
+    path = rs.db_path()
+    conn = sqlite3.connect(path)
+    conn.execute('ALTER TABLE receipts DROP COLUMN reviewed_at')
+    conn.execute('PRAGMA user_version = 1')
+    conn.commit()
+    conn.close()
+    assert [r['id'] for r in rs.list_receipts()] == [rid]
+    assert rs.get_receipt(rid)['reviewed_at'] is None
+    with pytest.raises(rs.ReceivingUnavailable):
+        rs.review_receipts()                         # «no such column» — схема догоняется
+    assert [r['id'] for r in rs.review_receipts()] == [rid]
+
+
+def test_reviewed_stamped_by_auto_close_and_found_on_finish(db, clock):
+    allfound = _closed_receipt_with([_ean(G1)])
+    rs.upsert_review(G1, allfound, 'found', [_card('k1', 'Жигули')], [], {}, IDX_0700)
+    _processed(allfound)                                                  # всё сразу в iiko
+    assert rs.get_receipt(allfound)['reviewed_at'] == clock.iso()
+    pending = _closed_receipt_with([_ean(G2)])
+    rs.upsert_review(G2, pending, 'new', [], [], CHZ, IDX_0700)
+    _processed(pending)
+    assert rs.get_receipt(pending)['reviewed_at'] is None
+    clock.move(hours=1)
+    rs.reclassify_open(G2, 'found', [_card('k2', 'Балтика')], [], index_built_at=clock.iso())
+    assert rs.get_receipt(pending)['reviewed_at'] == clock.iso()          # карточку завели — нашлась сама
+
+
+def test_schema_v3_backfills_reviewed_at(db, clock):
+    rid = _closed_receipt_with([_ean(G1)])
+    rs.upsert_review(G1, rid, 'found', [_card('k1', 'Жигули')], [], {}, IDX_0700)
+    _processed(rid)
+    conn = sqlite3.connect(db)
+    try:
+        conn.execute('UPDATE receipts SET reviewed_at = NULL')
+        conn.execute('PRAGMA user_version = 2')
+        conn.commit()
+    finally:
+        conn.close()
+    clock.move(minutes=3)
+    rs.set_db_path(db)                                                    # новый «процесс»
+    assert rs.get_receipt(rid)['reviewed_at'] == clock.iso()
+
+
+def test_delete_keeps_decided_rows_of_a_receipt_still_scanning(db, clock):
+    r1 = _closed_receipt_with([_ean(G1), _ean(G2), _ean(G3)])
+    for gtin in (G1, G2, G3):
+        rs.upsert_review(gtin, r1, 'new', [], [], CHZ, IDX_0700)
+    rs.update_review(G1, USER, state='not_needed', note='промо, не заводим')
+    rs.update_review(G2, USER, supplier='МаркетБир')
+    scanning = rs.create_receipt(USER)['id']                             # ту же поставку досканируют
+    for gtin in (G1, G2, G3):
+        _scan(scanning, _ean(gtin))
+    res = rs.delete_receipt(r1, USER)
+    assert (res['rows_deleted'], res['rows_kept']) == (1, 2)
+    kept = rs.get_review_item(G1)
+    assert (kept['state'], kept['resolution'], kept['note']) == ('closed', 'not_needed', 'промо, не заводим')
+    assert rs.get_review_item(G2)['supplier'] == 'МаркетБир'
+    with pytest.raises(rs.ReviewItemNotFound):
+        rs.get_review_item(G3)                                            # нетронутую заведёт закрытие
+    with rs._read() as conn:
+        ref = conn.execute('SELECT notify_receipt_id FROM review_items WHERE gtin = ?', (G2,)).fetchone()
+    assert ref['notify_receipt_id'] == scanning                          # о G2 сообщит новая приёмка
+    rs.close_receipt(scanning, USER)
+    again = rs.upsert_review(G1, scanning, 'new', [], [], {}, IDX_0730)
+    assert again['row']['resolution'] == 'not_needed' and again['opened'] is False   # «Не нужно» дожило
+
+
+def test_delete_announced_receipt_does_not_announce_kept_rows_again(db, clock):
+    r1 = _closed_receipt_with([_ean(G1)])
+    rs.upsert_review(G1, r1, 'new', [], [], CHZ, IDX_0700)
+    _processed(r1)
+    rs.mark_notified(r1)                                                  # о G1 уже сообщили
+    r2 = _closed_receipt_with([_ean(G1)])
+    rs.delete_receipt(r1, USER)
+    with rs._read() as conn:
+        ref = conn.execute('SELECT notify_receipt_id FROM review_items WHERE gtin = ?', (G1,)).fetchone()
+    assert ref['notify_receipt_id'] is None
+    assert rs.rows_to_notify(r2) == []
+
+
+def test_scan_into_deleted_receipt_is_closed_not_missing(db, clock):
+    rid = _closed_receipt_with([_ean(G1)])
+    rs.delete_receipt(rid, USER)
+    with pytest.raises(rs.ReceiptDeleted) as info:
+        _scan(rid, _ean(G2))
+    assert isinstance(info.value, rs.ReceiptClosed)                       # телефон перенесёт сканы
+    with pytest.raises(rs.ReceiptNotFound):
+        _scan(rid + 100, _ean(G2))                                        # такой не было — 404
+
+
+def test_delete_refused_while_processing_runs(db, clock):
+    rid = _closed_receipt_with([_ean(G1)])
+    assert rs.claim_processing(rid) is True
+    r = rs.get_receipt(rid)
+    assert (r['process_state'], r['can_delete']) == ('running', False)
+    with pytest.raises(rs.ReceiptProcessing):
+        rs.delete_receipt(rid, USER)
+    clock.move(seconds=rs.PROCESS_STALE_SEC + 1)                          # обработка зависла
+    assert rs.get_receipt(rid)['can_delete'] is True
+    assert rs.delete_receipt(rid, USER)['receipt']['id'] == rid
+
+
+def test_schema_v1_database_gets_deletions_table(db, clock):
+    rid = rs.create_receipt(USER)['id']
+    conn = sqlite3.connect(db)
+    try:
+        conn.execute('DROP TABLE receipt_deletions')
+        conn.execute('PRAGMA user_version = 1')
+        conn.commit()
+    finally:
+        conn.close()
+    rs.set_db_path(db)                                                    # новый «процесс»
+    assert rs.get_receipt(rid)['id'] == rid
+    conn = sqlite3.connect(db)
+    try:
+        assert conn.execute('PRAGMA user_version').fetchone()[0] == 3
+        tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+        assert 'receipt_deletions' in tables
+    finally:
+        conn.close()
 
 
 def test_py310_compatible_syntax():

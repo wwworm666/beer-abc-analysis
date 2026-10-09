@@ -48,6 +48,21 @@ upsert_review / reclassify_open / update_review — в их докстринга
 docs/receiving.md. Поле updated_* — последняя правка ЧЕЛОВЕКОМ (поставщик,
 заметка, «Сделано» / «Не нужно» / «Вернуть в разбор»); системные изменения
 видны по classified_at и resolved_* (resolved_by = 'индекс iiko').
+
+Прогресс разбора закрытой приёмки (receipt['review']) — по различным GTIN её
+принятых неудалённых сканов: open — строка разбора открыта, closed — закрыта,
+missing — строки нет (обработка не дошла или упала); open + closed + missing =
+counts.gtins. Строка одна на GTIN, поэтому GTIN, общий с другой приёмкой, считается
+в обеих. «Разобрана полностью» (reviewed) — закрыта, сверка done, позиций больше
+нуля, open = missing = 0; момент, когда это впервые стало так, запоминается
+(reviewed_at), и приёмка остаётся разобранной, даже если общую строку потом
+переоткроет другая приёмка (это работа новой приёмки). Отметку снимает пересмотр
+решения по строке — «Вернуть в разбор» или «Сделано», не подтверждённое индексом
+(_unstamp_reviewed): приёмки, ставшие разобранными с этим решением, снова не
+разобраны (ревью 2026-10-04). Удалить (delete_receipt,
+can_delete) можно закрытую приёмку, разобранную не полностью и не сверяемую в эту
+минуту; открытую ещё сканируют, а разобранная — запись о сделанной работе и остаётся
+в истории.
 """
 import json
 import os
@@ -62,8 +77,10 @@ from core import receiving_codes
 from core.storage_paths import get_data_path
 
 DB_FILE = 'receiving.db'
-# Версия схемы в PRAGMA user_version. Растёт на каждую аддитивную миграцию.
-SCHEMA_VERSION = 1
+# Версия схемы в PRAGMA user_version. Растёт на каждую аддитивную миграцию:
+# 2 — таблица receipt_deletions (удаление приёмки, 2026-10-04);
+# 3 — receipts.reviewed_at (когда приёмка стала разобранной полностью) с заполнением.
+SCHEMA_VERSION = 3
 BUSY_TIMEOUT_MS = 5000      # сколько ждать чужой write-лок, прежде чем сдаться (как mcp.db)
 CONNECT_TIMEOUT_SEC = 10    # таймаут sqlite3.connect на занятый файл (как core/mcp/db.py)
 
@@ -85,6 +102,9 @@ CLIENT_TIME_LIMIT = 40      # client_time: ISO-время телефона дл�
 # Сколько значений в одном IN (...): ниже лимита старых сборок SQLite (999 переменных
 # на запрос), чтобы запрос не упал на любой версии библиотеки.
 SQL_CHUNK = 500
+# Сколько приёмок можно выбрать в фильтре разбора разом: страница показывает выбор из
+# неразобранных приёмок (их единицы-десятки), 50 — с запасом и в одном IN (...).
+RECEIPT_FILTER_MAX = 50
 
 INVOICE_URL_PREFIX = '/api/receiving/invoice/'   # раздача фото накладной (routes/receiving.py)
 AGENT_SUFFIX = ' · агент'   # подпись действий ИИ-агента владельца (вызов через MCP, via_mcp)
@@ -178,6 +198,18 @@ _SCHEMA_V1 = (
     )""",
 )
 
+# v2 (2026-10-04): удалённые приёмки. Сама приёмка, её сканы и записи о фото удаляются
+# насовсем (delete_receipt), а здесь остаётся, кто и когда удалил, и снимок: приёмка,
+# позиции, фото, удалённые строки разбора с решениями бухгалтера (snapshot_json).
+_SCHEMA_V2 = (
+    """CREATE TABLE IF NOT EXISTS receipt_deletions (
+      receipt_id INTEGER PRIMARY KEY,
+      deleted_at TEXT NOT NULL, deleted_by_login TEXT NOT NULL DEFAULT '',
+      deleted_by_name TEXT NOT NULL DEFAULT '',
+      snapshot_json TEXT NOT NULL DEFAULT '{}'
+    )""",
+)
+
 # Колонки, добавленные к схеме v1 до выкладки (2026-10-03, ревью): база, созданная
 # раньше (локально), догоняется ALTER TABLE ADD COLUMN — миграции только аддитивные.
 # notified_at — когда бухгалтерии ушло сообщение о приёмке (повтор обработки после
@@ -186,6 +218,15 @@ _SCHEMA_V1 = (
 _ADDED_COLUMNS = (
     ('receipts', 'notified_at', 'TEXT'),
     ('review_items', 'notify_receipt_id', 'INTEGER'),
+    # v3 (2026-10-04): когда приёмка впервые стала разобранной полностью. «Разобрана»
+    # запоминается: строка разбора одна на GTIN на все приёмки, и когда общую строку
+    # переоткрывает новая приёмка (карточку в iiko удалили или задублировали), старые
+    # приёмки с этим GTIN не возвращаются в «неразобранные» и не становятся удаляемыми.
+    ('receipts', 'reviewed_at', 'TEXT'),
+    # С какого момента строка разбора закрыта (текущий закрытый период): решение по уже
+    # закрытой строке его не сдвигает. По нему пересмотр решения снимает отметки
+    # «разобрана» (_unstamp_reviewed) — только поставленные в этом периоде (ревью 2026-10-04).
+    ('review_items', 'closed_since', 'TEXT'),
 )
 
 # Порядок сортировки списка разбора: открытые раньше; статус по важности; свежие сверху.
@@ -220,6 +261,26 @@ class ScanNotFound(Exception):
 
 class ReviewItemNotFound(Exception):
     """Нет строки разбора для этого GTIN."""
+
+
+class ReceiptOpen(Exception):
+    """Приёмка ещё открыта (её сканируют): удалить можно только закрытую."""
+
+
+class ReceiptReviewed(Exception):
+    """Приёмка разобрана полностью: она остаётся в истории, удалить нельзя."""
+
+
+class ReceiptProcessing(Exception):
+    """Приёмку сейчас сверяют с iiko (обработка идёт): удалить можно после сверки."""
+
+
+class ReceiptDeleted(ReceiptClosed):
+    """Приёмку удалили (есть запись в receipt_deletions): для скана она — как закрытая.
+
+    Наследник ReceiptClosed: телефон приёмщика на 409 переносит неотправленные сканы в
+    новую приёмку, а не выбрасывает их, как на 404 (static/js/receiving/scan.js).
+    """
 
 
 # ------------------------------------------------------------------ соединения
@@ -301,10 +362,23 @@ def _ensure_schema(conn, path: str) -> None:
             if version < 1:
                 for sql in _SCHEMA_V1:
                     conn.execute(sql)
+            if version < 2:
+                for sql in _SCHEMA_V2:
+                    conn.execute(sql)
             for table, column, decl in _ADDED_COLUMNS:
                 have = {r['name'] for r in conn.execute('PRAGMA table_info(%s)' % table)}
                 if column not in have:
                     conn.execute('ALTER TABLE %s ADD COLUMN %s %s' % (table, column, decl))
+                    if column == 'closed_since':
+                        # Закрытые до появления колонки: лучшее, что известно, — время решения.
+                        conn.execute("UPDATE review_items SET closed_since = COALESCE(resolved_at, updated_at)"
+                                     " WHERE state = 'closed'")
+            if version < 3:
+                # reviewed_at у приёмок, разобранных полностью до появления колонки.
+                ids = [r['id'] for r in conn.execute(
+                    "SELECT id FROM receipts WHERE status = 'closed' AND process_state = 'done'"
+                    ' AND reviewed_at IS NULL')]
+                _stamp_reviewed(conn, receipt_ids=ids)
             if version < SCHEMA_VERSION:
                 conn.execute('PRAGMA user_version = %d' % SCHEMA_VERSION)
             conn.execute('COMMIT')
@@ -492,7 +566,57 @@ def _counts(conn, receipt_id: int) -> dict:
     return _counts_for(conn, [receipt_id])[receipt_id]
 
 
-def _receipt_dict(row, counts: dict) -> dict:
+_EMPTY_PROGRESS = {'open': 0, 'closed': 0, 'missing': 0}
+
+
+def _progress_for(conn, ids: list) -> Dict[int, dict]:
+    """Прогресс разбора приёмок {id: {'open','closed','missing'}} групповым запросом.
+
+    По различным GTIN принятых неудалённых сканов приёмки: open — строка разбора
+    открыта, closed — закрыта, missing — строки нет (см. докстринг модуля).
+    """
+    out = {rid: dict(_EMPTY_PROGRESS) for rid in ids}
+    for chunk in _chunks(list(ids)):
+        for r in conn.execute(
+                'SELECT s.receipt_id AS rid,'
+                " COUNT(DISTINCT CASE WHEN ri.state = 'open' THEN s.gtin END) AS open_n,"
+                " COUNT(DISTINCT CASE WHEN ri.state = 'closed' THEN s.gtin END) AS closed_n,"
+                ' COUNT(DISTINCT CASE WHEN ri.gtin IS NULL THEN s.gtin END) AS missing_n'
+                ' FROM receipt_scans s LEFT JOIN review_items ri ON ri.gtin = s.gtin'
+                ' WHERE s.accepted = 1 AND s.deleted_at IS NULL AND s.gtin IS NOT NULL'
+                ' AND s.receipt_id IN (' + _placeholders(len(chunk)) + ') GROUP BY s.receipt_id',
+                chunk):
+            out[r['rid']] = {'open': int(r['open_n'] or 0), 'closed': int(r['closed_n'] or 0),
+                             'missing': int(r['missing_n'] or 0)}
+    return out
+
+
+def _fully_reviewed(row, counts: dict, progress: dict) -> bool:
+    """Разобрана полностью сейчас: закрыта, сверка done, позиций больше нуля, все строки закрыты."""
+    return bool(row['status'] == 'closed' and row['process_state'] == 'done'
+                and counts.get('gtins', 0) > 0 and progress['open'] == 0 and progress['missing'] == 0)
+
+
+def _processing_now(row) -> bool:
+    """Обработка идёт и не зависла (взята не раньше PROCESS_STALE_SEC назад)."""
+    if row['process_state'] != 'running':
+        return False
+    cutoff = _iso(_now() - timedelta(seconds=PROCESS_STALE_SEC))
+    return str(row['process_started_at'] or '') > cutoff
+
+
+def _receipt_dict(row, counts: dict, progress: dict) -> dict:
+    """receipt dict API. review — прогресс разбора сейчас (у открытой приёмки None: её
+    ещё сканируют); reviewed — разобрана полностью (однажды разобранная остаётся
+    разобранной — reviewed_at); can_delete — закрыта, не разобрана полностью и не
+    сверяется в эту минуту (правила — докстринг модуля)."""
+    closed = row['status'] == 'closed'
+    review = dict(progress) if closed else None
+    # Колонки нет — файл БД заменили на ходу копией до v3 (восстановление): sqlite3.Row
+    # бросил бы IndexError, и списки приёмок отвечали бы 500, пока схему не догонит
+    # запрос, где колонка названа явно (ревью 2026-10-04).
+    reviewed_at = row['reviewed_at'] if 'reviewed_at' in row.keys() else None
+    reviewed = bool(closed and (reviewed_at or _fully_reviewed(row, counts, progress)))
     return {
         'id': row['id'],
         'status': row['status'],
@@ -506,7 +630,66 @@ def _receipt_dict(row, counts: dict) -> dict:
         'process_note': row['process_note'],
         'notified_at': row['notified_at'],
         'counts': counts,
+        'review': review,
+        'reviewed': reviewed,
+        'reviewed_at': reviewed_at,
+        'can_delete': closed and not reviewed and not _processing_now(row),
     }
+
+
+def _stamp_reviewed(conn, gtins=None, receipt_ids=None) -> None:
+    """Запомнить reviewed_at у закрытых приёмок, которые сейчас разобраны полностью.
+
+    Кандидаты — receipt_ids и закрытые приёмки со сверкой done, где есть эти gtins.
+    Зовётся в той же записи, что закрывает строки разбора (решение бухгалтера,
+    автозакрытие по индексу, строка «есть в iiko», конец сверки) и при миграции v3.
+    Общая строка, переоткрытая позже новой приёмкой, отметку не снимает — это работа
+    новой приёмки; снимает пересмотр решения по строке (_unstamp_reviewed).
+    """
+    ids = set(receipt_ids or ())
+    wanted = [g for g in (gtins or ()) if g]
+    for chunk in _chunks(wanted):
+        ids.update(r['rid'] for r in conn.execute(
+            'SELECT DISTINCT s.receipt_id AS rid FROM receipt_scans s'
+            ' JOIN receipts r ON r.id = s.receipt_id'
+            " WHERE r.status = 'closed' AND r.process_state = 'done' AND r.reviewed_at IS NULL"
+            ' AND s.accepted = 1 AND s.deleted_at IS NULL AND s.gtin IN ('
+            + _placeholders(len(chunk)) + ')', chunk))
+    if not ids:
+        return
+    ids = sorted(ids)
+    rows = []
+    for chunk in _chunks(ids):
+        rows.extend(conn.execute('SELECT * FROM receipts WHERE reviewed_at IS NULL AND id IN ('
+                                 + _placeholders(len(chunk)) + ')', chunk).fetchall())
+    counts = _counts_for(conn, ids)
+    progress = _progress_for(conn, ids)
+    now = _stamp()
+    for row in rows:
+        if _fully_reviewed(row, counts[row['id']], progress[row['id']]):
+            conn.execute('UPDATE receipts SET reviewed_at = ? WHERE id = ? AND reviewed_at IS NULL',
+                         (now, row['id']))
+
+
+def _unstamp_reviewed(conn, gtin: str, closed_since) -> None:
+    """Снять reviewed_at у приёмок с этим GTIN, ставших разобранными за текущий закрытый
+    период строки.
+
+    Зовётся, когда закрытую строку возвращает в разбор не новая приёмка, а пересмотр
+    решения: бухгалтер — «Вернуть в разбор», индекс — «Сделано» не подтвердилось
+    (recheck_done). Отметку теряют приёмки, отмеченные не раньше начала закрытого периода
+    (closed_since строки; отметка ставится в той же записи, что закрытие, и не раньше
+    его): они стали разобранными, пока строка была закрыта. Повторное решение по уже
+    закрытой строке период не сдвигает. Отметки раньше — прошлый круг строки (её
+    переоткрыла новая приёмка, решение приняли заново) — остаются. Начала нет —
+    снимаются все отметки приёмок с этим GTIN: лучше показать работу лишний раз, чем
+    спрятать. Ревью 2026-10-04: без этого приёмка с возвращённой в разбор строкой
+    оставалась «разобрана», уходила из выбора приёмок и не удалялась.
+    """
+    conn.execute(
+        'UPDATE receipts SET reviewed_at = NULL WHERE reviewed_at IS NOT NULL AND reviewed_at >= ?'
+        ' AND id IN (SELECT receipt_id FROM receipt_scans WHERE gtin = ? AND accepted = 1'
+        ' AND deleted_at IS NULL)', (str(closed_since or ''), gtin))
 
 
 def _scan_dict(row) -> dict:
@@ -541,7 +724,47 @@ def _receipt_row(conn, receipt_id: int):
 
 
 def _load_receipt(conn, receipt_id: int) -> dict:
-    return _receipt_dict(_receipt_row(conn, receipt_id), _counts(conn, receipt_id))
+    return _receipt_dict(_receipt_row(conn, receipt_id), _counts(conn, receipt_id),
+                         _progress_for(conn, [receipt_id])[receipt_id])
+
+
+def _receipt_dicts(conn, rows) -> list:
+    """Строки receipts -> receipt dict (счётчики и прогресс — групповыми запросами)."""
+    ids = [r['id'] for r in rows]
+    counts = _counts_for(conn, ids)
+    progress = _progress_for(conn, ids)
+    return [_receipt_dict(r, counts[r['id']], progress[r['id']]) for r in rows]
+
+
+def _receipt_ids(value) -> List[int]:
+    """Номера приёмок для фильтра: int, строка «2,3» или список. -> без повторов, по порядку.
+
+    Пусто (None, '', []) -> []. Не номер или больше RECEIPT_FILTER_MAX номеров ->
+    ValueError (маршрут: 400).
+    """
+    if value is None:
+        return []
+    if isinstance(value, str):
+        items = [part.strip() for part in value.split(',') if part.strip()]
+    elif isinstance(value, (list, tuple, set)):
+        items = list(value)
+    else:
+        items = [value]
+    out = []
+    for item in items:
+        number = None
+        if not isinstance(item, bool):
+            try:
+                number = int(item)
+            except (TypeError, ValueError):
+                number = None
+        if number is None or not 1 <= number <= SQLITE_INT_MAX:
+            raise ValueError('receipt_id — номер приёмки')
+        if number not in out:
+            out.append(number)
+    if len(out) > RECEIPT_FILTER_MAX:
+        raise ValueError('receipt_id — не больше %d приёмок' % RECEIPT_FILTER_MAX)
+    return out
 
 
 # ------------------------------------------------------------------ приёмки
@@ -576,8 +799,53 @@ def list_receipts(status=None, limit=50) -> list:
                                 (status, limit)).fetchall()
         else:
             rows = conn.execute('SELECT * FROM receipts ORDER BY id DESC LIMIT ?', (limit,)).fetchall()
-        counts = _counts_for(conn, [r['id'] for r in rows])
-        return [_receipt_dict(r, counts[r['id']]) for r in rows]
+        return _receipt_dicts(conn, rows)
+
+
+def review_receipts(recent=20, selected=None) -> list:
+    """Приёмки для страницы разбора (выбор приёмок и «История приёмок»), новые сверху.
+
+    Все закрытые приёмки с позициями, где есть что разбирать (сверка не done или у
+    GTIN строка разбора открыта, а приёмка ещё не отмечена разобранной — reviewed_at),
+    в любом возрасте; плюс последние recent закрытых (история, там и пустые) и
+    выбранные selected, если такие номера есть. Кривой selected -> ValueError.
+    """
+    recent = _clamp_limit(recent, 20)
+    wanted = _receipt_ids(selected)
+    with _read() as conn:
+        # Есть что разбирать: сверка не done (строки ещё не заведены), или у GTIN
+        # приёмки строка открыта. Отдельно по открытым строкам — их единицы, запрос идёт
+        # по индексу ix_scans_gtin, а не по всем сканам за всё время. У приёмки со
+        # сверкой done строки есть у всех GTIN: обработка заводит их до отметки done,
+        # а удаление приёмки не трогает строки, общие с другими приёмками.
+        ids = {r['id'] for r in conn.execute(
+            "SELECT r.id AS id FROM receipts r WHERE r.status = 'closed' AND r.reviewed_at IS NULL"
+            " AND r.process_state != 'done' AND EXISTS (SELECT 1 FROM receipt_scans s"
+            ' WHERE s.receipt_id = r.id AND s.accepted = 1 AND s.deleted_at IS NULL'
+            ' AND s.gtin IS NOT NULL)')}
+        ids.update(r['id'] for r in conn.execute(
+            'SELECT DISTINCT s.receipt_id AS id FROM review_items ri'
+            ' JOIN receipt_scans s ON s.gtin = ri.gtin JOIN receipts r ON r.id = s.receipt_id'
+            " WHERE ri.state = 'open' AND r.status = 'closed' AND r.reviewed_at IS NULL"
+            ' AND s.accepted = 1 AND s.deleted_at IS NULL'))
+        ids.update(r['id'] for r in conn.execute(
+            "SELECT id FROM receipts WHERE status = 'closed' ORDER BY id DESC LIMIT ?", (recent,)))
+        ids.update(wanted)
+        rows = []
+        for chunk in _chunks(sorted(ids)):
+            rows.extend(conn.execute('SELECT * FROM receipts WHERE id IN ('
+                                     + _placeholders(len(chunk)) + ')', chunk).fetchall())
+        rows.sort(key=lambda r: r['id'], reverse=True)
+        return _receipt_dicts(conn, rows)
+
+
+def _lines(conn, rid: int) -> list:
+    rows = conn.execute(
+        'SELECT gtin, COUNT(*) AS qty, MIN(kind) AS kmin, MAX(kind) AS kmax'
+        ' FROM receipt_scans WHERE receipt_id = ? AND accepted = 1 AND deleted_at IS NULL'
+        ' AND gtin IS NOT NULL GROUP BY gtin ORDER BY qty DESC, gtin', (rid,)).fetchall()
+    return [{'gtin': r['gtin'], 'qty': int(r['qty']),
+             'kind': r['kmin'] if r['kmin'] == r['kmax'] else 'mixed'} for r in rows]
 
 
 def receipt_lines(receipt_id) -> list:
@@ -589,12 +857,7 @@ def receipt_lines(receipt_id) -> list:
     rid = _rid(receipt_id)
     with _read() as conn:
         _receipt_row(conn, rid)
-        rows = conn.execute(
-            'SELECT gtin, COUNT(*) AS qty, MIN(kind) AS kmin, MAX(kind) AS kmax'
-            ' FROM receipt_scans WHERE receipt_id = ? AND accepted = 1 AND deleted_at IS NULL'
-            ' AND gtin IS NOT NULL GROUP BY gtin ORDER BY qty DESC, gtin', (rid,)).fetchall()
-    return [{'gtin': r['gtin'], 'qty': int(r['qty']),
-             'kind': r['kmin'] if r['kmin'] == r['kmax'] else 'mixed'} for r in rows]
+        return _lines(conn, rid)
 
 
 def recent_scans(receipt_id, limit=20) -> list:
@@ -628,7 +891,13 @@ def _replay_result(row) -> str:
 def _add_scan_once(rid: int, parsed: dict, raw: str, client_id: str, source: str,
                    client_time: str, login: str, name: str) -> dict:
     with _write() as conn:
-        receipt = _receipt_row(conn, rid)
+        receipt = conn.execute('SELECT * FROM receipts WHERE id = ?', (rid,)).fetchone()
+        if receipt is None:
+            # Удалённая приёмка для скана — как закрытая (409): неотправленные сканы
+            # телефона уйдут в новую приёмку, а на 404 телефон их выбросил бы.
+            if conn.execute('SELECT 1 FROM receipt_deletions WHERE receipt_id = ?', (rid,)).fetchone():
+                raise ReceiptDeleted(str(rid))
+            raise ReceiptNotFound(str(rid))
         # Повтор запроса из очереди браузера (ответ потерялся по дороге) — тот же
         # результат. Проверяется ДО «закрыта»: записанный скан уже посчитан, и его
         # ответ не меняется оттого, что приёмку потом закрыли.
@@ -673,8 +942,8 @@ def add_scan(receipt_id, parsed, raw, client_id, source, client_time, user) -> d
       reason='repeat', result 'repeat';
     - ok -> accepted=1, result 'accepted' (каждый скан EAN — ещё одна штука);
     - не ok -> accepted=0, reason из разбора, result 'rejected' (храним для диагностики).
-    Нет приёмки -> ReceiptNotFound; закрыта -> ReceiptClosed; кривой source или
-    пустой client_id -> ValueError.
+    Нет приёмки -> ReceiptNotFound, а удалённая (delete_receipt) -> ReceiptDeleted;
+    закрыта -> ReceiptClosed; кривой source или пустой client_id -> ValueError.
     """
     rid = _rid(receipt_id)
     client_id = _text(client_id).strip()
@@ -786,6 +1055,8 @@ def finish_processing(receipt_id, state, note='') -> None:
                            ' WHERE id = ?', (state, _stamp(), _note(note, PROCESS_NOTE_LIMIT), rid))
         if cur.rowcount != 1:
             raise ReceiptNotFound(str(rid))
+        if state == 'done':
+            _stamp_reviewed(conn, receipt_ids=[rid])      # все позиции сразу нашлись в iiko
 
 
 def receipts_needing_processing() -> list:
@@ -794,6 +1065,108 @@ def receipts_needing_processing() -> list:
     with _read() as conn:
         rows = conn.execute('SELECT id FROM receipts WHERE ' + where + ' ORDER BY id', params).fetchall()
     return [r['id'] for r in rows]
+
+
+def _deleted_row(item: dict) -> dict:
+    """Строка разбора для снимка удалённой приёмки: что было решено по GTIN."""
+    chz = item['chz'] if isinstance(item['chz'], dict) else {}
+    return {'gtin': item['gtin'], 'status': item['status'], 'state': item['state'],
+            'resolution': item['resolution'], 'supplier': item['supplier'], 'note': item['note'],
+            'chz_name': _text(chz.get('name')),
+            'resolved_at': item['resolved_at'],
+            'resolved_by': item['resolved_by_name'] or item['resolved_by_login']}
+
+
+def delete_receipt(receipt_id, user) -> dict:
+    """Удалить закрытую приёмку, разобранную не полностью («История приёмок» на разборе).
+    -> {'receipt','lines','invoices','rows_deleted','rows_kept','deleted_at','deleted_by'}.
+
+    Можно только закрытую (открытую ещё сканируют — ReceiptOpen), не разобранную
+    полностью (разобранная — запись о сделанной работе, остаётся в истории —
+    ReceiptReviewed) и не сверяемую в эту минуту (ReceiptProcessing; зависшая дольше
+    PROCESS_STALE_SEC — можно). Нет приёмки — ReceiptNotFound. Одной транзакцией:
+    - строка разбора GTIN, которого нет ни в одной другой приёмке, удаляется вместе с
+      решениями (её принесла только эта приёмка);
+    - строка GTIN, который есть в другой закрытой приёмке, остаётся: количество и список
+      приёмок в ней считаются по сканам и уменьшаются сами;
+    - строка GTIN, который есть только в ещё открытой приёмке, остаётся, если по ней
+      уже что-то решили (закрыта, есть поставщик или заметка): решение доживёт до
+      закрытия той приёмки; нетронутая открытая удаляется — закрытие её заведёт заново;
+    - у оставшихся строк ссылки на эту приёмку переводятся на другие:
+      first/last_receipt_id — на оставшиеся приёмки с этим GTIN; notify_receipt_id —
+      на ещё не объявленную приёмку с этим GTIN, если об этой приёмке сообщения ещё не
+      было (иначе позицию никто не объявит), а если было или такой нет — пусто;
+    - удаляются сама приёмка, её сканы и записи о фото; файлы фото удаляет вызывающий
+      (routes/receiving.py) по именам из invoices, когда запись в базе прошла.
+    Остаётся запись в receipt_deletions: кто и когда удалил и снимок (приёмка,
+    позиции, фото, удалённые строки разбора). Номер не переиспользуется (AUTOINCREMENT);
+    скан в удалённую приёмку — ReceiptDeleted (телефон перенесёт сканы в новую).
+    rows_deleted — число удалённых строк разбора, rows_kept — оставшихся.
+    """
+    rid = _rid(receipt_id)
+    login, name = _who(user)
+    now = _stamp()
+    with _write() as conn:
+        row = _receipt_row(conn, rid)
+        receipt = _load_receipt(conn, rid)
+        if receipt['status'] != 'closed':
+            raise ReceiptOpen(str(rid))
+        if receipt['reviewed']:
+            raise ReceiptReviewed(str(rid))
+        if _processing_now(row):
+            raise ReceiptProcessing(str(rid))
+        announced = bool(row['notified_at'])
+        lines = _lines(conn, rid)
+        invoices = [r['name'] for r in conn.execute(
+            'SELECT name FROM receipt_invoices WHERE receipt_id = ? ORDER BY id', (rid,))]
+        deleted_rows = []
+        kept = 0
+        for chunk in _chunks([line['gtin'] for line in lines]):
+            marks = _placeholders(len(chunk))
+            others = {r['gtin']: r for r in conn.execute(
+                'SELECT s.gtin AS gtin, MIN(s.receipt_id) AS first_id, MAX(s.receipt_id) AS last_id,'
+                " MAX(CASE WHEN r.status = 'closed' THEN 1 ELSE 0 END) AS in_closed,"
+                ' MAX(CASE WHEN r.notified_at IS NULL THEN s.receipt_id END) AS unannounced_id'
+                ' FROM receipt_scans s JOIN receipts r ON r.id = s.receipt_id'
+                ' WHERE s.receipt_id != ? AND s.accepted = 1 AND s.deleted_at IS NULL'
+                ' AND s.gtin IN (' + marks + ') GROUP BY s.gtin', [rid] + chunk)}
+            items = {r['gtin']: _parse_review(r) for r in conn.execute(
+                'SELECT * FROM review_items WHERE gtin IN (' + marks + ')', chunk)}
+            for gtin in chunk:
+                item = items.get(gtin)
+                if item is None:
+                    continue
+                other = others.get(gtin)
+                decided = item['state'] == 'closed' or bool(item['supplier']) or bool(item['note'])
+                if other is None or (not other['in_closed'] and not decided):
+                    conn.execute('DELETE FROM review_items WHERE gtin = ?', (gtin,))
+                    deleted_rows.append(_deleted_row(item))
+                    continue
+                notify = None if announced else other['unannounced_id']
+                conn.execute(
+                    'UPDATE review_items SET'
+                    ' first_receipt_id = CASE WHEN first_receipt_id = :rid THEN :first'
+                    ' ELSE first_receipt_id END,'
+                    ' last_receipt_id = CASE WHEN last_receipt_id = :rid THEN :last'
+                    ' ELSE last_receipt_id END,'
+                    ' notify_receipt_id = CASE WHEN notify_receipt_id = :rid THEN :notify'
+                    ' ELSE notify_receipt_id END WHERE gtin = :gtin',
+                    {'rid': rid, 'first': other['first_id'], 'last': other['last_id'],
+                     'notify': notify, 'gtin': gtin})
+                kept += 1
+        snapshot = {'receipt': receipt, 'lines': lines, 'invoices': invoices,
+                    'rows_deleted': deleted_rows, 'rows_kept': kept}
+        conn.execute('INSERT OR REPLACE INTO receipt_deletions (receipt_id, deleted_at,'
+                     ' deleted_by_login, deleted_by_name, snapshot_json) VALUES (?, ?, ?, ?, ?)',
+                     (rid, now, login, name, _dumps(snapshot)))
+        # Сканы и фото ушли бы и каскадом (ON DELETE CASCADE, foreign_keys=ON) — явное
+        # удаление не зависит от того, включены ли внешние ключи у соединения.
+        conn.execute('DELETE FROM receipt_invoices WHERE receipt_id = ?', (rid,))
+        conn.execute('DELETE FROM receipt_scans WHERE receipt_id = ?', (rid,))
+        conn.execute('DELETE FROM receipts WHERE id = ?', (rid,))
+    return {'receipt': receipt, 'lines': lines, 'invoices': invoices,
+            'rows_deleted': len(deleted_rows), 'rows_kept': kept,
+            'deleted_at': now, 'deleted_by': name or login}
 
 
 # ------------------------------------------------------------------ фото накладных
@@ -926,7 +1299,7 @@ def _load_review(conn, gtin: str) -> dict:
 
 def _auto_close_sql() -> str:
     """SET-часть автозакрытия: карточка нашлась в индексе -> closed/auto."""
-    return ("state = 'closed', resolution = 'auto', resolved_at = :now,"
+    return ("state = 'closed', resolution = 'auto', resolved_at = :now, closed_since = :now,"
             " resolved_by_login = '', resolved_by_name = :actor")
 
 
@@ -961,6 +1334,7 @@ def upsert_review(gtin, receipt_id, status, cards, candidates, chz, index_built_
         которую он только что завёл, — такую строку не трогаем (иначе «Сделано»
         вернулось бы «Новой» и толкнуло бы завести в iiko дубль).
     - supplier и note не трогаются никогда.
+    Приёмки receipt_id нет (удалили во время обработки) -> ReceiptNotFound, ничего не пишется.
     """
     gtin = _check_gtin(gtin)
     status = _check_status(status)
@@ -972,6 +1346,9 @@ def upsert_review(gtin, receipt_id, status, cards, candidates, chz, index_built_
     now = _stamp()
     opened = reopened = False
     with _write() as conn:
+        if rid is not None and conn.execute('SELECT 1 FROM receipts WHERE id = ?', (rid,)).fetchone() is None:
+            # Приёмку удалили, пока шла её обработка (delete_receipt): строк ей не заводим.
+            raise ReceiptNotFound(str(rid))
         row = conn.execute('SELECT state, resolution, resolved_at, index_built_at FROM review_items'
                            ' WHERE gtin = ?', (gtin,)).fetchone()
         if row is None:
@@ -980,12 +1357,12 @@ def upsert_review(gtin, receipt_id, status, cards, candidates, chz, index_built_
                 'INSERT INTO review_items (gtin, status, state, resolution, cards_json,'
                 ' candidates_json, chz_json, first_receipt_id, last_receipt_id, first_seen_at,'
                 ' last_seen_at, classified_at, index_built_at, updated_at, resolved_at,'
-                ' resolved_by_name, notify_receipt_id)'
-                ' VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                ' resolved_by_name, notify_receipt_id, closed_since)'
+                ' VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                 (gtin, status, 'closed' if found else 'open', 'found' if found else '',
                  cards_json, candidates_json, _dumps(chz_clean), rid, rid, now, now, now, built,
                  now, now if found else None, INDEX_ACTOR if found else '',
-                 None if found else rid))
+                 None if found else rid, now if found else None))
             opened = not found
         else:
             params = {'gtin': gtin, 'status': status, 'cards': cards_json,
@@ -1004,11 +1381,14 @@ def upsert_review(gtin, receipt_id, status, cards, candidates, chz, index_built_
                         sets.append(_auto_close_sql())
                 elif row['resolution'] != 'not_needed' and status != 'found':
                     sets.append("state = 'open', resolution = '', resolved_at = NULL,"
-                                " resolved_by_login = '', resolved_by_name = '',"
+                                " resolved_by_login = '', resolved_by_name = '', closed_since = NULL,"
                                 ' reopened = reopened + 1, notify_receipt_id = :rid')
                     opened = reopened = True
             conn.execute('UPDATE review_items SET ' + ', '.join(sets) + ' WHERE gtin = :gtin', params)
-        return {'row': _load_review(conn, gtin), 'opened': opened, 'reopened': reopened}
+        result = {'row': _load_review(conn, gtin), 'opened': opened, 'reopened': reopened}
+        if result['row']['state'] == 'closed':
+            _stamp_reviewed(conn, gtins=[gtin])
+        return result
 
 
 def reclassify_open(gtin, status, cards, candidates, chz=None, index_built_at='') -> dict:
@@ -1044,6 +1424,8 @@ def reclassify_open(gtin, status, cards, candidates, chz=None, index_built_at=''
         if auto_closed:
             sets.append(_auto_close_sql())
         conn.execute('UPDATE review_items SET ' + ', '.join(sets) + ' WHERE gtin = :gtin', params)
+        if auto_closed:
+            _stamp_reviewed(conn, gtins=[gtin])
         return {'row': _load_review(conn, gtin), 'auto_closed': auto_closed}
 
 
@@ -1061,8 +1443,8 @@ def recheck_done(gtin, status, cards, candidates, index_built_at) -> dict:
     status = _check_status(status)
     built = _text(index_built_at)
     with _write() as conn:
-        row = conn.execute('SELECT state, resolution, resolved_at FROM review_items WHERE gtin = ?',
-                           (gtin,)).fetchone()
+        row = conn.execute('SELECT state, resolution, resolved_at, closed_since FROM review_items'
+                           ' WHERE gtin = ?', (gtin,)).fetchone()
         if row is None:
             raise ReviewItemNotFound(gtin)
         if (row['state'] != 'closed' or row['resolution'] != 'done' or not built
@@ -1077,8 +1459,10 @@ def recheck_done(gtin, status, cards, candidates, index_built_at) -> dict:
             # notify_receipt_id = NULL: переоткрыла не приёмка, сообщение о ней не шлём заново.
             sets.append("state = 'open', resolution = '', resolved_at = NULL,"
                         " resolved_by_login = '', resolved_by_name = '', reopened = reopened + 1,"
-                        ' notify_receipt_id = NULL')
+                        ' notify_receipt_id = NULL, closed_since = NULL')
         conn.execute('UPDATE review_items SET ' + ', '.join(sets) + ' WHERE gtin = :gtin', params)
+        if reopened:
+            _unstamp_reviewed(conn, gtin, row['closed_since'] or row['resolved_at'])
         return {'row': _load_review(conn, gtin), 'reopened': reopened}
 
 
@@ -1147,7 +1531,8 @@ def list_review(state='open', statuses=None, receipt_id=None, q='', limit=200) -
     """Очередь бухгалтерии. -> {'rows','total','counts'}.
 
     state: 'open' | 'closed' | 'all'; statuses — список из STATUSES (пусто — все);
-    receipt_id — только GTIN, принятые в этой приёмке (по неудалённым сканам);
+    receipt_id — только GTIN, принятые в этих приёмках (по неудалённым сканам): номер,
+    строка «2,3» или список, до RECEIPT_FILTER_MAX номеров;
     q — подстрока (регистр не важен, ё = е) в GTIN, штрихкоде для iiko, названии и
     бренде ЧЗ, именах карточек и кандидатов, поставщике, заметке.
     Сортировка: открытые раньше; статус new, similar, restore, duplicate, found;
@@ -1166,22 +1551,15 @@ def list_review(state='open', statuses=None, receipt_id=None, q='', limit=200) -
     bad = wanted - set(STATUSES)
     if bad:
         raise ValueError('status: ' + ', '.join(STATUSES))
-    rid = None
-    if receipt_id is not None:
-        try:
-            rid = None if isinstance(receipt_id, bool) else int(receipt_id)
-        except (TypeError, ValueError):
-            rid = None
-        if rid is None:
-            raise ValueError('receipt_id — номер приёмки')
+    rids = _receipt_ids(receipt_id)
     limit = _clamp_limit(limit, 200)
     needle = _fold(q).strip()
     with _read() as conn:
-        if rid is not None:
+        if rids:
             rows = conn.execute(
                 'SELECT * FROM review_items WHERE gtin IN (SELECT gtin FROM receipt_scans'
-                ' WHERE receipt_id = ? AND accepted = 1 AND deleted_at IS NULL AND gtin IS NOT NULL)'
-                + _REVIEW_ORDER_SQL, (rid,)).fetchall()
+                ' WHERE receipt_id IN (' + _placeholders(len(rids)) + ') AND accepted = 1'
+                ' AND deleted_at IS NULL AND gtin IS NOT NULL)' + _REVIEW_ORDER_SQL, rids).fetchall()
         else:
             rows = conn.execute('SELECT * FROM review_items' + _REVIEW_ORDER_SQL).fetchall()
         items = [_parse_review(r) for r in rows]
@@ -1223,15 +1601,24 @@ def update_review(gtin, user, supplier=None, state=None, note=None) -> dict:
         sets.append('note = :note')
     if state == 'open':
         sets.append("state = 'open', resolution = '', resolved_at = NULL,"
-                    " resolved_by_login = '', resolved_by_name = ''")
+                    " resolved_by_login = '', resolved_by_name = '', closed_since = NULL")
     elif state is not None:
         params['resolution'] = state
-        sets.append("state = 'closed', resolution = :resolution, resolved_at = :now,"
+        # Решение по уже закрытой строке не сдвигает начало закрытого периода (closed_since).
+        sets.append("closed_since = CASE WHEN state = 'closed'"
+                    ' THEN COALESCE(closed_since, resolved_at, :now) ELSE :now END,'
+                    " state = 'closed', resolution = :resolution, resolved_at = :now,"
                     ' resolved_by_login = :login, resolved_by_name = :name')
     with _write() as conn:
+        before = conn.execute('SELECT state, resolved_at, closed_since FROM review_items WHERE gtin = ?',
+                              (gtin,)).fetchone()
         cur = conn.execute('UPDATE review_items SET ' + ', '.join(sets) + ' WHERE gtin = :gtin', params)
         if cur.rowcount != 1:
             raise ReviewItemNotFound(gtin)
+        if state in ('done', 'not_needed'):
+            _stamp_reviewed(conn, gtins=[gtin])
+        elif state == 'open' and before['state'] == 'closed':
+            _unstamp_reviewed(conn, gtin, before['closed_since'] or before['resolved_at'])
         return _load_review(conn, gtin)
 
 

@@ -18,13 +18,39 @@ from datetime import datetime, timedelta
 
 CHZ_BASE_URL = "https://markirovka.crpt.ru/api/v3/true-api"
 CHZ_BASE_URL_V4 = "https://markirovka.crpt.ru/api/v4/true-api"
+# Версия файла (дата ISO): kep_setup не заменяет chz.py на компьютере более старым с флешки.
+CHZ_VERSION = "2026-10-04"
 CSP_PATH = r"C:\Program Files\Crypto Pro\CSP\csptest.exe"
-CERT_THUMBPRINT = "2297e52c1066bcaab8a9708a66935e56d9761fc2"
+# Отпечаток сертификата КЭП, которым подписывается вход в ЧЗ. Перевыпустили КЭП или
+# поставили новый Рутокен — отпечаток другой: КриптоПро CSP -> Сервис -> Просмотреть
+# сертификаты в контейнере -> Обзор -> контейнер -> Далее -> Установить -> Свойства ->
+# Состав -> Отпечаток (README, раздел «Перевыпуск КЭП»). Со старым отпечатком КриптоПро
+# ждёт старый Рутокен: окно «Выбор ключевого носителя», «Вставлен носитель с другим
+# уникальным номером» (так было 2026-10-04: КЭП от 07.08.2026 на новом Рутокене).
+# Без клавиатуры отпечаток ставит kep_setup.bat (README, раздел «Перевыпуск КЭП»).
+# Прежний (КЭП от 15.08.2025, контейнер 2508151514-…): 2297e52c1066bcaab8a9708a66935e56d9761fc2.
+CERT_THUMBPRINT = "7a4cc550694a9adffc1d9a522a49b58b4ab12135"
 INN_ORG = "7801630649"               # ООО "ИНВЕСТАГРО"
 ORG_NAME = 'ООО "ИНВЕСТАГРО"'
+# Сколько ждать csptest. Если КриптоПро ждёт человека (выбор носителя, PIN), подпись
+# не придёт вовсе — через CSP_TIMEOUT_SEC команда сообщает ошибку, а не висит.
+# csptest запускается без оболочки (список аргументов): с shell=True по таймауту
+# завершался только cmd.exe, а csptest.exe держал каналы вывода, и run() ждал его
+# до закрытия окна КриптоПро (ревью 2026-10-04).
+CSP_TIMEOUT_SEC = 60
+_HEX_DIGITS = "0123456789abcdefABCDEF"
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DEBUG_DIR = os.path.join(BASE_DIR, "debug")
+
+
+def cert_thumbprint():
+    """CERT_THUMBPRINT только из hex-символов (40 у SHA-1).
+
+    При копировании отпечатка из окна сертификата Windows в начало попадает невидимый
+    символ U+200E, бывают пробелы между парами — с ними csptest сертификат не находит.
+    """
+    return "".join(ch for ch in CERT_THUMBPRINT if ch in _HEX_DIGITS)
 TOKEN_FILE = os.path.join(DEBUG_DIR, "token.json")
 
 
@@ -284,18 +310,30 @@ def get_token():
         f.write(data_to_sign)
 
     # 3. Подписать
-    cmd = (f'"{CSP_PATH}" -sfsign -sign '
-           f'-my "{CERT_THUMBPRINT}" '
-           f'-in "{data_file}" -out "{sig_file}" '
-           f'-base64 -cades_strict -add')
+    thumbprint = cert_thumbprint()
+    if len(thumbprint) != 40:
+        print(f"[WARN] отпечаток CERT_THUMBPRINT: {len(thumbprint)} hex-символов вместо 40")
+    cmd = [CSP_PATH, '-sfsign', '-sign', '-my', thumbprint, '-in', data_file,
+           '-out', sig_file, '-base64', '-cades_strict', '-add']
 
     print(f"  [auth] Подпись...", end=" ")
-    result = subprocess.run(cmd, shell=True, capture_output=True,
-                            timeout=60, encoding='cp866',
-                            creationflags=subprocess.CREATE_NO_WINDOW)
+    try:
+        result = subprocess.run(cmd, capture_output=True,
+                                timeout=CSP_TIMEOUT_SEC, encoding='cp866', errors='replace',
+                                creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+    except subprocess.TimeoutExpired:
+        print(f"[ERR] csptest не ответил за {CSP_TIMEOUT_SEC} с")
+        print("  КриптоПро ждёт человека: окно выбора носителя (вставлен не тот Рутокен —"
+              " проверьте CERT_THUMBPRINT) или PIN-код (отметьте «Запомнить пароль»).")
+        return {"error": f"csptest timeout ({CSP_TIMEOUT_SEC}s): KriptoPro zhdyot nositel ili PIN"}
     if result.returncode != 0:
         print(f"[ERR] csptest rc={result.returncode}")
-        return {"error": f"csptest failed ({result.returncode}): {result.stderr[:200]}"}
+        tail = ((result.stdout or "") + (result.stderr or "")).strip()[-600:]
+        if tail:
+            print(tail)
+        print("  Проверьте, что вставлен Рутокен с ключом сертификата CERT_THUMBPRINT "
+              f"({thumbprint[:8]}...): README, раздел «Перевыпуск КЭП».")
+        return {"error": f"csptest failed ({result.returncode}): {(result.stderr or '')[:200]}"}
     print(f"[OK]")
 
     # 4. Прочитать подпись
@@ -753,7 +791,11 @@ def run_product_info(args):
     if not gtins:
         print_chz_json(False, error="no_gtins")
         return
-    token = load_token()
+    try:
+        token = load_token()
+    except Exception as exc:  # noqa: BLE001 — ответ серверу всё равно строкой-маркером
+        print(f"[ERR] токен не получен: {type(exc).__name__}: {exc}")
+        token = None
     if not token:
         print_chz_json(False, error="no_token")
         return
@@ -1541,6 +1583,9 @@ def main():
         result = get_token()
         if "error" in result:
             print(f"  [ERR] {result['error']}")
+            # Код выхода 1: ночное обновление (remote_exec.py run search-stock) должно
+            # увидеть сбой, а не скачать старый chz_stock.json как свежий.
+            sys.exit(1)
         else:
             exp = time.strftime('%Y-%m-%d %H:%M:%S',
                                 time.localtime(result['expires_at']))

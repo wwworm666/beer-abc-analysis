@@ -1841,13 +1841,17 @@
                     if (!s.running) {
                         clearInterval(chzRefreshPolling);
                         chzRefreshPolling = null;
+                        // Сервер приводит chz.py на бар-ПК к своему перед обновлением: заменил
+                        // или не смог — строка итога (chz_sync), «совпадает» не показываем.
+                        const sync = s.chz_sync && (s.chz_sync.result === 'updated' || s.chz_sync.result === 'failed')
+                            ? ' ' + String(s.chz_sync.message || '').replace(/^\[WARN\]\s*/, '') + '.' : '';
                         if (s.exit_code === 0) {
                             statusEl.textContent = 'Обновление завершено успешно. Перезагружаем данные...';
                             const bar = document.getElementById('bar-select').value;
                             if (bar) await loadExpiry(bar);
-                            statusEl.textContent = 'Готово. Кэш ЧЗ обновлён ' + (s.cache_updated_at || '?');
+                            statusEl.textContent = 'Готово. Кэш ЧЗ обновлён ' + (s.cache_updated_at || '?') + '.' + sync;
                         } else {
-                            statusEl.textContent = `Ошибка (exit ${s.exit_code}). Лог: ${(s.log_tail || '').slice(-300)}`;
+                            statusEl.textContent = `Ошибка (exit ${s.exit_code}).${sync} Лог: ${(s.log_tail || '').slice(-300)}`;
                         }
                         btn.disabled = false;
                         btn.textContent = 'Обновить данные ЧЗ';
