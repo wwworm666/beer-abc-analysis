@@ -1306,6 +1306,50 @@ def test_legacy_agent_template_goes_out_as_new():
     assert own['legacy_template'] is False and own['text'].startswith('Таплист пятницы — Варшавская, 9 октября!')
 
 
+def test_legacy_taplist_template_migrated_keeping_approval():
+    """Владелец 2026-10-09: «на этот месяц тоже поменяй в таком же формате». Пятницы октября,
+    утверждённые с прежним шаблоном, переводятся на TAPLIST_TEMPLATE: пост тот же, поэтому
+    утверждение сохраняется; вышедшее, готовая публикация и свой текст владельца не трогаются."""
+    legacy = cp.LEGACY_TAPLIST_TEMPLATES[0]
+    store = _store()
+    friday = store.create_material({'month': MONTH, 'title': 'Таплист пятницы', 'kind': 'live',
+                                    'live_source': 'taplist', 'base_text': legacy,
+                                    'planned_date': '2026-10-09'}, AGENT)
+    approved = _add(store, friday['id'])[0]
+    draft = _add(store, friday['id'], bars=['ligovskiy'])[0]
+    store.approve([approved], USER)
+    sent = store.create_material({'month': MONTH, 'title': 'Вышедший', 'kind': 'live', 'live_source': 'taplist',
+                                  'base_text': legacy}, USER)
+    sent_pid = _add(store, sent['id'])[0]
+    store.approve([sent_pid], USER)
+    store.placement_action(sent_pid, 'mark_published', USER)
+    fixed = _material(store, base_text=legacy)
+    own = store.create_material({'month': MONTH, 'title': 'Свой', 'kind': 'live', 'live_source': 'taplist',
+                                 'base_text': legacy + '\n\nЖдём!'}, USER)
+    _add(store, own['id'])
+    before = _render('bolshoy', template=legacy, pub_date='2026-10-09')
+
+    assert store.migrate_legacy_taplist_templates() == [friday['id']]
+    raw = store.get_material_raw(friday['id'])
+    assert raw['base_text'] == cp.TAPLIST_TEMPLATE and raw['updated_by'] == cp.LEGACY_MIGRATION_BY
+    by_id = {p['id']: p for p in raw['placements']}
+    assert by_id[approved]['status'] == 'approved'                               # утверждение на месте
+    assert by_id[approved]['approved_snapshot']['text'] == cp.TAPLIST_TEMPLATE
+    assert by_id[draft]['status'] == 'draft'
+    assert raw['agent_original']['base_text'] == cp.TAPLIST_TEMPLATE              # не «правка человека»
+    assert store.agent_edits(1)['items'] == []
+    entry = store.log_for(friday['id'])[0]
+    assert (entry['action'], entry['by']) == ('edit', cp.LEGACY_MIGRATION_BY) and 'новом формате' in entry['text']
+    # пост тот же
+    after = _render('bolshoy', template=by_id[approved]['approved_snapshot']['text'], pub_date='2026-10-09')
+    assert after['text'] == before['text'] and after['legacy_template'] is False
+    # вышедшее, готовая публикация и свой текст — как были; повтор ничего не меняет
+    assert store.get_material_raw(sent['id'])['base_text'] == legacy
+    assert store.get_material_raw(fixed['id'])['base_text'] == legacy
+    assert store.get_material_raw(own['id'])['base_text'].endswith('Ждём!')
+    assert store.migrate_legacy_taplist_templates() == []
+
+
 def test_live_preview_route():
     store = _store()
     m = _material(store, title='Таплист', kind='live', live_source='taplist', base_text=TEMPLATE)
