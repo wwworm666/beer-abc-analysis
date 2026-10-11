@@ -3502,6 +3502,122 @@ class ContentPlanStore:
                 changed.append(mid)
         return changed
 
+    def apply_owner_fix(self, fix: dict, delete_message: Optional[Callable] = None) -> List[str]:
+        """Разовая правка плана по прямой просьбе владельца там, где подключение MCP
+        («чтение и черновики») не может: утверждённое не переносит, ничего не удаляет.
+
+        fix (см. OWNER_FIX_2026_10_11): note — повод для журнала; moves — [(размещение,
+        было, стало)]: дата меняется, только если она всё ещё «было», размещение не вышло
+        и не отменено, а новое время не в прошлом (утверждение сохраняется — как при
+        переносе на странице); titles — [(материал, начало названия было, стало, дата
+        темы)]; delete — материалы без вышедших размещений; unpublish — [(материал,
+        размещение)]: вышедший пост сначала удаляется из канала (delete_message(chat,
+        message_id) -> (удалено, пояснение); не позже unpublish_until — Telegram даёт боту
+        удалить своё сообщение только в первые 48 часов), потом материал; не удалилось —
+        материал остаётся, в журнале причина; media — [(материал, [имена])]: файлы, которых
+        нет в подборках размещений. Каждая операция сверяет состояние, поэтому повтор
+        ничего не меняет. Журнал — от «сайт». -> что сделано (строки для журнала сервера)."""
+        note = fix['note']
+        by = LEGACY_MIGRATION_BY
+        data = self._load()
+        if not _owner_fix_pending(data, fix, self.now_str()):
+            return []
+        # Сначала Telegram — вне блокировки плана: это сеть.
+        unpublished: Dict[str, Tuple[bool, str]] = {}
+        for mid, pid in fix.get('unpublish', ()):
+            placement = next((p for p in (data['materials'].get(mid) or {}).get('placements', [])
+                              if p['id'] == pid), None)
+            if placement is None or placement.get('status') != 'published':
+                continue
+            delivery = delivery_of(placement)
+            chat, ids = delivery.get('chat'), delivery.get('message_ids') or []
+            if delete_message is None or not chat or not ids:
+                unpublished[mid] = (False, 'нет бота или данных отправки')
+            elif fix.get('unpublish_until') and self.now_str() > fix['unpublish_until']:
+                unpublished[mid] = (False, 'прошло больше 48 часов: Telegram не даёт боту удалить пост')
+            else:
+                results = [delete_message(chat, int(message_id)) for message_id in ids]
+                unpublished[mid] = (all(ok for ok, _text in results),
+                                    '; '.join(text for _ok, text in results if text))
+
+        done: List[str] = []
+        now_str = self.now_str()
+
+        def drop(plan: dict, after: list, material: dict, text: str) -> None:
+            del plan['materials'][material['id']]
+            for item in material['media']:
+                if not self._media_referenced(plan, item['name']):
+                    after.append(lambda n=item['name']: self.media.delete(n))
+            self._log(plan, now_str, by, 'delete', material['id'], None, text)
+            done.append(text)
+
+        with self._tx() as (data, after):
+            for mid in fix.get('delete', ()):
+                material = data['materials'].get(mid)
+                if material is None or any(p['status'] == 'published' or delivery_of(p).get('state') == 'sending'
+                                           for p in material['placements']):
+                    continue
+                drop(data, after, material, f'Удалён материал «{material["title"]}» ({note})')
+            for mid, pid in fix.get('unpublish', ()):
+                material = data['materials'].get(mid)
+                if material is None or mid not in unpublished:
+                    continue
+                ok, why = unpublished[mid]
+                placement = next((p for p in material['placements'] if p['id'] == pid), None)
+                if placement is None:
+                    continue
+                chat = delivery_of(placement).get('chat')
+                if ok:
+                    drop(data, after, material, f'Удалён материал «{material["title"]}»: вышедший пост удалён '
+                                                f'из канала {chat}{f" ({why})" if why else ""} — {note}')
+                else:
+                    text = (f'Вышедший пост не удалён из канала {chat}: {why}. Удалите его в Telegram вручную '
+                            f'— {note}')
+                    self._log(data, now_str, by, 'edit', mid, pid, text)
+                    done.append(text)
+            for pid, old, new in fix.get('moves', ()):
+                try:
+                    material, placement = self._placement(data, pid)
+                except ContentPlanNotFound:
+                    continue
+                if (placement.get('date') != old or placement['status'] in ('published', 'cancelled')
+                        or f'{new}T{placement.get("time") or "23:59"}' <= now_str):
+                    continue
+                label = _placement_label(placement)
+                placement['date'] = new
+                placement['updated_at'], placement['updated_by'] = now_str, by
+                kept = '; утверждение сохранено' if placement['status'] == 'approved' else ''
+                text = f'{label}: перенесено на {fmt_date_short(new)} ({note}){kept}'
+                self._log(data, now_str, by, 'edit_placement', material['id'], pid, text)
+                done.append(text)
+            for mid, was, now_prefix, planned in fix.get('titles', ()):
+                material = data['materials'].get(mid)
+                if material is None or not material['title'].startswith(was) or planned[:7] != material['month']:
+                    continue
+                material['title'] = now_prefix + material['title'][len(was):]
+                material['planned_date'] = planned
+                material['updated_at'], material['updated_by'] = now_str, by
+                text = f'Изменено: название, дата темы — «{material["title"]}» ({note})'
+                self._log(data, now_str, by, 'edit', mid, None, text)
+                done.append(text)
+            for mid, names in fix.get('media', ()):
+                material = data['materials'].get(mid)
+                if material is None:
+                    continue
+                active = [p for p in material['placements'] if p['status'] not in ('published', 'cancelled')]
+                for name in names:
+                    item = next((m for m in material['media'] if m['name'] == name), None)
+                    if item is None or any(p.get('media') is None or name in p['media'] for p in active):
+                        continue
+                    material['media'] = [m for m in material['media'] if m['name'] != name]
+                    material['updated_at'], material['updated_by'] = now_str, by
+                    text = f'Удалён файл «{item.get("original_name") or name}»: в пост не шёл ({note})'
+                    self._log(data, now_str, by, 'media_delete', mid, None, text)
+                    done.append(text)
+                    if not self._media_referenced(data, name):
+                        after.append(lambda n=name: self.media.delete(n))
+        return done
+
     def agent_edits(self, months=None) -> dict:
         """Что люди поменяли в материалах агента за последние months месяцев.
 
@@ -3616,6 +3732,88 @@ def _agent_edit_item(material: dict, original: dict, now_str: str) -> dict:
             'current': {'base_text': base_now, 'placements': rows}}
 
 
+# Разовая правка октябрьского плана — прямая просьба владельца 10–11 октября 2026: «перенеси
+# пост с 8 и 10 на 11», «собери в один день, чтобы выходили в воскресенье и в среду», «удали
+# лишние посты; если бот не может — сделай через код» (подключение MCP в режиме «чтение и
+# черновики» утверждённое не трогает и ничего не удаляет). Выполняет get_content_plan_store
+# при старте процесса через ContentPlanStore.apply_owner_fix; повтор ничего не меняет.
+OWNER_FIX_2026_10_11 = {
+    'note': 'просьба владельца 10–11 октября: посты сети по воскресеньям и средам, все бары в один день',
+    # Крем, 10 окт — Фламандский красный: вышел 10.10 в 19:00; владелец выбрал удалить его из
+    # канала и выпустить 11.10 новую версию с новыми фото (m_0d76c4146234).
+    'unpublish': (('m_8d0218c2a48b', 'p_bf963fe88026'),),
+    'unpublish_until': '2026-10-12T18:59',
+    # ВО, 10 окт — Гозе: не ушёл (Telegram был недоступен); новая версия — m_9d61c0c71ce0.
+    'delete': ('m_982ebdb746d7',),
+    'moves': (
+        ('p_3fe6cffea59f', '2026-10-13', '2026-10-11'),   # Лиг — хеллес
+        ('p_a5895962a6c2', '2026-10-15', '2026-10-18'),   # Вар — Amarillo
+        ('p_8efe876243ea', '2026-10-17', '2026-10-18'),   # ВО — волна портера
+        ('p_0939d8978091', '2026-10-17', '2026-10-18'),   # ВО — волна портера, Instagram
+        ('p_627a7acb63e4', '2026-10-20', '2026-10-18'),   # Лиг — пшеничное герцога
+        ('p_f6347b479350', '2026-10-24', '2026-10-25'),   # ВО — IPA и дорога в Индию
+        ('p_6fe633159651', '2026-10-27', '2026-10-28'),   # Лиг — аренда на девять тысяч лет
+    ),
+    'titles': (
+        ('m_cd04b39393f6', 'Лиг, 13 окт', 'Лиг, 11 окт', '2026-10-11'),
+        ('m_e2a8cd2aaa53', 'Вар, 15 окт', 'Вар, 18 окт', '2026-10-18'),
+        ('m_fc9a5a83745c', 'ВО, 17 окт', 'ВО, 18 окт', '2026-10-18'),
+        ('m_ff5cd7c9b4f9', 'Лиг, 20 окт', 'Лиг, 18 окт', '2026-10-18'),
+        ('m_8b0fadf04f30', 'ВО, 24 окт', 'ВО, 25 окт', '2026-10-25'),
+        ('m_2af1d52d2c1a', 'Лиг, 27 окт', 'Лиг, 28 окт', '2026-10-28'),
+    ),
+    # Вар, 11 окт — Устрицы и стаут: файлы прежних тем (микроснимок пены, стакан Kwak).
+    'media': (('m_c296efd49809', ('cp_20261010_16991616b8e1.jpg', 'cp_20261010_34bba38ce948.jpg')),),
+}
+
+
+def _owner_fix_pending(data: dict, fix: dict, now_str: str) -> bool:
+    """Изменит ли правка fix хоть что-то (иначе apply_owner_fix файл не перезаписывает)."""
+    materials = data['materials']
+    placements = {p['id']: p for m in materials.values() for p in m['placements']}
+    if any(mid in materials and not any(p['status'] == 'published' for p in materials[mid]['placements'])
+           for mid in fix.get('delete', ())):
+        return True
+    if now_str <= fix.get('unpublish_until', '9999') and any(
+            (placements.get(pid) or {}).get('status') == 'published' for _mid, pid in fix.get('unpublish', ())):
+        return True
+    for pid, old, new in fix.get('moves', ()):
+        placement = placements.get(pid)
+        if (placement and placement.get('date') == old and placement['status'] not in ('published', 'cancelled')
+                and f'{new}T{placement.get("time") or "23:59"}' > now_str):
+            return True
+    if any(mid in materials and materials[mid]['title'].startswith(was) for mid, was, _now, _d in fix.get('titles', ())):
+        return True
+    return any(mid in materials and any(item['name'] in names for item in materials[mid]['media'])
+               for mid, names in fix.get('media', ()))
+
+
+def _delete_channel_message(chat, message_id) -> Tuple[bool, str]:
+    """Удалить сообщение бота каналов (для apply_owner_fix) -> (удалено, пояснение).
+    «Сообщения уже нет» — тоже удалено (например, его убрали в Telegram вручную)."""
+    from core import content_publisher
+    transport = content_publisher.default_transport()
+    if transport is None:
+        return False, content_publisher.NO_TOKEN_TEXT
+    resp = transport.call('deleteMessage', {'chat_id': chat, 'message_id': message_id})
+    kind, _result, error = content_publisher.classify(resp, transport)
+    if kind == 'ok':
+        return True, ''
+    if 'message to delete not found' in error.lower():
+        return True, 'сообщения в канале уже не было'
+    return False, error
+
+
+def _run_owner_fix(store: 'ContentPlanStore') -> None:
+    """Правка владельца в фоне: удаление поста в Telegram — сеть, первый запрос к плану
+    её не ждёт. Сбой печатается и не мешает открыть план."""
+    try:
+        for line in store.apply_owner_fix(OWNER_FIX_2026_10_11, delete_message=_delete_channel_message):
+            print(f'[CONTENT_PLAN] правка владельца: {line}')
+    except Exception as e:  # noqa: BLE001
+        print(f'[CONTENT_PLAN] правка владельца не удалась: {e!r}')
+
+
 _store: Optional[ContentPlanStore] = None
 _store_guard = threading.Lock()
 
@@ -3643,4 +3841,7 @@ def get_content_plan_store(data_file: Optional[str] = None) -> ContentPlanStore:
                     print(f'[CONTENT_PLAN] шаблон таплиста переведён на новый формат: {", ".join(migrated)}')
             except Exception as e:  # noqa: BLE001
                 print(f'[CONTENT_PLAN] перевод шаблона таплиста не удался: {e!r}')
+            # Разовая правка октября по просьбе владельца 2026-10-11 (OWNER_FIX_2026_10_11).
+            threading.Thread(target=_run_owner_fix, args=(_store,), name='content-plan-owner-fix',
+                             daemon=True).start()
         return _store
