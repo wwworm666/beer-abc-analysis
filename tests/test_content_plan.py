@@ -1350,6 +1350,97 @@ def test_legacy_taplist_template_migrated_keeping_approval():
     assert store.migrate_legacy_taplist_templates() == []
 
 
+def _sent(chat='@kult_test', ids=(5,)):
+    """fn для delivery_update: размещение вышло через бота (как у отправщика)."""
+    def mark(_material, placement, now_str):
+        placement['status'] = 'published'
+        placement['published_at'], placement['published_by'] = now_str, 'бот'
+        placement['delivery'] = {'state': 'sent', 'chat': chat, 'message_ids': list(ids),
+                                 'started_at': now_str, 'finished_at': now_str}
+        return 'auto_publish', 'бот', 'Вышло автоматически'
+    return mark
+
+
+def test_owner_fix_moves_deletes_and_unpublishes():
+    """Владелец 2026-10-11: «удали лишние посты; если бот не может — сделай через код» и
+    «собери в один день». Перенос утверждённого сохраняет утверждение; лишний материал
+    удаляется; вышедший — только после удаления поста из канала; лишние файлы уходят;
+    повтор ничего не меняет и в Telegram не ходит."""
+    store = _store(datetime(2026, 10, 11, 16, 50))
+    hell = _material(store, title='Лиг, 13 окт — Хеллес')
+    hell_pid = _add(store, hell['id'], bars=['ligovskiy'], date='2026-10-13', time='19:00')[0]
+    late = _material(store, title='Поздно')
+    late_pid = _add(store, late['id'], date='2026-10-13', time='19:00')[0]      # новая дата уже прошла
+    other = _material(store, title='Чужая дата')
+    other_pid = _add(store, other['id'], date='2026-10-14', time='19:00')[0]
+    store.approve([hell_pid, late_pid, other_pid], USER)
+    failed = _material(store, title='ВО, 10 окт — Гозе')
+    _add(store, failed['id'], date='2026-10-12', time='19:00')
+    out = _material(store, title='Крем, 10 окт — Фламандский')
+    out_pid = _add(store, out['id'], bars=['kremenchugskaya'], date='2026-10-12', time='19:00')[0]
+    store.approve([out_pid], USER)
+    store.delivery_update(out_pid, _sent())
+    photos = _material(store, title='Устрицы')
+    keep, junk = (store.media.save(PNG, '2026-10-10')[1] for _ in range(2))
+    for name in (keep, junk):
+        store.add_media(photos['id'], name, len(PNG), name, USER)
+    photos_pid = _add(store, photos['id'], date='2026-10-12', time='19:00')[0]
+    store.update_placement(photos_pid, {'media': [keep]}, USER)
+    fix = {'note': 'просьба владельца', 'unpublish': ((out['id'], out_pid),), 'unpublish_until': '2026-10-12T18:59',
+           'delete': (failed['id'],),
+           'moves': ((hell_pid, '2026-10-13', '2026-10-11'), (late_pid, '2026-10-13', '2026-10-11'),
+                     (other_pid, '2026-10-13', '2026-10-11')),
+           'titles': ((hell['id'], 'Лиг, 13 окт', 'Лиг, 11 окт', '2026-10-11'),),
+           'media': ((photos['id'], (keep, junk)),)}
+    store.update_placement(late_pid, {'time': '10:00'}, USER)
+    calls = []
+
+    def delete_message(chat, message_id):
+        calls.append((chat, message_id))
+        return True, ''
+
+    done = store.apply_owner_fix(fix, delete_message=delete_message)
+    assert calls == [('@kult_test', 5)]
+    raw = store.get_material_raw(hell['id'])
+    assert (raw['placements'][0]['date'], raw['placements'][0]['status']) == ('2026-10-11', 'approved')
+    assert raw['title'] == 'Лиг, 11 окт — Хеллес' and raw['planned_date'] == '2026-10-11'
+    entry = store.log_for(hell['id'])[0]
+    assert entry['by'] == cp.LEGACY_MIGRATION_BY and 'утверждение сохранено' in ' '.join(
+        e['text'] for e in store.log_for(hell['id']))
+    assert store.get_material_raw(late['id'])['placements'][0]['date'] == '2026-10-13'    # в прошлое — нет
+    assert store.get_material_raw(other['id'])['placements'][0]['date'] == '2026-10-14'   # дата уже другая
+    for gone in (failed['id'], out['id']):
+        try:
+            store.get_material_raw(gone)
+            raise AssertionError('материал должен быть удалён')
+        except cp.ContentPlanNotFound:
+            pass
+    assert 'удалён из канала @kult_test' in store.log_for(out['id'])[0]['text']
+    media = store.get_material_raw(photos['id'])['media']
+    assert [m['name'] for m in media] == [keep] and not os.path.exists(store.media.path(junk))
+    assert len(done) == 5            # два удаления, перенос, название, файл
+    # повтор: ничего не меняет и в Telegram не ходит
+    assert store.apply_owner_fix(fix, delete_message=delete_message) == [] and len(calls) == 1
+
+
+def test_owner_fix_keeps_published_when_telegram_refuses():
+    """Telegram не удалил пост — материал остаётся (история), в журнале причина; после 48
+    часов бот удалить уже не может, и правка в Telegram не ходит."""
+    store = _store(datetime(2026, 10, 11, 16, 50))
+    out = _material(store, title='Крем, 10 окт')
+    pid = _add(store, out['id'], bars=['kremenchugskaya'], date='2026-10-12', time='19:00')[0]
+    store.approve([pid], USER)
+    store.delivery_update(pid, _sent())
+    fix = {'note': 'просьба владельца', 'unpublish': ((out['id'], pid),), 'unpublish_until': '2026-10-12T18:59'}
+    done = store.apply_owner_fix(fix, delete_message=lambda chat, mid: (False, 'бот не администратор канала'))
+    assert store.get_material_raw(out['id'])['placements'][0]['status'] == 'published'
+    assert 'не удалён' in done[0] and 'бот не администратор канала' in store.log_for(out['id'])[0]['text']
+    store.clock.moment = datetime(2026, 10, 12, 19, 0)
+    calls = []
+    assert store.apply_owner_fix(fix, delete_message=lambda *a: calls.append(a) or (True, '')) == []
+    assert calls == []
+
+
 def test_live_preview_route():
     store = _store()
     m = _material(store, title='Таплист', kind='live', live_source='taplist', base_text=TEMPLATE)
