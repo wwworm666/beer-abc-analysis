@@ -201,6 +201,7 @@
             shiftsPerLocation: spl,
             catalog: meta.metrics_catalog || {},
             dishesNotFound: meta.dishes_not_found || [],
+            discountsNotFound: meta.discounts_not_found || [],
             // Подсказка «пока месяц идёт» — только для текущего месяца: у
             // закрытого смены графика без кассовой смены дали бы «ещё N смен»
             plan: {

@@ -510,6 +510,9 @@
                              `<div class="kpi-goal-min">${t.min > t.target ? 'максимум' : 'минимум'} <b>${fmtGoal(t.min)}&#8239;${info.unit || ''}</b> — ${t.min > t.target ? 'выше' : 'ниже'} премии нет</div>` +
                              (perShift ? `<div class="kpi-goal-per-shift">за ${norm} смен — ваша цель пересчитывается на ваши смены</div>` : '') +
                              ((conf.dishes && conf.dishes.length) ? `<div class="kpi-goal-per-shift">блюда: ${conf.dishes.join(', ')}</div>` : '') +
+                             // Показатель «сколько раз провели скидку»: какую скидку
+                             // проводить в iiko, чтобы чек засчитался
+                             (catalog.discount ? `<div class="kpi-goal-per-shift">считаются чеки со скидкой «${catalog.discount}» в iiko</div>` : '') +
                              `</div>`;
                     }
                 });

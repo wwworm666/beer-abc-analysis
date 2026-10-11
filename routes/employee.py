@@ -8,7 +8,8 @@ from core.employee_analysis import EmployeeMetricsCalculator, get_employees_from
 from core.employee_plans import get_employee_plan_by_shifts
 from core.daily_plans_generator import get_daily_plan_for_date, regenerate_daily_plans
 from core.kpi_calculator import (KpiCalculator, KpiTargetsReader, clear_kpi_cache,
-                                AVAILABLE_METRICS, is_dish_based, normalize_dish_name)
+                                AVAILABLE_METRICS, is_dish_based, normalize_dish_name,
+                                discount_of, discount_metrics, normalize_discount_name)
 from core.dashboard_analysis import DashboardMetrics
 from extensions import EMPLOYEES_CACHE, EMPLOYEES_CACHE_TTL
 from routes.dashboard import load_dashboard_sales
@@ -811,6 +812,7 @@ def _build_kpi_metrics(
     cancelled_count=0,
     plan_revenue=0.0,
     dish_sales=None,
+    discount_checks=None,
 ):
     """
     Собрать метрики для KPI из OLAP данных и кассовых смен.
@@ -820,16 +822,22 @@ def _build_kpi_metrics(
 
     Источники:
       summary    -> total_checks, total_revenue, discount_sum
-      categories -> draft/bottles/kitchen(ЕДА)/other revenue, markup
+      categories -> draft/bottles/kitchen(ЕДА)/other revenue, markup,
+                    food_checks (чеки строки «ЕДА») -> food_checks_share
       cashshifts -> shifts_count, total_hours, late_count
       OLAP loyalty -> loyalty_cards_count
       OLAP cancelled -> cancelled_count
       daily_plans -> plan_revenue, plan_fact_percent
       OLAP по блюдам -> dishes (для KPI на выбранные блюда)
+      OLAP по скидкам -> метрики «сколько раз провели скидку» (yandex_lager_count)
 
     `dish_sales` — {название блюда: {'count': n, 'revenue': r}} этого сотрудника
     из get_dish_sales_by_waiter. Кладём под ключ `dishes` в разрезе источников,
     а какие блюда суммировать, решает конфиг KPI (core/kpi_calculator.resolve_fact).
+
+    `discount_checks` — {название скидки: чеки} этого сотрудника из
+    get_discount_checks_by_waiter; каждая метрика каталога с полем `discount`
+    получает чеки своей скидки (_discount_metric_values).
     """
     summary = _find_employee_in_olap(kpi_olap['summary'], emp_name)
     cat_rows = _find_employee_in_olap(kpi_olap['categories'], emp_name) or []
@@ -846,6 +854,10 @@ def _build_kpi_metrics(
     other_revenue = 0.0
     total_cost = 0.0
     total_weighted_markup = 0.0
+    # Чеки с едой: уникальные чеки сотрудника, где есть хотя бы одна позиция
+    # группы «ЕДА» (их считает iiko в строке группы). Между группами чеки не
+    # складываются, поэтому берём ровно строку «ЕДА», а не сумму строк.
+    food_checks = 0
 
     for row in cat_rows:
         cat = row['category']
@@ -859,6 +871,7 @@ def _build_kpi_metrics(
             bottles_revenue += rev
         elif cat == 'ЕДА':
             kitchen_revenue += rev
+            food_checks += int(row.get('checks', 0) or 0)
         else:
             other_revenue += rev
 
@@ -871,6 +884,8 @@ def _build_kpi_metrics(
     bottles_share = (bottles_revenue / total_revenue * 100) if total_revenue > 0 else 0
     kitchen_share = (kitchen_revenue / total_revenue * 100) if total_revenue > 0 else 0
     other_share = (other_revenue / total_revenue * 100) if total_revenue > 0 else 0
+    # Доля чеков с едой (%) = чеки с едой / все чеки; без чеков — 0
+    food_checks_share = (food_checks / total_checks * 100) if total_checks > 0 else 0
 
     # Производные метрики
     avg_check = (total_revenue / total_checks) if total_checks > 0 else 0
@@ -893,6 +908,8 @@ def _build_kpi_metrics(
         'other_revenue': round(other_revenue, 2),
         'avg_check': round(avg_check, 2),
         'total_checks': total_checks,
+        'food_checks': food_checks,
+        'food_checks_share': round(food_checks_share, 2),
         'revenue_per_shift': round(revenue_per_shift, 2),
         'revenue_per_hour': round(revenue_per_hour, 2),
         'avg_markup': round(avg_markup, 2),
@@ -906,7 +923,43 @@ def _build_kpi_metrics(
         'plan_revenue': round(plan_revenue or 0.0, 2),
         'plan_fact_percent': round(plan_fact_percent, 2),
         'dishes': _dish_metric_map(dish_sales),
+        **_discount_metric_values(discount_checks),
     }
+
+
+def _discount_metric_values(discount_checks):
+    """{название скидки: чеки} -> {метрика: чеки} для метрик каталога с `discount`.
+
+    Названия сравниваются по normalize_discount_name (регистр, пробелы, «ё»):
+    в каталоге название вписано со слов владельца, в iiko может отличаться
+    написанием. Строки iiko с одним ключом складываются — считаем их одной
+    скидкой, записанной по-разному. Метрика без чеков своей скидки — 0.
+    """
+    by_key = {}
+    for name, checks in (discount_checks or {}).items():
+        key = normalize_discount_name(name)
+        if key:
+            by_key[key] = by_key.get(key, 0) + int(checks or 0)
+    return {metric: by_key.get(normalize_discount_name(name), 0)
+            for metric, name in discount_metrics().items()}
+
+
+def _configured_discounts(kpi_config):
+    """Скидки, которые считают KPI месяца, — нужен ли запрос по скидкам.
+
+    Порядок — по первому появлению, дубли (две метрики на одну скидку)
+    схлопнуты по normalize_discount_name.
+    """
+    seen, names = set(), []
+    for conf in (kpi_config or {}).values():
+        if not isinstance(conf, dict):
+            continue
+        name = discount_of(conf.get('metric', ''))
+        key = normalize_discount_name(name) if name else ''
+        if key and key not in seen:
+            seen.add(key)
+            names.append(name)
+    return names
 
 
 def _dish_metric_map(dish_sales):
@@ -984,7 +1037,11 @@ def kpi_calculate():
         # Блюда custom-KPI («продажи брискетов и щёчек») — их продажи тянем
         # отдельным лёгким OLAP-запросом, если такие показатели в месяце есть
         wanted_dishes = _configured_dishes(kpi_config)
-        kpi_log(f"Stage targets loaded: locations={len(month_targets)}, dishes={len(wanted_dishes)}")
+        # Скидки KPI «сколько раз провели скидку» («ЯндексКарты Лагер») — чеки
+        # со скидками по сотрудникам, тоже только если такой показатель в месяце есть
+        wanted_discounts = _configured_discounts(kpi_config)
+        kpi_log(f"Stage targets loaded: locations={len(month_targets)}, dishes={len(wanted_dishes)}, "
+                f"discounts={len(wanted_discounts)}")
         if not month_targets:
             return jsonify({'error': f'Нет KPI-целей за месяц {month}. Настройте цели во вкладке "Настройка целей".'}), 404
 
@@ -1022,6 +1079,7 @@ def kpi_calculate():
         # - cancelled: отмены/возвраты по официантам
         # - loyalty: новые карты лояльности по официантам (уникальные телефоны)
         # - dishes: продажи выбранных блюд по официантам (только если настроены)
+        # - discounts: чеки со скидками по официантам (только если есть KPI на скидку)
         olap_date_to = (datetime.strptime(date_to, '%Y-%m-%d') + timedelta(days=1)).strftime('%Y-%m-%d')
 
         olap = OlapReports()
@@ -1030,7 +1088,8 @@ def kpi_calculate():
 
         try:
             kpi_log("Stage OLAP started (kpi summary/categories + cancelled + loyalty"
-                    + (" + dishes)" if wanted_dishes else ")"))
+                    + (" + dishes" if wanted_dishes else "")
+                    + (" + discounts" if wanted_discounts else "") + ")")
             with ThreadPoolExecutor(max_workers=4) as olap_executor:
                 future_kpi = olap_executor.submit(olap.get_kpi_olap_data, date_from, olap_date_to)
                 future_cancelled = olap_executor.submit(olap.get_cancelled_orders_by_waiter, date_from, olap_date_to)
@@ -1038,11 +1097,15 @@ def kpi_calculate():
                 future_dishes = (olap_executor.submit(olap.get_dish_sales_by_waiter,
                                                       date_from, olap_date_to, wanted_dishes)
                                  if wanted_dishes else None)
+                future_discounts = (olap_executor.submit(olap.get_discount_checks_by_waiter,
+                                                         date_from, olap_date_to)
+                                    if wanted_discounts else None)
 
                 kpi_olap = future_kpi.result()
                 cancelled_raw = future_cancelled.result()
                 loyalty_cards_data = future_loyalty.result() or {}
                 dish_sales_data = (future_dishes.result() or {}) if future_dishes else {}
+                discount_data = future_discounts.result() if future_discounts else {}
         finally:
             olap.disconnect()
 
@@ -1050,6 +1113,10 @@ def kpi_calculate():
 
         if kpi_olap is None:
             return jsonify({'error': 'OLAP не вернул данные (таймаут или ошибка). Попробуйте ещё раз или уменьшите период.'}), 500
+        if discount_data is None:
+            # Без ответа по скидкам KPI «ЯндексКарты Лагер» молча стал бы ×0 у
+            # всех — частичный сбой показываем ошибкой, а не нулями
+            return jsonify({'error': 'OLAP не вернул чеки со скидками (таймаут или ошибка). Попробуйте ещё раз.'}), 500
 
         # Сворачиваем cancelled OLAP {data: [...]} → {waiter_name: count}
         cancelled_by_waiter = {}
@@ -1087,11 +1154,12 @@ def kpi_calculate():
             # План сотрудника = сумма дневных планов ТТ по локациям из смен
             plan_revenue = get_employee_plan_by_shifts(shift_locations)
 
-            # Новые карты лояльности, отмены и продажи блюд — fuzzy-матч имени
-            # (порядок слов может различаться)
+            # Новые карты лояльности, отмены, продажи блюд и чеки со скидками —
+            # fuzzy-матч имени (порядок слов может различаться)
             loyalty_cards = _find_employee_in_olap(loyalty_cards_data, emp_name) or 0
             cancelled_count = _find_employee_in_olap(cancelled_by_waiter, emp_name) or 0
             dish_sales = _find_employee_in_olap(dish_sales_data, emp_name) or {}
+            discount_checks = _find_employee_in_olap(discount_data, emp_name) or {}
 
             # Собираем метрики из OLAP данных + смен (без EmployeeMetricsCalculator)
             metrics = _build_kpi_metrics(
@@ -1104,6 +1172,7 @@ def kpi_calculate():
                 cancelled_count=cancelled_count,
                 plan_revenue=plan_revenue,
                 dish_sales=dish_sales,
+                discount_checks=discount_checks,
             )
 
             # Рассчитываем KPI-бонус
@@ -1148,6 +1217,16 @@ def kpi_calculate():
         if dishes_not_found:
             kpi_log(f"Stage dishes: ne nadeno v prodazhakh: {dishes_not_found}")
 
+        # Скидки KPI, которых за период не провёл НИКТО: либо скидку ещё не
+        # проводили, либо в iiko она называется иначе, чем в каталоге метрик, —
+        # страница предупреждает, а не показывает молча ноль
+        applied_discounts = {normalize_discount_name(d)
+                             for rows in discount_data.values() for d in (rows or {})}
+        discounts_not_found = [d for d in wanted_discounts
+                               if normalize_discount_name(d) not in applied_discounts]
+        if discounts_not_found:
+            kpi_log(f"Stage discounts: ne provodilis' za period: {discounts_not_found}")
+
         kpi_log(f"Stage final complete: results={len(results)}, total_premium={total_premium:.0f}")
         print(f"[OK] KPI calculated for {len(results)} employees, total premium: {total_premium:.0f}")
 
@@ -1164,6 +1243,7 @@ def kpi_calculate():
             'month_targets': month_targets,
             'available_metrics': AVAILABLE_METRICS,
             'dishes_not_found': dishes_not_found,
+            'discounts_not_found': discounts_not_found,
         })
 
     except Exception as e:
