@@ -4,10 +4,10 @@
 Что проверяется (картинка и Telegram подменены: рендер — tests/test_tg_chart_browser.py):
 - при каждой отправке описание графика сохраняется под новым id (до отправки — id нужен
   кнопке), с чатом, подключением и message_id; включена кнопка или нет;
-- кнопка за флагом TG_MINIAPP_BUTTON (по умолчанию выключен): в личке — web_app на
-  TG_MINIAPP_URL?id=<id>, в группе — url на t.me/<бот>/<short_name>?startapp=<id>;
-- получатель только из допущенных: личка людей из TG_MINIAPP_ALLOWED_IDS, группы из
-  TG_CHART_CHAT_IDS, чат отчётов агентов (он же по умолчанию);
+- кнопка за флагом (страница /admin/mcp, запасной путь — TG_MINIAPP_BUTTON; по умолчанию
+  выключен): в личке — web_app на <адрес>?id=<id>, в группе — url на
+  t.me/<бот>/<short_name>?startapp=<id>, а без short name в группе кнопки нет;
+- получатель — чат разговора, списков допущенных нет; без chat_id — чат отчётов агентов;
 - Telegram отказал или картинка не нарисовалась — описание удаляется; ответа нет вовсе —
   описание остаётся (сообщение могло дойти, кнопка под ним должна работать);
 - через MCP: чужие ссылки вырезаются из всех строк описания, инструмент виден только в
@@ -26,8 +26,8 @@ sys.path.insert(0, os.path.dirname(HERE))
 sys.path.insert(0, HERE)
 os.environ.setdefault('SESSION_COOKIE_SECURE', '0')
 
-from core import tg_charts, tg_chart_send  # noqa: E402
-from core.mcp import db, registry  # noqa: E402
+from core import tg_chart_settings, tg_charts, tg_chart_send  # noqa: E402
+from core.mcp import db, registry, settings  # noqa: E402
 from core.mcp.spec import allowed_in_mode  # noqa: E402
 from core.tg_chart_fixtures import FIXTURES  # noqa: E402
 
@@ -53,10 +53,7 @@ class FakeTelegram:
 def setup(tmp_path, monkeypatch):
     db.set_db_path(str(tmp_path / 'mcp.db'))
     monkeypatch.setenv('TELEGRAM_MCP_BOT_TOKEN', 'test-mcp-bot-token')
-    monkeypatch.setenv('TG_MINIAPP_ALLOWED_IDS', OWNER)
-    monkeypatch.setenv('TG_CHART_CHAT_IDS', GROUP)
-    monkeypatch.delenv('TG_MINIAPP_BUTTON', raising=False)
-    for name in ('TG_MINIAPP_URL', 'TG_MINIAPP_BOT_USERNAME', 'TG_MINIAPP_SHORT_NAME'):
+    for name in ('TG_MINIAPP_BUTTON', 'TG_MINIAPP_URL', 'TG_MINIAPP_BOT_USERNAME', 'TG_MINIAPP_SHORT_NAME'):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setattr(tg_chart_send, 'notify_chat_id', lambda: '')
     rendered = []
@@ -91,7 +88,7 @@ def test_send_stores_description_every_time(setup):
 
 
 def test_button_in_private_chat_is_web_app(setup):
-    setup['monkeypatch'].setenv('TG_MINIAPP_BUTTON', '1')
+    settings.set(tg_chart_settings.KEY_BUTTON, True)          # флажок на странице /admin/mcp
     result = tg_chart_send.send_chart(dict(FIXTURES)['check'], chat_id=OWNER)
     markup = json.loads(setup['tg'].calls[0]['fields']['reply_markup'])
     assert markup == {'inline_keyboard': [[{'text': 'Открыть интерактивно', 'web_app': {
@@ -99,35 +96,49 @@ def test_button_in_private_chat_is_web_app(setup):
     assert result['button'] == 'web_app'
 
 
-def test_button_in_group_is_direct_link_with_startapp(setup):
+def test_button_in_group_needs_short_name(setup):
+    """В группе web_app-кнопки не работают: ссылка на мини-приложение из @BotFather, а без него — без кнопки."""
     mp = setup['monkeypatch']
-    mp.setenv('TG_MINIAPP_BUTTON', 'on')
+    settings.set(tg_chart_settings.KEY_BUTTON, True)
+    plain = tg_chart_send.send_chart(dict(FIXTURES)['check'], chat_id=GROUP)
+    assert 'reply_markup' not in setup['tg'].calls[0]['fields'] and plain['button'] is None
+    assert 'короткое имя' in plain['button_note']
+    settings.set(tg_chart_settings.KEY_SHORT_NAME, 'chart')
     result = tg_chart_send.send_chart(dict(FIXTURES)['check'], chat_id=GROUP)
-    markup = json.loads(setup['tg'].calls[0]['fields']['reply_markup'])
+    markup = json.loads(setup['tg'].calls[1]['fields']['reply_markup'])
     assert markup == {'inline_keyboard': [[{'text': 'Открыть интерактивно',
                                             'url': f'https://t.me/MCPkulturabot/chart?startapp={result["chart_id"]}'}]]}
-    assert result['button'] == 'url'
-    mp.setenv('TG_MINIAPP_BOT_USERNAME', '@OtherBot')
-    mp.setenv('TG_MINIAPP_SHORT_NAME', 'graphs')
+    assert result['button'] == 'url' and 'button_note' not in result
+    settings.set(tg_chart_settings.KEY_USERNAME, 'OtherBot')    # имя бота из getMe при сохранении токена
     mp.setenv('TG_MINIAPP_URL', 'https://example.test/tg/chart')
     assert tg_chart_send.button_markup(GROUP, 'X' * 22)['inline_keyboard'][0][0]['url'] == \
-        'https://t.me/OtherBot/graphs?startapp=' + 'X' * 22
+        'https://t.me/OtherBot/chart?startapp=' + 'X' * 22
     assert tg_chart_send.button_markup(OWNER, 'X' * 22)['inline_keyboard'][0][0]['web_app']['url'] == \
         'https://example.test/tg/chart?id=' + 'X' * 22
-    mp.setenv('TG_MINIAPP_SHORT_NAME', 'плохое имя')
-    assert '/chart?startapp=' in tg_chart_send.button_markup(GROUP, 'X' * 22)['inline_keyboard'][0][0]['url']
-    mp.setenv('TG_MINIAPP_BUTTON', '0')
-    assert tg_chart_send.button_markup(GROUP, 'X' * 22) is None
+    settings.set(tg_chart_settings.KEY_BUTTON, False)
+    assert tg_chart_send.button_markup(GROUP, 'X' * 22) is None and tg_chart_send.button_markup(OWNER, 'X') is None
 
 
-def test_only_allowed_chats(setup):
+def test_button_flag_from_environment_when_not_saved(setup):
     mp = setup['monkeypatch']
-    for chat in ('111222333', '-100999', 'abc', '1; drop'):
-        with pytest.raises(tg_chart_send.ChartSendError):
+    assert tg_chart_send.button_markup(OWNER, 'X' * 22) is None, 'по умолчанию кнопки нет'
+    mp.setenv('TG_MINIAPP_BUTTON', '1')
+    assert tg_chart_send.button_markup(OWNER, 'X' * 22) is not None
+    settings.set(tg_chart_settings.KEY_BUTTON, False)
+    assert tg_chart_send.button_markup(OWNER, 'X' * 22) is None, 'сохранённый флажок важнее окружения'
+
+
+def test_any_conversation_chat_and_default(setup):
+    """Списков допущенных нет: график уходит в чат разговора; без chat_id — в чат отчётов агентов."""
+    mp = setup['monkeypatch']
+    assert tg_chart_send.send_chart(dict(FIXTURES)['check'], chat_id='111222333')['chat_id'] == '111222333'
+    assert tg_chart_send.send_chart(dict(FIXTURES)['check'], chat_id='-100999')['chat_id'] == '-100999'
+    for chat in ('abc', '1; drop', '--1'):
+        with pytest.raises(tg_chart_send.ChartSendError, match='целое число'):
             tg_chart_send.send_chart(dict(FIXTURES)['check'], chat_id=chat)
     with pytest.raises(tg_chart_send.ChartSendError, match='Не указан chat_id'):
         tg_chart_send.send_chart(dict(FIXTURES)['check'])
-    assert setup['tg'].calls == [] and rows() == [], 'ничего не сохранено и не отправлено'
+    assert len(setup['tg'].calls) == 2 and len(rows()) == 2, 'отказы ничего не сохранили и не отправили'
     mp.setattr(tg_chart_send, 'notify_chat_id', lambda: '-100777')
     result = tg_chart_send.send_chart(dict(FIXTURES)['check'])
     assert result['chat_id'] == '-100777', 'по умолчанию — чат отчётов агентов'
@@ -135,8 +146,11 @@ def test_only_allowed_chats(setup):
 
 def test_not_configured_without_token(setup):
     setup['monkeypatch'].delenv('TELEGRAM_MCP_BOT_TOKEN')
-    with pytest.raises(tg_chart_send.ChartSendError, match='TELEGRAM_MCP_BOT_TOKEN'):
+    with pytest.raises(tg_chart_send.ChartSendError, match='Доступ агентов'):
         tg_chart_send.send_chart(dict(FIXTURES)['check'], chat_id=OWNER)
+    settings.set(tg_chart_settings.KEY_TOKEN, '1234567890:' + 'B' * 35)     # токен со страницы /admin/mcp
+    tg_chart_send.send_chart(dict(FIXTURES)['check'], chat_id=OWNER)
+    assert setup['tg'].calls[-1]['token'] == '1234567890:' + 'B' * 35
 
 
 def test_failures_clean_up_or_keep_description(setup):
@@ -197,8 +211,8 @@ def test_mcp_tool_strips_foreign_links_and_returns_ids(setup):
         assert 'https://beerkultura.ru/dashboard' in stored['note'], 'ссылки на свой сайт остаются'
         assert setup['tg'].calls[-1]['fields']['caption'] == 'Отчёт: [ссылка удалена]'
         assert answer['message_id'] == 77 and answer['daily_limit'] == tg_chart_send.CHART_DAILY_LIMIT
-        refused = env.call('common_chart_send', {'chart': raw, 'chat_id': '111222333'}, connector=None)
-        assert refused.is_error and 'не в списке допущенных' in refused.text_value
+        bad_chat = env.call('common_chart_send', {'chart': raw, 'chat_id': 'чат 123'}, connector=None)
+        assert bad_chat.is_error, 'схема инструмента: chat_id — число'
         bad = env.call('common_chart_send', {'chart': dict(raw, kind='pie'), 'chat_id': OWNER}, connector=None)
         assert bad.is_error, 'схема инструмента отсекает неизвестный вид'
 

@@ -13,7 +13,7 @@
   событие themeChanged перекрашивает страницу; id приходит и из ?id=, и из start_param;
 - официальный скрипт не загрузился (telegram.org недоступен): initData и тема берутся из
   #tgWebAppData и #tgWebAppThemeParams, график всё равно открывается;
-- вне Telegram — «Откройте из Telegram»; человек не из списка — его Telegram ID на экране;
+- вне Telegram — «Откройте из Telegram»; человек не из чата графика — «Нет доступа к графику»;
 - dev-страница: шесть карточек в обеих темах без ошибок.
 """
 import importlib.util
@@ -65,7 +65,6 @@ def server(tmp_path, monkeypatch):
     from werkzeug.serving import make_server
     db.set_db_path(str(tmp_path / 'mcp.db'))
     monkeypatch.setenv('TELEGRAM_MCP_BOT_TOKEN', TOKEN)
-    monkeypatch.setenv('TG_MINIAPP_ALLOWED_IDS', str(OWNER))
     monkeypatch.setenv('TG_CHART_CHROMIUM', CHROMIUM)
     app = make_app(debug=True)
     seen = []
@@ -181,8 +180,8 @@ def test_mini_app_outside_telegram_and_for_strangers(server, browser):
     stub = TG_STUB % {'init': json.dumps(init_data(user_id=STRANGER)), 'start': json.dumps('')}
     page, errors = _page(browser, stub)
     page.goto(f'{server["base"]}/tg/chart?id={chart_id}')
-    page.wait_for_function("document.querySelector('#state b').textContent === 'Нет доступа к графикам'")
-    assert str(STRANGER) in page.inner_text('#state') and errors == []
+    page.wait_for_function("document.querySelector('#state b').textContent === 'Нет доступа к графику'")
+    assert 'участники чата' in page.inner_text('#state') and errors == []
 
 
 def test_dev_page_both_themes(server, browser):

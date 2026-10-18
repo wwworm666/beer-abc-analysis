@@ -227,7 +227,7 @@ data/
 |---|---|---|
 | **iiko API** | Продажи (OLAP), кассовые смены, посещения сотрудников, номенклатура (баркоды через XML) | env `IIKO_SERVER/PORT/LOGIN/PASSWORD`, [core/iiko_api.py](../core/iiko_api.py) |
 | **Честный Знак** | Маркировка пива/безалк/соков, сроки годности по партиям, привязка к КПП баров. Доступ — через бар-ПК с CryptoPro+Rutoken | env `REMOTE_USER/HOST/PASS`, [chz_test/chz.py](../chz_test/chz.py), [core/chz_scheduler.py](../core/chz_scheduler.py); названия новинок для приёмки — команда `product-info` ([core/receiving_chz.py](../core/receiving_chz.py)) |
-| **Telegram** | KULT Taplist (уведомления барменам) + Open-check (мониторинг открытых смен) + графики агентов MCP от @MCPkulturabot с мини-приложением `/tg/chart` ([tg-miniapp.md](tg-miniapp.md)) | env `TELEGRAM_BOT_TOKEN`, `TELEGRAM_OPEN_CHECK_BOT_TOKEN`, `TELEGRAM_GROUP_CHAT_ID`, `TELEGRAM_ALARM_CHAT_IDS`; бухгалтерии о разборе приёмок — `RECEIVING_NOTIFY_CHAT_IDS`; графики — `TELEGRAM_MCP_BOT_TOKEN`, `TG_MINIAPP_*`, `TG_CHART_CHAT_IDS` |
+| **Telegram** | KULT Taplist (уведомления барменам) + Open-check (мониторинг открытых смен) + графики агентов MCP от @MCPkulturabot с мини-приложением `/tg/chart` ([tg-miniapp.md](tg-miniapp.md)) | env `TELEGRAM_BOT_TOKEN`, `TELEGRAM_OPEN_CHECK_BOT_TOKEN`, `TELEGRAM_GROUP_CHAT_ID`, `TELEGRAM_ALARM_CHAT_IDS`; бухгалтерии о разборе приёмок — `RECEIVING_NOTIFY_CHAT_IDS`; графики — токен бота на странице `/admin/mcp` (запасной путь `TELEGRAM_MCP_BOT_TOKEN`) |
 | **Tailscale** | Mesh-сеть до бар-ПК (`100.98.149.108`) | На сервере и бар-ПК как daemon |
 
 ---

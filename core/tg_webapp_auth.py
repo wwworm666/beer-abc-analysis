@@ -4,8 +4,9 @@
 
 Мини-приложение получает от клиента Telegram строку initData: кто открыл, когда,
 с каким start_param, и подпись. Страница присылает её в заголовке
-`Authorization: tma <initData>`; сервер проверяет подпись токеном бота и пускает
-только людей из списка допущенных. Cookie сайта мини-приложению не нужны: вход
+`Authorization: tma <initData>`; сервер проверяет подпись токеном бота — так он знает,
+кто открыл график. Кому график можно показать, решает core/tg_chart_access.py
+(участники чата, куда график отправлен). Cookie сайта мини-приложению не нужны: вход
 сайта и вход Telegram не смешиваются.
 
 ## Как проверяется (документация Telegram, «Validating data received via the Mini App»)
@@ -21,7 +22,7 @@
 5. auth_date — не старше INIT_DATA_MAX_AGE_S (сутки) и не из будущего дальше
    CLOCK_SKEW_S (5 минут расхождения часов). Старая подпись — отказ: initData,
    утёкшая из чужого телефона или лога, работает не дольше суток.
-6. user — JSON с целым id. Допущены id из TG_MINIAPP_ALLOWED_IDS (через запятую).
+6. user — JSON с целым id.
 
 initData — пропуск на сутки, поэтому её не пишем в журналы ни целиком, ни частями;
 Caddy по умолчанию скрывает заголовок Authorization в журнале доступа.
@@ -29,10 +30,9 @@ Caddy по умолчанию скрывает заголовок Authorization 
 import hashlib
 import hmac
 import json
-import os
 import re
 import time
-from typing import Any, Dict, FrozenSet, Optional
+from typing import Any, Dict, Optional
 from urllib.parse import parse_qsl
 
 INIT_DATA_MAX_AGE_S = 24 * 3600      # сутки: дольше одной сессии мини-приложения
@@ -41,8 +41,6 @@ INIT_DATA_MAX_CHARS = 8192           # реальная initData ~0,5–1 КБ; 
 AUTH_SCHEME = 'tma'
 _HASH_RE = re.compile(r'[0-9a-f]{64}')    # hex SHA-256 в нижнем регистре, как шлёт Telegram
 
-BOT_TOKEN_ENV = 'TELEGRAM_MCP_BOT_TOKEN'
-ALLOWED_IDS_ENV = 'TG_MINIAPP_ALLOWED_IDS'
 
 
 class InitDataError(Exception):
@@ -51,22 +49,6 @@ class InitDataError(Exception):
     def __init__(self, code: str, message: str):
         super().__init__(message)
         self.code = code
-
-
-def bot_token() -> str:
-    """Токен бота, к которому привязано мини-приложение (@MCPkulturabot)."""
-    return (os.environ.get(BOT_TOKEN_ENV) or '').strip()
-
-
-def allowed_user_ids() -> FrozenSet[int]:
-    """Telegram id людей, которым можно открыть график. Пусто — никому."""
-    raw = os.environ.get(ALLOWED_IDS_ENV) or ''
-    ids = set()
-    for part in raw.replace(';', ',').split(','):
-        part = part.strip()
-        if part.isascii() and part.isdigit():   # у людей id положительные; группы (с минусом) не люди
-            ids.add(int(part))
-    return frozenset(ids)
 
 
 def init_data_from_header(header: Optional[str]) -> str:

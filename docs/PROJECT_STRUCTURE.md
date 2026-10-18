@@ -172,9 +172,11 @@ beer-abc-analysis/
 | `open_check_telegram.py` | Telegram Bot API sync с обходом блокировок (`api_call`, файлы — `api_call_files`; `safe_resend` — запасной путь только при доказанном «не ушло»), меню подписки (кнопка) + команды /start /status |
 | `open_check_subscribers.py` | Хранилище самоподписавшихся чатов (единый список, portalocker) |
 | `tg_charts.py` | **Графики бота @MCPkulturabot** (с 2026-10-18): формат описания графика (`normalize`), хранилище `tg_charts` в `mcp.db` — id `token_urlsafe(16)`, срок 90 дней — [tg-miniapp.md](tg-miniapp.md) |
-| `tg_chart_send.py` | Отправка графика: допущенные чаты, PNG, `sendPhoto` с кнопкой «Открыть интерактивно» (флаг `TG_MINIAPP_BUTTON`; личка — `web_app`, группа — ссылка `startapp`) |
+| `tg_chart_send.py` | Отправка графика: чат разговора, PNG, `sendPhoto` с кнопкой «Открыть интерактивно» (флажок на `/admin/mcp`; личка — `web_app`, группа — ссылка `startapp` при заданном short name) |
+| `tg_chart_settings.py` | Настройки графиков: токен бота (проверка getMe), флажок кнопки, short name — страница `/admin/mcp`, запасной путь — окружение |
+| `tg_chart_access.py` | Кто открывает график: получатель лички или участник группы (`getChatMember`, кэш) |
 | `tg_chart_png.py` | PNG-карточка: страница мини-приложения в Chromium без сети, снимок карточки |
-| `tg_webapp_auth.py` | Проверка initData мини-приложения Telegram (HMAC «WebAppData», сутки, `TG_MINIAPP_ALLOWED_IDS`) |
+| `tg_webapp_auth.py` | Проверка initData мини-приложения Telegram (HMAC «WebAppData», сутки) |
 | `tg_chart_fixtures.py` | Пять графиков прототипа и ряд по дням — dev-страница и тесты |
 | `open_check_polling.py` | Long-polling getUpdates (входящие команды/кнопки) |
 

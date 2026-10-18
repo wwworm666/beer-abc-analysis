@@ -221,6 +221,39 @@
                 </div>
             </section>
 
+            <section class="mcp-panel">
+                <h2>Графики в Telegram</h2>
+                <p class="mcp-hint" id="mcpChartsStatus"></p>
+                <div class="mcp-grid">
+                    <div class="mcp-field mcp-full">
+                        <label for="mcpChartsToken">Токен бота, который присылает графики (@MCPkulturabot)</label>
+                        <input id="mcpChartsToken" class="mcp-input" type="password" autocomplete="off"
+                               spellcheck="false" placeholder="1234567890:AA…">
+                        <span class="mcp-hint">@BotFather → /mybots → бот → API Token. Сервис проверит токен в
+                            Telegram и запомнит имя бота. Пустое поле — токен не меняется.</span>
+                    </div>
+                    <div class="mcp-field mcp-full">
+                        <label class="mcp-check"><input type="checkbox" id="mcpChartsButton">
+                            Кнопка «Открыть интерактивно» под графиками</label>
+                        <span class="mcp-hint">Открывает тот же график внутри Telegram: цифры по тапу, таблица,
+                            переключатели. Открыть его могут только участники чата, куда пришла картинка.</span>
+                    </div>
+                    <div class="mcp-field mcp-full">
+                        <label for="mcpChartsShortName">Короткое имя мини-приложения — только для групп</label>
+                        <input id="mcpChartsShortName" class="mcp-input" type="text" autocomplete="off"
+                               spellcheck="false" placeholder="chart">
+                        <span class="mcp-hint">В личке кнопка работает сразу. В группах Telegram открывает график
+                            только через мини-приложение бота: @BotFather → /newapp, адрес
+                            https://beerkultura.ru/tg/chart, короткое имя впишите сюда.</span>
+                    </div>
+                    <div class="mcp-full mcp-actions">
+                        <button type="button" class="mcp-btn mcp-btn-primary" id="mcpChartsSave">Сохранить</button>
+                        <span class="mcp-ok" id="mcpChartsOk"></span>
+                        <span class="mcp-err" id="mcpChartsError"></span>
+                    </div>
+                </div>
+            </section>
+
         </div>
     </main>
 

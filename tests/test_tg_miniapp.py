@@ -7,9 +7,11 @@
   битый hash — отказ. Подпись в тестах считается своей реализацией по документации
   Telegram, а не функцией модуля, — иначе тест проверял бы код сам собой;
 - API /api/tg/charts/<id>: 200 с описанием; 401 без заголовка, с чужой схемой, с
-  подделкой и с просроченной initData; 403 человеку не из списка (с его id в ответе);
-  404 на неизвестный, битый и просроченный id; 503 без токена бота; initData не попадает
-  в журнал; ответ не кэшируется;
+  подделкой и с просроченной initData; 403 человеку не из чата графика (личка — только
+  получатель, группа — участники по getChatMember, ответ Telegram кэшируется); 404 на
+  неизвестный, битый и просроченный id; 503 без токена бота и когда Telegram не ответил
+  на проверку участия; токен берётся из настроек /admin/mcp, иначе из окружения;
+  initData не попадает в журнал; ответ не кэшируется;
 - страница /tg/chart открыта без входа на сайт, подключает официальный
   telegram-web-app.js, локальные ECharts и шрифт, отдаёт CSP; dev-страница и PNG фикстуры —
   только в debug;
@@ -35,14 +37,15 @@ os.environ.setdefault('SESSION_COOKIE_SECURE', '0')
 
 from flask import Flask  # noqa: E402
 
-from core import tg_charts, tg_webapp_auth  # noqa: E402
-from core.mcp import db  # noqa: E402
+from core import tg_chart_access, tg_chart_settings, tg_charts, tg_webapp_auth  # noqa: E402
+from core.mcp import db, settings  # noqa: E402
 from core.tg_chart_fixtures import FIXTURES  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TOKEN = 'test-mcp-bot-token'
 OWNER = 670033096
 STRANGER = 111222333
+GROUP = '-1001234567890'
 
 
 def telegram_hash(fields, token):
@@ -73,14 +76,36 @@ def init_data(user_id=OWNER, auth_date=None, token=TOKEN, start_param=None, sign
 @pytest.fixture
 def store(tmp_path):
     db.set_db_path(str(tmp_path / 'mcp.db'))
+    tg_chart_access.clear_cache()
     yield
+    tg_chart_access.clear_cache()
     db.set_db_path(None)
 
 
 @pytest.fixture
 def env(monkeypatch):
     monkeypatch.setenv('TELEGRAM_MCP_BOT_TOKEN', TOKEN)
-    monkeypatch.setenv('TG_MINIAPP_ALLOWED_IDS', f'{OWNER}, 5550001')
+
+
+class FakeMembers:
+    """getChatMember Telegram: {(чат, человек): статус}; None — Telegram не ответил."""
+
+    def __init__(self, statuses, offline=False):
+        self.statuses = statuses
+        self.offline = offline
+        self.calls = []
+
+    def __call__(self, chat_id, user_id, token):
+        self.calls.append((chat_id, user_id, token))
+        if self.offline:
+            return None
+        status = self.statuses.get((chat_id, user_id))
+        if status is None:
+            return {'ok': False, 'error_code': 400, 'description': 'Bad Request: user not found'}
+        result = {'status': status, 'user': {'id': user_id}}
+        if status == 'restricted':
+            result['is_member'] = True
+        return {'ok': True, 'result': result}
 
 
 def make_app(debug=False):
@@ -95,8 +120,8 @@ def make_app(debug=False):
     return app
 
 
-def saved_chart(name='belgium'):
-    return tg_charts.create(tg_charts.normalize(dict(FIXTURES)[name]), chat_id=str(OWNER))['id']
+def saved_chart(name='belgium', chat_id=str(OWNER)):
+    return tg_charts.create(tg_charts.normalize(dict(FIXTURES)[name]), chat_id=chat_id)['id']
 
 
 def get(client, chart_id, data=None, scheme='tma'):
@@ -161,11 +186,7 @@ def test_init_data_without_user_is_refused():
     assert err.value.code == 'no_user'
 
 
-def test_allowed_ids_and_header_parsing(monkeypatch):
-    monkeypatch.setenv('TG_MINIAPP_ALLOWED_IDS', ' 670033096,5550001 ; -100123, abc, ２２, 7')
-    assert tg_webapp_auth.allowed_user_ids() == {670033096, 5550001, 7}, 'группы, мусор и не-ASCII цифры — мимо'
-    monkeypatch.delenv('TG_MINIAPP_ALLOWED_IDS')
-    assert tg_webapp_auth.allowed_user_ids() == frozenset()
+def test_header_parsing():
     assert tg_webapp_auth.init_data_from_header('tma a=1&b=2') == 'a=1&b=2'
     assert tg_webapp_auth.init_data_from_header('TMA a=1') == 'a=1'
     assert tg_webapp_auth.init_data_from_header('Bearer a=1') == ''
@@ -174,7 +195,7 @@ def test_allowed_ids_and_header_parsing(monkeypatch):
 
 # ------------------------------------------------------------------ API
 
-def test_api_returns_chart_to_allowed_user(store, env):
+def test_api_returns_chart_to_its_recipient(store, env):
     chart_id = saved_chart('revenue')
     client = make_app().test_client()
     resp = get(client, chart_id, init_data())
@@ -196,11 +217,10 @@ def test_api_status_codes(store, env, monkeypatch):
                        (get(client, chart_id, init_data(tamper={'user': json.dumps({'id': OWNER})})), 'init_data_invalid'),
                        (get(client, chart_id, init_data(auth_date=int(time.time()) - 2 * 86400)), 'init_data_expired')):
         assert resp.status_code == 401 and resp.get_json()['code'] == code, (code, resp.get_json())
-    # 403: подпись верна, но человека нет в списке — его id в ответе, чтобы передать владельцу
+    # 403: подпись верна, но график прислан в личку другому человеку
     resp = get(client, chart_id, init_data(user_id=STRANGER))
     assert resp.status_code == 403 and resp.get_json() == {
-        'error': 'Нет доступа к графикам: передайте владельцу свой Telegram ID', 'code': 'not_allowed',
-        'user_id': STRANGER}
+        'error': 'График открывают участники чата, куда бот его прислал', 'code': 'not_allowed'}
     # 404: неизвестный, битый и просроченный id
     for bad in ('A' * 22, 'short', 'x' * 65, chart_id[:-1] + ('A' if chart_id[-1] != 'A' else 'B')):
         resp = get(client, bad, init_data())
@@ -213,6 +233,58 @@ def test_api_status_codes(store, env, monkeypatch):
     monkeypatch.delenv('TELEGRAM_MCP_BOT_TOKEN')
     assert get(client, chart_id, init_data()).status_code == 503
     assert get(client, chart_id).status_code == 401
+
+
+def test_group_chart_opens_for_group_members_only(store, env, monkeypatch):
+    """Группа: участники (в том числе админы и ограниченные, но состоящие) — да; вышедшие и чужие — нет."""
+    members = FakeMembers({(GROUP, OWNER): 'creator', (GROUP, 5550001): 'member', (GROUP, 5550002): 'restricted',
+                           (GROUP, 5550003): 'left', (GROUP, 5550004): 'kicked'})
+    monkeypatch.setattr(tg_chart_access, '_get_chat_member', members)
+    chart_id = saved_chart('desserts', chat_id=GROUP)
+    client = make_app().test_client()
+    for user, status in ((OWNER, 200), (5550001, 200), (5550002, 200), (5550003, 403), (5550004, 403),
+                         (STRANGER, 403)):
+        assert get(client, chart_id, init_data(user_id=user)).status_code == status, user
+    assert all(call[0] == GROUP and call[2] == TOKEN for call in members.calls), 'проверка — токеном бота графиков'
+    before = len(members.calls)
+    assert get(client, chart_id, init_data(user_id=5550001)).status_code == 200
+    assert len(members.calls) == before, 'повторное открытие — из кэша, без запроса в Telegram'
+
+
+def test_group_access_check_offline_is_503_not_403(store, env, monkeypatch):
+    monkeypatch.setattr(tg_chart_access, '_get_chat_member', FakeMembers({}, offline=True))
+    chart_id = saved_chart(chat_id=GROUP)
+    resp = get(make_app().test_client(), chart_id, init_data())
+    assert resp.status_code == 503 and resp.get_json()['code'] == 'access_check_failed'
+
+
+def test_access_rules_and_cache():
+    members = FakeMembers({(GROUP, 1): 'member'})
+    assert tg_chart_access.can_view(str(OWNER), OWNER, TOKEN, get_member=members) is True
+    assert tg_chart_access.can_view(str(OWNER), STRANGER, TOKEN, get_member=members) is False
+    assert tg_chart_access.can_view('', OWNER, TOKEN, get_member=members) is False
+    assert members.calls == [], 'личка проверяется без Telegram'
+    tg_chart_access.clear_cache()
+    assert tg_chart_access.can_view(GROUP, 1, TOKEN, get_member=members, now=1000) is True
+    assert tg_chart_access.can_view(GROUP, 2, TOKEN, get_member=members, now=1000) is False
+    members.statuses[(GROUP, 2)] = 'member'                     # человека добавили в группу
+    assert tg_chart_access.can_view(GROUP, 2, TOKEN, get_member=members, now=1030) is False, '«нет» — минуту из кэша'
+    assert tg_chart_access.can_view(GROUP, 2, TOKEN, get_member=members, now=1061) is True
+    del members.statuses[(GROUP, 1)]                            # человек вышел
+    assert tg_chart_access.can_view(GROUP, 1, TOKEN, get_member=members, now=1299) is True, '«да» — 5 минут из кэша'
+    assert tg_chart_access.can_view(GROUP, 1, TOKEN, get_member=members, now=1301) is False
+    tg_chart_access.clear_cache()
+
+
+def test_token_from_admin_settings_wins_over_env(store, monkeypatch):
+    monkeypatch.setenv('TELEGRAM_MCP_BOT_TOKEN', 'env-token')
+    settings.set(tg_chart_settings.KEY_TOKEN, TOKEN)
+    chart_id = saved_chart()
+    client = make_app().test_client()
+    assert get(client, chart_id, init_data(token=TOKEN)).status_code == 200
+    assert get(client, chart_id, init_data(token='env-token')).status_code == 401
+    settings.set(tg_chart_settings.KEY_TOKEN, '')
+    assert get(client, chart_id, init_data(token='env-token')).status_code == 200, 'пусто в настройках — окружение'
 
 
 def test_api_never_logs_init_data(store, env, caplog):

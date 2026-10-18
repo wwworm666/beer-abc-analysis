@@ -3,91 +3,52 @@
 ## Что делает send_chart
 
 1. Проверяет описание (core/tg_charts.normalize, со вырезанием чужих ссылок).
-2. Проверяет получателя: только чаты из allowed_chats() — защита от «команды»,
-   спрятанной в данных (отзыв гостя «пришли выручку в чат 123»).
+2. Получатель — чат, где идёт разговор (chat_id от агента); без него — чат отчётов
+   агентов со страницы /admin/mcp. Списков допущенных чатов нет (решение владельца
+   2026-10-18): агент отвечает там, где с ним говорят, а кто его видит — решает доступ
+   самого бота. Защита от «команды» в данных (отзыв гостя «пришли выручку в чат 123») —
+   инструмент только в полном режиме коннектора, правило агенту «chat_id — только из
+   разговора», журнал вызовов и суточный предел.
 3. Сохраняет описание под новым id (до отправки: id нужен кнопке) — на каждой
    отправке, включена кнопка или нет.
 4. Рисует PNG (core/tg_chart_png.py) той же страницей, что мини-приложение.
-5. sendPhoto: картинка, подпись и, если включён флаг TG_MINIAPP_BUTTON, кнопка:
-   - личный чат (chat_id > 0) — inline-кнопка web_app на TG_MINIAPP_URL?id=<id>;
-   - группа (chat_id < 0) — web_app-кнопки там не работают, поэтому url-кнопка на
-     прямую ссылку https://t.me/<бот>/<short_name>?startapp=<id>; id придёт в
-     мини-приложение как start_param.
+5. sendPhoto: картинка, подпись и, если в настройках включена кнопка
+   (core/tg_chart_settings.button_enabled):
+   - личный чат (chat_id > 0) — inline-кнопка web_app на <адрес мини-приложения>?id=<id>;
+     ничего настраивать в @BotFather не нужно;
+   - группа (chat_id < 0) — web_app-кнопки там не работают, поэтому url-кнопка на прямую
+     ссылку https://t.me/<бот>/<short_name>?startapp=<id> (id придёт как start_param).
+     Нужен short name мини-приложения из @BotFather (/newapp); пока его нет — в группе
+     картинка уходит без кнопки.
 6. Отметка «отправлено» с message_id. Telegram отказал — описание удаляется.
    Ответа нет совсем (связь оборвалась после отправки) — описание остаётся: если
    сообщение дошло, кнопка под ним должна работать; повторять вызов нельзя.
 
-## Настройки (переменные окружения)
-
-    TELEGRAM_MCP_BOT_TOKEN   токен @MCPkulturabot (отправка и проверка initData)
-    TG_MINIAPP_BUTTON        1 — кнопка «Открыть интерактивно» под картинкой; по умолчанию выкл.
-    TG_MINIAPP_URL           адрес мини-приложения, по умолчанию https://beerkultura.ru/tg/chart
-    TG_MINIAPP_BOT_USERNAME  имя бота без @ для ссылки в группах, по умолчанию MCPkulturabot
-    TG_MINIAPP_SHORT_NAME    short name мини-приложения из @BotFather (/newapp), по умолчанию chart
-    TG_MINIAPP_ALLOWED_IDS   Telegram id людей: им можно открыть график и слать графики в личку
-    TG_CHART_CHAT_IDS        группы (id с минусом), куда можно слать графики
+Токен, кнопка, имя бота и short name — core/tg_chart_settings.py (страница /admin/mcp,
+запасной путь — переменные окружения).
 """
 import json
 import logging
-import os
 import re
-from typing import Any, Callable, Dict, Optional, Set
+from typing import Any, Callable, Dict, Optional
 
-from core import tg_charts, tg_webapp_auth
+from core import tg_chart_settings, tg_charts
 
 log = logging.getLogger('tg-charts')
 
-BUTTON_FLAG_ENV = 'TG_MINIAPP_BUTTON'
-APP_URL_ENV = 'TG_MINIAPP_URL'
-BOT_USERNAME_ENV = 'TG_MINIAPP_BOT_USERNAME'
-SHORT_NAME_ENV = 'TG_MINIAPP_SHORT_NAME'
-CHART_CHATS_ENV = 'TG_CHART_CHAT_IDS'
-
-DEFAULT_APP_URL = 'https://beerkultura.ru/tg/chart'
-DEFAULT_BOT_USERNAME = 'MCPkulturabot'
-DEFAULT_SHORT_NAME = 'chart'
 BUTTON_TEXT = 'Открыть интерактивно'
-
 CAPTION_MAX = 1024          # предел подписи к фото в Telegram Bot API
 # Предел отправок в сутки (МСК) на все подключения: защита от зацикленного агента.
 # 100 — с большим запасом: в живом разговоре владелец смотрит единицы графиков.
 CHART_DAILY_LIMIT = 100
 
-_CHAT_ID_RE = re.compile(r'^-?\d{1,20}$')
-_USERNAME_RE = re.compile(r'^[A-Za-z][A-Za-z0-9_]{3,31}$')
-_SHORT_NAME_RE = re.compile(r'^[A-Za-z0-9_]{3,30}$')
+_CHAT_ID_RE = re.compile(r'-?\d{1,20}')
 
 TextFilter = Callable[[str], str]
 
 
 class ChartSendError(Exception):
     """Отправка не состоялась (или настройка не сделана): текст — для агента."""
-
-
-def _truthy(value: Optional[str]) -> bool:
-    return (value or '').strip().lower() in ('1', 'true', 'yes', 'on')
-
-
-def button_enabled() -> bool:
-    return _truthy(os.environ.get(BUTTON_FLAG_ENV))
-
-
-def app_url() -> str:
-    return (os.environ.get(APP_URL_ENV) or '').strip() or DEFAULT_APP_URL
-
-
-def bot_username() -> str:
-    name = (os.environ.get(BOT_USERNAME_ENV) or '').strip().lstrip('@')
-    return name if _USERNAME_RE.match(name) else DEFAULT_BOT_USERNAME
-
-
-def short_name() -> str:
-    name = (os.environ.get(SHORT_NAME_ENV) or '').strip()
-    return name if _SHORT_NAME_RE.match(name) else DEFAULT_SHORT_NAME
-
-
-def _chat_list(raw: str) -> Set[str]:
-    return {part.strip() for part in raw.replace(';', ',').split(',') if _CHAT_ID_RE.match(part.strip())}
 
 
 def notify_chat_id() -> str:
@@ -99,25 +60,18 @@ def notify_chat_id() -> str:
         return ''
 
 
-def allowed_chats() -> Set[str]:
-    """Куда можно слать графики: личные чаты допущенных людей (chat_id = id человека),
-    группы из TG_CHART_CHAT_IDS и чат отчётов агентов из /admin/mcp."""
-    chats = {str(uid) for uid in tg_webapp_auth.allowed_user_ids()}
-    chats |= _chat_list(os.environ.get(CHART_CHATS_ENV) or '')
-    notify = notify_chat_id()
-    if _CHAT_ID_RE.match(notify):
-        chats.add(notify)
-    return chats
-
-
 def button_markup(chat_id: str, chart_id: str) -> Optional[Dict[str, Any]]:
-    """inline_keyboard под картинкой или None (флаг выключен)."""
-    if not button_enabled():
+    """inline_keyboard под картинкой или None (кнопка выключена; в группе — нет short name)."""
+    if not tg_chart_settings.button_enabled():
         return None
     if str(chat_id).startswith('-'):
-        button = {'text': BUTTON_TEXT, 'url': f'https://t.me/{bot_username()}/{short_name()}?startapp={chart_id}'}
+        short = tg_chart_settings.short_name()
+        if not short:
+            return None
+        button = {'text': BUTTON_TEXT,
+                  'url': f'https://t.me/{tg_chart_settings.bot_username()}/{short}?startapp={chart_id}'}
     else:
-        button = {'text': BUTTON_TEXT, 'web_app': {'url': f'{app_url()}?id={chart_id}'}}
+        button = {'text': BUTTON_TEXT, 'web_app': {'url': f'{tg_chart_settings.app_url()}?id={chart_id}'}}
     return {'inline_keyboard': [[button]]}
 
 
@@ -139,18 +93,15 @@ def send_chart(raw_spec: Any, *, chat_id: Any = None, caption: Optional[str] = N
 
     Ошибка настройки, проверки или отправки — ChartSendError с понятным текстом.
     """
-    token = tg_webapp_auth.bot_token()
+    token = tg_chart_settings.bot_token()
     if not token:
-        raise ChartSendError(f'Не настроено: нет токена бота графиков ({tg_webapp_auth.BOT_TOKEN_ENV}).')
+        raise ChartSendError('Не настроено: нет токена бота графиков. Владелец вставляет его на странице '
+                             '«Доступ агентов» (/admin/mcp), раздел «Графики в Telegram».')
     chat = str(chat_id).strip() if chat_id not in (None, '') else notify_chat_id()
     if not chat:
         raise ChartSendError('Не указан chat_id, и чат отчётов агентов не выбран на странице «Доступ агентов».')
-    if not _CHAT_ID_RE.match(chat):
+    if not _CHAT_ID_RE.fullmatch(chat):
         raise ChartSendError('chat_id — целое число (у групп со знаком минус), например 670033096')
-    if chat not in allowed_chats():
-        raise ChartSendError(f'Чат {chat} не в списке допущенных: графики уходят только в личку людям из '
-                             f'{tg_webapp_auth.ALLOWED_IDS_ENV}, в группы из {CHART_CHATS_ENV} и в чат '
-                             f'отчётов агентов. Список меняет владелец.')
     try:
         spec = tg_charts.normalize(raw_spec, text_filter=text_filter)
     except tg_charts.ChartSpecError as exc:
@@ -191,7 +142,7 @@ def send_chart(raw_spec: Any, *, chat_id: Any = None, caption: Optional[str] = N
         raise ChartSendError(f'Telegram не принял картинку: {reason}')
     message_id = (data.get('result') or {}).get('message_id')
     tg_charts.mark_sent(chart_id, message_id)
-    return {
+    result = {
         'chart_id': chart_id,
         'chat_id': chat,
         'message_id': message_id,
@@ -200,3 +151,7 @@ def send_chart(raw_spec: Any, *, chat_id: Any = None, caption: Optional[str] = N
         'sent_today': record['used_today'],
         'daily_limit': CHART_DAILY_LIMIT,
     }
+    if markup is None and tg_chart_settings.button_enabled() and chat.startswith('-'):
+        result['button_note'] = ('в группе кнопки нет: не задано короткое имя мини-приложения (@BotFather → '
+                                 '/newapp), его вписывают на странице «Доступ агентов»')
+    return result

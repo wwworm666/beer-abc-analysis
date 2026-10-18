@@ -50,8 +50,8 @@ PUBLIC_ENDPOINTS = {
     'mcp_oauth.revoke',
     # Мини-приложение Telegram «Графики» (routes/tg_miniapp.py): у клиента Telegram нет
     # cookie сайта. Страница данных не содержит; API пускает только по initData,
-    # подписанной токеном бота, и только людей из TG_MINIAPP_ALLOWED_IDS. dev-страницы
-    # без debug отвечают 404.
+    # подписанной токеном бота, и только участников чата, куда отправлен график.
+    # dev-страницы без debug отвечают 404.
     'tg_miniapp.chart_page',
     'tg_miniapp.chart_api',
     'tg_miniapp.chart_dev',
