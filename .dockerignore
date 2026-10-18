@@ -73,6 +73,7 @@ docs/**
 !docs/temperature.md
 !docs/open-check-bot.md
 !docs/mcp.md
+!docs/tg-miniapp.md
 !docs/overview.md
 !docs/lessons.md
 !docs/guides/mcp-connect.md

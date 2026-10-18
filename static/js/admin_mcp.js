@@ -15,7 +15,8 @@
         grants: '/api/admin/mcp/grants',
         grant: '/api/admin/mcp/grants/',
         audit: '/api/admin/mcp/audit',
-        settings: '/api/admin/mcp/settings'
+        settings: '/api/admin/mcp/settings',
+        charts: '/api/admin/mcp/charts'
     };
 
     // Сколько строк журнала показывать: страница — обзор последнего, глубже — фильтром.
@@ -342,6 +343,46 @@
             .then(function () { button.disabled = false; });
     }
 
+    // ------------------------------------------------------------ графики в Telegram
+
+    function loadCharts() {
+        setText('mcpChartsError', '');
+        return call('GET', API.charts).then(renderCharts)
+            .catch(function (e) { setText('mcpChartsError', e.message); });
+    }
+
+    function renderCharts(data) {
+        var status;
+        if (!data.configured) {
+            status = 'Не настроено: вставьте токен бота и нажмите «Сохранить».';
+        } else {
+            status = 'Бот @' + data.bot_username + ' подключён (токен ' + data.token_hint +
+                (data.source === 'env' ? ', из файла .env' : '') + '). Кнопка под графиками ' +
+                (data.button ? 'включена' : 'выключена') + '.';
+            if (data.button && !data.short_name) status += ' В группах кнопки нет: не задано короткое имя.';
+        }
+        setText('mcpChartsStatus', status);
+        byId('mcpChartsToken').value = '';
+        // Пока токена нет, флажок кнопки предложен включённым: владелец сохраняет всё
+        // одной кнопкой. Дальше — как сохранено.
+        byId('mcpChartsButton').checked = data.configured ? !!data.button : true;
+        byId('mcpChartsShortName').value = data.short_name || '';
+    }
+
+    function saveCharts() {
+        setText('mcpChartsError', '');
+        setText('mcpChartsOk', '');
+        var body = { button: !!byId('mcpChartsButton').checked, short_name: byId('mcpChartsShortName').value.trim() };
+        var token = byId('mcpChartsToken').value.trim();
+        if (token) body.token = token;
+        var button = byId('mcpChartsSave');
+        button.disabled = true;
+        call('PUT', API.charts, body)
+            .then(function (data) { renderCharts(data); setText('mcpChartsOk', data.warning || 'Сохранено'); })
+            .catch(function (e) { setText('mcpChartsError', e.message); })
+            .then(function () { button.disabled = false; });
+    }
+
     // ------------------------------------------------------------ запуск
 
     function init() {
@@ -355,11 +396,13 @@
         byId('mcpAuditStatus').addEventListener('change', loadAudit);
         byId('mcpAuditTool').addEventListener('change', loadAudit);
         byId('mcpSettingsSave').addEventListener('click', saveSettings);
+        byId('mcpChartsSave').addEventListener('click', saveCharts);
         syncDomainBoxes();
         loadTokens();
         loadGrants();
         loadAudit();
         loadSettings();
+        loadCharts();
     }
 
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

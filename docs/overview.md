@@ -214,6 +214,8 @@ data/
 | Telegram                                                       |
 | - @kultura_taplist_bot — KULT Taplist (polling + webhook)      |
 | - @kultura_open_bot    — Open-check (webhook, sync requests)   |
+| - @MCPkulturabot       — графики агентов MCP (только sendPhoto |
+|   и мини-приложение /tg/chart, docs/tg-miniapp.md)             |
 +----------------------------------------------------------------+
 ```
 
@@ -225,7 +227,7 @@ data/
 |---|---|---|
 | **iiko API** | Продажи (OLAP), кассовые смены, посещения сотрудников, номенклатура (баркоды через XML) | env `IIKO_SERVER/PORT/LOGIN/PASSWORD`, [core/iiko_api.py](../core/iiko_api.py) |
 | **Честный Знак** | Маркировка пива/безалк/соков, сроки годности по партиям, привязка к КПП баров. Доступ — через бар-ПК с CryptoPro+Rutoken | env `REMOTE_USER/HOST/PASS`, [chz_test/chz.py](../chz_test/chz.py), [core/chz_scheduler.py](../core/chz_scheduler.py); названия новинок для приёмки — команда `product-info` ([core/receiving_chz.py](../core/receiving_chz.py)) |
-| **Telegram** | KULT Taplist (уведомления барменам) + Open-check (мониторинг открытых смен) | env `TELEGRAM_BOT_TOKEN`, `TELEGRAM_OPEN_CHECK_BOT_TOKEN`, `TELEGRAM_GROUP_CHAT_ID`, `TELEGRAM_ALARM_CHAT_IDS`; бухгалтерии о разборе приёмок — `RECEIVING_NOTIFY_CHAT_IDS` |
+| **Telegram** | KULT Taplist (уведомления барменам) + Open-check (мониторинг открытых смен) + графики агентов MCP от @MCPkulturabot с мини-приложением `/tg/chart` ([tg-miniapp.md](tg-miniapp.md)) | env `TELEGRAM_BOT_TOKEN`, `TELEGRAM_OPEN_CHECK_BOT_TOKEN`, `TELEGRAM_GROUP_CHAT_ID`, `TELEGRAM_ALARM_CHAT_IDS`; бухгалтерии о разборе приёмок — `RECEIVING_NOTIFY_CHAT_IDS`; графики — токен бота на странице `/admin/mcp` (запасной путь `TELEGRAM_MCP_BOT_TOKEN`) |
 | **Tailscale** | Mesh-сеть до бар-ПК (`100.98.149.108`) | На сервере и бар-ПК как daemon |
 
 ---
@@ -261,11 +263,13 @@ data/
 | Expiration | `/api/expiration/board?bars=...` | GET | [expiration.md](expiration.md) |
 | Explorer | `/api/explorer/columns`, `/values`, `/report`, `/export`, `/presets`, `/saved` | GET/POST/DELETE | [explorer.md](explorer.md) |
 | Open-check | `/api/admin/open-check/run-now`, `/telegram/openbot/*` | POST/GET | [open-check-bot.md](open-check-bot.md) |
+| Графики бота (Telegram) | `/tg/chart`, `/api/tg/charts/<id>` (только `Authorization: tma <initData>`) | GET | [tg-miniapp.md](tg-miniapp.md) |
 
 ---
 
 ## Changelog
 
+- **2026-10-18** — Графики бота @MCPkulturabot: blueprint `tg_miniapp_bp` (`/tg/chart`, `/api/tg/charts/<id>`), модули `core/tg_*`, таблица `tg_charts` в `mcp.db`, PNG в Chromium ([tg-miniapp.md](tg-miniapp.md)).
 - **2026-10-03** — Приёмка на РЦ: blueprint `receiving_bp`, модули `core/receiving_*`, шедулер индекса iiko, данные `receiving.db`/`receiving_photos/`/`receiving_index.json`, Telegram бухгалтерии ([receiving.md](receiving.md)).
 - **2026-05-28** — Полная ревизия. Документация консолидирована в `docs/`. Добавлены: Selectel-деплой, atomic locks под gunicorn 2-workers, WAL для shifts.db, отдельные модули explorer/expiration/open-check, menu_tool как standalone. Удалены: упоминания удалённого menu-модуля и render.yaml-деплоя.
 - **2026-03-27** — Создан overview.md с описанием 8 blueprints, 20+ core-модулей, render.yaml-деплоя.

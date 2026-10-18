@@ -23,6 +23,9 @@
     GET    /api/admin/mcp/audit                ?limit=&tool=&status= -> {items}
     GET    /api/admin/mcp/settings             {settings, subscribers, bot_configured, defaults}
     PUT    /api/admin/mcp/settings             {notify_chat_id?, oauth_redirect_hosts?} -> то же
+    GET    /api/admin/mcp/charts               графики в Telegram: {configured, source, token_hint,
+                                               bot_username, button, short_name, app_url} — без токена
+    PUT    /api/admin/mcp/charts               {token?, clear_token?, button?, short_name?} -> то же + warning
 Админ-API в охват MCP не входит (core/mcp/tools/common.py, EXCLUDED): агент не
 управляет доступом к себе — выпуск токенов, отзыв и настройки только руками владельца.
 """
@@ -244,3 +247,34 @@ def admin_settings_put():
     for key, value in cleaned.items():
         settings.set(key, value, by=_login())
     return jsonify(_settings_payload())
+
+
+# ------------------------------------------------------------------ графики в Telegram
+
+@mcp_bp.route('/api/admin/mcp/charts', methods=['GET'])
+@admin_required
+def admin_charts_get():
+    """Состояние графиков бота @MCPkulturabot (core/tg_chart_settings.py) — токен не отдаётся."""
+    from core import tg_chart_settings
+    return jsonify(tg_chart_settings.public_view())
+
+
+@mcp_bp.route('/api/admin/mcp/charts', methods=['PUT'])
+@admin_required
+def admin_charts_put():
+    """Сохранить токен (проверка getMe в Telegram), кнопку и короткое имя мини-приложения."""
+    from core import tg_chart_settings
+    body = _json_body()
+    unknown = sorted(set(body) - {'token', 'clear_token', 'button', 'short_name'})
+    if unknown:
+        return _error('Неизвестные настройки: ' + ', '.join(unknown))
+    token = body.get('token')
+    if token is not None and not isinstance(token, str):
+        return _error('Токен — строка')
+    try:
+        view = tg_chart_settings.save(token=token, clear_token=body.get('clear_token') is True,
+                                      button=body.get('button'), short_name_value=body.get('short_name'),
+                                      by=_login())
+    except ValueError as exc:
+        return _error(str(exc))
+    return jsonify(view)

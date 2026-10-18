@@ -39,7 +39,9 @@ beer-abc-analysis/
 │                           #   test_mcp_admin_render.mjs, test_mcp_narrowing.py, test_mcp_eval.py +
 │                           #   mcp_eval_questions.json (эталонные вопросы к агенту);
 │                           #   отправка и бот: test_content_publisher.py, test_guest_subscribers.py,
-│                           #   test_taplist_polling.py, test_review_notify.py; отзывы с Яндекс Карт:
+│                           #   test_taplist_polling.py, test_review_notify.py; графики бота и
+│                           #   мини-приложение: test_tg_miniapp.py, test_tg_chart_send.py,
+│                           #   test_tg_chart_browser.py, test_tg_chart_js.py (+ .mjs); отзывы с Яндекс Карт:
 │                           #   test_yandex_maps_reviews.py, test_yandex_reviews_sync.py,
 │                           #   test_yandex_reviews_watchdog.py; старые ошибки:
 │                           #   test_dashboard_comments.py, test_dashboard_compare_export.py,
@@ -169,6 +171,13 @@ beer-abc-analysis/
 | `open_check_bot.py` | Логика проверки + форматирование |
 | `open_check_telegram.py` | Telegram Bot API sync с обходом блокировок (`api_call`, файлы — `api_call_files`; `safe_resend` — запасной путь только при доказанном «не ушло»), меню подписки (кнопка) + команды /start /status |
 | `open_check_subscribers.py` | Хранилище самоподписавшихся чатов (единый список, portalocker) |
+| `tg_charts.py` | **Графики бота @MCPkulturabot** (с 2026-10-18): формат описания графика (`normalize`), хранилище `tg_charts` в `mcp.db` — id `token_urlsafe(16)`, срок 90 дней — [tg-miniapp.md](tg-miniapp.md) |
+| `tg_chart_send.py` | Отправка графика: чат разговора, PNG, `sendPhoto` с кнопкой «Открыть интерактивно» (флажок на `/admin/mcp`; личка — `web_app`, группа — ссылка `startapp` при заданном short name) |
+| `tg_chart_settings.py` | Настройки графиков: токен бота (проверка getMe), флажок кнопки, short name — страница `/admin/mcp`, запасной путь — окружение |
+| `tg_chart_access.py` | Кто открывает график: получатель лички или участник группы (`getChatMember`, кэш) |
+| `tg_chart_png.py` | PNG-карточка: страница мини-приложения в Chromium без сети, снимок карточки |
+| `tg_webapp_auth.py` | Проверка initData мини-приложения Telegram (HMAC «WebAppData», сутки) |
+| `tg_chart_fixtures.py` | Пять графиков прототипа и ряд по дням — dev-страница и тесты |
 | `open_check_polling.py` | Long-polling getUpdates (входящие команды/кнопки) |
 
 ### Конфиг и утилиты (5+)
@@ -228,6 +237,7 @@ beer-abc-analysis/
 | `reviews_bp` | `/reviews`, `/api/reviews`, `/api/guest-hub/attention` | `reviews.py` |
 | `mcp_bp` | `/mcp[/<раздел>][/read\|/draft]` (коннекторы MCP), `/admin/mcp`, `/api/admin/mcp/*` | `mcp.py` |
 | `mcp_oauth_bp` | `/.well-known/oauth-*`, `/oauth/register`, `/oauth/authorize`, `/oauth/token`, `/oauth/revoke` | `mcp_oauth.py` |
+| `tg_miniapp_bp` | `/tg/chart` (мини-приложение Telegram), `/api/tg/charts/<id>` (по initData), `/tg/chart/dev` (только debug) | `tg_miniapp.py` |
 
 `menu_bp` вынесен в [menu_tool/](../menu_tool/) как отдельное локальное приложение на порту 5050 — в прод не регистрируется.
 
@@ -257,6 +267,7 @@ templates/
 ├── reviews.html         # «Отзывы» (/reviews): фильтры, показатели, список, диалог отзыва
 ├── admin_mcp.html       # «Доступ агентов» (/admin/mcp, только админ): коннекторы, токены, OAuth, журнал, настройки
 ├── mcp_consent.html     # Страница согласия OAuth для MCP (и «нет доступа», «подключение не удалось»)
+├── tg_chart.html        # Мини-приложение «Графики» (/tg/chart) и PNG-карточка для чата; режимы app / dev / png
 ├── dashboard/           # Подшаблоны главного дашборда (plans_tab, comparison_tab, ...)
 └── shared/
     ├── nav.html               # Общая навигация sidebar + topbar (секция «Гости»)
@@ -296,8 +307,9 @@ static/
 ├── guest_hub/           # hub.css (токены --gh-* на .gh-scope, тёмная тема), content_plan.css, reviews.css
 ├── admin_mcp.css        # стили страницы «Доступ агентов» (только токены цвета)
 ├── receiving/           # scan.css (токены --rc-*), review.css (токены --rv-*)
-├── fonts/               # IBM Plex Mono (ttf) + IBM Plex Sans (woff2, субсеты)
-├── libs/                # свои копии библиотек: chart.umd.min.js, flexidatepicker, barcode-detector-2.3.1/ (полифил BarcodeDetector + zxing_reader.wasm — камера /receiving на iPhone)
+├── tg_chart/            # мини-приложение «Графики»: charts.js (описание -> ECharts), app.js (Telegram), dev.js, png.js, tg_chart.css
+├── fonts/               # IBM Plex Mono (ttf; *.subset.woff2 — латиница и кириллица для /tg/chart) + IBM Plex Sans (woff2, субсеты)
+├── libs/                # свои копии библиотек: chart.umd.min.js, echarts-5.5.1/ (мини-приложение «Графики»), flexidatepicker, barcode-detector-2.3.1/ (полифил BarcodeDetector + zxing_reader.wasm — камера /receiving на iPhone)
 ├── css/
 └── pwa/                 # manifest.webmanifest, sw.js
 ```

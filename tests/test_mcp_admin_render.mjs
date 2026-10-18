@@ -252,6 +252,14 @@ function respond(url, opt) {
     if (url.startsWith('/api/admin/mcp/audit')) return [200, DATA.audit];
     if (url === '/api/admin/mcp/settings') return [200, DATA.settings];
     if (url === '/api/admin/mcp/grants') return [200, { available: false, grants: [] }];
+    if (url === '/api/admin/mcp/charts' && opt.method === 'GET') {
+        return [200, { configured: false, source: '', token_hint: '', bot_username: 'MCPkulturabot', button: false,
+            short_name: '', app_url: 'https://beerkultura.ru/tg/chart' }];
+    }
+    if (url === '/api/admin/mcp/charts' && opt.method === 'PUT') {
+        return [200, { configured: true, source: 'settings', token_hint: '1234…xyz', bot_username: 'MCPkulturabot',
+            button: true, short_name: '', app_url: 'https://beerkultura.ru/tg/chart', warning: '' }];
+    }
     return [404, { error: 'нет' }];
 }
 
@@ -325,6 +333,23 @@ test('исполнение: отзыв спрашивает подтвержде
     const put = page.calls.find((c) => c.method === 'PUT');
     assert.deepEqual(put.body, { notify_chat_id: '123', oauth_redirect_hosts: ['claude.ai', 'localhost'] });
     assert.equal(page.nodes.mcpSettingsOk.textContent, 'Сохранено');
+});
+
+test('исполнение: графики в Telegram — токен не показывается, флажок кнопки, сохранение PUT', async () => {
+    const page = boot(respond);
+    await tick(); await tick(); await tick();
+    assert.match(page.nodes.mcpChartsStatus.textContent, /Не настроено/);
+    assert.equal(page.nodes.mcpChartsButton.checked, true, 'пока токена нет — кнопка предложена включённой');
+    page.nodes.mcpChartsToken.value = ' 1234567890:' + 'A'.repeat(35) + ' ';
+    page.nodes.mcpChartsShortName.value = ' chart ';
+    page.nodes.mcpChartsSave.fire('click');
+    await tick(); await tick();
+    const put = page.calls.find((c) => c.method === 'PUT' && c.url === '/api/admin/mcp/charts');
+    assert.deepEqual(put.body, { button: true, short_name: 'chart', token: '1234567890:' + 'A'.repeat(35) });
+    assert.match(page.nodes.mcpChartsStatus.textContent, /Бот @MCPkulturabot подключён \(токен 1234…xyz\)/);
+    assert.match(page.nodes.mcpChartsStatus.textContent, /В группах кнопки нет/);
+    assert.equal(page.nodes.mcpChartsToken.value, '', 'поле токена очищается после сохранения');
+    assert.equal(page.nodes.mcpChartsOk.textContent, 'Сохранено');
 });
 
 test('исполнение: OAuth-приложения с режимом доступа', async () => {
