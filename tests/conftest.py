@@ -31,6 +31,7 @@ _OUTBOUND_SECRETS = (
     'TELEGRAM_BOT_TOKEN',            # гостевой бот @kult_taplist_bot: каналы баров, рассылки гостям
     'TELEGRAM_CONTENT_BOT_TOKEN',    # отдельный бот для каналов (если задан)
     'TELEGRAM_OPEN_CHECK_BOT_TOKEN', # бот персонала: проверка открытия, тревоги, отзывы владельцу
+    'TELEGRAM_MCP_BOT_TOKEN',        # @MCPkulturabot: графики агентов картинкой (core/tg_chart_send.py)
     'TELEGRAM_GROUP_CHAT_ID',        # чат смены
     'TELEGRAM_ALARM_CHAT_IDS',       # чаты тревог
     'RECEIVING_NOTIFY_CHAT_IDS',     # чаты бухгалтерии: «приёмка на РЦ ждёт разбора» (core/receiving_notify.py)

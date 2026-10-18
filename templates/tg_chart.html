@@ -1,0 +1,36 @@
+<!doctype html>
+{#- Мини-приложение «Графики» бота @MCPkulturabot (routes/tg_miniapp.py, docs/tg-miniapp.md).
+    mode: app — в Telegram (данные приносит static/tg_chart/app.js по initData);
+          dev — фикстуры прототипа, только при debug (static/tg_chart/dev.js);
+          png — картинка для чата в Chromium без сети (core/tg_chart_png.py, static/tg_chart/png.js).
+    Шаблон самодостаточный: без url_for и current_user — его собирает и рендерер PNG вне запроса. -#}
+{%- set v = app_version|default('dev') -%}
+<html lang="ru" data-mode="{{ mode }}"{% if theme %} data-theme="{{ theme }}"{% endif %}>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="referrer" content="no-referrer">
+<title>График · Культура</title>
+{%- if mode == 'app' %}
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+{%- endif %}
+<link rel="preload" href="/static/fonts/ibm-plex-mono/IBMPlexMono-Regular.subset.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/static/fonts/ibm-plex-mono/IBMPlexMono-Bold.subset.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/static/tg_chart/tg_chart.css?v={{ v }}">
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+</head>
+<body>
+<main class="app" id="app">
+{%- if mode == 'app' %}
+  <div class="state" id="state" role="status"><b>Загружаю график…</b></div>
+{%- endif %}
+  <div id="cards"></div>
+</main>
+<div class="toast" id="toast" role="status" hidden></div>
+<script type="application/json" id="tg-chart-data">{{ payload|tojson }}</script>
+<script src="/static/libs/echarts-5.5.1/echarts.min.js"></script>
+<script src="/static/tg_chart/charts.js?v={{ v }}"></script>
+<script src="/static/tg_chart/{{ mode }}.js?v={{ v }}"></script>
+</body>
+</html>
