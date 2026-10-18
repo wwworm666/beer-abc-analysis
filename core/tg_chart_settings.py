@@ -21,6 +21,7 @@ TELEGRAM_MCP_BOT_TOKEN, TG_MINIAPP_BUTTON, TG_MINIAPP_SHORT_NAME, TG_MINIAPP_BOT
 import os
 import re
 from typing import Any, Callable, Dict, Optional
+from urllib.parse import urlsplit
 
 KEY_TOKEN = 'tg_chart_bot_token'
 KEY_USERNAME = 'tg_chart_bot_username'
@@ -99,6 +100,13 @@ def short_name() -> str:
 
 def app_url() -> str:
     return (os.environ.get(APP_URL_ENV) or '').strip() or DEFAULT_APP_URL
+
+
+def admin_url() -> str:
+    """Страница, где владелец вставляет токен: тот же сайт, что мини-приложение."""
+    parts = urlsplit(app_url())
+    origin = f'{parts.scheme}://{parts.netloc}' if parts.scheme and parts.netloc else 'https://beerkultura.ru'
+    return origin + '/admin/mcp'
 
 
 def token_hint(token: str) -> str:

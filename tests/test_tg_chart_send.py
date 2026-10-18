@@ -11,7 +11,9 @@
 - Telegram отказал или картинка не нарисовалась — описание удаляется; ответа нет вовсе —
   описание остаётся (сообщение могло дойти, кнопка под ним должна работать);
 - через MCP: чужие ссылки вырезаются из всех строк описания, инструмент виден только в
-  полном режиме, ошибки — текстом для агента.
+  полном режиме, ошибки — текстом для агента (нет токена — готовая фраза владельцу со
+  ссылкой на страницу), описание прямо говорит слать графики через сервис, а не своей
+  картинкой; готовность для common_whoami (readiness) — без токена.
 
 Запуск: `py -3 -m pytest tests/test_tg_chart_send.py`.
 """
@@ -146,11 +148,27 @@ def test_any_conversation_chat_and_default(setup):
 
 def test_not_configured_without_token(setup):
     setup['monkeypatch'].delenv('TELEGRAM_MCP_BOT_TOKEN')
-    with pytest.raises(tg_chart_send.ChartSendError, match='Доступ агентов'):
+    with pytest.raises(tg_chart_send.ChartSendError, match='Доступ агентов') as exc:
         tg_chart_send.send_chart(dict(FIXTURES)['check'], chat_id=OWNER)
+    assert 'Скажи владельцу' in str(exc.value) and 'https://beerkultura.ru/admin/mcp' in str(exc.value), \
+        'агент пересказывает владельцу, где вставить токен'
     settings.set(tg_chart_settings.KEY_TOKEN, '1234567890:' + 'B' * 35)     # токен со страницы /admin/mcp
     tg_chart_send.send_chart(dict(FIXTURES)['check'], chat_id=OWNER)
     assert setup['tg'].calls[-1]['token'] == '1234567890:' + 'B' * 35
+
+
+def test_readiness_for_whoami(setup):
+    setup['monkeypatch'].delenv('TELEGRAM_MCP_BOT_TOKEN')
+    ready = tg_chart_send.readiness()
+    assert ready['tool'] == 'common_chart_send' and ready['ready'] is False and ready['button'] is False
+    assert 'вставить токен бота @MCPkulturabot' in ready['owner_todo'] and '/admin/mcp' in ready['owner_todo']
+    settings.set(tg_chart_settings.KEY_TOKEN, '1234567890:' + 'B' * 35)
+    ready = tg_chart_send.readiness()
+    assert ready['ready'] is True and ready['button'] is False and 'включить кнопку' in ready['owner_todo']
+    settings.set(tg_chart_settings.KEY_BUTTON, True)
+    assert tg_chart_send.readiness() == {'tool': 'common_chart_send', 'ready': True, 'button': True,
+                                         'owner_todo': ''}
+    assert '1234567890' not in json.dumps(tg_chart_send.readiness()), 'токен наружу не выходит'
 
 
 def test_failures_clean_up_or_keep_description(setup):
@@ -221,6 +239,8 @@ def test_mcp_tool_flags_and_modes():
     registry.use_modules(None)
     try:
         spec = registry.get_tool('common_chart_send')
+        assert spec.description.startswith('Единственный способ отправить график в Telegram'), \
+            'агент бота умеет рисовать сам — описание прямо говорит слать через сервис'
         assert spec.open_world and spec.destructive and not spec.read_only and not spec.idempotent
         assert not spec.owner_notice and not spec.draft_write
         assert allowed_in_mode(spec, 'full') and not allowed_in_mode(spec, 'draft') and not allowed_in_mode(spec, 'read')
