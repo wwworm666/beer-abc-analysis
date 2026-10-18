@@ -25,7 +25,8 @@
    сообщение дошло, кнопка под ним должна работать; повторять вызов нельзя.
 
 Токен, кнопка, имя бота и short name — core/tg_chart_settings.py (страница /admin/mcp,
-запасной путь — переменные окружения).
+запасной путь — переменные окружения). Готовность для агента (блок charts в common_whoami:
+есть ли токен и кнопка, что сделать владельцу) — readiness().
 """
 import json
 import logging
@@ -58,6 +59,25 @@ def notify_chat_id() -> str:
         return str(settings.get('notify_chat_id') or '').strip()
     except Exception:  # noqa: BLE001 — нет настроек, значит нет чата по умолчанию
         return ''
+
+
+def readiness() -> Dict[str, Any]:
+    """Готовность графиков для агента (common_whoami), без токена.
+
+    Агент видит это в начале каждого разговора: слать графики через сервис и что
+    сказать владельцу, если не хватает настройки (owner_todo; пусто — всё готово).
+    """
+    page = tg_chart_settings.admin_url()
+    configured = bool(tg_chart_settings.bot_token())
+    button = configured and tg_chart_settings.button_enabled()
+    if not configured:
+        todo = (f'вставить токен бота @{tg_chart_settings.bot_username()} на странице {page}, '
+                'раздел «Графики в Telegram», и нажать «Сохранить»')
+    elif not button:
+        todo = f'включить кнопку «Открыть интерактивно» на странице {page}, раздел «Графики в Telegram»'
+    else:
+        todo = ''
+    return {'tool': 'common_chart_send', 'ready': configured, 'button': button, 'owner_todo': todo}
 
 
 def button_markup(chat_id: str, chart_id: str) -> Optional[Dict[str, Any]]:
@@ -95,8 +115,11 @@ def send_chart(raw_spec: Any, *, chat_id: Any = None, caption: Optional[str] = N
     """
     token = tg_chart_settings.bot_token()
     if not token:
-        raise ChartSendError('Не настроено: нет токена бота графиков. Владелец вставляет его на странице '
-                             '«Доступ агентов» (/admin/mcp), раздел «Графики в Telegram».')
+        raise ChartSendError('Не настроено: нет токена бота графиков. Скажи владельцу дословно: «Чтобы графики '
+                             'приходили с кнопкой «Открыть интерактивно», вставьте токен бота '
+                             f'@{tg_chart_settings.bot_username()} на странице «Доступ агентов» '
+                             f'({tg_chart_settings.admin_url()}), раздел «Графики в Telegram», и нажмите '
+                             '«Сохранить»».')
     chat = str(chat_id).strip() if chat_id not in (None, '') else notify_chat_id()
     if not chat:
         raise ChartSendError('Не указан chat_id, и чат отчётов агентов не выбран на странице «Доступ агентов».')

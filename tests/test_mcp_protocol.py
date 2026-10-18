@@ -923,10 +923,16 @@ def test_common_whoami_and_instructions():
         assert who['connector']['mode'] == 'full' and who['connector']['tools_hidden_by_mode'] == 0
         assert who['token']['mode'] == 'full'
         assert json.loads(env.call('common_whoami', connector=None).text_value)['connector']['path'] == '/mcp'
-        read = json.loads(env.call('common_whoami', mode='read').text_value)['connector']
+        charts = who['charts']
+        assert charts['tool'] == 'common_chart_send' and charts['available'] is True
+        assert charts['rule'].startswith('График в Telegram — только через common_chart_send')
+        assert charts['ready'] is False and '/admin/mcp' in charts['owner_todo'], 'токена нет — что сделать'
+        read_who = json.loads(env.call('common_whoami', mode='read').text_value)
+        read = read_who['connector']
         assert read['mode'] == 'read' and read['mode_title'] == 'Только чтение'
         assert read['tools_hidden_by_mode'] > 0 and read['tools'] + read['tools_hidden_by_mode'] == \
             len(registry.tools_for('content'))
+        assert read_who['charts']['available'] is False and 'полном доступе' in read_who['charts']['rule']
         text = env.call('common_instructions', {'domain': 'common'}).text_value
         assert text.startswith('# Общие правила (common)') and 'ПРАВИЛА БЕЗОПАСНОСТИ' in text
         for domain in ('content', 'stocks', 'analytics', 'staff'):
