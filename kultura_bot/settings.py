@@ -1,9 +1,11 @@
 """Настройки бота @MCPkulturabot — всё, что не секрет.
 
-Меняются здесь, в репозитории: правка -> PR -> автодеплой, бот подхватывает их при
-перезапуске сервиса. Секреты (токен бота Telegram, ключ Anthropic API, прокси) в
-публичный репозиторий класть нельзя: владелец вставляет их один раз на странице
-«Доступ агентов» (/admin/mcp), раздел «Бот @MCPkulturabot» (kultura_bot/credentials.py).
+Меняются здесь, в репозитории: правка -> PR -> автодеплой сайта и самообновление сервера
+бота в Амстердаме (kultura_bot/deploy/update.sh — раз в пару минут сверяется с main).
+Секреты (токен бота Telegram, ключ Anthropic API) в публичный репозиторий класть нельзя:
+владелец вставляет их на странице «Доступ агентов» (/admin/mcp), раздел «Бот
+@MCPkulturabot» (kultura_bot/credentials.py), сервер бота берёт их у сайта. На самом
+сервере — только ключ сервера (/etc/kultura-bot.env, пишет установка).
 
 Инструкции бота — kultura_bot/prompts/bot.md, агентов — kultura_bot/agents/*.md.
 Как всё устроено — docs/kultura-bot.md.
@@ -13,6 +15,12 @@
 
 SITE_URL = 'https://beerkultura.ru'
 ADMIN_PAGE_URL = SITE_URL + '/admin/mcp'      # где вставляют ключи и подключают Telegram
+
+# Откуда сервер бота ставится и обновляется: публичный репозиторий, ветка main, папка
+# kultura_bot/ (установка — kultura_bot/deploy/install.sh, команду выдаёт страница).
+REPO_URL = 'https://github.com/wwworm666/beer-abc-analysis'
+REPO_BRANCH = 'main'
+INSTALL_SCRIPT_URL = 'https://raw.githubusercontent.com/wwworm666/beer-abc-analysis/main/kultura_bot/deploy/install.sh'
 
 # Имя бота без @. Имя из getMe (его запоминает страница при сохранении токена) важнее.
 BOT_USERNAME = 'MCPkulturabot'
@@ -97,6 +105,10 @@ ALWAYS_LOADED_TOOLS = ('common_chart_send', 'common_whoami', 'common_bars_refere
 # Инструменты сайта, которых у бота нет: сообщение владельцу через бота проверки
 # открытия баров — бот и так отвечает в чате.
 HIDDEN_TOOLS = ('common_notify_owner',)
+
+# Правила и списки инструментов сервер бота берёт у сайта (MCP) и помнит 10 минут: после
+# выкладки сайта новые инструменты появятся у бота не позже чем через столько секунд.
+CATALOG_TTL_S = 600
 
 # ------------------------------------------------------------------ графики
 

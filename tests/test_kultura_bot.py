@@ -1,35 +1,37 @@
 """
-Бот @MCPkulturabot (kultura_bot/): инструкции, инструменты, разговор с Claude, оформление,
-привязка Telegram и обработка сообщений. Claude и Telegram подменены — сеть не нужна.
+Сервер бота @MCPkulturabot (kultura_bot/engine/): инструкции, каталог инструментов с сайта,
+разговор с Claude, оформление, Telegram, очередь и ответы. Сайт, Claude и Telegram
+подменены — сеть не нужна. API бота на сайте и сквозная связь «сервер бота -> сайт» —
+tests/test_kultura_bot_site.py.
 
 Что проверяется:
-- инструкции: все agents/*.md разбираются, у каждого известные разделы; ошибки заголовка
-  называют файл; системный промпт бота собран из prompts/bot.md, списка агентов и правил
-  сервиса; промпт агента — с правилами его разделов;
-- инструменты: поиск первым, видимые сразу — без defer_loading, остальные инструменты
-  сайта — отложенные; скрытых нет; ask_agent только у бота; агенту — только его разделы;
-  порядок неизменен (иначе кэш и привязка рассуждений сломались бы);
+- инструкции: все agents/*.md разбираются, ошибки заголовка называют файл, разделы
+  совпадают с разделами сайта; сервер бота не импортирует код сайта;
+- каталог: правила и инструменты — с сайта по MCP; поиск первым, видимые сразу — без
+  defer_loading, остальные отложены, скрытых нет, ask_agent только у бота; агенту —
+  инструменты его разделов (объединение коннекторов) и правила разделов
+  (common_instructions); порядок и отпечаток неизменны, новые инструменты сайта — новый
+  отпечаток;
 - разговор: параметры запроса (модель, усилие, кэш, context editing, fallbacks,
-  block_binding); отвергнутая API необязательная возможность выключается, запрос
-  повторяется; история только дописывается; инструмент сайта исполняется мостом от имени
-  администратора и пишется в журнал с коннектором telegram; график уходит в чат разговора,
-  какой бы chat_id ни прислала модель; pause_turn; предел шагов (последний запрос без
-  инструментов); дневной предел расхода; расход пишется в bot_usage;
-- ask_agent: агент работает со своими инструкциями и инструментами, отчёт возвращается боту;
-- ошибки: понятный текст по виду ошибки, без ключа и прокси (scrub);
-- оформление: Markdown -> HTML Telegram с экранированием; таблицы и код — <pre>; длинный
-  ответ режется по абзацам, блок кода не рвётся;
-- доступ: код привязки одноразовый и живёт 15 минут, не-админ не подключится, снятие
-  админства действует сразу; незнакомцу — «закрытый бот» не чаще раза в час;
-- сообщения: /start <код>, /new, /help; в группе — только по обращению; ответ и диалог;
-  новый диалог после паузы и после смены инструкций; ошибки Anthropic — понятным текстом;
-  оборванные перезапуском ответы; 409 от Telegram — состояние conflict.
+  block_binding); отвергнутая необязательная возможность выключается, запрос повторяется;
+  история только дописывается; инструмент вызывается на сайте; график — в чат разговора;
+  сайт не ответил — ошибка инструмента; неизвестный инструмент; pause_turn; предел шагов;
+  шаг, оборванный посреди вызова инструмента; дневной предел; ask_agent;
+- ошибки и цена: describe_error, scrub, цена (в том числе запасной модели);
+- оформление и Telegram: Markdown -> HTML, нарезка, однострочный и длинный код, 429 и
+  «слишком длинное»;
+- сервер: настройки с сайта (нет токена, нет ключа, пауза, ключ не принят, ключ сервера
+  отозван), незнакомцу «закрытый бот» раз в час, /start <код>, группы, /new в очереди,
+  вопросы из очереди переживают перезапуск, права ещё раз перед ответом, сайт не ответил,
+  ошибка Claude держится в отчёте, расход уходит в отчёт, фото и PDF, неподдерживаемые
+  файлы, остановка сервера, оборванные ответы, 409, запуск без ключа.
 
 Запуск: `py -3 -m pytest tests/test_kultura_bot.py`.
 """
 import copy
 import json
 import os
+import subprocess
 import sys
 import time
 from types import SimpleNamespace
@@ -37,22 +39,20 @@ from types import SimpleNamespace
 import pytest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.dirname(HERE))
+ROOT = os.path.dirname(HERE)
+sys.path.insert(0, ROOT)
 sys.path.insert(0, HERE)
-os.environ.setdefault('SESSION_COOKIE_SECURE', '0')
 
-from flask import Flask  # noqa: E402
-
-from core.mcp import audit, db, registry  # noqa: E402
-from kultura_bot import (access, agent, claude, config, credentials, formatting, service,  # noqa: E402
-                         settings, store, tools)
-from kultura_bot.charts import send as chart_send  # noqa: E402
-from kultura_bot.charts.fixtures import FIXTURES  # noqa: E402
+from kultura_bot import settings  # noqa: E402
+from kultura_bot.engine import agent, claude, config, formatting, service, tools  # noqa: E402
+from kultura_bot.engine.site import SiteError  # noqa: E402
+from kultura_bot.engine.store import Store  # noqa: E402
 
 TOKEN = '1234567890:' + 'T' * 35
 KEY = 'sk-ant-api03-' + 'k' * 40
+ENGINE_KEY = 'kmcp_' + 'e' * 40
 OWNER_TG = '555'
-PNG = b'\x89PNG\r\n\x1a\nfake'
+OWNER = {'tg_user_id': OWNER_TG, 'user_id': 1, 'login': 'owner', 'display_name': 'Владелец'}
 TOOL_NAME_RE = r'^[a-zA-Z0-9_-]{1,128}$'
 
 
@@ -75,6 +75,94 @@ def thinking():
 
 def use(name, args, id_='toolu_1'):
     return {'type': 'tool_use', 'id': id_, 'name': name, 'input': args}
+
+
+def site_tool(name, description='инструмент'):
+    return {'name': name, 'title': name, 'description': description,
+            'inputSchema': {'type': 'object', 'properties': {}, 'additionalProperties': False},
+            'annotations': {}}
+
+
+DOMAIN_TOOLS = {
+    'common': ['common_bars_reference', 'common_chart_send', 'common_docs_read', 'common_instructions',
+               'common_notify_owner', 'common_whoami'],
+    'content': ['content_plan_get', 'content_reviews_list'],
+    'stocks': ['stocks_orders_board', 'stocks_taps_list'],
+    'analytics': ['analytics_dashboard', 'analytics_sales'],
+    'staff': ['staff_salary_month', 'staff_schedule_get'],
+}
+
+
+class FakeSite:
+    """Сайт для сервера бота: API бота и MCP — в памяти; каждый вызов запоминается."""
+
+    def __init__(self):
+        self.key = ENGINE_KEY
+        self.cfg = {'telegram': {'token': TOKEN, 'username': 'MCPkulturabot'}, 'anthropic_key': KEY,
+                    'paused': False}
+        self.links = {OWNER_TG: dict(OWNER)}
+        self.codes = {}
+        self.reports = []
+        self.calls = []                     # (name, arguments)
+        self.down = False
+        self.config_error = None
+        self.extra_tools = []
+        self.results = {}                   # имя -> {'content', 'isError'}
+
+    def _check(self):
+        if self.down:
+            raise SiteError('offline', 'Сайт https://beerkultura.ru не отвечает (ConnectionError).')
+
+    def config(self):
+        if self.config_error is not None:
+            raise self.config_error
+        self._check()
+        return copy.deepcopy(self.cfg)
+
+    def link(self, code, tg_user_id, tg_name):
+        self._check()
+        actor = self.codes.pop(code, None)
+        if actor is None:
+            return {'ok': False, 'text': 'Ссылка не подошла'}
+        self.links[str(tg_user_id)] = dict(actor, tg_user_id=str(tg_user_id))
+        return {'ok': True, 'text': f'Готово: вы подключены как {actor["display_name"]}.'}
+
+    def actor(self, tg_user_id):
+        self._check()
+        return copy.deepcopy(self.links.get(str(tg_user_id)))
+
+    def report(self, payload):
+        self._check()
+        self.reports.append(copy.deepcopy(payload))
+        return {'ok': True}
+
+    def instructions(self, connector='/mcp'):
+        self._check()
+        return f'Правила коннектора {connector}.'
+
+    def tools(self, connector='/mcp'):
+        self._check()
+        domain = connector.rsplit('/', 1)[-1]
+        names = list(DOMAIN_TOOLS['common'])
+        if domain == 'mcp':
+            for key, items in DOMAIN_TOOLS.items():
+                if key != 'common':
+                    names += items
+        else:
+            names += DOMAIN_TOOLS[domain]
+        return [site_tool(n) for n in names] + list(self.extra_tools)
+
+    def call_tool(self, name, arguments):
+        self._check()
+        self.calls.append((name, copy.deepcopy(arguments)))
+        if name == 'common_instructions':
+            return {'content': [text(f'# Раздел ({arguments["domain"]})\n\nПравила {arguments["domain"]}.')],
+                    'isError': False}
+        if name == tools.CHART_TOOL:
+            return {'content': [text(json.dumps({'chart_id': 'X' * 22, 'chat_id': arguments.get('chat_id')}))],
+                    'isError': False}
+        return copy.deepcopy(self.results.get(name, {'content': [text(json.dumps({'ok': name}))],
+                                                     'isError': False}))
 
 
 class FakeClient:
@@ -100,6 +188,7 @@ class FakeTelegram:
         self.updates = []
         self.webhook_deleted = 0
         self.typing_count = 0
+        self.files = {}
 
     def get_me(self):
         return {'ok': True, 'result': {'id': 999, 'username': 'MCPkulturabot'}}
@@ -126,43 +215,34 @@ class FakeTelegram:
         return [1]
 
     def download(self, file_id, max_bytes):
-        return b'jpegbytes'
+        return self.files.get(file_id, b'jpegbytes')
 
 
-class FakeChartTelegram:
-    def __init__(self):
-        self.calls = []
-
-    def __call__(self, fields, png, token, outcome):
-        self.calls.append(dict(fields))
-        return {'ok': True, 'result': {'message_id': 77}}
+def api_error(cls, code, message='ошибка'):
+    import httpx2
+    req = httpx2.Request('POST', 'https://api.anthropic.com/v1/messages')
+    return cls(message, response=httpx2.Response(code, request=req), body=None)
 
 
 @pytest.fixture
-def env(monkeypatch):
-    import test_mcp_tokens as tt
-    with tt.Env() as accounts:
-        monkeypatch.setenv(credentials.BOT_TOKEN_ENV, TOKEN)
-        monkeypatch.setenv(credentials.ANTHROPIC_ENV, KEY)
-        monkeypatch.setattr(settings, 'DAILY_BUDGET_USD', 15.0)
-        monkeypatch.setattr(agent, '_disabled', set())
-        monkeypatch.setattr(chart_send, '_render', lambda spec: PNG)
-        charts = FakeChartTelegram()
-        monkeypatch.setattr(chart_send, '_transport', charts)
-        monkeypatch.setattr(chart_send, 'notify_chat_id', lambda: '')
-        from core.mcp import protocol
-        protocol.rate_limiter.reset()
-        app = Flask('kultura_bot_test')
-        yield SimpleNamespace(app=app, accounts=accounts, charts=charts, monkeypatch=monkeypatch)
+def env(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, 'DAILY_BUDGET_USD', 15.0)
+    monkeypatch.setattr(agent, '_disabled', set())
+    site = FakeSite()
+    store = Store(str(tmp_path / 'bot.db'))
+    yield SimpleNamespace(site=site, store=store, monkeypatch=monkeypatch, tmp_path=tmp_path)
+    store.close()
 
 
-def owner_actor(env):
-    return {'tg_user_id': OWNER_TG, 'user_id': env.accounts.owner['id'], 'login': 'owner',
-            'display_name': 'Владелец'}
+def ctx_for(env, chat_id=OWNER_TG, allowed=None):
+    names = allowed if allowed is not None else frozenset(n for v in DOMAIN_TOOLS.values() for n in v)
+    return tools.ToolContext(site=env.site, chat_id=chat_id, allowed=frozenset(names))
 
 
-def ctx_for(env, chat_id=OWNER_TG):
-    return tools.ToolContext(app=env.app, principal=access.principal_for(owner_actor(env)), chat_id=chat_id)
+def turn(env, client, ctx=None, **kwargs):
+    return agent.run_turn(client, system_text=kwargs.pop('system_text', 'S'), tool_list=kwargs.pop('tool_list', []),
+                          history=kwargs.pop('history', []), user_content=kwargs.pop('user_content', [text('?')]),
+                          ctx=ctx or ctx_for(env), store=env.store, **kwargs)
 
 
 # ------------------------------------------------------------------ инструкции
@@ -170,73 +250,90 @@ def ctx_for(env, chat_id=OWNER_TG):
 def test_agents_and_prompts_load():
     agents = config.load_agents()
     assert set(agents) == {'analyst', 'payroll', 'content'}
-    assert agents['payroll'].domains == ('staff',) and agents['analyst'].domains == ('stocks', 'analytics')
-    text_bot = config.bot_system_text()
-    assert text_bot.startswith(config.bot_prompt()[:60])
-    assert '- payroll — Зарплаты и график:' in text_bot and 'ПРАВИЛА БЕЗОПАСНОСТИ' in text_bot
-    payroll = config.agent_system_text(agents['payroll'])
-    assert config.agent_prompt()[:40] in payroll and agents['payroll'].instructions[:40] in payroll
-    assert '# Правила раздела «Сотрудники, график и зарплаты» (staff)' in payroll
-    assert '(stocks)' not in payroll, 'агенту — только правила его разделов'
+    for name, item in agents.items():
+        assert item.title and item.description and item.instructions
+        assert set(item.domains) <= set(config.DOMAINS)
+    assert config.bot_prompt().startswith('Ты — помощник владельца') and config.agent_prompt()
+    from core.mcp.spec import DOMAINS
+    assert set(config.DOMAINS) == set(DOMAINS), 'разделы сервера бота = разделы сайта'
+    system = config.bot_system_text('ПРАВИЛА САЙТА')
+    assert '# Агенты для поручений (ask_agent)' in system and '- payroll — Зарплаты и график' in system
+    assert system.endswith('ПРАВИЛА САЙТА')
 
 
-@pytest.mark.parametrize('text_value, error', [
-    ('нет заголовка', 'начинается со строки'),
-    ('---\nname: x\n', 'не закрыт'),
-    ('---\nname: payroll\ntitle: t\ndomains: staff\n---\nтекст', 'description'),
-    ('---\nname: Pay Roll\ntitle: t\ndomains: staff\ndescription: d\n---\nтекст', 'name'),
-    ('---\nname: pp\ntitle: t\ndomains: kitchen\ndescription: d\n---\nтекст', 'неизвестные: kitchen'),
-    ('---\nname: pp\ntitle: t\ndomains: staff\ndescription: d\n---\n', 'нет текста'),
-    ('---\nname: pp\ntitle t\n---\nтекст', 'ключ: значение'),
+@pytest.mark.parametrize('text_value,error', [
+    ('name: x', 'начинается со строки «---»'),
+    ('---\nname: pp\n', 'не закрыт строкой'),
+    ('---\nname: pp\ntitle: T\ndomains: staff\n---\nтекст', 'нет description'),
+    ('---\nname: Payroll\ntitle: T\ndomains: staff\ndescription: d\n---\nтекст', 'латиница в нижнем'),
+    ('---\nname: pp\ntitle: T\ndomains: kitchen\ndescription: d\n---\nтекст', 'неизвестные: kitchen'),
+    ('---\nname: pp\ntitle: T\ndomains: staff\ndescription: d\n---\n', 'нет текста инструкций'),
 ])
 def test_agent_file_errors_name_the_file(text_value, error):
     with pytest.raises(config.ConfigError, match=error) as exc:
-        config.parse_agent(text_value, path='agents/x.md')
-    assert 'agents/x.md' in str(exc.value)
+        config.parse_agent(text_value, path='kultura_bot/agents/x.md')
+    assert 'kultura_bot/agents/x.md' in str(exc.value)
 
 
-# ------------------------------------------------------------------ инструменты
+def test_engine_does_not_import_site_code():
+    """На сервере бота кода сайта нет: импорт core/flask/routes — ошибка."""
+    code = ('import importlib.abc, sys\n'
+            'class Block(importlib.abc.MetaPathFinder):\n'
+            '    def find_spec(self, name, path, target=None):\n'
+            '        if name.split(".")[0] in ("core", "flask", "routes", "pandas", "werkzeug"):\n'
+            '            raise ImportError("сервер бота импортирует " + name)\n'
+            'sys.meta_path.insert(0, Block())\n'
+            'import kultura_bot.__main__\n'
+            'from kultura_bot.engine import service, tools, agent, config, site, store, main\n'
+            'print(sorted(config.load_agents()))\n')
+    out = subprocess.run([sys.executable, '-c', code], cwd=ROOT, capture_output=True, text=True, timeout=60)
+    assert out.returncode == 0, out.stderr
+    assert "['analyst', 'content', 'payroll']" in out.stdout
 
-def test_bot_tools_search_loaded_and_deferred():
-    defs = tools.tool_defs(agent_names=['analyst', 'payroll', 'content'])
-    assert defs[0] == tools.SEARCH_TOOL
-    names = [d['name'] for d in defs]
-    loaded = [d['name'] for d in defs[1:] if not d.get('defer_loading')]
+
+# ------------------------------------------------------------------ каталог
+
+def test_catalog_from_site_tools_and_rules(env):
+    catalog = tools.load_catalog(env.site)
+    bot = catalog.bot
+    names = [t['name'] for t in bot.toolset.defs]
+    assert names[0] == 'tool_search_tool_regex'
+    loaded = [t['name'] for t in bot.toolset.defs if 'defer_loading' not in t and t['name'] != names[0]]
     assert loaded == sorted(settings.ALWAYS_LOADED_TOOLS) + [tools.ASK_AGENT]
-    deferred = [d for d in defs if d.get('defer_loading')]
-    site = {t.name for t in registry.all_tools()} - set(settings.HIDDEN_TOOLS)
-    assert {d['name'] for d in deferred} | set(settings.ALWAYS_LOADED_TOOLS) == site
-    assert 'common_notify_owner' not in names, 'сообщение владельцу через другого бота боту не нужно'
-    import re
-    assert all(re.match(TOOL_NAME_RE, n) for n in names) and len(names) == len(set(names))
-    assert all(d['input_schema'].get('type') == 'object' for d in defs[1:])
-    ask = next(d for d in defs if d['name'] == tools.ASK_AGENT)
-    assert ask['input_schema']['properties']['agent']['enum'] == ['analyst', 'payroll', 'content']
-    assert tools.tool_defs(agent_names=['analyst', 'payroll', 'content']) == defs, 'порядок неизменен'
+    deferred = [t['name'] for t in bot.toolset.defs if t.get('defer_loading')]
+    assert deferred == sorted(deferred) and 'staff_salary_month' in deferred
+    assert 'common_notify_owner' not in names and 'common_notify_owner' not in bot.toolset.names, 'скрытый'
+    assert all(__import__('re').match(TOOL_NAME_RE, n) for n in names)
+    assert bot.system.endswith('Правила коннектора /mcp.')
 
+    analyst = catalog.agents['analyst']
+    agent_names = {t['name'] for t in analyst.toolset.defs}
+    assert tools.ASK_AGENT not in agent_names
+    assert {'stocks_taps_list', 'analytics_sales', 'common_whoami'} <= agent_names
+    assert not any(n.startswith(('staff_', 'content_')) for n in agent_names), 'только свои разделы'
+    assert '# Ты — агент «Аналитик»' in analyst.system
+    assert 'Правила stocks.' in analyst.system and 'Правила analytics.' in analyst.system
+    assert ('common_instructions', {'domain': 'stocks'}) in env.site.calls
 
-def test_agent_tools_only_its_domains():
-    defs = tools.tool_defs(domains=('staff',))
-    names = {d['name'] for d in defs[1:]}
-    assert tools.ASK_AGENT not in names
-    expected = {t.name for t in registry.tools_for('staff')} - set(settings.HIDDEN_TOOLS)
-    assert names == expected, 'агенту — то же, что коннектору раздела /mcp/staff (с also_in)'
-    assert not any(n.startswith(('stocks_', 'content_')) for n in names) and 'common_chart_send' in names
+    again = tools.load_catalog(env.site)
+    assert again.bot.fingerprint == bot.fingerprint, 'тот же сайт — тот же отпечаток'
+    env.site.extra_tools = [site_tool('stocks_new_tool')]
+    assert tools.load_catalog(env.site).bot.fingerprint != bot.fingerprint, 'новый инструмент сайта — новый диалог'
 
 
 # ------------------------------------------------------------------ разговор
 
-def test_turn_runs_site_tool_and_keeps_history_append_only(env):
+def test_turn_calls_site_tool_and_keeps_history_append_only(env):
     client = FakeClient(
         resp(thinking(), use('common_whoami', {}), stop='tool_use'),
         resp(thinking(), text('Сегодня **19 октября**.')),
     )
-    ctx = ctx_for(env)
     history = [{'role': 'user', 'content': [text('[время] привет')]},
                {'role': 'assistant', 'content': [thinking(), text('Здравствуйте')]}]
     frozen = copy.deepcopy(history)
-    result = agent.run_turn(client, system_text='СИСТЕМА', tool_list=[tools.SEARCH_TOOL], history=history,
-                            user_content=[text('какое сегодня число?')], ctx=ctx)
+    seen = []
+    result = turn(env, client, system_text='СИСТЕМА', tool_list=[tools.SEARCH_TOOL], history=history,
+                  user_content=[text('какое сегодня число?')], on_usage=lambda *a: seen.append(a))
     assert result.text == 'Сегодня **19 октября**.' and result.rounds == 1 and result.stop_reason == 'end_turn'
     first, second = client.calls
     assert first['messages'][:2] == frozen and second['messages'][:len(first['messages'])] == first['messages'], \
@@ -249,44 +346,55 @@ def test_turn_runs_site_tool_and_keeps_history_append_only(env):
     edit = first['context_management']['edits'][0]
     assert edit['type'] == 'clear_tool_uses_20250919' and edit['exclude_tools'] == ['tool_search_tool_regex']
     assert 'tool_choice' not in first
+    assert env.site.calls == [('common_whoami', {})], 'инструмент исполнил сайт'
     tool_result = second['messages'][-1]['content'][0]
     assert tool_result['type'] == 'tool_result' and tool_result['tool_use_id'] == 'toolu_1'
-    assert 'is_error' not in tool_result and json.loads(tool_result['content'][0]['text'])['owner']['login'] == 'owner'
-    row = audit.recent(limit=1)[0]
-    assert (row['tool'], row['connector'], row['status'], row['token_id']) == \
-        ('common_whoami', 'telegram', 'ok', f'tg_{OWNER_TG}')
-    assert row['client_name'] == 'Бот @MCPkulturabot'
-    assert result.cost_usd == pytest.approx(2 * claude.cost_usd('claude-opus-5-5', {'input_tokens': 1000,
-                                                                                    'output_tokens': 200}))
-    assert store.spent_on() == pytest.approx(result.cost_usd)
+    assert 'is_error' not in tool_result and json.loads(tool_result['content'][0]['text']) == {'ok': 'common_whoami'}
+    one = claude.cost_usd('claude-opus-5-5', {'input_tokens': 1000, 'output_tokens': 200})
+    assert result.cost_usd == pytest.approx(2 * one) and env.store.spent_on() == pytest.approx(2 * one)
+    assert [s[0] for s in seen] == ['claude-opus-5-5', 'claude-opus-5-5'], 'расход шагов — в отчёт сайту'
 
 
-def test_chart_goes_to_conversation_chat(env):
-    raw = dict(FIXTURES)['check']
-    client = FakeClient(
-        resp(use('common_chart_send', {'chart': raw, 'chat_id': '-100666'}), stop='tool_use'),
-        resp(text('Средний чек вырос.')),
-    )
-    ctx = ctx_for(env, chat_id='-100123')
-    result = agent.run_turn(client, system_text='S', tool_list=[], history=[], user_content=[text('график')],
-                            ctx=ctx)
-    assert env.charts.calls[0]['chat_id'] == '-100123', 'чат подставляет бот, а не модель'
-    assert len(ctx.charts_sent) == 1 and result.text == 'Средний чек вырос.'
+def test_chart_goes_to_conversation_chat_and_site_errors_are_tool_errors(env):
+    client = FakeClient(resp(use(tools.CHART_TOOL, {'kind': 'rating', 'chat_id': '-100666'}), stop='tool_use'),
+                        resp(text('Готово')))
+    ctx = ctx_for(env, chat_id='-100500')
+    turn(env, client, ctx=ctx)
+    assert env.site.calls[-1] == (tools.CHART_TOOL, {'kind': 'rating', 'chat_id': '-100500'}), \
+        'chat_id из данных не проходит — только чат разговора'
+    assert ctx.charts_sent and ctx.charts_sent[0]['chat_id'] == '-100500'
+    unknown = tools.execute(use('stocks_secret', {}), ctx)
+    assert unknown['is_error'] and 'Нет инструмента stocks_secret' in unknown['content'][0]['text']
+    assert tools.execute({'id': 't', 'name': 'common_whoami', 'input': 'x'}, ctx)['is_error']
+    env.site.down = True
+    failed = tools.execute(use('common_whoami', {}), ctx)
+    assert failed['is_error'] and 'Сайт не выполнил вызов' in failed['content'][0]['text']
+    env.site.down = False
+    env.site.results['analytics_sales'] = {'content': [text('Ошибка HTTP 400: нет бара')], 'isError': True}
+    assert tools.execute(use('analytics_sales', {}), ctx)['is_error'], 'ошибка инструмента сайта — модели'
 
 
-def test_unknown_tool_and_bad_args_are_errors_for_model(env):
-    ctx = ctx_for(env)
-    assert tools.execute(use('no_such_tool', {}), ctx)['is_error'] is True
-    assert tools.execute({'type': 'tool_use', 'id': 't', 'name': 'common_whoami', 'input': 'x'}, ctx)['is_error']
-    agent_ctx = tools.ToolContext(app=env.app, principal=ctx.principal, chat_id='1', domains=('staff',))
-    assert tools.execute(use('stocks_suppliers_list', {}), agent_ctx)['is_error'], 'агенту чужой раздел не виден'
-    assert tools.execute(use(tools.ASK_AGENT, {'agent': 'payroll', 'task': 'проверь зарплату'}), agent_ctx)['is_error']
+def test_rejected_optional_feature_is_dropped_and_retried(env):
+    import anthropic
+    client = FakeClient(api_error(anthropic.BadRequestError, 400, 'fallbacks: Extra inputs are not permitted'),
+                        resp(text('Ответ')), resp(text('Второй')),
+                        api_error(anthropic.BadRequestError, 400, 'messages.0: что-то другое'))
+    result = turn(env, client)
+    assert result.text == 'Ответ' and len(client.calls) == 2
+    assert 'fallbacks' in client.calls[0] and 'fallbacks' not in client.calls[1]
+    assert agent.BETA_FALLBACK not in client.calls[1]['betas'], 'без возможности — и без её беты'
+    assert client.calls[1]['context_management'] and client.calls[1]['thinking']['block_binding'], \
+        'остальное не тронуто'
+    turn(env, client)
+    assert 'fallbacks' not in client.calls[2], 'отвергнутое больше не шлём'
+    with pytest.raises(anthropic.BadRequestError):
+        turn(env, client)
+    assert len(client.calls) == 4, 'чужая ошибка 400 — наверх без повтора'
 
 
 def test_pause_turn_is_resumed_without_new_message(env):
     client = FakeClient(resp(text('…'), stop='pause_turn'), resp(text('Готово')))
-    result = agent.run_turn(client, system_text='S', tool_list=[], history=[], user_content=[text('?')],
-                            ctx=ctx_for(env))
+    result = turn(env, client)
     assert result.text == 'Готово'
     assert client.calls[1]['messages'][-1]['role'] == 'assistant', 'повтор без нового сообщения человека'
 
@@ -298,37 +406,11 @@ def test_round_limit_forces_final_answer(env):
         resp(use('common_whoami', {}, 't2'), stop='tool_use'),
         resp(text('Что успел — то знаю.')),
     )
-    result = agent.run_turn(client, system_text='S', tool_list=[], history=[], user_content=[text('?')],
-                            ctx=ctx_for(env))
+    result = turn(env, client)
     assert 'max_rounds' in result.notes and result.text == 'Что успел — то знаю.'
     assert client.calls[2]['tool_choice'] == {'type': 'none'}
     refusal = client.calls[2]['messages'][-1]['content'][0]
     assert refusal['tool_use_id'] == 't2' and refusal['is_error'] is True
-
-
-def test_rejected_optional_feature_is_dropped_and_retried(env):
-    import anthropic
-    import httpx2
-    req = httpx2.Request('POST', 'https://api.anthropic.com/v1/messages')
-
-    def bad(message):
-        return anthropic.BadRequestError(message, response=httpx2.Response(400, request=req), body=None)
-
-    client = FakeClient(bad('fallbacks: Extra inputs are not permitted'), resp(text('Ответ')),
-                        resp(text('Второй')), bad('messages.0: что-то другое'))
-    result = agent.run_turn(client, system_text='S', tool_list=[], history=[], user_content=[text('?')],
-                            ctx=ctx_for(env))
-    assert result.text == 'Ответ' and len(client.calls) == 2
-    assert 'fallbacks' in client.calls[0] and 'fallbacks' not in client.calls[1]
-    assert agent.BETA_FALLBACK not in client.calls[1]['betas'], 'без возможности — и без её беты'
-    assert client.calls[1]['context_management'] and client.calls[1]['thinking']['block_binding'], \
-        'остальное не тронуто'
-    agent.run_turn(client, system_text='S', tool_list=[], history=[], user_content=[text('?')], ctx=ctx_for(env))
-    assert 'fallbacks' not in client.calls[2], 'отвергнутое больше не шлём'
-    with pytest.raises(anthropic.BadRequestError):
-        agent.run_turn(client, system_text='S', tool_list=[], history=[], user_content=[text('?')],
-                       ctx=ctx_for(env))
-    assert len(client.calls) == 4, 'чужая ошибка 400 — наверх без повтора'
 
 
 def test_max_tokens_mid_tool_call_keeps_history_valid(env):
@@ -336,24 +418,22 @@ def test_max_tokens_mid_tool_call_keeps_history_valid(env):
         resp(thinking(), use('common_whoami', {}, 'cut'), stop='max_tokens'),
         resp(text('Ответ без инструмента.')),
     )
-    result = agent.run_turn(client, system_text='S', tool_list=[], history=[], user_content=[text('?')],
-                            ctx=ctx_for(env))
+    result = turn(env, client)
     assert result.text == 'Ответ без инструмента.' and 'max_tokens_tool' in result.notes
     assert 'max_tokens' not in result.notes, 'итоговый ответ не помечен обрезанным'
     closing = client.calls[1]['messages'][-1]
     assert closing['role'] == 'user' and closing['content'][0]['tool_use_id'] == 'cut'
     assert closing['content'][0]['is_error'] is True and client.calls[1]['tool_choice'] == {'type': 'none'}
-    assert audit.recent(limit=5) == [], 'обрезанный вызов не исполняется'
-    roles = [m['role'] for m in result.messages]
-    assert roles == ['user', 'assistant', 'user', 'assistant'], 'на каждый tool_use — tool_result'
+    assert env.site.calls == [], 'обрезанный вызов не исполняется'
+    assert [m['role'] for m in result.messages] == ['user', 'assistant', 'user', 'assistant']
 
 
 def test_daily_budget_stops_before_request(env):
     env.monkeypatch.setattr(settings, 'DAILY_BUDGET_USD', 0.01)
-    store.add_usage('claude-opus-5-5', {'input_tokens': 10_000}, 0.04)
+    env.store.add_usage('claude-opus-5-5', {'input_tokens': 10_000}, 0.04)
     client = FakeClient()
     with pytest.raises(agent.BudgetExceeded, match='исчерпан'):
-        agent.run_turn(client, system_text='S', tool_list=[], history=[], user_content=[text('?')], ctx=ctx_for(env))
+        turn(env, client)
     assert client.calls == []
 
 
@@ -372,52 +452,47 @@ def test_ask_agent_runs_role_agent(env):
         agent_answer,
         resp(text('Агент проверил: всё сходится.')),
     )
-    ctx = ctx_for(env)
-    ctx.run_agent = lambda name, task: agent.run_agent(client, name, task, parent=ctx, header='[шапка]')
-    result = agent.run_turn(client, system_text='S', tool_list=[], history=[], user_content=[text('?')], ctx=ctx)
+    catalog = tools.load_catalog(env.site)
+    ctx = ctx_for(env, allowed=catalog.bot.toolset.names)
+    ctx.run_agent = lambda name, task: agent.run_agent(client, catalog.agents[name], task, parent=ctx,
+                                                       store=env.store, header='[шапка]')
+    result = turn(env, client, ctx=ctx)
     assert result.text == 'Агент проверил: всё сходится.'
     assert '# Ты — агент «Зарплаты и график»' in seen['system'] and seen['effort'] == settings.AGENT_EFFORT
     assert tools.ASK_AGENT not in seen['tools'] and not any(t.startswith('stocks_') for t in seen['tools'])
     assert client.calls[1]['messages'][0]['content'][0]['text'].startswith('[шапка]\nПроверь ЗП')
     report = client.calls[2]['messages'][-1]['content'][0]
     assert report['content'][0]['text'] == 'Отчёт: ЗП за сентябрь сходится.'
-    assert audit.recent(limit=1)[0]['tool'] == 'ask_agent:payroll'
+    agent_ctx = tools.ToolContext(site=env.site, chat_id=OWNER_TG, allowed=frozenset(), is_agent=True,
+                                  run_agent=lambda n, t: 'x')
+    assert tools.execute(use(tools.ASK_AGENT, {'agent': 'payroll', 'task': 'проверь зарплату'}), agent_ctx)['is_error']
 
 
 # ------------------------------------------------------------------ claude.py
 
-def test_describe_error_and_cost():
+def test_describe_error_scrub_and_cost():
     import anthropic
     import httpx2
+    assert claude.describe_error(api_error(anthropic.AuthenticationError, 401, 'bad key'))[0] == 'auth'
+    kind, message = claude.describe_error(api_error(anthropic.PermissionDeniedError, 403, 'no access'))
+    assert kind == 'denied' and 'проверьте ключ' in message and 'прокси' not in message.lower()
+    assert claude.describe_error(api_error(anthropic.RateLimitError, 429, 'slow'))[0] == 'rate'
+    assert claude.describe_error(api_error(anthropic.InternalServerError, 529, 'Overloaded'))[0] == 'overloaded'
+    assert claude.describe_error(api_error(anthropic.BadRequestError, 400,
+                                           'Your credit balance is too low'))[0] == 'billing'
     req = httpx2.Request('POST', 'https://api.anthropic.com/v1/messages')
-
-    def status(cls, code, message):
-        return cls(message, response=httpx2.Response(code, request=req), body=None)
-
-    assert claude.describe_error(status(anthropic.AuthenticationError, 401, 'bad key'))[0] == 'auth'
-    kind, message = claude.describe_error(status(anthropic.PermissionDeniedError, 403, 'Request not allowed'))
-    assert kind == 'denied' and 'прокси' in message
-    assert claude.describe_error(status(anthropic.RateLimitError, 429, 'slow'))[0] == 'rate'
-    assert claude.describe_error(status(anthropic.InternalServerError, 529, 'Overloaded'))[0] == 'overloaded'
-    assert claude.describe_error(status(anthropic.BadRequestError, 400,
-                                        'Your credit balance is too low'))[0] == 'billing'
     assert claude.describe_error(anthropic.APIConnectionError(request=req))[0] == 'offline'
-    assert claude.describe_error(ValueError('x'))[0] == 'other'
-    proxy = 'http://user:proxy-secret@proxy.example:3128'
-    kind, message = claude.describe_error(ValueError(f'boom {KEY} via {proxy} pw proxy-secret'),
-                                          secrets=(KEY, proxy, ''))
-    assert kind == 'other' and KEY not in message and 'proxy-secret' not in message and proxy not in message
-    assert message == 'ValueError: boom *** via *** pw ***'
+    kind, message = claude.describe_error(ValueError(f'boom {KEY} {ENGINE_KEY} {TOKEN}'), secrets=(KEY, ENGINE_KEY, TOKEN, ''))
+    assert kind == 'other' and message == 'ValueError: boom *** *** ***'
     usage = {'input_tokens': 1_000_000, 'output_tokens': 100_000, 'cache_read_input_tokens': 2_000_000,
              'cache_creation_input_tokens': 0}
     assert claude.cost_usd('claude-opus-5-5', usage) == pytest.approx(4.0 + 2.0 + 0.4)
-    assert claude.cost_usd('claude-opus-5-5-20261001', usage) == pytest.approx(4.0 + 2.0 + 0.4), \
-        'claude-opus-5-5 не путается с claude-opus-5'
+    assert claude.cost_usd('claude-opus-5-5-20261001', usage) == pytest.approx(4.0 + 2.0 + 0.4)
     assert claude.cost_usd('claude-opus-5', usage) == pytest.approx(5.0 + 2.5 + 1.0), 'запасная модель — своя цена'
     assert claude.cost_usd('claude-unknown', usage) == claude.cost_usd(settings.MODEL, usage)
 
 
-# ------------------------------------------------------------------ оформление
+# ------------------------------------------------------------------ оформление и Telegram
 
 def test_markdown_to_telegram_html():
     md = ('# Итог\n**Выручка** выросла на *5%* — см. [дашборд](https://beerkultura.ru/dashboard).\n'
@@ -440,8 +515,20 @@ def test_single_line_fence_and_very_long_code_line():
     assert ''.join(formatting.to_html(p) for p in parts).count('x') == 5000, 'длинная строка не потерялась'
 
 
+def test_long_answer_is_split_by_paragraphs_and_code_kept_whole():
+    paragraph = 'Абзац. ' * 60
+    code = '```\n' + '\n'.join(f'строка {i:03d}' for i in range(40)) + '\n```'
+    parts = formatting.split('\n\n'.join([paragraph] * 6 + [code]), limit=1000)
+    assert all(len(p) <= 1000 for p in parts)
+    assert any(p.startswith('```') and p.endswith('```') for p in parts), 'блок кода не разорван'
+    long_code = '```\n' + '\n'.join(f'строка {i:04d}' for i in range(400)) + '\n```'
+    pieces = formatting.split(long_code, limit=500)
+    assert len(pieces) > 1 and all(p.startswith('```') and p.endswith('```') and len(p) <= 500 for p in pieces)
+    assert formatting.split('') == [] and formatting.split('коротко') == ['коротко']
+
+
 def test_telegram_waits_on_429_and_sends_too_long_as_plain_chunks(monkeypatch):
-    from kultura_bot import telegram_io
+    from kultura_bot.engine import telegram_io
     calls = []
     total = []
 
@@ -465,54 +552,21 @@ def test_telegram_waits_on_429_and_sends_too_long_as_plain_chunks(monkeypatch):
     assert 'reply_parameters' in calls[0] and 'reply_parameters' not in calls[1], 'ответом — только первый кусок'
 
 
-def test_long_answer_is_split_by_paragraphs_and_code_kept_whole():
-    paragraph = 'Абзац. ' * 60
-    code = '```\n' + '\n'.join(f'строка {i:03d}' for i in range(40)) + '\n```'
-    parts = formatting.split('\n\n'.join([paragraph] * 6 + [code]), limit=1000)
-    assert all(len(p) <= 1000 for p in parts)
-    assert any(p.startswith('```') and p.endswith('```') for p in parts), 'блок кода не разорван'
-    long_code = '```\n' + '\n'.join(f'строка {i:04d}' for i in range(400)) + '\n```'
-    pieces = formatting.split(long_code, limit=500)
-    assert len(pieces) > 1 and all(p.startswith('```') and p.endswith('```') and len(p) <= 500 for p in pieces)
-    assert formatting.split('') == [] and formatting.split('коротко') == ['коротко']
+def test_telegram_errors_do_not_leak_token(monkeypatch, caplog):
+    import requests
+    from kultura_bot.engine import telegram_io
+
+    def boom(*args, **kwargs):
+        raise requests.ConnectionError(f'Max retries exceeded with url: /bot{TOKEN}/getUpdates')
+
+    io = telegram_io.TelegramIO(TOKEN)
+    monkeypatch.setattr(io._session(), 'post', boom)
+    with caplog.at_level('WARNING'):
+        assert io.call('getUpdates') is None
+    assert TOKEN not in caplog.text and 'ConnectionError' in caplog.text
 
 
-# ------------------------------------------------------------------ доступ
-
-def test_link_code_is_one_time_and_only_for_admins(env):
-    owner, bob = env.accounts.owner, env.accounts.bob
-    link = access.create_code(owner['id'], owner['login'])
-    assert link['url'] == f'https://t.me/MCPkulturabot?start={link["code"]}' and len(link['code']) == 16
-    assert access.link_by_code(link['code'], OWNER_TG, 'Анна')['ok'] is True
-    assert access.link_by_code(link['code'], '777')['ok'] is False, 'код одноразовый'
-    assert access.actor_for(OWNER_TG)['login'] == 'owner' and access.actor_for('777') is None
-    bob_code = access.create_code(bob['id'], bob['login'])['code']
-    assert access.link_by_code(bob_code, '888')['ok'] is False, 'не администратор не подключится'
-    old = access.create_code(owner['id'], owner['login'])['code']
-    with db.write() as conn:
-        conn.execute('UPDATE bot_link_codes SET expires_ts = 1 WHERE code = ?', (old,))
-    assert access.link_by_code(old, '999')['ok'] is False, 'просроченный код не работает'
-    principal = access.principal_for(access.actor_for(OWNER_TG))
-    assert principal.token_id == f'tg_{OWNER_TG}' and principal.mode == 'full' and principal.allows(None)
-    assert principal.user_id == owner['id'] and principal.client_name == 'Бот @MCPkulturabot'
-
-
-def test_actor_lost_when_admin_flag_removed(env):
-    mgr = env.accounts.mgr
-    second = mgr.get_by_id(mgr.create_user('ann', 'Анна', 'annpass12', is_admin=True))
-    store.save_link('321', second['id'], 'ann')
-    assert access.actor_for('321')['login'] == 'ann'
-    mgr.set_admin(second['id'], False)
-    assert access.actor_for('321') is None, 'права проверяются на каждом сообщении'
-
-
-def test_refusal_at_most_hourly():
-    assert access.refusal_due('42', now=1000.0) is True
-    assert access.refusal_due('42', now=1000.0 + 600) is False
-    assert access.refusal_due('42', now=1000.0 + access.REFUSAL_EVERY_S + 1) is True
-
-
-# ------------------------------------------------------------------ сообщения
+# ------------------------------------------------------------------ сервер бота
 
 def message(text_value, chat_id=OWNER_TG, user_id=OWNER_TG, chat_type='private', **extra):
     msg = {'message_id': 10, 'chat': {'id': int(chat_id), 'type': chat_type},
@@ -524,61 +578,150 @@ def message(text_value, chat_id=OWNER_TG, user_id=OWNER_TG, chat_type='private',
 @pytest.fixture
 def bot(env):
     tg = FakeTelegram()
-    svc = service.Service(env.app, io_factory=lambda token: tg)
-    assert svc.ready() is True
-    svc.enqueue = lambda chat_id, job: svc.run_job(chat_id, job)       # без потоков: ответ сразу
     client = FakeClient()
-    env.monkeypatch.setattr(claude, 'client_for', lambda key, proxy: client)
-    return SimpleNamespace(svc=svc, tg=tg, client=client, env=env)
+    keys = []
+    svc = service.Service(env.site, env.store, io_factory=lambda token: tg, client_factory=lambda key: client,
+                          check_key=lambda key: keys.append(key) or ('ok', 'claude-opus-5-5'))
+    assert svc.ready() is True
+    svc.enqueue = lambda chat_id, job: svc.run_job(chat_id, job)        # без потоков: ответ сразу
+    yield SimpleNamespace(svc=svc, tg=tg, client=client, env=env, keys=keys)
+    svc.executor.shutdown(wait=False)
+
+
+def test_settings_come_from_site(env):
+    tg = FakeTelegram()
+    checks = []
+    svc = service.Service(env.site, env.store, io_factory=lambda token: tg,
+                          check_key=lambda key: checks.append(key) or ('auth', 'Anthropic не принял ключ API (401).'))
+    env.site.cfg['telegram']['token'] = ''
+    assert svc.ready() is False and svc.status['state'] == 'waiting' and 'токена' in svc.status['detail']
+    env.site.cfg['telegram']['token'] = TOKEN
+    env.site.cfg['anthropic_key'] = ''
+    svc.refresh_config(force=True)
+    assert svc.ready() is False and 'ключа Claude API' in svc.status['detail']
+    env.site.cfg['anthropic_key'] = KEY
+    env.site.cfg['paused'] = True
+    svc.refresh_config(force=True)
+    assert svc.ready() is False and svc.status['state'] == 'paused'
+    env.site.cfg['paused'] = False
+    svc.refresh_config(force=True)
+    assert svc.ready() is True and svc.status['state'] == 'running'
+    assert tg.webhook_deleted == 1 and svc.bot_id == 999
+    assert checks == [KEY] and 'не принял ключ' in svc.status['claude_error'], 'ключ проверен при смене'
+    assert env.site.reports[-1]['status']['claude_error'].startswith('Anthropic не принял ключ'), 'страница видит'
+    env.site.config_error = SiteError('auth', 'Сайт не принял ключ сервера бота')
+    svc.refresh_config(force=True)
+    assert svc.ready() is False and svc.status['state'] == 'error', 'ключ сервера отозван — бот молчит'
+    env.site.config_error = SiteError('offline', 'Сайт не отвечает')
+    assert svc.refresh_config(force=True) is False, 'настроек нет — без них не работаем'
+
+
+def test_site_offline_keeps_last_settings(env):
+    tg = FakeTelegram()
+    svc = service.Service(env.site, env.store, io_factory=lambda token: tg, check_key=lambda key: ('ok', ''))
+    assert svc.ready() is True
+    env.site.down = True
+    assert svc.refresh_config(force=True) is True and svc.ready() is True, 'сайт моргнул — работаем на прежних'
 
 
 def test_stranger_gets_one_refusal_and_costs_nothing(bot):
-    access._refused_at.clear()
     bot.svc.handle_update(message('покажи зарплаты', user_id='4040', chat_id='4040'))
-    bot.svc.handle_update(message('ещё раз', user_id='4040', chat_id='4040'))
-    assert len(bot.tg.sent) == 1 and 'закрытый бот' in bot.tg.sent[0][1] and bot.client.calls == []
+    bot.svc.handle_update(message('ну покажи', user_id='4040', chat_id='4040'))
+    assert [s[1].startswith('Это закрытый бот') for s in bot.tg.sent] == [True]
+    assert bot.client.calls == []
 
 
 def test_start_with_code_links_and_question_is_answered(bot):
-    code = access.create_code(bot.env.accounts.owner['id'], 'owner')['code']
-    bot.svc.handle_update(message(f'/start {code}'))
-    assert 'Готово' in bot.tg.sent[-1][1]
-    bot.client.script += [resp(thinking(), text('Выручка за вчера — **412 300 ₽**.'))]
-    bot.svc.handle_update(message('какая выручка вчера?'))
-    assert bot.tg.sent[-1] == (OWNER_TG, 'Выручка за вчера — **412 300 ₽**.', None)
-    request = bot.client.calls[-1]
-    first_text = request['messages'][0]['content'][0]['text']
-    assert first_text.startswith('[') and 'пишет Владелец (owner)]\nкакая выручка вчера?' in first_text
-    assert request['system'][0]['text'] == config.bot_system_text()
-    dialog = store.get_dialog(OWNER_TG)
-    assert dialog['turns'] == 1 and len(dialog['messages']) == 2
-    bot.client.script += [resp(text('А позавчера — 398 000 ₽.'))]
-    bot.svc.handle_update(message('а позавчера?'))
+    bot.env.site.links.clear()
+    bot.env.site.codes['abcdefgh'] = dict(OWNER)
+    bot.svc.handle_update(message('/start abcdefgh'))
+    assert bot.tg.sent[-1][1] == 'Готово: вы подключены как Владелец.'
+    bot.client.script += [resp(thinking(), text('Ответ: **42** кеги'))]
+    bot.svc.handle_update(message('сколько кег?'))
+    assert bot.tg.sent[-1] == (OWNER_TG, 'Ответ: **42** кеги', None)
+    first = bot.client.calls[-1]['messages'][0]['content'][0]['text']
+    assert first.startswith('[') and 'пишет Владелец (owner)]' in first and first.endswith('\nсколько кег?')
+    dialog = bot.env.store.get_dialog(OWNER_TG)
+    assert dialog['turns'] == 1 and dialog['fingerprint'] == bot.svc.get_catalog().bot.fingerprint
+    bot.client.script += [resp(text('Второй'))]
+    bot.svc.handle_update(message('а вчера?'))
     assert len(bot.client.calls[-1]['messages']) == 3, 'диалог продолжается'
-    assert store.recent_jobs()[0]['status'] == 'done'
 
 
-def test_new_dialog_after_pause_and_after_instructions_change(bot):
-    store.save_link(OWNER_TG, bot.env.accounts.owner['id'], 'owner')
+def test_usage_goes_to_site_report(bot):
+    bot.client.script += [resp(text('Ответ'))]
+    bot.svc.handle_update(message('вопрос'))
+    bot.svc.report(force=True)
+    usage = [item for r in bot.env.site.reports for item in r['usage']]
+    assert usage and usage[-1]['model'] == 'claude-opus-5-5' and usage[-1]['requests'] == 1
+    assert usage[-1]['input_tokens'] == 1000 and usage[-1]['cost_usd'] > 0
+    bot.env.site.down = True
+    bot.svc.add_usage('claude-opus-5-5', {'input_tokens': 5}, 0.5)
+    bot.svc.report(force=True)
+    bot.env.site.down = False
+    bot.svc.report(force=True)
+    assert bot.env.site.reports[-1]['usage'][0]['cost_usd'] == pytest.approx(0.5), 'отчёт не дошёл — расход не потерян'
+
+
+def test_new_dialog_after_pause_and_after_catalog_change(bot):
     bot.client.script += [resp(text('Первый ответ'))]
     bot.svc.handle_update(message('вопрос'))
-    with db.write() as conn:
-        conn.execute('UPDATE bot_dialogs SET last_ts = ?', (time.time() - settings.DIALOG_IDLE_MINUTES * 60 - 5,))
+    dialog = bot.env.store.get_dialog(OWNER_TG)
+    bot.env.store.save_dialog(OWNER_TG, dialog['fingerprint'], dialog['started_at'], dialog['messages'],
+                              dialog['turns'], now=time.time() - settings.DIALOG_IDLE_MINUTES * 60 - 5)
     bot.client.script += [resp(text('Ответ после паузы'))]
     bot.svc.handle_update(message('вопрос через три часа'))
     assert bot.tg.sent[-1][1].startswith('*' + settings.NEW_DIALOG_NOTICE + '*')
     assert len(bot.client.calls[-1]['messages']) == 1
-    with db.write() as conn:
-        conn.execute("UPDATE bot_dialogs SET fingerprint = 'old'")
+    bot.env.site.extra_tools = [site_tool('stocks_new_tool')]
+    bot.svc.catalog_at = 0                     # каталог устарел — сайт выложил новый инструмент
     bot.client.script += [resp(text('Ответ'))]
     bot.svc.handle_update(message('ещё'))
     assert service.FINGERPRINT_NOTICE in bot.tg.sent[-1][1] and len(bot.client.calls[-1]['messages']) == 1
+
+
+def test_new_waits_for_answer_in_progress_and_queued_questions_survive_restart(bot):
+    del bot.svc.enqueue                        # настоящая очередь
+    submitted = []
+    bot.svc.executor = SimpleNamespace(submit=lambda fn, *args: submitted.append((fn, args)),
+                                       shutdown=lambda **kw: None)
+    bot.svc.handle_update(message('вопрос 1'))
     bot.svc.handle_update(message('/new'))
-    assert store.get_dialog(OWNER_TG) is None and bot.tg.sent[-1][1] == 'Начинаю новый диалог.'
+    bot.svc.handle_update(message('вопрос 2'))
+    assert len(submitted) == 1 and bot.tg.sent == [], 'всё ждёт в очереди чата'
+    assert [j['status'] for j in bot.env.store.recent_jobs()] == ['queued', 'queued'], 'вопросы записаны сразу'
+    assert len(bot.env.store.take_interrupted_jobs(1800)) == 2, 'остановка, пока ждали, — «повторите»'
+
+    bot.svc.queues.clear()                     # как после перезапуска
+    bot.svc.busy.clear()
+    submitted.clear()
+    bot.svc.handle_update(message('вопрос 1'))
+    bot.svc.handle_update(message('/new'))
+    bot.svc.handle_update(message('вопрос 2'))
+    bot.client.script += [resp(text('Ответ 1')), resp(text('Ответ 2'))]
+    fn, args = submitted[0]
+    fn(*args)                                  # очередь чата: вопрос 1, /new, вопрос 2
+    assert [m[1] for m in bot.tg.sent] == ['Ответ 1', service.NEW_DIALOG_TEXT, 'Ответ 2']
+    assert len(bot.client.calls[-1]['messages']) == 1, 'вопрос 2 — в новом диалоге, /new не отменён'
+
+
+def test_answer_rechecks_access_and_site_down_is_said_plainly(bot):
+    job = {'message': message('вопрос')['message'], 'actor': dict(OWNER), 'text': 'вопрос', 'chat_type': 'private'}
+    bot.env.site.links.clear()                 # привязку сняли, пока вопрос ждал очереди
+    bot.svc.actor_cache.clear()
+    bot.svc.run_job(OWNER_TG, job)
+    assert bot.client.calls == [] and bot.tg.sent == [], 'без доступа — ни Claude, ни ответа'
+    assert bot.env.store.recent_jobs()[0]['error'] == 'no access'
+    bot.env.site.links[OWNER_TG] = dict(OWNER)
+    bot.env.site.down = True
+    bot.svc.run_job(OWNER_TG, job)
+    assert bot.tg.sent[-1][1] == service.SITE_DOWN_TEXT and bot.client.calls == []
+    bot.svc.actor_cache.clear()
+    bot.svc.handle_update(message('ещё вопрос'))
+    assert bot.tg.sent[-1][1] == service.SITE_DOWN_TEXT, 'не знаем, кто пишет, — честно говорим'
 
 
 def test_group_only_when_addressed(bot):
-    store.save_link(OWNER_TG, bot.env.accounts.owner['id'], 'owner')
     bot.svc.handle_update(message('просто болтаем', chat_id='-100500', chat_type='supergroup'))
     assert bot.client.calls == [] and bot.tg.sent == []
     bot.client.script += [resp(text('Отвечаю в группе'))]
@@ -600,101 +743,26 @@ def test_group_only_when_addressed(bot):
     assert len(bot.tg.sent) == sent, 'ответ другому боту — не к нам'
 
 
-def test_anthropic_errors_become_plain_text(bot):
+def test_anthropic_errors_become_plain_text_and_stay_on_page(bot):
     import anthropic
-    import httpx2
-    store.save_link(OWNER_TG, bot.env.accounts.owner['id'], 'owner')
-    req = httpx2.Request('POST', 'https://api.anthropic.com/v1/messages')
-    bot.client.script += [anthropic.PermissionDeniedError('Request not allowed',
-                                                          response=httpx2.Response(403, request=req), body=None)]
+    bot.client.script += [api_error(anthropic.AuthenticationError, 401, 'invalid x-api-key')]
     bot.svc.handle_update(message('вопрос'))
-    assert 'Anthropic отказал серверу (403)' in bot.tg.sent[-1][1] and 'прокси' in bot.tg.sent[-1][1]
-    assert 'отказал серверу' in store.get_status()['claude_error'], 'страница видит ошибку Claude'
-    assert store.recent_jobs()[0]['status'] == 'error'
-    bot.client.script += [anthropic.BadRequestError('messages.1: bad', response=httpx2.Response(400, request=req),
-                                                    body=None)]
-    store.save_dialog(OWNER_TG, 'fp', '2026-10-19T10:00:00+03:00', [], 1)
-    bot.svc.handle_update(message('вопрос 2'))
-    assert 'Диалог начат заново' in bot.tg.sent[-1][1] and store.get_dialog(OWNER_TG) is None
-
-
-def test_new_waits_for_answer_in_progress_and_queued_questions_survive_restart(bot):
-    store.save_link(OWNER_TG, bot.env.accounts.owner['id'], 'owner')
-    del bot.svc.enqueue                        # настоящая очередь
-    submitted = []
-    bot.svc.executor = SimpleNamespace(submit=lambda fn, *args: submitted.append((fn, args)))
-    bot.svc.handle_update(message('вопрос 1'))
-    bot.svc.handle_update(message('/new'))
-    bot.svc.handle_update(message('вопрос 2'))
-    assert len(submitted) == 1 and bot.tg.sent == [], 'всё ждёт в очереди чата'
-    assert [j['status'] for j in store.recent_jobs()] == ['queued', 'queued'], 'вопросы записаны сразу'
-    interrupted = store.take_interrupted_jobs(1800)
-    assert len(interrupted) == 2, 'перезапуск, пока вопросы ждали, — чату скажут «повторите»'
-
-    bot.svc.queues.clear()                     # как после перезапуска
-    bot.svc.busy.clear()
-    submitted.clear()
-    bot.svc.handle_update(message('вопрос 1'))
-    bot.svc.handle_update(message('/new'))
-    bot.svc.handle_update(message('вопрос 2'))
-    bot.client.script += [resp(text('Ответ 1')), resp(text('Ответ 2'))]
-    fn, args = submitted[0]
-    fn(*args)                                  # очередь чата: вопрос 1, /new, вопрос 2
-    assert [m[1] for m in bot.tg.sent] == ['Ответ 1', service.NEW_DIALOG_TEXT, 'Ответ 2']
-    assert len(bot.client.calls[-1]['messages']) == 1, 'вопрос 2 — в новом диалоге, /new не отменён'
-    assert store.get_dialog(OWNER_TG)['turns'] == 1
-
-
-def test_answer_rechecks_access_and_revoked_admin_loses_links(bot):
-    from routes.auth import _revoke_agent_access
-    store.save_link(OWNER_TG, bot.env.accounts.owner['id'], 'owner')
-    job = {'message': message('вопрос')['message'], 'actor': owner_actor(bot.env), 'text': 'вопрос',
-           'chat_type': 'private'}
-    store.delete_link(OWNER_TG)                # привязку сняли, пока вопрос ждал очереди
-    bot.svc.run_job(OWNER_TG, job)
-    assert bot.client.calls == [] and bot.tg.sent == [], 'без доступа — ни Claude, ни ответа'
-    assert store.recent_jobs()[0]['error'] == 'no access'
-    store.save_link(OWNER_TG, bot.env.accounts.owner['id'], 'owner')
-    code = access.create_code(bot.env.accounts.owner['id'], 'owner')['code']
-    _revoke_agent_access(bot.env.accounts.owner['id'])        # отключили или сняли админство
-    assert store.list_links() == [] and store.take_link_code(code) is None, \
-        'возврат флага не оживит старый Telegram и неиспользованную ссылку'
-
-
-def test_claude_error_stays_on_page_until_answer_succeeds(bot):
-    import anthropic
-    import httpx2
-    store.save_link(OWNER_TG, bot.env.accounts.owner['id'], 'owner')
-    req = httpx2.Request('POST', 'https://api.anthropic.com/v1/messages')
-    bot.client.script += [anthropic.AuthenticationError('invalid x-api-key', response=httpx2.Response(401, request=req),
-                                                        body=None)]
-    bot.svc.handle_update(message('вопрос'))
-    status = store.get_status()
-    assert status['state'] == 'running' and 'не принял ключ' in status['claude_error']
+    assert 'Anthropic не принял ключ API' in bot.tg.sent[-1][1]
+    assert 'не принял ключ' in bot.env.site.reports[-1]['status']['claude_error']
+    assert bot.env.store.recent_jobs()[0]['status'] == 'error'
     bot.svc.tg.updates.append({'ok': True, 'result': []})
-    bot.svc._status_at = 0                     # опрос Telegram пишет «работает» — ошибка Claude остаётся
-    bot.svc.poll_once()
-    assert 'не принял ключ' in store.get_status()['claude_error']
-    bot.client.script += [resp(text('Снова отвечаю'))]
+    bot.svc.poll_once()                         # опрос Telegram пишет «работает» — ошибка Claude остаётся
+    assert 'не принял ключ' in bot.svc.status['claude_error']
+    bot.client.script += [api_error(anthropic.BadRequestError, 400, 'messages.1: bad')]
+    bot.env.store.save_dialog(OWNER_TG, 'fp', '2026-10-19T10:00:00+03:00', [], 1)
     bot.svc.handle_update(message('вопрос 2'))
-    assert store.get_status()['claude_error'] == ''
+    assert 'Диалог начат заново' in bot.tg.sent[-1][1] and bot.env.store.get_dialog(OWNER_TG) is None
+    bot.client.script += [resp(text('Снова отвечаю'))]
+    bot.svc.handle_update(message('вопрос 3'))
+    assert bot.svc.status['claude_error'] == '' and bot.env.site.reports[-1]['status']['claude_error'] == ''
 
 
-def test_question_during_worker_shutdown_is_not_lost_silently(bot):
-    store.save_link(OWNER_TG, bot.env.accounts.owner['id'], 'owner')
-
-    def closed(*args, **kwargs):
-        raise RuntimeError('cannot schedule new futures after interpreter shutdown')
-
-    del bot.svc.enqueue                        # настоящая очередь, а не ответ сразу
-    bot.svc.executor.submit = closed
-    bot.svc.handle_update(message('сколько кег?'))
-    assert bot.tg.sent[-1] == (OWNER_TG, service.RESTARTING_TEXT, None)
-    assert OWNER_TG not in bot.svc.busy and OWNER_TG not in bot.svc.queues, 'чат не завис «занятым»'
-
-
-def test_photo_is_passed_to_model(bot):
-    store.save_link(OWNER_TG, bot.env.accounts.owner['id'], 'owner')
+def test_photo_pdf_and_unsupported_files(bot):
     bot.client.script += [resp(text('На фото накладная'))]
     update = message('', photo=[{'file_id': 'small', 'file_size': 10}, {'file_id': 'big', 'file_size': 99}])
     update['message'].pop('text')
@@ -709,64 +777,60 @@ def test_photo_is_passed_to_model(bot):
     asked = []
     bot.tg.download = lambda file_id, max_bytes: asked.append((file_id, max_bytes))   # не скачалось
     bot.client.script += [resp(text('Без файла'))]
-    update = message('вот счёт', document={'file_id': 'pdf1', 'mime_type': 'application/pdf'})
-    bot.svc.handle_update(update)
+    bot.svc.handle_update(message('вот счёт', document={'file_id': 'pdf1', 'mime_type': 'application/pdf'}))
     assert asked == [('pdf1', settings.INPUT_FILE_MAX_BYTES)]
     assert 'PDF — до 10 МБ' in bot.tg.sent[-2][1] and bot.tg.sent[-1][1] == 'Без файла'
     assert service.Service._limit('image') == service.IMAGE_MAX_BYTES, 'картинка — в пределе Claude API'
+    update = message('')
+    update['message'].pop('text')
+    update['message']['sticker'] = {'file_id': 's'}
+    bot.svc.handle_update(update)
+    assert bot.tg.sent[-1][1] == service.UNSUPPORTED_TEXT
 
 
-def test_waiting_states_and_conflict(env):
-    tg = FakeTelegram()
-    svc = service.Service(env.app, io_factory=lambda token: tg)
-    env.monkeypatch.delenv(credentials.ANTHROPIC_ENV)
-    assert svc.ready() is False and store.get_status()['state'] == 'waiting'
-    assert 'Anthropic' in store.get_status()['detail']
-    env.monkeypatch.setenv(credentials.ANTHROPIC_ENV, KEY)
-    credentials.save(paused_value=True)
-    assert svc.ready() is False and store.get_status()['state'] == 'paused'
-    credentials.save(paused_value=False)
-    assert svc.ready() is True and tg.webhook_deleted == 1
-    env.monkeypatch.setattr(service, 'CONFLICT_RETRY_S', 0)
-    tg.updates.append({'ok': False, 'error_code': 409, 'description': 'Conflict: terminated by other getUpdates'})
-    svc.poll_once()
-    assert store.get_status()['state'] == 'conflict'
-    tg.updates.append({'ok': False, 'error_code': 409, 'description': "can't use getUpdates while webhook is active"})
-    svc.poll_once()
-    assert tg.webhook_deleted == 2
+def test_question_during_shutdown_is_not_lost_silently(bot):
+    del bot.svc.enqueue                        # настоящая очередь, а не ответ сразу
+
+    def closed(*args, **kwargs):
+        raise RuntimeError('cannot schedule new futures after shutdown')
+
+    bot.svc.executor.submit = closed
+    bot.svc.handle_update(message('сколько кег?'))
+    assert bot.tg.sent[-1] == (OWNER_TG, service.RESTARTING_TEXT, None)
+    assert OWNER_TG not in bot.svc.busy and OWNER_TG not in bot.svc.queues, 'чат не завис «занятым»'
+    assert bot.env.store.recent_jobs()[0]['status'] == 'error'
 
 
 def test_interrupted_answers_are_reported_once(env):
-    job = store.start_job('777', '555')
-    store.start_job('777', '555')
+    env.store.start_job('100', '555')
+    env.store.start_job('100', '555', status='queued')
+    env.store.start_job('200', '555', now=time.time() - 7200)            # давно — не тревожим
     tg = FakeTelegram()
-    svc = service.Service(env.app, io_factory=lambda token: tg)
+    svc = service.Service(env.site, env.store, io_factory=lambda token: tg, check_key=lambda key: ('ok', ''))
     assert svc.ready() is True
-    assert [s[0] for s in tg.sent] == ['777'], 'один раз на чат'
-    assert all(j['status'] == 'interrupted' for j in store.recent_jobs()) and job
+    assert tg.sent == [('100', service.INTERRUPTED_TEXT, None)], 'одно сообщение на чат'
+    svc.ready()
+    assert len(tg.sent) == 1
 
 
-def test_start_failure_does_not_break_the_site(env, tmp_path):
-    import kultura_bot
-    env.monkeypatch.setenv('KULTURA_BOT', '1')
-    env.monkeypatch.setattr(service, '_started', False)
-    env.monkeypatch.setattr(service, 'LOCK_PATH', str(tmp_path / 'bot.lock'))
+def test_conflict_and_bad_token_states(env):
+    tg = FakeTelegram()
+    svc = service.Service(env.site, env.store, io_factory=lambda token: tg, check_key=lambda key: ('ok', ''))
+    svc.stopping.wait = lambda timeout=None: None        # без пауз
+    assert svc.ready() is True
+    tg.updates.append({'ok': False, 'error_code': 409, 'description': 'Conflict: terminated by other getUpdates'})
+    svc.poll_once()
+    assert svc.status['state'] == 'conflict' and 'другая программа' in svc.status['detail']
+    tg.updates.append({'ok': False, 'error_code': 409, 'description': "Conflict: can't use getUpdates while webhook is active"})
+    svc.poll_once()
+    assert tg.webhook_deleted == 2
+    tg.updates.append({'ok': False, 'error_code': 401, 'description': 'Unauthorized'})
+    svc.poll_once()
+    assert svc.status['state'] == 'error' and 'не принимает токен' in svc.status['detail']
 
-    def broken(app, io_factory=None):
-        raise RuntimeError('нет базы')
 
-    env.monkeypatch.setattr(service, 'Service', broken)
-    kultura_bot.start(env.app)                 # не бросает: сайт поднимается дальше
-    assert service._started is False
-    import portalocker
-    with open(tmp_path / 'bot.lock', 'a') as handle:
-        portalocker.lock(handle, portalocker.LOCK_EX | portalocker.LOCK_NB)   # лок отпущен
-
-
-def test_status_view_for_page(env):
-    store.set_status('running', 'бот слушает Telegram')
-    view = service.status_view()
-    assert view['status']['state'] == 'running' and view['status']['stale'] is False
-    assert view['model'] == settings.MODEL and [a['name'] for a in view['agents']] == ['analyst', 'content',
-                                                                                       'payroll']
-    assert 'today' in view['usage'] and view['links'] == []
+def test_main_without_key_exits_with_hint(monkeypatch, capsys):
+    from kultura_bot.engine import main
+    monkeypatch.delenv('KULTURA_BOT_KEY', raising=False)
+    assert main.main() == 2
+    assert 'KULTURA_BOT_KEY' in capsys.readouterr().err

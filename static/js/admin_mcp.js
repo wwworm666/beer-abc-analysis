@@ -19,7 +19,8 @@
         settings: '/api/admin/mcp/settings',
         bot: '/api/admin/mcp/bot',
         botLink: '/api/admin/mcp/bot/link',
-        botLinks: '/api/admin/mcp/bot/links/'
+        botLinks: '/api/admin/mcp/bot/links/',
+        botInstall: '/api/admin/mcp/bot/install'
     };
 
     // Сколько строк журнала показывать: страница — обзор последнего, глубже — фильтром.
@@ -351,6 +352,7 @@
     var BOT_LINK_POLL_MS = 5000;      // после «Подключить мой Telegram» — ждём привязку
     var BOT_LINK_POLL_TIMES = 60;     // 5 минут
     var botLinkPoll = null;
+    var botLast = null;               // последний ответ /api/admin/mcp/bot (для подтверждения переустановки)
     var botLinksSig = '';             // привязки как строка: изменилась — Telegram подключили
     var botLinksBaseline = null;      // привязки в момент «Подключить мой Telegram»
 
@@ -358,11 +360,22 @@
         return '$' + (Number(value) || 0).toFixed(2);
     }
 
+    // Состояние — из отчёта сервера бота в Амстердаме (kultura_bot/site_api.py). Отчёт раз в
+    // минуту; нет дольше трёх минут — stale. Новая команда установки стирает прежнее
+    // состояние: до первого отчёта нового сервера — «ещё не отзывался».
     function botStatusText(data) {
         var st = data.status || {};
+        var engine = data.engine || {};
         var bot = '@' + ((data.telegram && data.telegram.bot_username) || 'MCPkulturabot');
-        if (st.stale) return { text: 'Бот ' + bot + ' давно не отзывался (последний раз ' + fmtTime(st.at) +
-            '): сервис перезапускается или упал. Если так дольше пяти минут — напишите разработчику.', bad: true };
+        if (!engine.issued) return { text: 'Бот ещё не установлен: нажмите «Команда установки» ниже и выполните ' +
+            'команду на сервере в Амстердаме.', bad: true };
+        if (!engine.active) return { text: 'Ключ сервера бота отозван — бот молчит. Нажмите «Команда установки» и ' +
+            'выполните новую команду на сервере в Амстердаме.', bad: true };
+        if (!st.at) return { text: 'Сервер бота ещё не отзывался: выполните команду установки на сервере в ' +
+            'Амстердаме. Уже выполнили — посмотрите журнал там: journalctl -u kultura-bot -n 50.', bad: true };
+        if (st.stale) return { text: 'Сервер бота ' + bot + ' давно не отзывался (последний раз ' + fmtTime(st.at) +
+            '): он перезапускается, выключен или потерял связь с сайтом. Если так дольше пяти минут — проверьте ' +
+            'сервер в Амстердаме (systemctl status kultura-bot).', bad: true };
         switch (st.state) {
             case 'running':
                 // Telegram слушается, но последний ответ Claude не получился (ключ, отказ серверу,
@@ -375,13 +388,15 @@
             case 'conflict': return { text: 'Конфликт: ' + st.detail + '.', bad: true };
             case 'error': return { text: 'Ошибка: ' + st.detail, bad: true };
             case 'starting': return { text: 'Бот запускается…', bad: false };
-            default: return { text: 'Бот не запущен: сервис его ещё не стартовал.', bad: true };
+            case 'stopped': return { text: 'Сервер бота остановлен (' + fmtTime(st.at) + ').', bad: true };
+            default: return { text: 'Сервер бота сообщил непонятное состояние: ' + st.state + '.', bad: true };
         }
     }
 
     // resetForm — после загрузки страницы и сохранения: поля секретов пустые, «Пауза» — как
     // сохранено. Опрос привязки форму не трогает: владелец мог начать её заполнять.
     function renderBot(data, resetForm) {
+        botLast = data;
         var status = botStatusText(data);
         var node = byId('mcpBotState');
         node.textContent = status.text;
@@ -395,18 +410,19 @@
         var key = data.anthropic || {};
         setText('mcpBotKeyHint', key.configured
             ? 'Сохранён: ' + key.key_hint + '. Новый ключ — вставьте сюда; пустое поле — ключ не меняется.'
-            : 'Нет. console.anthropic.com → API Keys → Create Key. Сервис проверит ключ запросом к Anthropic.');
-        var proxy = data.proxy || {};
-        setText('mcpBotProxyHint', proxy.configured
-            ? 'Задан: ' + proxy.display + '. Чтобы убрать, сохраните поле с одним знаком «-».'
-            : 'Не нужен, если Anthropic отвечает серверу напрямую. Нужен, если после сохранения ключа видно ' +
-              '«Anthropic отказал серверу (403)» или «Нет связи с Anthropic».');
+            : 'Нет. console.anthropic.com → API Keys → Create Key. Ключ проверит сервер бота — ошибку покажет ' +
+              'строка состояния вверху.');
         if (resetForm) {
             byId('mcpBotToken').value = '';
             byId('mcpBotKey').value = '';
-            byId('mcpBotProxy').value = '';
             byId('mcpBotPaused').checked = !!data.paused;
         }
+        var engine = data.engine || {};
+        setText('mcpBotEngine', engine.issued
+            ? 'Ключ сервера: ' + engine.prefix + '… (выпустил ' + engine.owner + ' ' + fmtTime(engine.created_at) +
+              (engine.active ? '' : ', отозван — нужна новая команда установки') +
+              (engine.last_used_at ? ', сервер последний раз обращался ' + fmtTime(engine.last_used_at) : ', сервер ещё не обращался') + ').'
+            : 'Сервер бота ещё не установлен.');
 
         var usage = data.usage || {};
         var today = usage.today || {};
@@ -456,10 +472,8 @@
         var body = { paused: !!byId('mcpBotPaused').checked };
         var token = byId('mcpBotToken').value.trim();
         var key = byId('mcpBotKey').value.trim();
-        var proxy = byId('mcpBotProxy').value.trim();
         if (token) body.token = token;
         if (key) body.anthropic_key = key;
-        if (proxy) body.proxy = proxy === '-' ? '' : proxy;
         var button = byId('mcpBotSave');
         button.disabled = true;
         call('PUT', API.bot, body)
@@ -501,6 +515,27 @@
             .catch(function (e) { setText('mcpBotError', e.message); });
     }
 
+    // Команда установки сервера бота: новый ключ, прежний отзывается — поэтому спрашиваем.
+    // Команда целиком только в ответе и на экране, пока её не скрыли (как новый токен выше).
+    function installBot() {
+        setText('mcpBotInstallError', '');
+        var engine = (botLast && botLast.engine) || {};
+        if (engine.issued && engine.active && !window.confirm('Выпустить новую команду установки? Прежний ключ ' +
+            'сервера бота перестанет работать — бот замолчит, пока команду не выполнят на сервере.')) return;
+        call('POST', API.botInstall, {})
+            .then(function (data) {
+                byId('mcpBotInstallCmd').textContent = data.command;
+                byId('mcpBotInstallResult').hidden = false;
+                return loadBot(false);
+            })
+            .catch(function (e) { setText('mcpBotInstallError', e.message); });
+    }
+
+    function hideInstall() {
+        byId('mcpBotInstallCmd').textContent = '';
+        byId('mcpBotInstallResult').hidden = true;
+    }
+
     // ------------------------------------------------------------ запуск
 
     function init() {
@@ -516,6 +551,11 @@
         byId('mcpSettingsSave').addEventListener('click', saveSettings);
         byId('mcpBotSave').addEventListener('click', saveBot);
         byId('mcpBotLink').addEventListener('click', linkBot);
+        byId('mcpBotInstall').addEventListener('click', installBot);
+        byId('mcpBotInstallCopy').addEventListener('click', function () {
+            copyText(byId('mcpBotInstallCmd').textContent, byId('mcpBotInstallCopy'));
+        });
+        byId('mcpBotInstallHide').addEventListener('click', hideInstall);
         syncDomainBoxes();
         loadTokens();
         loadGrants();

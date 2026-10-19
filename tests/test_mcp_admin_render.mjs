@@ -249,7 +249,6 @@ const DATA = {
 const BOT = {
     telegram: { configured: true, source: 'settings', token_hint: '1234…xyz', bot_username: 'MCPkulturabot' },
     anthropic: { configured: false, source: '', key_hint: '' },
-    proxy: { configured: false, display: '' },
     paused: false,
     status: { state: 'waiting', detail: 'нет ключа Anthropic API: вставьте его на этой странице',
         at: '2026-10-19T11:59:00+03:00', stale: false },
@@ -257,8 +256,13 @@ const BOT = {
     budget_usd: 15, model: 'claude-opus-5-5', effort: 'medium',
     links: [{ tg_user_id: '555', login: 'owner', tg_name: EVIL, linked_at: '2026-10-19T10:05:00+03:00' }],
     agents: [{ name: 'analyst', title: 'Аналитик' }, { name: 'payroll', title: 'Зарплаты и график' }],
+    engine: { issued: true, active: true, prefix: 'kmcp_abcdefg', owner: 'owner',
+        created_at: '2026-10-19T11:00:00+03:00', last_used_at: '2026-10-19T11:59:00+03:00' },
     warnings: [],
 };
+
+const INSTALL = "curl -fsSL https://raw.githubusercontent.com/wwworm666/beer-abc-analysis/main/kultura_bot/deploy/" +
+    "install.sh | KULTURA_BOT_KEY='kmcp_" + 'n'.repeat(40) + "' bash";
 
 function respond(url, opt) {
     if (url === '/api/admin/mcp/tokens' && opt.method === 'GET') return [200, DATA.tokens];
@@ -275,12 +279,15 @@ function respond(url, opt) {
         return [200, Object.assign({}, BOT, {
             anthropic: { configured: true, source: 'settings', key_hint: 'sk-a…kkk' },
             status: { state: 'running', detail: 'бот слушает Telegram', at: '2026-10-19T12:00:00+03:00', stale: false },
-            warnings: ['Anthropic отказал серверу (403): Request not allowed. Нужен прокси.'] })];
+            warnings: ['Нет связи с Telegram: токен сохранён, но не проверен.'] })];
     }
     if (url === '/api/admin/mcp/bot/link' && opt.method === 'POST') {
         return [200, { code: 'abc', url: 'https://t.me/MCPkulturabot?start=abc', expires_in_s: 900 }];
     }
     if (url.startsWith('/api/admin/mcp/bot/links/') && opt.method === 'DELETE') return [200, { ok: true }];
+    if (url === '/api/admin/mcp/bot/install' && opt.method === 'POST') {
+        return [200, { command: INSTALL, token_prefix: 'kmcp_nnnnnnn', script_url: 'https://raw.githubusercontent.com/' }];
+    }
     return [404, { error: 'нет' }];
 }
 
@@ -368,6 +375,8 @@ test('исполнение: бот — секреты подсказками, с
     assert.match(page.nodes.mcpBotKeyHint.textContent, /^Нет\. console\.anthropic\.com/);
     assert.match(page.nodes.mcpBotUsage.textContent, /сегодня \$0\.42 из \$15\.00 \(запросов к модели 7\), за 30 дней \$3\.10/);
     assert.match(page.nodes.mcpBotModel.textContent, /модель claude-opus-5-5, усилие medium.*Агенты: Аналитик, Зарплаты и график/);
+    assert.equal(page.nodes.mcpBotEngine.textContent, 'Ключ сервера: kmcp_abcdefg… (выпустил owner 19.10.2026 11:00, ' +
+        'сервер последний раз обращался 19.10.2026 11:59).');
     const row = page.nodes.mcpBotLinksBody.children[0];
     assert.equal(row.children[0].textContent, 'owner');
     assert.equal(row.children[1].textContent, EVIL, 'имя в Telegram — текстом, как есть');
@@ -375,20 +384,19 @@ test('исполнение: бот — секреты подсказками, с
     assert.equal(page.nodes.mcpBotLinksEmpty.hidden, true);
 
     page.nodes.mcpBotKey.value = ' sk-ant-api03-' + 'k'.repeat(40) + ' ';
-    page.nodes.mcpBotProxy.value = '-';
     page.nodes.mcpBotSave.fire('click');
     await tick(); await tick();
     const put = page.calls.find((c) => c.method === 'PUT' && c.url === '/api/admin/mcp/bot');
-    assert.deepEqual(put.body, { paused: false, anthropic_key: 'sk-ant-api03-' + 'k'.repeat(40), proxy: '' },
-        'пустой токен не отправляется, «-» убирает прокси');
+    assert.deepEqual(put.body, { paused: false, anthropic_key: 'sk-ant-api03-' + 'k'.repeat(40) },
+        'пустой токен не отправляется');
     assert.match(page.nodes.mcpBotState.textContent, /работает/);
     assert.equal(page.nodes.mcpBotState.className, 'mcp-note mcp-state-good');
-    bot.status = { state: 'running', detail: 'бот слушает Telegram', stale: false,
+    bot.status = { state: 'running', detail: 'бот слушает Telegram', at: '2026-10-19T12:00:00+03:00', stale: false,
         claude_error: 'Anthropic не принял ключ API (401).' };
     page.intervals.length = 0;
     assert.equal(page.nodes.mcpBotKey.value, '', 'поле ключа очищается после сохранения');
     assert.equal(page.nodes.mcpBotOk.textContent, 'Сохранено');
-    assert.match(page.nodes.mcpBotError.textContent, /Нужен прокси/, 'предупреждение сохранения видно');
+    assert.match(page.nodes.mcpBotError.textContent, /Нет связи с Telegram/, 'предупреждение сохранения видно');
 
     page.nodes.mcpBotLink.fire('click');
     await tick(); await tick();
@@ -418,6 +426,65 @@ test('исполнение: бот — секреты подсказками, с
     await tick(); await tick();
     assert.equal(page.confirms.length, 1, 'отвязка спрашивает подтверждение');
     assert.ok(page.calls.some((c) => c.method === 'DELETE' && c.url === '/api/admin/mcp/bot/links/555'));
+});
+
+test('исполнение: бот — команда установки сервера в Амстердаме', async () => {
+    const bot = Object.assign(JSON.parse(JSON.stringify(BOT)), { engine: { issued: false },
+        status: { state: 'stopped', detail: '', at: '', stale: false } });
+    let installs = 0;
+    const page = boot((url, opt) => {
+        if (url === '/api/admin/mcp/bot' && opt.method === 'GET') return [200, bot];
+        if (url === '/api/admin/mcp/bot/install' && opt.method === 'POST') {
+            installs += 1;
+            bot.engine = { issued: true, active: true, prefix: 'kmcp_nnnnnnn', owner: 'owner',
+                created_at: '2026-10-19T12:10:00+03:00', last_used_at: null };
+        }
+        return respond(url, opt);
+    });
+    await tick(); await tick(); await tick();
+    assert.match(page.nodes.mcpBotState.textContent, /^Бот ещё не установлен: нажмите «Команда установки»/);
+    assert.equal(page.nodes.mcpBotEngine.textContent, 'Сервер бота ещё не установлен.');
+    assert.match(html, /id="mcpBotInstallResult" hidden>/, 'команды на странице нет, пока её не выпустили');
+
+    page.nodes.mcpBotInstall.fire('click');
+    await tick(); await tick(); await tick();
+    assert.equal(page.confirms.length, 0, 'первая установка — без вопроса');
+    assert.ok(page.calls.some((c) => c.method === 'POST' && c.url === '/api/admin/mcp/bot/install'));
+    assert.equal(page.nodes.mcpBotInstallCmd.textContent, INSTALL, 'команда — текстом, целиком');
+    assert.equal(page.nodes.mcpBotInstallResult.hidden, false);
+    assert.match(page.nodes.mcpBotState.textContent, /^Сервер бота ещё не отзывался: выполните команду установки/);
+    assert.equal(page.nodes.mcpBotEngine.textContent, 'Ключ сервера: kmcp_nnnnnnn… (выпустил owner 19.10.2026 12:10, ' +
+        'сервер ещё не обращался).');
+
+    page.nodes.mcpBotInstallHide.fire('click');
+    assert.equal(page.nodes.mcpBotInstallCmd.textContent, '', 'скрытая команда стёрта со страницы');
+    assert.equal(page.nodes.mcpBotInstallResult.hidden, true);
+
+    page.nodes.mcpBotInstall.fire('click');            // ключ уже есть: новая команда отключит прежний
+    await tick(); await tick(); await tick();
+    assert.equal(page.confirms.length, 1);
+    assert.match(page.confirms[0], /Прежний ключ сервера бота перестанет работать/);
+    assert.equal(installs, 2);
+});
+
+test('исполнение: бот — строка состояния по ключу и отчётам сервера', async () => {
+    const active = BOT.engine;
+    const cases = [
+        [Object.assign({}, active, { active: false }), BOT.status, /^Ключ сервера бота отозван — бот молчит/],
+        [active, { state: 'running', detail: '', at: '2026-10-19T11:00:00+03:00', stale: true },
+            /^Сервер бота @MCPkulturabot давно не отзывался \(последний раз 19\.10\.2026 11:00\)/],
+        [active, { state: 'stopped', detail: '', at: '2026-10-19T11:00:00+03:00', stale: false },
+            /^Сервер бота остановлен \(19\.10\.2026 11:00\)\.$/],
+        [active, { state: 'running', detail: 'бот слушает Telegram', at: '2026-10-19T11:00:00+03:00', stale: false,
+            claude_error: '' }, /^Бот @MCPkulturabot работает: слушает Telegram и отвечает\.$/],
+    ];
+    for (const [engine, status, want] of cases) {
+        const bot = Object.assign(JSON.parse(JSON.stringify(BOT)), { engine, status });
+        const page = boot((url, opt) => (url === '/api/admin/mcp/bot' && opt.method === 'GET' ? [200, bot]
+            : respond(url, opt)));
+        await tick(); await tick(); await tick();
+        assert.match(page.nodes.mcpBotState.textContent, want);
+    }
 });
 
 test('исполнение: OAuth-приложения с режимом доступа', async () => {

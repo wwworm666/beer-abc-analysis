@@ -108,6 +108,7 @@ employee_iiko_id, password_hash, is_admin, active, created_at, last_login_at)`.
 | `taps.taplist_yml`, `taps.kitchen_yml`, `yml_feeds.kitchen_yml` | Яндекс забирает YML-фиды без cookie |
 | `mcp.mcp_all`, `mcp.mcp_domain` | MCP-коннекторы `/mcp`, `/mcp/<раздел>` и адреса с режимом `/mcp[/<раздел>]/read`, `/mcp[/<раздел>]/draft` (с 2026-09-27, режимы — с 2026-09-28): у ИИ-клиента Claude нет cookie сайта. Коннектор **сам** проверяет `Authorization: Bearer` (`core/mcp/auth.py`): нет токена — 401 с `WWW-Authenticate`, по которому приложение Claude находит сервер авторизации; токен действует, только пока его владелец — активный администратор. Более глубокий путь под `/mcp` — 404 JSON, а не перенаправление на вход |
 | `mcp_oauth.protected_resource_metadata`, `mcp_oauth.authorization_server_metadata`, `mcp_oauth.register_client`, `mcp_oauth.token`, `mcp_oauth.revoke` | OAuth 2.1 для приложения Claude: метаданные, регистрация клиента, выдача и отзыв токена по спецификации открыты без входа (секреты — код с PKCE и токены, а не сессия) |
+| `bot_api.config`, `bot_api.link`, `bot_api.actor`, `bot_api.report` | API сервера бота @MCPkulturabot в Амстердаме (`/api/bot/*`, с 2026-10-19, [kultura-bot.md](kultura-bot.md)): у сервера бота нет cookie сайта. Каждый эндпоинт **сам** проверяет `Authorization: Bearer` и пускает только ключ сервера бота (`kultura_bot/site_api.verify_engine`: статический MCP-токен, выпущенный кнопкой «Команда установки», владелец — активный администратор); иначе 401. Другие MCP-токены не проходят: `/api/bot/config` отдаёт секреты бота |
 
 Сознательно **не** публичны: страница согласия OAuth `mcp_oauth.authorize` (гейт отправит
 анонима на `/login?next=…`; согласие даёт только активный администратор) и страница
@@ -161,7 +162,9 @@ employee_iiko_id, password_hash, is_admin, active, created_at, last_login_at)`.
 MCP-токены (`core.mcp.tokens.revoke_all_for_user`), все OAuth-подключения
 (`core.mcp.oauth.revoke_all_for_user`: гранты, токены и неиспользованные коды) и, с 2026-10-19,
 привязки Telegram к боту @MCPkulturabot вместе с неиспользованными ссылками привязки
-(`kultura_bot.store.delete_links_for_user`, [kultura-bot.md](kultura-bot.md)). Токены и привязки
+(`kultura_bot.store.delete_links_for_user`, [kultura-bot.md](kultura-bot.md)). Ключ сервера бота —
+такой же MCP-токен: если его выпускал этот аккаунт, он отзывается вместе с остальными, и бот
+замолкает до новой команды установки. Токены и привязки
 и так перестают работать (доступ только у активного администратора, проверка на каждом вызове
 и сообщении), но без отзыва возврат флага оживил бы старые токены и старый Telegram. Ошибка отзыва не ломает основное действие:
 оно уже выполнено, а токены не пройдут проверку, пока аккаунт не активный администратор. Отзыв
@@ -284,6 +287,13 @@ MCP-токены (`core.mcp.tokens.revoke_all_for_user`), все OAuth-подк�
   `/kultura/secret_key` один раз. **Не ротировать** без причины — разлогинит всех.
 
 ## Changelog
+
+### 2026-10-19 (2) — API сервера бота @MCPkulturabot без cookie
+- В `PUBLIC_ENDPOINTS` — `bot_api.config`, `bot_api.link`, `bot_api.actor`, `bot_api.report`
+  (`/api/bot/*`): бот переехал на сервер в Амстердаме, cookie сайта у него нет. Эндпоинты сами
+  пускают только ключ сервера бота; отзыв доступа аккаунта отзывает и этот ключ, если его
+  выпускал этот аккаунт. Файлы: `core/auth_guard.py`, `routes/bot_api.py`,
+  `kultura_bot/site_api.py`, `tests/test_kultura_bot_site.py`.
 
 ### 2026-10-19 — отзыв привязок Telegram к боту @MCPkulturabot
 - `_revoke_agent_access` снимает и привязки Telegram аккаунта к боту @MCPkulturabot с

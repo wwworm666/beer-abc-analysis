@@ -1,24 +1,32 @@
 """Telegram для бота: приём (getUpdates), ответы, «печатает…», файлы из сообщений.
 
-Транспорт — core/open_check_telegram (api_call, download_file): тот же путь с обходом
-блокировок, что у остальных ботов сайта (основной адрес, при сбое — запасные IP с SNI).
-Вебхук сюда не годится: входящие соединения от Telegram до сервера режет ТСПУ
-(docs/open-check-bot.md, «Блокировки»), поэтому апдейты бот забирает сам.
+Сервер бота в Амстердаме ходит к api.telegram.org напрямую (обход блокировок, как у ботов
+сайта в России, ему не нужен). Апдейты бот забирает сам (long polling): вебхук потребовал
+бы открытого порта на сервере.
 
-Ответ модели (Markdown) режется на части и переводится в HTML Telegram
-(kultura_bot/formatting.py); Telegram не принял разметку или часть вышла длиннее его предела
-(4096) — она уходит простым текстом кусками. Telegram просит подождать (429) — бот ждёт
-retry_after (не дольше 30 с) и шлёт ещё раз.
+Токен в журнал не попадает: он есть в адресе запроса, поэтому в журнал пишутся только
+метод и вид ошибки, а не текст исключения requests (в нём адрес целиком).
+
+Ответ модели (Markdown) режется на части и переводится в HTML Telegram (formatting.py);
+Telegram не принял разметку или часть вышла длиннее его предела (4096) — она уходит
+простым текстом кусками. Telegram просит подождать (429) — бот ждёт retry_after (не
+дольше 30 с) и шлёт ещё раз.
 """
 import logging
+import threading
 import time
 from typing import Any, Dict, List, Optional
 
-from kultura_bot import formatting
+import requests
+
+from kultura_bot.engine import formatting
 
 log = logging.getLogger('kultura-bot')
 
+API = 'https://api.telegram.org'
 POLL_TIMEOUT = 25                    # long poll getUpdates, с
+CONNECT_TIMEOUT_S = 10
+FILE_TIMEOUT_S = 60
 RETRY_AFTER_MAX_S = 30               # Telegram просит подождать (429) — ждём не дольше
 HTTP_TIMEOUT = POLL_TIMEOUT + 10
 ALLOWED_UPDATES = ['message']
@@ -31,10 +39,27 @@ COMMANDS = [
 class TelegramIO:
     def __init__(self, token: str):
         self.token = token
+        self._local = threading.local()      # requests.Session — своя у каждого потока
+
+    def _session(self) -> requests.Session:
+        session = getattr(self._local, 'session', None)
+        if session is None:
+            session = self._local.session = requests.Session()
+        return session
 
     def call(self, method: str, payload: Optional[Dict[str, Any]] = None, timeout: int = 8):
-        from core.open_check_telegram import api_call
-        return api_call(method, payload or {}, timeout=timeout, token=self.token)
+        """Метод Bot API: ответ Telegram (dict) или None — нет связи."""
+        try:
+            resp = self._session().post(f'{API}/bot{self.token}/{method}', json=payload or {},
+                                        timeout=(CONNECT_TIMEOUT_S, timeout))
+        except requests.RequestException as exc:
+            log.warning('[BOT] Telegram %s: нет связи (%s)', method, type(exc).__name__)
+            return None
+        try:
+            data = resp.json()
+        except ValueError:
+            return {'ok': False, 'error_code': resp.status_code, 'description': f'HTTP {resp.status_code}'}
+        return data if isinstance(data, dict) else {'ok': False, 'description': 'ответ не объект'}
 
     # ---------------------------------------------------------------- служебное
 
@@ -113,13 +138,29 @@ class TelegramIO:
     # ---------------------------------------------------------------- файлы
 
     def download(self, file_id: str, max_bytes: int) -> Optional[bytes]:
-        """Файл из сообщения (фото, документ): getFile + скачивание. None — не вышло или велик."""
-        from core.open_check_telegram import download_file
+        """Файл из сообщения (фото, документ): getFile + скачивание. None — не вышло или велик.
+
+        Размер проверяется по мере чтения: больше max_bytes — None, файл целиком в память
+        не берётся."""
         info = self.call('getFile', {'file_id': file_id}, timeout=15)
         if not info or not info.get('ok'):
             return None
         result = info.get('result') or {}
         size = result.get('file_size') or 0
-        if size and size > max_bytes:
+        path = str(result.get('file_path') or '').lstrip('/')
+        if not path or (size and size > max_bytes):
             return None
-        return download_file(result.get('file_path') or '', token=self.token, max_bytes=max_bytes)
+        try:
+            with self._session().get(f'{API}/file/bot{self.token}/{path}', stream=True,
+                                     timeout=(CONNECT_TIMEOUT_S, FILE_TIMEOUT_S)) as resp:
+                if resp.status_code != 200:
+                    return None
+                data = bytearray()
+                for chunk in resp.iter_content(64 * 1024):
+                    data.extend(chunk)
+                    if len(data) > max_bytes:
+                        return None
+                return bytes(data)
+        except requests.RequestException as exc:
+            log.warning('[BOT] файл из сообщения не скачался (%s)', type(exc).__name__)
+            return None

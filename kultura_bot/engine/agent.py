@@ -17,7 +17,7 @@
 
 - model, effort, max_tokens — kultura_bot/settings.py; думает модель всегда (adaptive),
   рассуждения не показываются (display по умолчанию);
-- инструменты — kultura_bot/tools.py (поиск по описаниям + отложенная загрузка);
+- инструменты — kultura_bot/engine/tools.py (поиск по описаниям + отложенная загрузка);
 - кэш: системный промпт — явная точка кэша, хвост разговора — автоматическая
   (cache_control верхнего уровня); повторные запросы диалога читают начало из кэша;
 - context editing: когда контекст больше settings.CONTEXT_CLEAR_AT_TOKENS, Anthropic
@@ -39,8 +39,9 @@ _disabled) — бот отвечает, а в журнале остаётся п
 - settings.MAX_TOOL_ROUNDS шагов с инструментами на вопрос (агенту —
   AGENT_MAX_TOOL_ROUNDS): исчерпаны — последний запрос с tool_choice none, модель
   отвечает тем, что уже узнала;
-- дневной расход settings.DAILY_BUDGET_USD: перед каждым шагом сверяется с bot_usage;
-  исчерпан — BudgetExceeded (бот отвечает «лимит на сегодня»);
+- дневной расход settings.DAILY_BUDGET_USD: перед каждым шагом сверяется со своей базой
+  сервера бота (store.usage); исчерпан — BudgetExceeded (бот отвечает «лимит на сегодня»);
+  расход каждого шага пишется туда же и уходит сайту в отчёте (on_usage);
 - pause_turn (серверный инструмент не уложился в шаг) — запрос повторяется как есть;
 - шаг оборвался на пределе длины посреди вызова инструмента — вызов не выполняется (в истории
   на него — ответ-ошибка, чтобы история осталась корректной), последний запрос без инструментов.
@@ -49,7 +50,8 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional
 
-from kultura_bot import claude, settings, store, tools
+from kultura_bot import settings
+from kultura_bot.engine import claude, tools
 
 log = logging.getLogger('kultura-bot')
 
@@ -160,18 +162,25 @@ def _texts(content: List[Dict[str, Any]]) -> str:
                        (b.get('text') or '').strip())
 
 
-def check_budget() -> None:
+def check_budget(store) -> None:
     limit = settings.DAILY_BUDGET_USD
-    if limit and store.spent_on() >= limit:
-        raise BudgetExceeded(f'Дневной предел расхода на Claude исчерпан: {store.spent_on():.2f} $ из {limit:.2f} $ '
+    spent = store.spent_on()
+    if limit and spent >= limit:
+        raise BudgetExceeded(f'Дневной предел расхода на Claude исчерпан: {spent:.2f} $ из {limit:.2f} $ '
                              f'(DAILY_BUDGET_USD в kultura_bot/settings.py). Бот снова ответит после полуночи МСК.')
 
 
+UsageHook = Callable[[str, Dict[str, int], float], None]
+
+
 def run_turn(client: Any, *, system_text: str, tool_list: List[Dict[str, Any]], history: List[Dict[str, Any]],
-             user_content: List[Dict[str, Any]], ctx: tools.ToolContext, model: Optional[str] = None,
+             user_content: List[Dict[str, Any]], ctx: tools.ToolContext, store, model: Optional[str] = None,
              effort: Optional[str] = None, max_rounds: Optional[int] = None,
-             on_step: Optional[Callable[[], None]] = None) -> TurnResult:
-    """Ответить на один вопрос. Ошибки API (anthropic.*Error) и BudgetExceeded — наверх."""
+             on_step: Optional[Callable[[], None]] = None, on_usage: Optional[UsageHook] = None) -> TurnResult:
+    """Ответить на один вопрос. Ошибки API (anthropic.*Error) и BudgetExceeded — наверх.
+
+    store — своя база сервера бота (engine/store.py): дневной предел и расход; on_usage —
+    расход шага для отчёта сайту."""
     model = model or settings.MODEL
     effort = effort or settings.EFFORT
     max_rounds = settings.MAX_TOOL_ROUNDS if max_rounds is None else max_rounds
@@ -181,7 +190,7 @@ def run_turn(client: Any, *, system_text: str, tool_list: List[Dict[str, Any]], 
     pauses = 0
     final = False
     while True:
-        check_budget()
+        check_budget(store)
         response = create_message(client, lambda: request_params(
             model=model, effort=effort, system_text=system_text, tool_list=tool_list, messages=messages,
             final=final))
@@ -191,6 +200,8 @@ def run_turn(client: Any, *, system_text: str, tool_list: List[Dict[str, Any]], 
         result.cost_usd += cost
         try:
             store.add_usage(served_by, usage, cost)
+            if on_usage is not None:
+                on_usage(served_by, usage, cost)
         except Exception:  # noqa: BLE001 — учёт не должен ронять ответ
             log.exception('[BOT] не удалось записать расход')
         content = [_block_dict(b) for b in response.content]
@@ -249,16 +260,13 @@ def run_turn(client: Any, *, system_text: str, tool_list: List[Dict[str, Any]], 
     return result
 
 
-def run_agent(client: Any, agent_name: str, task: str, *, parent: tools.ToolContext,
-              header: str = '') -> str:
+def run_agent(client: Any, persona: tools.Persona, task: str, *, parent: tools.ToolContext, store,
+              header: str = '', on_usage: Optional[UsageHook] = None) -> str:
     """Поручение агенту: отдельный разговор с его инструкциями и инструментами. Вернуть отчёт."""
-    from kultura_bot import config
-    agent = config.load_agents()[agent_name]
-    ctx = tools.ToolContext(app=parent.app, principal=parent.principal, chat_id=parent.chat_id,
-                            domains=agent.domains, charts_sent=parent.charts_sent)
+    ctx = tools.ToolContext(site=parent.site, chat_id=parent.chat_id, allowed=persona.toolset.names,
+                            is_agent=True, charts_sent=parent.charts_sent)
     text = (header + '\n' if header else '') + task
-    result = run_turn(client, system_text=config.agent_system_text(agent),
-                      tool_list=tools.tool_defs(domains=agent.domains), history=[],
-                      user_content=[{'type': 'text', 'text': text}], ctx=ctx, effort=settings.AGENT_EFFORT,
-                      max_rounds=settings.AGENT_MAX_TOOL_ROUNDS)
+    result = run_turn(client, system_text=persona.system, tool_list=persona.toolset.defs, history=[],
+                      user_content=[{'type': 'text', 'text': text}], ctx=ctx, store=store,
+                      effort=settings.AGENT_EFFORT, max_rounds=settings.AGENT_MAX_TOOL_ROUNDS, on_usage=on_usage)
     return result.text

@@ -1,0 +1,10 @@
+# Самообновление бота @MCPkulturabot из GitHub (запускает kultura-bot-update.timer).
+# Журнал: journalctl -u kultura-bot-update
+[Unit]
+Description=Самообновление бота @MCPkulturabot из GitHub
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/kultura-bot-update

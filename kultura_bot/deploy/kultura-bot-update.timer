@@ -1,0 +1,11 @@
+# Раз в 2 минуты сверять бота с веткой main на GitHub (kultura-bot-update.service).
+[Unit]
+Description=Проверка обновлений бота @MCPkulturabot
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=2min
+RandomizedDelaySec=20
+
+[Install]
+WantedBy=timers.target

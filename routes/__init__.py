@@ -25,6 +25,7 @@ from .reviews import reviews_bp
 from .mcp import mcp_bp
 from .mcp_oauth import mcp_oauth_bp
 from .tg_miniapp import tg_miniapp_bp
+from .bot_api import bot_api_bp
 
 # Редактор меню (/menu) перенесён из локального menu_tool/ в основное приложение:
 # данные на постоянном диске (/kultura), Chromium для PDF есть в прод-образе
@@ -66,3 +67,6 @@ def register_blueprints(app):
     # Мини-приложение Telegram «Графики» (2026-10-18): /tg/chart и /api/tg/charts/<id>
     # по initData бота @MCPkulturabot, см. docs/tg-miniapp.md.
     app.register_blueprint(tg_miniapp_bp)
+    # Сервер бота @MCPkulturabot в Амстердаме (2026-10-19): настройки, привязки и отчёт по его
+    # ключу (/api/bot/*), см. docs/kultura-bot.md.
+    app.register_blueprint(bot_api_bp)

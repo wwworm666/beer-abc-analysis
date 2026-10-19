@@ -16,8 +16,6 @@
 - низкоуровневые вызовы Telegram Bot API (send_message, editMessageText, ...);
 - api_call_files — тот же путь с обходом блокировок, но с файлами (multipart):
   им контент-план публикует фото и видео в каналы баров (core/content_publisher.py);
-- download_file — скачать файл, присланный боту (фото и PDF для бота @MCPkulturabot,
-  kultura_bot/telegram_io.py), тем же путём;
 - регистрацию webhook (set_webhook / delete_webhook / get_webhook_info);
 - обработку входящих апдейтов (handle_update) — команды + callback подписки.
 """
@@ -359,64 +357,6 @@ def api_call_files(method: str, fields: dict = None, files=None, timeout: int = 
     log.warning("TG %s failed: все пути исчерпаны (основной + %d запасных)",
                 method, len(_FALLBACK_IPS))
     _report(outcome, 'not_sent')
-    return None
-
-
-# --- скачивание файла, присланного боту (getFile -> /file/bot<token>/<путь>) ---
-# Бот @MCPkulturabot (kultura_bot/) читает фото и PDF из сообщений. Путь тот же: основной
-# адрес, при сбое — запасные IP с SNI. Скачивание повторять безопасно (это чтение).
-# Размер проверяется по мере чтения: больше max_bytes — None, файл целиком в память не
-# берётся.
-DOWNLOAD_READ_TIMEOUT = 60
-
-
-def _read_capped(resp, max_bytes: int):
-    data = bytearray()
-    for chunk in resp.iter_content(64 * 1024):
-        data.extend(chunk)
-        if len(data) > max_bytes:
-            return None
-    return bytes(data)
-
-
-def download_file(file_path: str, *, token: str, max_bytes: int):
-    """Байты файла Telegram по file_path из getFile; None — не скачалось или больше max_bytes."""
-    global _primary_dead_until, _working_ip
-    if not token or not file_path:
-        return None
-    path = f"/file/bot{token}/{file_path.lstrip('/')}"
-    if time.time() >= _primary_dead_until:
-        try:
-            r = _with_connect_retries(
-                lambda: requests.get(_API + path, stream=True, timeout=(CONNECT_TIMEOUT, DOWNLOAD_READ_TIMEOUT)),
-                CONNECT_ATTEMPTS)
-            try:
-                return _read_capped(r, max_bytes) if r.status_code == 200 else None
-            finally:
-                r.close()
-        except Exception as e:
-            _primary_dead_until = time.time() + _PRIMARY_COOLDOWN
-            log.warning("TG file: основной путь не работает (%s) — пробуем запасные IP", _scrub(e, token))
-    for n, ip in enumerate(_iter_candidate_ips()):
-        s = requests.Session()
-        s.mount("https://", _SNIAdapter())
-        try:
-            r = _with_connect_retries(
-                lambda ip=ip: s.get(f"https://{ip}{path}", headers={"Host": _API_HOST}, stream=True,
-                                    timeout=(CONNECT_TIMEOUT, DOWNLOAD_READ_TIMEOUT)),
-                CONNECT_ATTEMPTS if n == 0 else 1)
-            try:
-                if r.status_code != 200:
-                    return None
-                if _working_ip != ip:
-                    _working_ip = ip
-                return _read_capped(r, max_bytes)
-            finally:
-                r.close()
-        except Exception as e:
-            log.warning("TG file via %s failed: %s", ip, _scrub(e, token))
-        finally:
-            s.close()
     return None
 
 
