@@ -13,6 +13,8 @@
 - Shelf-Life Cockpit (tier-логика срочности уценки)
 - Дашборд сотрудника, KPI/бонусы, график смен
 - Open-check Telegram-бот (ежедневная проверка открытых смен)
+- ИИ-помощник владельца в Telegram — бот @MCPkulturabot на Claude API с инструментами сайта
+  ([kultura-bot.md](kultura-bot.md), папка `kultura_bot/`)
 - PWA-виджет выручки (Android/iOS)
 
 Прод: **https://beerkultura.ru** (Selectel Cloud Server, Docker Compose + Caddy + gunicorn `--workers 2`).
@@ -23,10 +25,11 @@
 
 ### Точка входа и инфраструктура
 
-- [app.py](../app.py) — инициализация Flask, регистрация blueprint'ов, запуск шедулеров (CHZ, open-check), Telegram init
+- [app.py](../app.py) — инициализация Flask, регистрация blueprint'ов, запуск шедулеров (CHZ, open-check), Telegram init, бот @MCPkulturabot (`kultura_bot.start`)
 - [extensions.py](../extensions.py) — глобальные синглтоны (taps_manager, plans_manager, venues_manager, кэши OLAP/employees)
 - [config.py](../config.py) — iiko API конфиг (SERVER/LOGIN/PASSWORD)
-- [requirements.txt](../requirements.txt) — Flask 3.0, pandas 2.2, gunicorn 21.2, aiogram 3.4, paramiko, portalocker, openpyxl, **playwright** (только для menu_tool)
+- [requirements.txt](../requirements.txt) — Flask 3.0, pandas 2.2, gunicorn 21.2, aiogram 3.4, paramiko, portalocker, openpyxl, **playwright** (menu_tool и PNG графиков), **anthropic** (Claude API для бота @MCPkulturabot)
+- [kultura_bot/](../kultura_bot/README.md) — бот @MCPkulturabot целиком: инструкции, агенты, настройки, графики ([kultura-bot.md](kultura-bot.md))
 - [.env.example](../.env.example) — шаблон переменных окружения
 - [Dockerfile](../Dockerfile), [docker-compose.yml](../docker-compose.yml), [Caddyfile](../Caddyfile) — актуальный деплой на Selectel VPS
 - [render.yaml](../render.yaml) — **legacy** (rollback-страховка на 1-2 недели, не используется)
@@ -214,8 +217,9 @@ data/
 | Telegram                                                       |
 | - @kultura_taplist_bot — KULT Taplist (polling + webhook)      |
 | - @kultura_open_bot    — Open-check (webhook, sync requests)   |
-| - @MCPkulturabot       — графики агентов MCP (только sendPhoto |
-|   и мини-приложение /tg/chart, docs/tg-miniapp.md)             |
+| - @MCPkulturabot       — ИИ-помощник владельца (kultura_bot/,  |
+|   long polling, Claude API, docs/kultura-bot.md) и графики     |
+|   с мини-приложением /tg/chart (docs/tg-miniapp.md)            |
 +----------------------------------------------------------------+
 ```
 
@@ -227,7 +231,8 @@ data/
 |---|---|---|
 | **iiko API** | Продажи (OLAP), кассовые смены, посещения сотрудников, номенклатура (баркоды через XML) | env `IIKO_SERVER/PORT/LOGIN/PASSWORD`, [core/iiko_api.py](../core/iiko_api.py) |
 | **Честный Знак** | Маркировка пива/безалк/соков, сроки годности по партиям, привязка к КПП баров. Доступ — через бар-ПК с CryptoPro+Rutoken | env `REMOTE_USER/HOST/PASS`, [chz_test/chz.py](../chz_test/chz.py), [core/chz_scheduler.py](../core/chz_scheduler.py); названия новинок для приёмки — команда `product-info` ([core/receiving_chz.py](../core/receiving_chz.py)) |
-| **Telegram** | KULT Taplist (уведомления барменам) + Open-check (мониторинг открытых смен) + графики агентов MCP от @MCPkulturabot с мини-приложением `/tg/chart` ([tg-miniapp.md](tg-miniapp.md)) | env `TELEGRAM_BOT_TOKEN`, `TELEGRAM_OPEN_CHECK_BOT_TOKEN`, `TELEGRAM_GROUP_CHAT_ID`, `TELEGRAM_ALARM_CHAT_IDS`; бухгалтерии о разборе приёмок — `RECEIVING_NOTIFY_CHAT_IDS`; графики — токен бота на странице `/admin/mcp` (запасной путь `TELEGRAM_MCP_BOT_TOKEN`) |
+| **Telegram** | KULT Taplist (уведомления барменам) + Open-check (мониторинг открытых смен) + ИИ-помощник владельца @MCPkulturabot ([kultura-bot.md](kultura-bot.md)) и его графики с мини-приложением `/tg/chart` ([tg-miniapp.md](tg-miniapp.md)) | env `TELEGRAM_BOT_TOKEN`, `TELEGRAM_OPEN_CHECK_BOT_TOKEN`, `TELEGRAM_GROUP_CHAT_ID`, `TELEGRAM_ALARM_CHAT_IDS`; бухгалтерии о разборе приёмок — `RECEIVING_NOTIFY_CHAT_IDS`; @MCPkulturabot — токен на странице `/admin/mcp`, раздел «Бот» (запасной путь `TELEGRAM_MCP_BOT_TOKEN`) |
+| **Claude API (Anthropic)** | Бот @MCPkulturabot: ответы модели Claude, инструменты сайта через мост MCP ([kultura-bot.md](kultura-bot.md)) | ключ и прокси — страница `/admin/mcp`, раздел «Бот» (запасной путь `KULTURA_BOT_ANTHROPIC_KEY`, `KULTURA_BOT_PROXY`); модель, усилие, дневной предел — [kultura_bot/settings.py](../kultura_bot/settings.py) |
 | **Tailscale** | Mesh-сеть до бар-ПК (`100.98.149.108`) | На сервере и бар-ПК как daemon |
 
 ---
@@ -269,6 +274,7 @@ data/
 
 ## Changelog
 
+- **2026-10-19** — Бот @MCPkulturabot в репозитории: папка `kultura_bot/` (Claude API, инструкции бота и агентов, настройки, графики из `core/tg_*` — в `kultura_bot/charts/`), запуск из `app.py` в одном воркере, внешняя интеграция Claude API ([kultura-bot.md](kultura-bot.md)).
 - **2026-10-18** — Графики бота @MCPkulturabot: blueprint `tg_miniapp_bp` (`/tg/chart`, `/api/tg/charts/<id>`), модули `core/tg_*`, таблица `tg_charts` в `mcp.db`, PNG в Chromium ([tg-miniapp.md](tg-miniapp.md)).
 - **2026-10-03** — Приёмка на РЦ: blueprint `receiving_bp`, модули `core/receiving_*`, шедулер индекса iiko, данные `receiving.db`/`receiving_photos/`/`receiving_index.json`, Telegram бухгалтерии ([receiving.md](receiving.md)).
 - **2026-05-28** — Полная ревизия. Документация консолидирована в `docs/`. Добавлены: Selectel-деплой, atomic locks под gunicorn 2-workers, WAL для shifts.db, отдельные модули explorer/expiration/open-check, menu_tool как standalone. Удалены: упоминания удалённого menu-модуля и render.yaml-деплоя.

@@ -2,7 +2,7 @@
 {#- Мини-приложение «Графики» бота @MCPkulturabot (routes/tg_miniapp.py, docs/tg-miniapp.md).
     mode: app — в Telegram (данные приносит static/tg_chart/app.js по initData);
           dev — фикстуры прототипа, только при debug (static/tg_chart/dev.js);
-          png — картинка для чата в Chromium без сети (core/tg_chart_png.py, static/tg_chart/png.js).
+          png — картинка для чата в Chromium без сети (kultura_bot/charts/png.py, static/tg_chart/png.js).
     Шаблон самодостаточный: без url_for и current_user — его собирает и рендерер PNG вне запроса. -#}
 {%- set v = app_version|default('dev') -%}
 <html lang="ru" data-mode="{{ mode }}"{% if theme %} data-theme="{{ theme }}"{% endif %}>

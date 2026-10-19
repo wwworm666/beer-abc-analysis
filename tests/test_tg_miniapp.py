@@ -1,5 +1,5 @@
 """
-Мини-приложение Telegram «Графики» (routes/tg_miniapp.py, core/tg_webapp_auth.py, core/tg_charts.py).
+Мини-приложение Telegram «Графики» (routes/tg_miniapp.py, kultura_bot/charts/webapp_auth.py, kultura_bot/charts/spec.py).
 
 Что проверяется:
 - initData: правильная подпись проходит; подделанное поле, чужой токен, выброшенная из
@@ -37,9 +37,10 @@ os.environ.setdefault('SESSION_COOKIE_SECURE', '0')
 
 from flask import Flask  # noqa: E402
 
-from core import tg_chart_access, tg_chart_settings, tg_charts, tg_webapp_auth  # noqa: E402
 from core.mcp import db, settings  # noqa: E402
-from core.tg_chart_fixtures import FIXTURES  # noqa: E402
+from kultura_bot import credentials  # noqa: E402
+from kultura_bot.charts import access as tg_chart_access, spec as tg_charts, webapp_auth as tg_webapp_auth  # noqa: E402
+from kultura_bot.charts.fixtures import FIXTURES  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TOKEN = 'test-mcp-bot-token'
@@ -278,12 +279,12 @@ def test_access_rules_and_cache():
 
 def test_token_from_admin_settings_wins_over_env(store, monkeypatch):
     monkeypatch.setenv('TELEGRAM_MCP_BOT_TOKEN', 'env-token')
-    settings.set(tg_chart_settings.KEY_TOKEN, TOKEN)
+    settings.set(credentials.KEY_TOKEN, TOKEN)
     chart_id = saved_chart()
     client = make_app().test_client()
     assert get(client, chart_id, init_data(token=TOKEN)).status_code == 200
     assert get(client, chart_id, init_data(token='env-token')).status_code == 401
-    settings.set(tg_chart_settings.KEY_TOKEN, '')
+    settings.set(credentials.KEY_TOKEN, '')
     assert get(client, chart_id, init_data(token='env-token')).status_code == 200, 'пусто в настройках — окружение'
 
 

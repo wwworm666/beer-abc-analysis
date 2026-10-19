@@ -3,7 +3,7 @@
  *
  *     node tests/test_tg_chart_js.mjs <fixtures.json>
  *
- * fixtures.json — описания графиков после core/tg_charts.normalize (его пишет
+ * fixtures.json — описания графиков после kultura_bot/charts/spec.normalize (его пишет
  * tests/test_tg_chart_js.py, он же запускает этот файл под pytest). Проверяется:
  *   1. числа и даты по-русски: пробел-разделитель тысяч, запятая, минус «−», склонение
  *      единиц, проценты с одним знаком, «тыс. ₽», диапазоны дат и «данные на … МСК»;

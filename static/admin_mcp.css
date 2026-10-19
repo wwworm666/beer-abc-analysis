@@ -147,3 +147,14 @@
     .mcp-copy-row { flex-direction: column; }
     .mcp-args { max-width: 260px; }
 }
+
+/* Раздел «Бот @MCPkulturabot». */
+.mcp-panel .mcp-subhead { margin: 28px 0 8px; font-size: 15px; }
+.mcp-fold { margin-top: 16px; }
+.mcp-fold summary { cursor: pointer; font-size: 13px; color: var(--mcp-muted); }
+.mcp-fold-body { margin-top: 8px; }
+.mcp-fold-body p { margin: 0 0 8px; }
+.mcp-state-bad { color: var(--mcp-danger); }
+.mcp-state-good { color: var(--mcp-success); }
+a.mcp-btn { text-decoration: none; display: inline-block; }
+a.mcp-btn[hidden] { display: none; }
