@@ -24,11 +24,14 @@
     GET    /api/admin/mcp/settings             {settings, subscribers, bot_configured, defaults}
     PUT    /api/admin/mcp/settings             {notify_chat_id?, oauth_redirect_hosts?} -> то же
     GET    /api/admin/mcp/bot                  бот @MCPkulturabot: секреты подсказками (без самих
-                                               секретов), состояние, расход, привязки, агенты
+                                               секретов), состояние сервера бота, расход, привязки,
+                                               ключ сервера, агенты (kultura_bot/site_api.page_view)
     PUT    /api/admin/mcp/bot                  {token?, clear_token?, anthropic_key?, clear_anthropic_key?,
-                                               proxy?, paused?} -> то же + warnings (kultura_bot/credentials.py)
+                                               paused?} -> то же + warnings (kultura_bot/credentials.py)
     POST   /api/admin/mcp/bot/link             одноразовая ссылка «Подключить мой Telegram» -> {url, expires_in_s}
     DELETE /api/admin/mcp/bot/links/<tg_id>    отвязать Telegram -> {ok}
+    POST   /api/admin/mcp/bot/install          новый ключ сервера бота (прежний отзывается) и команда
+                                               установки с ним -> {command, token_prefix} — один раз
 Админ-API в охват MCP не входит (core/mcp/tools/common.py, EXCLUDED): агент не
 управляет доступом к себе — выпуск токенов, отзыв и настройки только руками владельца.
 """
@@ -254,31 +257,31 @@ def admin_settings_put():
 
 # ------------------------------------------------------------------ бот @MCPkulturabot
 
-BOT_FIELDS = {'token', 'clear_token', 'anthropic_key', 'clear_anthropic_key', 'proxy', 'paused'}
+BOT_FIELDS = {'token', 'clear_token', 'anthropic_key', 'clear_anthropic_key', 'paused'}
 
 
 def _bot_payload(warnings=None) -> dict:
-    from kultura_bot import credentials, service
-    return dict(credentials.public_view(), **service.status_view(), warnings=list(warnings or []))
+    from kultura_bot import site_api
+    return site_api.page_view(warnings)
 
 
 @mcp_bp.route('/api/admin/mcp/bot', methods=['GET'])
 @admin_required
 def admin_bot_get():
-    """Бот: секреты подсказками (kultura_bot/credentials.py), состояние, расход, привязки."""
+    """Бот: секреты подсказками (kultura_bot/credentials.py), состояние сервера бота, расход, привязки."""
     return jsonify(_bot_payload())
 
 
 @mcp_bp.route('/api/admin/mcp/bot', methods=['PUT'])
 @admin_required
 def admin_bot_put():
-    """Сохранить токен (getMe), ключ Anthropic (список моделей), прокси, паузу."""
+    """Сохранить токен (getMe), ключ Anthropic (формат; проверяет сервер бота), паузу."""
     from kultura_bot import credentials
     body = _json_body()
     unknown = sorted(set(body) - BOT_FIELDS)
     if unknown:
         return _error('Неизвестные настройки: ' + ', '.join(unknown))
-    for name in ('token', 'anthropic_key', 'proxy'):
+    for name in ('token', 'anthropic_key'):
         if body.get(name) is not None and not isinstance(body.get(name), str):
             return _error(f'{name} — строка')
     paused = body.get('paused')
@@ -288,7 +291,7 @@ def admin_bot_put():
         view = credentials.save(token=body.get('token'), clear_token=body.get('clear_token') is True,
                                 anthropic_key_value=body.get('anthropic_key'),
                                 clear_anthropic_key=body.get('clear_anthropic_key') is True,
-                                proxy=body.get('proxy'), paused_value=paused, by=_login())
+                                paused_value=paused, by=_login())
     except ValueError as exc:
         return _error(str(exc))
     return jsonify(_bot_payload(view.get('warnings')))
@@ -312,3 +315,20 @@ def admin_bot_unlink(tg_user_id):
     if not tg_user_id.isdigit():
         return _error('Номер Telegram — число')
     return jsonify({'ok': store.delete_link(tg_user_id)})
+
+
+@mcp_bp.route('/api/admin/mcp/bot/install', methods=['POST'])
+@admin_required
+def admin_bot_install():
+    """Команда установки сервера бота в Амстердаме с новым ключом (прежний ключ отзывается).
+
+    Ключ целиком — только в этом ответе (как у «Выпустить токен»): страница показывает
+    команду один раз. Владелец ключа — текущий администратор (kultura_bot/site_api.py)."""
+    from kultura_bot import site_api
+    user = current_user() or {}
+    if not user.get('id'):
+        return _error('Нет пользователя', 401)
+    try:
+        return jsonify(site_api.issue_install(user))
+    except ValueError as exc:
+        return _error(str(exc))

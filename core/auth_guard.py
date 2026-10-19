@@ -56,6 +56,13 @@ PUBLIC_ENDPOINTS = {
     'tg_miniapp.chart_api',
     'tg_miniapp.chart_dev',
     'tg_miniapp.chart_dev_png',
+    # Сервер бота @MCPkulturabot в Амстердаме (routes/bot_api.py): у него нет cookie сайта.
+    # Каждый эндпоинт пускает только ключ сервера бота (kultura_bot/site_api.verify_engine),
+    # без него — 401.
+    'bot_api.config',
+    'bot_api.link',
+    'bot_api.actor',
+    'bot_api.report',
 }
 
 

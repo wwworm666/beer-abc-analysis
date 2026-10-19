@@ -100,6 +100,8 @@ PROMPTS: list = []
 _ACCESS_REASON = ('агент не управляет доступом к себе: токены, OAuth-приложения, журнал и '
                   'настройки доступа — только владелец на странице /admin/mcp')
 _BOT_REASON = 'инфраструктура Telegram-бота (вебхук), не данные сервиса'
+_ENGINE_REASON = ('служебный API сервера бота @MCPkulturabot (Амстердам): вход только по ключу сервера бота, '
+                  'отдаёт его настройки с секретами и принимает отчёт — агенту закрыт')
 
 EXCLUDED = {
     ('GET', '/api/test'): 'отладочный маршрут без данных (эхо «Test successful»)',
@@ -122,6 +124,11 @@ EXCLUDED = {
     ('PUT', '/api/admin/mcp/bot'): _ACCESS_REASON + ' (секреты бота @MCPkulturabot)',
     ('POST', '/api/admin/mcp/bot/link'): _ACCESS_REASON + ' (привязка Telegram к администратору)',
     ('DELETE', '/api/admin/mcp/bot/links/<tg_user_id>'): _ACCESS_REASON + ' (привязка Telegram к администратору)',
+    ('POST', '/api/admin/mcp/bot/install'): _ACCESS_REASON + ' (ключ и команда установки сервера бота)',
+    ('GET', '/api/bot/config'): _ENGINE_REASON,
+    ('POST', '/api/bot/link'): _ENGINE_REASON,
+    ('GET', '/api/bot/actor/<tg_user_id>'): _ENGINE_REASON,
+    ('POST', '/api/bot/report'): _ENGINE_REASON,
     ('GET', '/api/tg/charts/<chart_id>'): 'мини-приложение Telegram «Графики»: вход по initData бота, а не по '
                                           'токену MCP; описание графика агент присылает сам (common_chart_send) '
                                           'и в ответе получает его chart_id',

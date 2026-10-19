@@ -52,12 +52,6 @@
                         <span class="mcp-hint" id="mcpBotKeyHint"></span>
                     </div>
                     <div class="mcp-field mcp-full">
-                        <label for="mcpBotProxy">Прокси для Anthropic — только если сервер туда не пускают</label>
-                        <input id="mcpBotProxy" class="mcp-input" type="text" autocomplete="off"
-                               spellcheck="false" placeholder="http://логин:пароль@хост:порт">
-                        <span class="mcp-hint" id="mcpBotProxyHint"></span>
-                    </div>
-                    <div class="mcp-field mcp-full">
                         <label class="mcp-check"><input type="checkbox" id="mcpBotPaused">
                             Пауза: бот молчит (графики агентов по MCP при этом уходят)</label>
                     </div>
@@ -66,6 +60,25 @@
                         <span class="mcp-ok" id="mcpBotOk"></span>
                         <span class="mcp-err" id="mcpBotError"></span>
                     </div>
+                </div>
+
+                <h2 class="mcp-subhead">Сервер бота в Амстердаме</h2>
+                <p class="mcp-note">Бот работает на сервере в Амстердаме: этот сайт стоит в России, где API Anthropic
+                   недоступен. Установка — один раз: команду ниже выполнить на том сервере под root. Дальше бот
+                   обновляется из GitHub сам, а токен, ключ и паузу берёт с этой страницы.</p>
+                <p class="mcp-note" id="mcpBotEngine"></p>
+                <div class="mcp-actions">
+                    <button type="button" class="mcp-btn mcp-btn-ghost" id="mcpBotInstall">Команда установки</button>
+                    <span class="mcp-err" id="mcpBotInstallError"></span>
+                </div>
+                <div class="mcp-token-box" id="mcpBotInstallResult" hidden>
+                    <p class="mcp-strong">Команда показана один раз и содержит ключ сервера бота; прежний ключ отключён.
+                       Скопируйте её и выполните на сервере в Амстердаме под root.</p>
+                    <div class="mcp-copy-row">
+                        <code class="mcp-code mcp-secret" id="mcpBotInstallCmd"></code>
+                        <button type="button" class="mcp-btn mcp-btn-ghost mcp-btn-sm" id="mcpBotInstallCopy">Скопировать</button>
+                    </div>
+                    <button type="button" class="mcp-btn mcp-btn-ghost mcp-btn-sm" id="mcpBotInstallHide">Скрыть команду</button>
                 </div>
 
                 <h2 class="mcp-subhead">Кто может писать боту</h2>
@@ -88,13 +101,15 @@
                 <details class="mcp-fold">
                     <summary>Как устроен бот</summary>
                     <div class="mcp-note mcp-fold-body">
-                        <p>Бот работает на этом сервере вместе с сайтом и отвечает через Claude API по вашему ключу.
-                           Инструменты у него те же, что у агентов по MCP: каждый вызывает расчёт страницы сайта,
-                           все вызовы — в журнале ниже (коннектор telegram).</p>
+                        <p>Бот работает на сервере в Амстердаме и отвечает через Claude API по вашему ключу: сайт
+                           стоит в России, где API Anthropic недоступен, и сам к нему не обращается. Данные бот берёт
+                           у сайта по MCP, как остальные агенты: каждый инструмент вызывает расчёт страницы сайта,
+                           все вызовы — в журнале ниже (клиент «Бот @MCPkulturabot — сервер в Амстердаме»).</p>
                         <p>Всё, кроме секретов, лежит в репозитории, в папке <span class="mcp-code">kultura_bot/</span>:
                            инструкции бота — <span class="mcp-code">prompts/bot.md</span>, агенты — <span class="mcp-code">agents/*.md</span>,
                            модель, усилие, дневной предел расхода и графики — <span class="mcp-code">settings.py</span>.
-                           Меняются через репозиторий и выкладку.</p>
+                           Меняются через репозиторий: сервер бота сверяется с GitHub раз в пару минут и обновляется
+                           сам.</p>
                         <p id="mcpBotModel"></p>
                     </div>
                 </details>

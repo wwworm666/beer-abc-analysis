@@ -85,13 +85,19 @@ def test_access_management_is_not_exposed():
     report = _report()
     exclusions = registry.exclusions()
     admin_pairs = [pair for pair in report.required if pair[1].startswith('/api/admin/mcp')]
-    # 8 пар управления доступом MCP и 2 — настройки графиков бота (токен — секрет), с 2026-10-18
-    assert len(admin_pairs) == 12, admin_pairs
+    # 8 пар управления доступом MCP и 5 — раздел бота @MCPkulturabot (секреты, привязка Telegram,
+    # команда установки сервера бота), с 2026-10-19
+    assert len(admin_pairs) == 13, admin_pairs
     for pair in admin_pairs:
         assert pair in exclusions and 'доступом к себе' in exclusions[pair], pair
+    # API сервера бота (/api/bot/*): вход только по ключу сервера бота, отдаёт секреты — агенту закрыт
+    bot_pairs = [pair for pair in report.required if pair[1].startswith('/api/bot/')]
+    assert len(bot_pairs) == 4, bot_pairs
+    for pair in bot_pairs:
+        assert pair in exclusions and 'сервера бота' in exclusions[pair], pair
     tool_paths = {t.path for t in registry.all_tools() if t.route_backed}
-    assert not any(p.startswith('/api/admin/mcp') or p.startswith('/mcp') or p.startswith('/oauth')
-                   for p in tool_paths), 'инструмент ведёт на управление доступом или на сам MCP'
+    assert not any(p.startswith(('/api/admin/mcp', '/api/bot/', '/mcp', '/oauth')) for p in tool_paths), \
+        'инструмент ведёт на управление доступом, на API сервера бота или на сам MCP'
 
 
 def test_public_endpoints_for_mcp():

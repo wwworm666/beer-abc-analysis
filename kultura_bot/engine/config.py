@@ -1,4 +1,4 @@
-"""Инструкции бота и агентов — из файлов этой папки.
+"""Инструкции бота и агентов — из файлов папки kultura_bot.
 
     prompts/bot.md     инструкции бота (разговор с владельцем в Telegram)
     prompts/agent.md   общая часть инструкций для всех агентов
@@ -12,12 +12,13 @@
                  этих разделов (и общие common_) агенту видны, остальные нет
     description  когда поручать задачу этому агенту (бот видит это в своих инструкциях)
 
-Из чего собираются системные промпты:
+Из чего собираются системные промпты (правила сервиса бот берёт у сайта по MCP —
+те же, что получают ИИ-агенты владельца, tools.load_catalog):
 
-    бот   = prompts/bot.md + список агентов + правила сервиса для полного коннектора
-            (core/mcp/registry.instructions_for(None) — те же, что у агентов по MCP)
+    бот   = prompts/bot.md + список агентов + правила полного коннектора /mcp
+            (instructions из initialize)
     агент = prompts/agent.md + agents/<имя>.md + правила его разделов
-            (registry.domain_instructions) + общие правила сервиса
+            (common_instructions(domain)) + правила полного коннектора
 
 Файлы читаются один раз на процесс: правка инструкций — через выкладку. Ошибка в
 заголовке агента — ConfigError с именем файла (tests/test_kultura_bot.py ловит её до
@@ -31,9 +32,13 @@ from dataclasses import dataclass
 from functools import lru_cache
 from typing import Any, Dict, List, Tuple
 
-BOT_DIR = os.path.dirname(os.path.abspath(__file__))
+BOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))      # kultura_bot/
 PROMPTS_DIR = os.path.join(BOT_DIR, 'prompts')
 AGENTS_DIR = os.path.join(BOT_DIR, 'agents')
+
+# Разделы сайта (ключи core/mcp/spec.DOMAINS — сверяет tests/test_kultura_bot.py): сервер
+# бота кода сайта не содержит, список повторён здесь.
+DOMAINS = ('content', 'stocks', 'analytics', 'staff')
 
 AGENT_NAME_RE = re.compile(r'[a-z][a-z0-9_]{1,30}')
 REQUIRED_KEYS = ('name', 'title', 'domains', 'description')
@@ -60,7 +65,6 @@ def _read(path: str) -> str:
 
 def parse_agent(text: str, path: str = '<агент>') -> AgentDef:
     """Разобрать файл агента: заголовок «---» + текст."""
-    from core.mcp.spec import DOMAINS
     lines = text.splitlines()
     if not lines or lines[0].strip() != '---':
         raise ConfigError(f'{path}: файл агента начинается со строки «---» и заголовка')
@@ -118,32 +122,25 @@ def agent_prompt() -> str:
     return _read(os.path.join(PROMPTS_DIR, 'agent.md'))
 
 
-def _service_rules(domain=None) -> str:
-    from core.mcp import registry
-    return registry.instructions_for(domain)
-
-
-def bot_system_text() -> str:
-    """Системный промпт бота: инструкции, список агентов, правила сервиса."""
+def bot_system_text(service_rules: str) -> str:
+    """Системный промпт бота: инструкции, список агентов, правила сервиса (с сайта)."""
     agents = load_agents()
     lines = ['# Агенты для поручений (ask_agent)', '']
     for agent in agents.values():
         lines.append(f'- {agent.name} — {agent.title}: {agent.description}')
     parts = [bot_prompt(), '\n'.join(lines),
-             '# Правила сервиса (общие для всех агентов сайта)\n\n' + _service_rules(None)]
+             '# Правила сервиса (общие для всех агентов сайта)\n\n' + service_rules.strip()]
     return '\n\n'.join(p.strip() for p in parts if p.strip())
 
 
-def agent_system_text(agent: AgentDef) -> str:
-    """Системный промпт агента: общая часть, его инструкции, правила разделов и сервиса."""
-    from core.mcp import registry
-    from core.mcp.spec import DOMAINS
+def agent_system_text(agent: AgentDef, domain_rules: List[str], service_rules: str) -> str:
+    """Системный промпт агента: общая часть, его инструкции, правила его разделов и сервиса.
+
+    domain_rules — ответы common_instructions(domain) по его разделам (у каждого свой
+    заголовок «# Раздел (domain)»)."""
     parts = [agent_prompt(), f'# Ты — агент «{agent.title}»\n\n{agent.instructions}']
-    for domain in agent.domains:
-        rules = registry.domain_instructions(domain)
-        if rules:
-            parts.append(f'# Правила раздела «{DOMAINS[domain].title}» ({domain})\n\n{rules}')
-    parts.append('# Правила сервиса (общие для всех агентов сайта)\n\n' + registry.domain_instructions('common'))
+    parts += [rules for rules in domain_rules if rules.strip()]
+    parts.append('# Правила сервиса (общие для всех агентов сайта)\n\n' + service_rules.strip())
     return '\n\n'.join(p.strip() for p in parts if p.strip())
 
 

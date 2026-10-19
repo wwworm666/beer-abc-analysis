@@ -1,0 +1,31 @@
+# Бот @MCPkulturabot — сервер в Амстердаме (kultura_bot/engine). Ставит install.sh,
+# обновляет update.sh. Журнал: journalctl -u kultura-bot -f
+[Unit]
+Description=Бот @MCPkulturabot (kultura_bot/engine)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=kultura-bot
+Group=kultura-bot
+WorkingDirectory=/opt/kultura-bot/repo
+# KULTURA_BOT_KEY и KULTURA_SITE_URL — пишет install.sh (читает только root)
+EnvironmentFile=/etc/kultura-bot.env
+Environment=KULTURA_BOT_DATA=/var/lib/kultura-bot
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/opt/kultura-bot/venv/bin/python -m kultura_bot
+Restart=always
+RestartSec=10
+# Остановка: начатые ответы доводятся до конца (до 90 с), ждавшие очереди — «повторите вопрос»
+TimeoutStopSec=90
+StateDirectory=kultura-bot
+StateDirectoryMode=0700
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

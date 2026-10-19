@@ -125,12 +125,6 @@ def _start_background_jobs():
     from core.receiving_scheduler import start_scheduler as start_receiving_scheduler
     start_receiving_scheduler()
 
-    # Бот @MCPkulturabot (папка kultura_bot/): опрос Telegram и ответы через Claude API.
-    # Работает в одном воркере (flock) и молчит, пока на странице «Доступ агентов» нет
-    # токена бота и ключа Anthropic. KULTURA_BOT=0 — не запускать. См. docs/kultura-bot.md.
-    import kultura_bot
-    kultura_bot.start(app)
-
 
 # BEER_SCHEDULERS=0 — импорт app без фоновых потоков (локальные скрипты, проверки).
 # Иначе импорт запускает рассылки с боевыми токенами из .env: 2026-09-26 локальный

@@ -33,7 +33,9 @@ Claude на компьютере и телефоне, задачи Claude по �
 **Почему модель не вызывается с нашего сервера.** Прод-сервер (Selectel VPS) стоит в России, а
 Россия не входит в регионы, где доступен API Anthropic. Поэтому сервер сам к Claude не обращается:
 модель работает на стороне Claude (подписка владельца) и сама приходит к нашему серверу с вызовом
-инструмента. Ключ API и отдельный счёт за токены не нужны.
+инструмента. Ключ API и отдельный счёт за токены не нужны. Бот @MCPkulturabot, которому нужен
+свой ключ API, работает на отдельном сервере в Амстердаме и тоже приходит к сайту по MCP
+([kultura-bot.md](kultura-bot.md)).
 
 ### Коннекторы, режимы и роли
 
@@ -890,12 +892,13 @@ common 1.
 | `GET`, `POST /api/test` | common | отладочный маршрут без данных (эхо «Test successful») |
 | `GET /api/debug/taps-data` | common | отладка: сырой файл `taps_data.json`; краны агенту дают инструменты stocks |
 | `POST /telegram/webhook`, `GET`/`POST /telegram/setup-webhook`, `POST /telegram/delete-webhook`, `GET /telegram/webhook-info` | common | инфраструктура Telegram-бота (вебхук), не данные сервиса |
-| `GET`/`POST /api/admin/mcp/tokens`, `DELETE /api/admin/mcp/tokens/<token_id>`, `GET /api/admin/mcp/grants`, `DELETE /api/admin/mcp/grants/<client_id>`, `GET /api/admin/mcp/audit`, `GET`/`PUT /api/admin/mcp/settings`, `GET`/`PUT /api/admin/mcp/bot`, `POST /api/admin/mcp/bot/link`, `DELETE /api/admin/mcp/bot/links/<tg_user_id>` (с 2026-10-19, вместо `/api/admin/mcp/charts`: секреты бота @MCPkulturabot и кто может ему писать) | common | агент не управляет доступом к себе: токены, OAuth-приложения, журнал, настройки доступа и бот — только владелец на `/admin/mcp` (журнал агенту даёт `common_audit_recent`) |
+| `GET`/`POST /api/admin/mcp/tokens`, `DELETE /api/admin/mcp/tokens/<token_id>`, `GET /api/admin/mcp/grants`, `DELETE /api/admin/mcp/grants/<client_id>`, `GET /api/admin/mcp/audit`, `GET`/`PUT /api/admin/mcp/settings`, `GET`/`PUT /api/admin/mcp/bot`, `POST /api/admin/mcp/bot/link`, `DELETE /api/admin/mcp/bot/links/<tg_user_id>`, `POST /api/admin/mcp/bot/install` (с 2026-10-19, вместо `/api/admin/mcp/charts`: секреты бота @MCPkulturabot, кто может ему писать, ключ и команда установки сервера бота) | common | агент не управляет доступом к себе: токены, OAuth-приложения, журнал, настройки доступа и бот — только владелец на `/admin/mcp` (журнал агенту даёт `common_audit_recent`) |
 | `POST /api/auth/users`; `POST /api/auth/users/<id>/password`, `/active`, `/admin`, `/employee`; `DELETE /api/auth/users/<id>` | staff | управление доступом остаётся только в интерфейсе: создание аккаунта, пароль, включение входа, флаг администратора, привязка аккаунта к сотруднику (решает, чью зарплату человек видит на `/me`; исключена 2026-09-28), удаление |
 | `POST /telegram/openbot/webhook`, `GET`/`POST /telegram/openbot/setup-webhook`, `GET /telegram/openbot/webhook-info`, `POST /telegram/openbot/delete-webhook` | staff | инфраструктура бота проверки открытия баров |
 | `GET /api/tg/charts/<chart_id>` | common | мини-приложение Telegram «Графики»: вход по initData бота, а не по токену MCP; описание графика агент присылает сам (`common_chart_send`) и в ответе получает его `chart_id` (с 2026-10-18, [tg-miniapp.md](tg-miniapp.md)) |
+| `GET /api/bot/config`, `POST /api/bot/link`, `GET /api/bot/actor/<tg_user_id>`, `POST /api/bot/report` | common | служебный API сервера бота @MCPkulturabot (Амстердам): вход только по ключу сервера бота, отдаёт его настройки с секретами и принимает отчёт — агенту закрыт (с 2026-10-19, [kultura-bot.md](kultura-bot.md)) |
 
-Всего 32 записи. Маршруты `/telegram/*` не входят в обязательный охват (он только `/api/*` и
+Всего 37 записей. Маршруты `/telegram/*` не входят в обязательный охват (он только `/api/*` и
 данные вне `/api/`), но записаны явно, чтобы решение было видно. Открыты агенту: список аккаунтов
 (`staff_auth_users`) и имя и сокращение аккаунта (`staff_auth_user_profile`) — это данные, а не
 доступ.
@@ -920,14 +923,15 @@ blueprint'ами сервиса (`routes.register_blueprints` + mcp + mcp_oauth)
 `path_params` совпадают с аргументами правила; исключения не ссылаются на несуществующие маршруты
 и не спорят с инструментами; реестр загрузился без ошибок и из всех пяти модулей; примеры
 (`examples`) проходят проверку схемы; у каждого инструмента чтения, который не тяжёлый, есть пример
-(для дымового прогона); все 12 пар `/api/admin/mcp/*` исключены с причиной «доступом к себе» и ни
-один инструмент не ведёт на `/api/admin/mcp`, `/mcp` или `/oauth`; в `PUBLIC_ENDPOINTS` есть 7
-MCP-эндпоинтов, а `mcp_oauth.authorize` — нет.
+(для дымового прогона); все 13 пар `/api/admin/mcp/*` исключены с причиной «доступом к себе», 4 пары
+`/api/bot/*` — с причиной «сервера бота», и ни один инструмент не ведёт на `/api/admin/mcp`,
+`/api/bot/`, `/mcp` или `/oauth`; в `PUBLIC_ENDPOINTS` есть 7 MCP-эндпоинтов, а
+`mcp_oauth.authorize` — нет.
 
-На 2026-10-19 (`py -3 -m core.mcp.coverage`): 253 пары — 231 инструментом и 22 исключениями;
+На 2026-10-19 (`py -3 -m core.mcp.coverage`): 258 пар — 231 инструментом и 27 исключениями;
 инструментов всего 247 (8 служебных без маршрута и 8 инструментов редактора меню на
 `/menu/api/*`, которые описаны добровольно: этот префикс в обязательный охват не входит). Из
-32 записей `EXCLUDED` в охват попадают 22, остальные 10 — маршруты `/telegram/*` (см.
+37 записей `EXCLUDED` в охват попадают 27, остальные 10 — маршруты `/telegram/*` (см.
 «Исключения»).
 
 **Как добавить маршрут правильно:**
@@ -981,7 +985,7 @@ iiko в исходнике; перечисления и пределы совп�
 |---|---|
 | `at` | момент вызова, МСК ISO |
 | `user_login`, `token_id`, `client_name` | владелец, токен (`st_…` статический, `oa_…` OAuth), имя токена или приложения |
-| `connector` | раздел или `all` для `/mcp`; не полный режим — через «/»: `content/read`, `all/draft`; `telegram` — бот @MCPkulturabot (токен `tg_<id в Telegram>`, клиент «Бот @MCPkulturabot», [kultura-bot.md](kultura-bot.md)) |
+| `connector` | раздел или `all` для `/mcp`; не полный режим — через «/»: `content/read`, `all/draft`. Бот @MCPkulturabot ходит по своему статическому токену — клиент «Бот @MCPkulturabot — сервер в Амстердаме» ([kultura-bot.md](kultura-bot.md)) |
 | `tool`, `args_preview` | инструмент (кривое имя — обрезанным до 64 символов) и JSON аргументов не длиннее 2000 символов; строки длиннее 300 символов заменены на «<строка N симв.>» — в журнал не попадают base64 файлов и длинные тексты |
 | `status` | `ok`, `error` (ошибка маршрута или аргументов), `denied` (отказ до исполнения: кривое имя, инструмент не из этого коннектора, запрет режима, лимит частоты, сервер занят) |
 | `http_status`, `duration_ms`, `result_chars`, `error_preview` | код ответа маршрута (у отказов до исполнения пусто — причина в тексте ошибки), длительность, длина результата, начало текста ошибки (до 500 символов) |
@@ -1038,7 +1042,7 @@ iiko в исходнике; перечисления и пределы совп�
 | Подключённые приложения (OAuth) | приложение, куда возвращает код, коннектор, режим, чьё, подключено, использовано, «Отключить» (раздел виден, если модуль OAuth загрузился) |
 | Журнал вызовов | последние 200 вызовов всех токенов: время, инструмент, коннектор, клиент, статус, код, мс, аргументы и ошибка; фильтр по инструменту и статусу |
 | Настройки | чат для отчётов (подписчики бота проверки открытия баров или номер вручную), разрешённые хосты OAuth |
-| Бот @MCPkulturabot (с 2026-10-19, вместо «Графики в Telegram») | состояние бота и расход на Claude; токен бота (проверка getMe), ключ Claude API (проверка запросом к Anthropic), прокси к Anthropic, пауза — на странице только подсказки «8801…HOg»; «Кто может писать боту»: «Подключить мой Telegram» (одноразовая ссылка) и привязки с «Отключить» — [kultura-bot.md](kultura-bot.md) |
+| Бот @MCPkulturabot (с 2026-10-19, вместо «Графики в Telegram») | состояние сервера бота в Амстердаме и расход на Claude; токен бота (проверка getMe), ключ Claude API (формат; живую проверку делает сервер бота), пауза — на странице только подсказки «8801…HOg»; «Сервер бота в Амстердаме»: ключ сервера и «Команда установки» (новый ключ, прежний отзывается; команда показывается один раз); «Кто может писать боту»: «Подключить мой Telegram» (одноразовая ссылка) и привязки с «Отключить» — [kultura-bot.md](kultura-bot.md) |
 
 Имена токенов, клиентов и превью аргументов приходят от пользователей и агентов, поэтому страница
 вставляет их через `textContent`, а не разметкой.
@@ -1056,16 +1060,22 @@ iiko в исходнике; перечисления и пределы совп�
 | `GET /api/admin/mcp/audit` | `?limit=&tool=&status=` (limit до 1000) | `{items}` |
 | `GET /api/admin/mcp/settings` | — | `{settings, defaults, subscribers, bot_configured}` |
 | `PUT /api/admin/mcp/settings` | `{notify_chat_id?, oauth_redirect_hosts?}` | то же; 400 — неизвестный ключ, пусто, ошибка ввода |
-| `GET /api/admin/mcp/bot` | — | `{telegram, anthropic, proxy, paused, status, usage, budget_usd, model, effort, links, agents}` — секреты только подсказками |
-| `PUT /api/admin/mcp/bot` | `{token?, clear_token?, anthropic_key?, clear_anthropic_key?, proxy?, paused?}` | то же и `warnings`; 400 — неизвестное поле, не тот тип, токен или ключ не прошли проверку |
+| `GET /api/admin/mcp/bot` | — | `{telegram, anthropic, paused, status, usage, budget_usd, model, effort, links, engine, agents}` — секреты только подсказками |
+| `PUT /api/admin/mcp/bot` | `{token?, clear_token?, anthropic_key?, clear_anthropic_key?, paused?}` | то же и `warnings`; 400 — неизвестное поле, не тот тип, токен или ключ не прошли проверку |
 | `POST /api/admin/mcp/bot/link` | — | `{code, url, expires_in_s}` — одноразовая ссылка привязки Telegram текущего администратора |
 | `DELETE /api/admin/mcp/bot/links/<tg_user_id>` | — | `{ok}`; 400 — не число |
+| `POST /api/admin/mcp/bot/install` | — | `{command, token_prefix, script_url}` — новый ключ сервера бота (статический токен, все разделы, полный режим, без срока; прежний отзывается) в команде установки, один раз |
+
+API сервера бота `/api/bot/*` (`routes/bot_api.py`) — не админ-API: вход только по ключу сервера
+бота, агентам по MCP закрыт, в `PUBLIC_ENDPOINTS` (своя проверка ключа, cookie сайта у сервера
+бота нет) — [kultura-bot.md](kultura-bot.md), раздел 13.
 
 Публичные для гейта эндпоинты платформы (`core/auth_guard.PUBLIC_ENDPOINTS`): `mcp.mcp_all`,
 `mcp.mcp_domain` (он же обслуживает адреса с режимом), `mcp_oauth.protected_resource_metadata`,
 `mcp_oauth.authorization_server_metadata`, `mcp_oauth.register_client`, `mcp_oauth.token`,
 `mcp_oauth.revoke`. Они проверяют токен сами. Страница согласия `mcp_oauth.authorize` и `/admin/mcp`
-в список не входят — им нужен вход в сайт. Подробно — [auth.md](auth.md).
+в список не входят — им нужен вход в сайт. С 2026-10-19 там же `bot_api.config`, `bot_api.link`,
+`bot_api.actor`, `bot_api.report` — API сервера бота, вход по его ключу. Подробно — [auth.md](auth.md).
 
 ### Где агент оставляет след (`via_mcp`, `mcp_mode`)
 
@@ -1292,6 +1302,9 @@ py -3 scripts/mcp_eval.py          # сухой план эталонного п
 - **Добавить инструмент на `/api/admin/mcp/*`** или снять исключения управления доступом —
   агент сможет выпустить себе токен или привязать аккаунт к чужой зарплате; падает
   `test_access_management_is_not_exposed`.
+- **Пустить в `/api/bot/*` любой MCP-токен или открыть его инструментом** — агент заберёт токен
+  бота @MCPkulturabot и ключ Anthropic (`/api/bot/config`); проверка ключа —
+  `kultura_bot/site_api.verify_engine`, тесты — `tests/test_kultura_bot_site.py`.
 - **Снять пометку `heavy`** — агент сможет положить iiko параллельными отчётами; **снять
   `destructive`** — клиент не спросит подтверждения перед удалением, отправкой или выгрузкой;
   **снять `open_world` с кранов и фида** — изменения публичного таплиста выглядят внутренними.
@@ -1312,6 +1325,17 @@ py -3 scripts/mcp_eval.py          # сухой план эталонного п
 
 ## Changelog
 
+- **2026-10-19 (бот в Амстердаме)** — бот @MCPkulturabot переехал на отдельный сервер в Амстердаме
+  (сайт в России, API Anthropic оттуда недоступен) и стал обычным клиентом MCP: правила и
+  инструменты берёт `initialize` и `tools/list` (`/mcp` и `/mcp/<раздел>`), вызывает `tools/call`
+  на `/mcp` по своему статическому токену (все разделы, полный режим, без срока; в журнале —
+  клиент «Бот @MCPkulturabot — сервер в Амстердаме» вместо коннектора `telegram`). Токен
+  выпускает новая кнопка «Команда установки» (`POST /api/admin/mcp/bot/install`, в исключениях
+  «доступом к себе»); прежний при этом отзывается. Новый служебный API сервера бота
+  `/api/bot/config`, `/link`, `/actor/<tg_user_id>`, `/report` (`routes/bot_api.py`) — только
+  по этому токену, в `PUBLIC_ENDPOINTS` и в исключениях `common`. Поле «Прокси» на странице
+  убрано. Числа: охват 258 пар — 231 инструментом и 27 исключениями, 37 записей `EXCLUDED`,
+  13 пар `/api/admin/mcp/*`, 4 пары `/api/bot/*`; инструментов по-прежнему 247.
 - **2026-10-19 (бот в репозитории)** — бот @MCPkulturabot переписан внутри репозитория
   (`kultura_bot/`, [kultura-bot.md](kultura-bot.md)): работает вместе с сайтом на Claude API и
   зовёт инструменты реестра напрямую через мост (`bridge.execute`, коннектор `telegram` в

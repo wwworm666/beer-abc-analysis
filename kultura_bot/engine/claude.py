@@ -1,19 +1,17 @@
 """Связь с Claude API (Anthropic): клиент, разбор ошибок, проверка ключа, цена ответа.
 
-Ключ и прокси — со страницы «Доступ агентов» (kultura_bot/credentials.py); модель и
-цены — kultura_bot/settings.py. Клиент — официальный SDK `anthropic` (1.x, на httpx2).
-
-Прокси нужен, если Anthropic не пускает сервер из его страны: тогда все запросы бота к
-API идут через прокси (DefaultHttpxClient(proxy=…)), Telegram и сайт — напрямую.
+Запросы к Claude идут только с сервера бота в Амстердаме: сайт стоит в России, где API
+Anthropic недоступен, и к Anthropic не обращается (docs/kultura-bot.md). Ключ — со
+страницы «Доступ агентов» (сервер берёт его у сайта, kultura_bot/engine/site.py); модель
+и цены — kultura_bot/settings.py. Клиент — официальный SDK `anthropic` (1.x, на httpx2).
 
 Ошибки API превращаются в короткий текст для человека (describe_error): бот пишет его в
-чат, страница — в строку состояния. Ключ и прокси в тексты ошибок не попадают: тексты API
-их не содержат, а всё, что пришло из чужого исключения, проходит scrub — ключ, адрес прокси
-и пароль из него заменяются на «***».
+чат, страница — в строку состояния. Секреты в тексты ошибок не попадают: тексты API их не
+содержат, а всё, что пришло из чужого исключения, проходит scrub — переданные секреты
+заменяются на «***».
 """
 import threading
 from typing import Any, Dict, Iterable, Optional, Tuple
-from urllib.parse import urlsplit
 
 from kultura_bot import settings
 
@@ -22,51 +20,34 @@ from kultura_bot import settings
 # обрывах связи делает сам SDK (max_retries).
 REQUEST_TIMEOUT_S = 600
 MAX_RETRIES = 2
-CHECK_TIMEOUT_S = 20          # проверка ключа на странице: человек ждёт ответа
+CHECK_TIMEOUT_S = 20          # проверка ключа при запуске и смене: быстрый ответ, без повторов
 
-_CLIENTS: Dict[Tuple[str, str], Any] = {}
+_CLIENTS: Dict[str, Any] = {}
 _CLIENTS_LOCK = threading.Lock()
 
 
-def make_client(api_key: str, proxy: str = '', *, timeout: float = REQUEST_TIMEOUT_S,
-                max_retries: int = MAX_RETRIES):
-    """Новый клиент Anthropic (с прокси, если задан)."""
+def make_client(api_key: str, *, timeout: float = REQUEST_TIMEOUT_S, max_retries: int = MAX_RETRIES):
+    """Новый клиент Anthropic."""
     import anthropic
-    kwargs: Dict[str, Any] = {'api_key': api_key, 'timeout': timeout, 'max_retries': max_retries}
-    if proxy:
-        kwargs['http_client'] = anthropic.DefaultHttpxClient(proxy=proxy)
-    return anthropic.Anthropic(**kwargs)
+    return anthropic.Anthropic(api_key=api_key, timeout=timeout, max_retries=max_retries)
 
 
-def client_for(api_key: str, proxy: str = ''):
-    """Общий клиент на пару (ключ, прокси): пул соединений переиспользуется между вопросами.
+def client_for(api_key: str):
+    """Общий клиент на ключ: пул соединений переиспользуется между вопросами.
 
-    Ключ или прокси сменили — новый клиент, а старый не закрывается: им ещё могут
-    дописываться ответы в других чатах. Он уходит вместе с последним из них (сборщик мусора)."""
-    key = (api_key, proxy)
+    Ключ сменили — новый клиент, а старый не закрывается: им ещё могут дописываться ответы
+    в других чатах. Он уходит вместе с последним из них (сборщик мусора)."""
     with _CLIENTS_LOCK:
-        client = _CLIENTS.get(key)
+        client = _CLIENTS.get(api_key)
         if client is None:
             _CLIENTS.clear()
-            client = _CLIENTS[key] = make_client(api_key, proxy)
+            client = _CLIENTS[api_key] = make_client(api_key)
         return client
 
 
 def scrub(text: str, secrets: Iterable[str] = ()) -> str:
-    """Заменить в тексте секреты на «***»: ключ, адрес прокси и пароль из адреса."""
-    values = []
-    for value in secrets:
-        if not value:
-            continue
-        values.append(value)
-        if '://' in value:
-            try:
-                password = urlsplit(value).password
-            except ValueError:
-                password = None
-            if password:
-                values.append(password)
-    for value in sorted(values, key=len, reverse=True):
+    """Заменить в тексте секреты (токен Telegram, ключ Anthropic, ключ сервера) на «***»."""
+    for value in sorted((v for v in secrets if v), key=len, reverse=True):
         if len(value) >= 4:
             text = text.replace(value, '***')
     return text
@@ -86,8 +67,8 @@ def _describe(exc: BaseException) -> Tuple[str, str]:
         return 'auth', (f'Anthropic не принял ключ API (401). Новый ключ — в консоли Anthropic, вставить на '
                         f'странице {page}, раздел «Бот @{settings.BOT_USERNAME}».')
     if isinstance(exc, anthropic.PermissionDeniedError):
-        return 'denied', (f'Anthropic отказал серверу (403): {_message(exc)}. Если сервер в стране, где API '
-                          f'недоступен, нужен прокси — поле «Прокси» на странице {page}.')
+        return 'denied', (f'Anthropic отказал (403): {_message(exc)}. У ключа нет доступа к модели '
+                          f'{settings.MODEL} или к организации — проверьте ключ в консоли Anthropic.')
     if isinstance(exc, anthropic.RateLimitError):
         return 'rate', 'Anthropic ограничил частоту запросов (429). Повторите через минуту.'
     if isinstance(exc, anthropic.APIStatusError):
@@ -102,8 +83,7 @@ def _describe(exc: BaseException) -> Tuple[str, str]:
                                f'(Billing).')
         return 'bad_request', f'Anthropic вернул ошибку {status}: {text}'
     if isinstance(exc, (anthropic.APIConnectionError, anthropic.APITimeoutError)):
-        return 'offline', (f'Нет связи с Anthropic ({type(exc).__name__}). Если сервер в стране, где API '
-                           f'недоступен, нужен прокси — поле «Прокси» на странице {page}.')
+        return 'offline', f'Нет связи с Anthropic ({type(exc).__name__}). Повторите через минуту.'
     return 'other', f'{type(exc).__name__}: {exc}'
 
 
@@ -112,10 +92,10 @@ def _message(exc: BaseException) -> str:
     return text[:300]
 
 
-def check_key(api_key: str, proxy: str = '') -> Tuple[str, str]:
+def check_key(api_key: str) -> Tuple[str, str]:
     """Живая проверка ключа: список моделей (бесплатный запрос). ('ok', имя модели) или (вид, текст)."""
     try:
-        client = make_client(api_key, proxy, timeout=CHECK_TIMEOUT_S, max_retries=0)
+        client = make_client(api_key, timeout=CHECK_TIMEOUT_S, max_retries=0)
         try:
             page = client.models.list(limit=1)
             first = next(iter(page.data), None)
@@ -123,7 +103,7 @@ def check_key(api_key: str, proxy: str = '') -> Tuple[str, str]:
         finally:
             client.close()
     except Exception as exc:  # noqa: BLE001 — любой сбой -> текст для страницы
-        return describe_error(exc, secrets=(api_key, proxy))
+        return describe_error(exc, secrets=(api_key,))
 
 
 def prices_for(model: Optional[str]) -> Tuple[float, float, float, float]:
