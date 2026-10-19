@@ -96,7 +96,7 @@ def _shrink(png: bytes) -> bytes:
 
 
 def render_png(spec: Dict[str, Any], theme: str = 'light') -> bytes:
-    """PNG карточки графика (описание — уже после core/tg_charts.normalize)."""
+    """PNG карточки графика (описание — уже после kultura_bot/charts/spec.normalize)."""
     html = page_html(spec, theme=theme)
     if not RENDER_LOCK.acquire(timeout=RENDER_WAIT_S):
         raise RenderError('уже рисуется другая картинка — повторите через минуту')

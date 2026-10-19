@@ -9,7 +9,7 @@ beer-abc-analysis/
 ├── app.py                  # Точка входа Flask: blueprints + scheduler init + Telegram
 ├── extensions.py           # Синглтоны: taps_manager, plans_manager, кэши, OLAP locks
 ├── config.py               # iiko API конфиг (SERVER/PORT/LOGIN/PASSWORD)
-├── requirements.txt        # Python deps (Flask, pandas, gunicorn, aiogram, paramiko, portalocker)
+├── requirements.txt        # Python deps (Flask, pandas, gunicorn, aiogram, paramiko, portalocker, anthropic)
 ├── .env.example            # Шаблон переменных окружения
 ├── remote_exec.py          # SSH/SFTP к бар-ПК через paramiko (для ЧЗ refresh)
 ├── telegram_bot.py         # отдельный таплист-бот через API /api/taps/taplist-full (не запускается)
@@ -18,6 +18,8 @@ beer-abc-analysis/
 │
 ├── core/                   # Бизнес-логика (63 модуля)
 ├── routes/                 # Flask blueprints (11 файлов)
+├── kultura_bot/            # Бот @MCPkulturabot: Claude API + инструменты сайта; инструкции (prompts/),
+│                           #   агенты (agents/), настройки (settings.py), графики (charts/) — kultura-bot.md
 ├── templates/              # Jinja2 HTML
 ├── static/                 # CSS, JS, PWA
 ├── data/                   # Кеши и состояние (mounted persistent в проде)
@@ -41,7 +43,8 @@ beer-abc-analysis/
 │                           #   отправка и бот: test_content_publisher.py, test_guest_subscribers.py,
 │                           #   test_taplist_polling.py, test_review_notify.py; графики бота и
 │                           #   мини-приложение: test_tg_miniapp.py, test_tg_chart_send.py,
-│                           #   test_tg_chart_browser.py, test_tg_chart_js.py (+ .mjs); отзывы с Яндекс Карт:
+│                           #   test_tg_chart_browser.py, test_tg_chart_js.py (+ .mjs); бот @MCPkulturabot:
+│                           #   test_kultura_bot.py, test_kultura_bot_credentials.py; отзывы с Яндекс Карт:
 │                           #   test_yandex_maps_reviews.py, test_yandex_reviews_sync.py,
 │                           #   test_yandex_reviews_watchdog.py; старые ошибки:
 │                           #   test_dashboard_comments.py, test_dashboard_compare_export.py,
@@ -67,7 +70,7 @@ beer-abc-analysis/
 
 ---
 
-## `core/` — Бизнес-логика (71 модуль)
+## `core/` — Бизнес-логика (64 модуля)
 
 ### iiko-интеграция и данные (4)
 | Файл | Что делает |
@@ -171,13 +174,6 @@ beer-abc-analysis/
 | `open_check_bot.py` | Логика проверки + форматирование |
 | `open_check_telegram.py` | Telegram Bot API sync с обходом блокировок (`api_call`, файлы — `api_call_files`; `safe_resend` — запасной путь только при доказанном «не ушло»), меню подписки (кнопка) + команды /start /status |
 | `open_check_subscribers.py` | Хранилище самоподписавшихся чатов (единый список, portalocker) |
-| `tg_charts.py` | **Графики бота @MCPkulturabot** (с 2026-10-18): формат описания графика (`normalize`), хранилище `tg_charts` в `mcp.db` — id `token_urlsafe(16)`, срок 90 дней — [tg-miniapp.md](tg-miniapp.md) |
-| `tg_chart_send.py` | Отправка графика: чат разговора, PNG, `sendPhoto` с кнопкой «Открыть интерактивно» (флажок на `/admin/mcp`; личка — `web_app`, группа — ссылка `startapp` при заданном short name) |
-| `tg_chart_settings.py` | Настройки графиков: токен бота (проверка getMe), флажок кнопки, short name — страница `/admin/mcp`, запасной путь — окружение |
-| `tg_chart_access.py` | Кто открывает график: получатель лички или участник группы (`getChatMember`, кэш) |
-| `tg_chart_png.py` | PNG-карточка: страница мини-приложения в Chromium без сети, снимок карточки |
-| `tg_webapp_auth.py` | Проверка initData мини-приложения Telegram (HMAC «WebAppData», сутки) |
-| `tg_chart_fixtures.py` | Пять графиков прототипа и ряд по дням — dev-страница и тесты |
 | `open_check_polling.py` | Long-polling getUpdates (входящие команды/кнопки) |
 
 ### Конфиг и утилиты (5+)
@@ -208,6 +204,34 @@ beer-abc-analysis/
 | `mcp/tools/__init__.py` | Что экспортирует модуль раздела: `TOOLS`, `PROMPTS`, `INSTRUCTIONS`, `EXCLUDED` |
 | `mcp/tools/common.py` | Общие инструменты (`common_*`), `DOCS_ALLOWLIST` (документы для агентов = `.dockerignore`), общие правила агентов, исключения служебных маршрутов |
 | `mcp/tools/content.py`, `stocks.py`, `analytics.py`, `staff.py` | Описания инструментов, правила и сценарии разделов |
+
+---
+
+## `kultura_bot/` — Бот @MCPkulturabot (с 2026-10-19, [kultura-bot.md](kultura-bot.md))
+
+Всё про бота, кроме секретов (они — на странице `/admin/mcp`, раздел «Бот @MCPkulturabot»).
+
+| Файл | Что делает |
+|---|---|
+| `README.md` | Памятка: где править инструкции, агентов, настройки; как добавить агента |
+| `settings.py` | Несекретные настройки: модель, усилие, пределы шагов, дневной предел расхода, диалог, графики |
+| `prompts/bot.md`, `prompts/agent.md` | Инструкции бота и общая часть инструкций агентов |
+| `agents/analyst.md`, `payroll.md`, `content.md` | Агенты для поручений (`ask_agent`): разделы, когда поручать, правила |
+| `config.py` | Чтение инструкций и агентов, сборка системных промптов, отпечаток диалога |
+| `credentials.py` | Секреты со страницы: токен бота (getMe), ключ Claude API (живая проверка), прокси, пауза |
+| `access.py` | Привязка Telegram к администратору одноразовой ссылкой `t.me/<бот>?start=<код>`, отказ незнакомцам |
+| `service.py` | Запуск вместе с сайтом (flock `data/.kultura_bot.lock`), опрос Telegram, очередь чатов, ответ, состояние |
+| `agent.py` | Разговор с Claude API: параметры запроса, шаги с инструментами, пределы, расход; поручение агенту |
+| `tools.py` | Инструменты для Claude: поиск, инструменты сайта через мост MCP, `common_chart_send`, `ask_agent` |
+| `claude.py` | Клиент Anthropic (прокси), тексты ошибок, проверка ключа, цена шага |
+| `store.py` | Таблицы бота в `mcp.db`: привязки, коды, диалоги, задания, расход; состояние |
+| `formatting.py`, `telegram_io.py` | Markdown -> HTML Telegram; приём и отправка сообщений (транспорт `core/open_check_telegram.py`) |
+| `charts/spec.py` | **Графики** (с 2026-10-18, до 2026-10-19 — `core/tg_charts.py`): формат описания графика (`normalize`), хранилище `tg_charts` в `mcp.db` — id `token_urlsafe(16)`, срок 90 дней — [tg-miniapp.md](tg-miniapp.md) |
+| `charts/send.py` | Отправка графика: чат разговора, PNG, `sendPhoto` с кнопкой «Открыть интерактивно» (`CHART_BUTTON`; личка — `web_app`, группа — ссылка `startapp` при заданном `MINIAPP_SHORT_NAME`) |
+| `charts/access.py` | Кто открывает график: получатель лички или участник группы (`getChatMember`, кэш) |
+| `charts/png.py` | PNG-карточка: страница мини-приложения в Chromium без сети, снимок карточки |
+| `charts/webapp_auth.py` | Проверка initData мини-приложения Telegram (HMAC «WebAppData», сутки) |
+| `charts/fixtures.py` | Пять графиков прототипа и ряд по дням — dev-страница и тесты |
 
 ---
 
@@ -348,7 +372,7 @@ data/
 │   ├── nomenclature_full.json       # OLAP nomenclature
 │   ├── kitchen_report.json, store_operations_report.json
 │   └── ...
-└── .chz_refresh_lock_*, .open_check_lock_*, .content_publisher.lock,
+└── .chz_refresh_lock_*, .open_check_lock_*, .content_publisher.lock, .kultura_bot.lock,
     .receiving_index_lock_*, .receiving_index_run.lock, .receiving_chz.lock   # Atomic locks от шедулеров
 ```
 
@@ -412,6 +436,7 @@ docs/
 ├── dashboard.md, employee.md, taps.md, stocks.md, orders.md, suppliers.md, venues-plans.md, schedule.md
 ├── guests.md, content-plan.md, reviews.md   # раздел «Гости»
 ├── mcp.md                   # MCP-платформа: весь сервис для ИИ-агентов владельца
+├── kultura-bot.md, tg-miniapp.md   # бот @MCPkulturabot (kultura_bot/) и его графики с мини-приложением
 ├── abc-xyz-analysis.md, draft-beer-errors.md, draft-beer-fixes.md, discounts.md
 ├── explorer.md, expiration.md, chz-stock-integration.md, open-check-bot.md
 ├── iiko-integration.md, frontend.md, design-system.md

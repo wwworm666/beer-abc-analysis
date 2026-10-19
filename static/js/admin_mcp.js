@@ -1,5 +1,6 @@
 /**
- * Страница «Доступ агентов» (/admin/mcp): токены MCP, OAuth-приложения, журнал вызовов, настройки.
+ * Страница «Доступ агентов» (/admin/mcp): бот @MCPkulturabot, токены MCP, OAuth-приложения, журнал
+ * вызовов, настройки.
  *
  * Данные — админ-API routes/mcp.py (таблица API ниже). Разметка строк собирается через
  * DOM (textContent), а не строками HTML: имена токенов, клиентов и превью аргументов
@@ -16,7 +17,9 @@
         grant: '/api/admin/mcp/grants/',
         audit: '/api/admin/mcp/audit',
         settings: '/api/admin/mcp/settings',
-        charts: '/api/admin/mcp/charts'
+        bot: '/api/admin/mcp/bot',
+        botLink: '/api/admin/mcp/bot/link',
+        botLinks: '/api/admin/mcp/bot/links/'
     };
 
     // Сколько строк журнала показывать: страница — обзор последнего, глубже — фильтром.
@@ -343,44 +346,159 @@
             .then(function () { button.disabled = false; });
     }
 
-    // ------------------------------------------------------------ графики в Telegram
+    // ------------------------------------------------------------ бот @MCPkulturabot
 
-    function loadCharts() {
-        setText('mcpChartsError', '');
-        return call('GET', API.charts).then(renderCharts)
-            .catch(function (e) { setText('mcpChartsError', e.message); });
+    var BOT_LINK_POLL_MS = 5000;      // после «Подключить мой Telegram» — ждём привязку
+    var BOT_LINK_POLL_TIMES = 60;     // 5 минут
+    var botLinkPoll = null;
+    var botLinksSig = '';             // привязки как строка: изменилась — Telegram подключили
+    var botLinksBaseline = null;      // привязки в момент «Подключить мой Telegram»
+
+    function money(value) {
+        return '$' + (Number(value) || 0).toFixed(2);
     }
 
-    function renderCharts(data) {
-        var status;
-        if (!data.configured) {
-            status = 'Не настроено: вставьте токен бота и нажмите «Сохранить».';
-        } else {
-            status = 'Бот @' + data.bot_username + ' подключён (токен ' + data.token_hint +
-                (data.source === 'env' ? ', из файла .env' : '') + '). Кнопка под графиками ' +
-                (data.button ? 'включена' : 'выключена') + '.';
-            if (data.button && !data.short_name) status += ' В группах кнопки нет: не задано короткое имя.';
+    function botStatusText(data) {
+        var st = data.status || {};
+        var bot = '@' + ((data.telegram && data.telegram.bot_username) || 'MCPkulturabot');
+        if (st.stale) return { text: 'Бот ' + bot + ' давно не отзывался (последний раз ' + fmtTime(st.at) +
+            '): сервис перезапускается или упал. Если так дольше пяти минут — напишите разработчику.', bad: true };
+        switch (st.state) {
+            case 'running':
+                // Telegram слушается, но последний ответ Claude не получился (ключ, отказ серверу,
+                // деньги, связь) — держим это на виду, пока следующий ответ не получится.
+                if (st.claude_error) return { text: 'Бот ' + bot + ' слушает Telegram, но Claude не ответил: ' +
+                    st.claude_error, bad: true };
+                return { text: 'Бот ' + bot + ' работает: слушает Telegram и отвечает.', bad: false };
+            case 'waiting': return { text: 'Бот ждёт настройки: ' + st.detail + '.', bad: true };
+            case 'paused': return { text: 'Бот на паузе: на сообщения не отвечает.', bad: true };
+            case 'conflict': return { text: 'Конфликт: ' + st.detail + '.', bad: true };
+            case 'error': return { text: 'Ошибка: ' + st.detail, bad: true };
+            case 'starting': return { text: 'Бот запускается…', bad: false };
+            default: return { text: 'Бот не запущен: сервис его ещё не стартовал.', bad: true };
         }
-        setText('mcpChartsStatus', status);
-        byId('mcpChartsToken').value = '';
-        // Пока токена нет, флажок кнопки предложен включённым: владелец сохраняет всё
-        // одной кнопкой. Дальше — как сохранено.
-        byId('mcpChartsButton').checked = data.configured ? !!data.button : true;
-        byId('mcpChartsShortName').value = data.short_name || '';
     }
 
-    function saveCharts() {
-        setText('mcpChartsError', '');
-        setText('mcpChartsOk', '');
-        var body = { button: !!byId('mcpChartsButton').checked, short_name: byId('mcpChartsShortName').value.trim() };
-        var token = byId('mcpChartsToken').value.trim();
+    // resetForm — после загрузки страницы и сохранения: поля секретов пустые, «Пауза» — как
+    // сохранено. Опрос привязки форму не трогает: владелец мог начать её заполнять.
+    function renderBot(data, resetForm) {
+        var status = botStatusText(data);
+        var node = byId('mcpBotState');
+        node.textContent = status.text;
+        node.className = 'mcp-note ' + (status.bad ? 'mcp-state-bad' : 'mcp-state-good');
+
+        var tg = data.telegram || {};
+        setText('mcpBotTokenHint', tg.configured
+            ? 'Сохранён: ' + tg.token_hint + ' (@' + tg.bot_username + ')' + (tg.source === 'env' ? ', из файла .env' : '') +
+              '. Новый токен — вставьте сюда; пустое поле — токен не меняется.'
+            : 'Нет. @BotFather → /mybots → бот → API Token. Сервис проверит токен в Telegram.');
+        var key = data.anthropic || {};
+        setText('mcpBotKeyHint', key.configured
+            ? 'Сохранён: ' + key.key_hint + '. Новый ключ — вставьте сюда; пустое поле — ключ не меняется.'
+            : 'Нет. console.anthropic.com → API Keys → Create Key. Сервис проверит ключ запросом к Anthropic.');
+        var proxy = data.proxy || {};
+        setText('mcpBotProxyHint', proxy.configured
+            ? 'Задан: ' + proxy.display + '. Чтобы убрать, сохраните поле с одним знаком «-».'
+            : 'Не нужен, если Anthropic отвечает серверу напрямую. Нужен, если после сохранения ключа видно ' +
+              '«Anthropic отказал серверу (403)» или «Нет связи с Anthropic».');
+        if (resetForm) {
+            byId('mcpBotToken').value = '';
+            byId('mcpBotKey').value = '';
+            byId('mcpBotProxy').value = '';
+            byId('mcpBotPaused').checked = !!data.paused;
+        }
+
+        var usage = data.usage || {};
+        var today = usage.today || {};
+        var period = usage.period || {};
+        setText('mcpBotUsage', 'Расход на Claude: сегодня ' + money(today.cost_usd) +
+            (data.budget_usd ? ' из ' + money(data.budget_usd) : '') + ' (запросов к модели ' + (today.requests || 0) +
+            '), за ' + (usage.days || 30) + ' дней ' + money(period.cost_usd) + '.');
+        var agents = (data.agents || []).map(function (a) { return a.title; }).join(', ');
+        setText('mcpBotModel', 'Сейчас: модель ' + data.model + ', усилие ' + data.effort +
+            (data.budget_usd ? ', предел ' + money(data.budget_usd) + ' в сутки' : '') +
+            (agents ? '. Агенты: ' + agents + '.' : '.'));
+
+        var body = byId('mcpBotLinksBody');
+        body.textContent = '';
+        var links = data.links || [];
+        links.forEach(function (link) {
+            var row = el('tr');
+            cell(row, link.login);
+            cell(row, link.tg_name);
+            cell(row, fmtTime(link.linked_at));
+            var td = el('td');
+            var btn = el('button', 'mcp-btn mcp-btn-danger mcp-btn-sm', 'Отключить');
+            btn.type = 'button';
+            btn.addEventListener('click', function () { unlinkBot(link); });
+            td.appendChild(btn);
+            row.appendChild(td);
+            body.appendChild(row);
+        });
+        byId('mcpBotLinksEmpty').hidden = links.length > 0;
+        botLinksSig = links.map(function (l) { return l.tg_user_id + '@' + l.linked_at; }).join(',');
+        if (botLinkPoll && botLinksBaseline !== null && botLinksSig !== botLinksBaseline) {
+            clearInterval(botLinkPoll);
+            botLinkPoll = null;
+            byId('mcpBotLinkUrl').hidden = true;
+            setText('mcpBotLinkHint', 'Готово: Telegram подключён.');
+        }
+    }
+
+    function loadBot(resetForm) {
+        return call('GET', API.bot).then(function (data) { renderBot(data, resetForm); })
+            .catch(function (e) { setText('mcpBotError', e.message); });
+    }
+
+    function saveBot() {
+        setText('mcpBotError', '');
+        setText('mcpBotOk', '');
+        var body = { paused: !!byId('mcpBotPaused').checked };
+        var token = byId('mcpBotToken').value.trim();
+        var key = byId('mcpBotKey').value.trim();
+        var proxy = byId('mcpBotProxy').value.trim();
         if (token) body.token = token;
-        var button = byId('mcpChartsSave');
+        if (key) body.anthropic_key = key;
+        if (proxy) body.proxy = proxy === '-' ? '' : proxy;
+        var button = byId('mcpBotSave');
         button.disabled = true;
-        call('PUT', API.charts, body)
-            .then(function (data) { renderCharts(data); setText('mcpChartsOk', data.warning || 'Сохранено'); })
-            .catch(function (e) { setText('mcpChartsError', e.message); })
+        call('PUT', API.bot, body)
+            .then(function (data) {
+                renderBot(data, true);
+                setText('mcpBotOk', 'Сохранено');
+                if (data.warnings && data.warnings.length) setText('mcpBotError', data.warnings.join(' '));
+            })
+            .catch(function (e) { setText('mcpBotError', e.message); })
             .then(function () { button.disabled = false; });
+    }
+
+    function linkBot() {
+        setText('mcpBotError', '');
+        call('POST', API.botLink, {})
+            .then(function (data) {
+                var link = byId('mcpBotLinkUrl');
+                link.href = data.url;
+                link.hidden = false;
+                setText('mcpBotLinkHint', 'Ссылка одноразовая и действует ' + Math.round(data.expires_in_s / 60) +
+                    ' минут: откройте её там, где у вас Telegram, и нажмите «Старт».');
+                var times = 0;
+                if (botLinkPoll) clearInterval(botLinkPoll);
+                botLinksBaseline = botLinksSig;
+                botLinkPoll = setInterval(function () {
+                    times += 1;
+                    if (times > BOT_LINK_POLL_TIMES) { clearInterval(botLinkPoll); botLinkPoll = null; return; }
+                    loadBot(false);
+                }, BOT_LINK_POLL_MS);
+            })
+            .catch(function (e) { setText('mcpBotError', e.message); });
+    }
+
+    function unlinkBot(link) {
+        if (!window.confirm('Отключить Telegram «' + (link.tg_name || link.tg_user_id) + '» (' + link.login +
+            ')? Бот перестанет ему отвечать.')) return;
+        call('DELETE', API.botLinks + encodeURIComponent(link.tg_user_id))
+            .then(function () { return loadBot(false); })
+            .catch(function (e) { setText('mcpBotError', e.message); });
     }
 
     // ------------------------------------------------------------ запуск
@@ -396,13 +514,14 @@
         byId('mcpAuditStatus').addEventListener('change', loadAudit);
         byId('mcpAuditTool').addEventListener('change', loadAudit);
         byId('mcpSettingsSave').addEventListener('click', saveSettings);
-        byId('mcpChartsSave').addEventListener('click', saveCharts);
+        byId('mcpBotSave').addEventListener('click', saveBot);
+        byId('mcpBotLink').addEventListener('click', linkBot);
         syncDomainBoxes();
         loadTokens();
         loadGrants();
         loadAudit();
         loadSettings();
-        loadCharts();
+        loadBot(true);
     }
 
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

@@ -1,7 +1,7 @@
 /* Мини-приложение «Графики» бота @MCPkulturabot (templates/tg_chart.html).
  * Цвета — из прототипа: PNG-карточки бота, бары чуть насыщеннее. Тема — data-theme
  * на <html> (из Telegram colorScheme); вне Telegram — системная. PNG рисуется этой же
- * страницей в режиме data-mode="png" (core/tg_chart_png.py). */
+ * страницей в режиме data-mode="png" (kultura_bot/charts/png.py). */
 
 @font-face {
   font-family: 'IBM Plex Mono';

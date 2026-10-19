@@ -5,7 +5,7 @@
 или /opt/pw-browsers/chromium, как в tests/test_stocks_browser.py).
 
 Что проверяется:
-- PNG всех фикстур рисуется (core/tg_chart_png.py): картинка 1290 px по ширине, длинная
+- PNG всех фикстур рисуется (kultura_bot/charts/png.py): картинка 1290 px по ширине, длинная
   сторона не больше 2560, обе темы; без сети — все запросы страницы перехвачены;
 - мини-приложение в «Telegram» (заглушка telegram-web-app.js отдаётся вместо telegram.org):
   ready() и expand() вызваны, цвет шапки и фона = фон страницы, initData уходит в заголовке
@@ -29,9 +29,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 os.environ.setdefault('SESSION_COOKIE_SECURE', '0')
 
-from core import tg_charts  # noqa: E402
+from kultura_bot.charts import spec as tg_charts  # noqa: E402
 from core.mcp import db  # noqa: E402
-from core.tg_chart_fixtures import FIXTURES  # noqa: E402
+from kultura_bot.charts.fixtures import FIXTURES  # noqa: E402
 from test_tg_miniapp import OWNER, STRANGER, TOKEN, init_data, make_app  # noqa: E402
 
 CHROMIUM = os.environ.get('TG_CHART_CHROMIUM') or '/opt/pw-browsers/chromium'
@@ -111,7 +111,7 @@ def _saved(name='belgium'):
 
 
 def test_png_renders_for_every_fixture(monkeypatch):
-    from core import tg_chart_png
+    from kultura_bot.charts import png as tg_chart_png
     monkeypatch.setenv('TG_CHART_CHROMIUM', CHROMIUM)
     for name, raw in FIXTURES:
         png = tg_chart_png.render_png(tg_charts.normalize(raw))

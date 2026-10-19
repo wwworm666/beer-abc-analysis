@@ -118,8 +118,10 @@ EXCLUDED = {
     ('GET', '/api/admin/mcp/audit'): _ACCESS_REASON + ' (журнал агенту даёт common_audit_recent)',
     ('GET', '/api/admin/mcp/settings'): _ACCESS_REASON,
     ('PUT', '/api/admin/mcp/settings'): _ACCESS_REASON,
-    ('GET', '/api/admin/mcp/charts'): _ACCESS_REASON + ' (токен бота графиков — секрет)',
-    ('PUT', '/api/admin/mcp/charts'): _ACCESS_REASON + ' (токен бота графиков — секрет)',
+    ('GET', '/api/admin/mcp/bot'): _ACCESS_REASON + ' (секреты бота @MCPkulturabot)',
+    ('PUT', '/api/admin/mcp/bot'): _ACCESS_REASON + ' (секреты бота @MCPkulturabot)',
+    ('POST', '/api/admin/mcp/bot/link'): _ACCESS_REASON + ' (привязка Telegram к администратору)',
+    ('DELETE', '/api/admin/mcp/bot/links/<tg_user_id>'): _ACCESS_REASON + ' (привязка Telegram к администратору)',
     ('GET', '/api/tg/charts/<chart_id>'): 'мини-приложение Telegram «Графики»: вход по initData бота, а не по '
                                           'токену MCP; описание графика агент присылает сам (common_chart_send) '
                                           'и в ответе получает его chart_id',
@@ -176,9 +178,9 @@ def _charts_status(visible, mode: str) -> Dict[str, Any]:
     Агент бота умеет рисовать картинки и сам — без этого напоминания он в новом диалоге
     возвращается к своей картинке без кнопки «Открыть интерактивно» (случай 2026-10-18).
     """
-    from core import tg_chart_send
+    from kultura_bot.charts import send as chart_send
     try:
-        status = tg_chart_send.readiness()
+        status = chart_send.readiness()
     except Exception:  # noqa: BLE001 — сбой настроек не должен ломать whoami
         status = {'tool': 'common_chart_send', 'ready': None, 'button': None, 'owner_todo': ''}
     available = any(t.name == status['tool'] and allowed_in_mode(t, mode) for t in visible)
@@ -341,6 +343,7 @@ DOCS_ALLOWLIST = (
     'docs/open-check-bot.md',
     'docs/mcp.md',
     'docs/tg-miniapp.md',
+    'docs/kultura-bot.md',
     'docs/overview.md',
     'docs/lessons.md',
     'docs/guides/mcp-connect.md',
@@ -619,7 +622,7 @@ def _notify_owner(args: Dict[str, Any], principal: Principal) -> ToolResult:
 # ------------------------------------------------------------------ common_chart_send
 
 # Схема описания графика для агента. Проверку по смыслу (длины рядов, роли серий,
-# даты, пределы) делает core/tg_charts.normalize — ошибка называет поле.
+# даты, пределы) делает kultura_bot/charts/spec.normalize — ошибка называет поле.
 _CATEGORY_SCHEMA = {'anyOf': [
     {'type': 'string', 'minLength': 1, 'maxLength': 80},
     {'type': 'object', 'additionalProperties': False, 'required': ['label'], 'properties': {
@@ -691,11 +694,11 @@ CHART_SCHEMA = {
 
 
 def _chart_send(args: Dict[str, Any], principal: Principal) -> Dict[str, Any]:
-    from core import tg_chart_send
+    from kultura_bot.charts import send as chart_send
     try:
-        return tg_chart_send.send_chart(args.get('chart'), chat_id=args.get('chat_id'), caption=args.get('caption'),
-                                        token_id=principal.token_id, text_filter=_strip_foreign_links)
-    except tg_chart_send.ChartSendError as exc:
+        return chart_send.send_chart(args.get('chart'), chat_id=args.get('chat_id'), caption=args.get('caption'),
+                                     token_id=principal.token_id, text_filter=_strip_foreign_links)
+    except chart_send.ChartSendError as exc:
         raise ToolError(str(exc)) from None
 
 

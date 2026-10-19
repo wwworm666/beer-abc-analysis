@@ -1,4 +1,4 @@
-/* PNG-режим (core/tg_chart_png.py): одна карточка без переключателей, подсказок и анимации.
+/* PNG-режим (kultura_bot/charts/png.py): одна карточка без переключателей, подсказок и анимации.
  * Когда ECharts дорисовал график, ставит window.__tgChartReady = true — Chromium делает снимок #card. */
 (function () {
   'use strict';

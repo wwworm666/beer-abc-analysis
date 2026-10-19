@@ -1,7 +1,7 @@
-/* Графики бота @MCPkulturabot: описание графика (core/tg_charts.py) -> карточка с ECharts.
+/* Графики бота @MCPkulturabot: описание графика (kultura_bot/charts/spec.py) -> карточка с ECharts.
  *
  * Один модуль на три места: мини-приложение (app.js), dev-страница (dev.js) и PNG для
- * чата (png.js через core/tg_chart_png.py). Поэтому картинка в чате и интерактивная
+ * чата (png.js через kultura_bot/charts/png.py). Поэтому картинка в чате и интерактивная
  * версия совпадают по цветам, подписям и раскладке.
  *
  * window.TgChart:

@@ -1,7 +1,7 @@
 """
 Запуск tests/test_tg_chart_js.mjs (расчёты и форматирование static/tg_chart/charts.js) под pytest.
 
-Описания графиков для JS-проверок — фикстуры прототипа после core/tg_charts.normalize: так
+Описания графиков для JS-проверок — фикстуры прототипа после kultura_bot/charts/spec.normalize: так
 JS проверяется на том же виде описания, какой отдаёт /api/tg/charts/<id>. Без node тест
 пропускается (локально на Windows node может не стоять; в CI на ubuntu он есть).
 """
@@ -16,8 +16,8 @@ import pytest
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-from core import tg_charts  # noqa: E402
-from core.tg_chart_fixtures import FIXTURES  # noqa: E402
+from kultura_bot.charts import spec as tg_charts  # noqa: E402
+from kultura_bot.charts.fixtures import FIXTURES  # noqa: E402
 
 NODE = shutil.which('node')
 

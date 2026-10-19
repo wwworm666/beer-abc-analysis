@@ -31,7 +31,9 @@ _OUTBOUND_SECRETS = (
     'TELEGRAM_BOT_TOKEN',            # гостевой бот @kult_taplist_bot: каналы баров, рассылки гостям
     'TELEGRAM_CONTENT_BOT_TOKEN',    # отдельный бот для каналов (если задан)
     'TELEGRAM_OPEN_CHECK_BOT_TOKEN', # бот персонала: проверка открытия, тревоги, отзывы владельцу
-    'TELEGRAM_MCP_BOT_TOKEN',        # @MCPkulturabot: графики агентов картинкой (core/tg_chart_send.py)
+    'TELEGRAM_MCP_BOT_TOKEN',        # @MCPkulturabot: бот и графики агентов (kultura_bot/)
+    'KULTURA_BOT_ANTHROPIC_KEY',     # ключ Claude API бота: каждый запрос платный
+    'KULTURA_BOT_PROXY',             # прокси бота к Anthropic
     'TELEGRAM_GROUP_CHAT_ID',        # чат смены
     'TELEGRAM_ALARM_CHAT_IDS',       # чаты тревог
     'RECEIVING_NOTIFY_CHAT_IDS',     # чаты бухгалтерии: «приёмка на РЦ ждёт разбора» (core/receiving_notify.py)
@@ -53,3 +55,7 @@ for _name in _OUTBOUND_SECRETS:
 # запись кэша ссылок на диск (без тома — в data/ репозитория). Тест, которому нужен поиск
 # ссылки, передаёт GifSource свою поддельную функцию http_get.
 os.environ['TAPLIST_GIFS_OFFLINE'] = '1'
+
+# Бот @MCPkulturabot (kultura_bot/service.py): импорт app.py в тестах не запускает поток
+# опроса Telegram и не берёт лок data/.kultura_bot.lock. Тесты бота зовут его части сами.
+os.environ['KULTURA_BOT'] = '0'

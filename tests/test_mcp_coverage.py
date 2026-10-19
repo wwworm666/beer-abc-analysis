@@ -86,7 +86,7 @@ def test_access_management_is_not_exposed():
     exclusions = registry.exclusions()
     admin_pairs = [pair for pair in report.required if pair[1].startswith('/api/admin/mcp')]
     # 8 пар управления доступом MCP и 2 — настройки графиков бота (токен — секрет), с 2026-10-18
-    assert len(admin_pairs) == 10, admin_pairs
+    assert len(admin_pairs) == 12, admin_pairs
     for pair in admin_pairs:
         assert pair in exclusions and 'доступом к себе' in exclusions[pair], pair
     tool_paths = {t.path for t in registry.all_tools() if t.route_backed}

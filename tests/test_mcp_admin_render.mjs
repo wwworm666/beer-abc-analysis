@@ -8,8 +8,8 @@
  * в CSS; цвета только через токены (ни одного HEX/rgb); нет эмодзи и инлайновых
  * обработчиков; стили и скрипт с кэш-бастингом; ссылка в меню только для администратора.
  * Исполнение: admin_mcp.js в vm с поддельным DOM и fetch — страница рисует токены,
- * журнал и настройки, а данные (имя токена, превью аргументов) попадают в textContent,
- * а не в разметку.
+ * журнал, настройки и раздел бота @MCPkulturabot, а данные (имя токена, превью
+ * аргументов, имя в Telegram) попадают в textContent, а не в разметку.
  */
 
 import assert from 'node:assert/strict';
@@ -216,9 +216,13 @@ function boot(respond) {
     };
     const confirms = [];
     const window = { confirm: (text) => { confirms.push(text); return true; } };
-    const context = vm.createContext({ document, window, fetch, navigator: {}, setTimeout, console });
+    const intervals = [];             // опрос привязки бота: запоминаем, но не крутим
+    const setInterval = (fn, ms) => intervals.push({ fn, ms });
+    const clearInterval = () => {};
+    const context = vm.createContext({ document, window, fetch, navigator: {}, setTimeout, setInterval,
+        clearInterval, console });
     vm.runInContext(js, context, { filename: 'admin_mcp.js' });
-    return { nodes, byId, calls, confirms, domainBoxes };
+    return { nodes, byId, calls, confirms, domainBoxes, intervals };
 }
 
 const tick = () => new Promise((r) => setTimeout(r, 0));
@@ -242,6 +246,20 @@ const DATA = {
         subscribers: ['670033096'], bot_configured: false },
 };
 
+const BOT = {
+    telegram: { configured: true, source: 'settings', token_hint: '1234…xyz', bot_username: 'MCPkulturabot' },
+    anthropic: { configured: false, source: '', key_hint: '' },
+    proxy: { configured: false, display: '' },
+    paused: false,
+    status: { state: 'waiting', detail: 'нет ключа Anthropic API: вставьте его на этой странице',
+        at: '2026-10-19T11:59:00+03:00', stale: false },
+    usage: { days: 30, today: { cost_usd: 0.4234, requests: 7 }, period: { cost_usd: 3.1 } },
+    budget_usd: 15, model: 'claude-opus-5-5', effort: 'medium',
+    links: [{ tg_user_id: '555', login: 'owner', tg_name: EVIL, linked_at: '2026-10-19T10:05:00+03:00' }],
+    agents: [{ name: 'analyst', title: 'Аналитик' }, { name: 'payroll', title: 'Зарплаты и график' }],
+    warnings: [],
+};
+
 function respond(url, opt) {
     if (url === '/api/admin/mcp/tokens' && opt.method === 'GET') return [200, DATA.tokens];
     if (url === '/api/admin/mcp/tokens' && opt.method === 'POST') {
@@ -252,14 +270,17 @@ function respond(url, opt) {
     if (url.startsWith('/api/admin/mcp/audit')) return [200, DATA.audit];
     if (url === '/api/admin/mcp/settings') return [200, DATA.settings];
     if (url === '/api/admin/mcp/grants') return [200, { available: false, grants: [] }];
-    if (url === '/api/admin/mcp/charts' && opt.method === 'GET') {
-        return [200, { configured: false, source: '', token_hint: '', bot_username: 'MCPkulturabot', button: false,
-            short_name: '', app_url: 'https://beerkultura.ru/tg/chart' }];
+    if (url === '/api/admin/mcp/bot' && opt.method === 'GET') return [200, BOT];
+    if (url === '/api/admin/mcp/bot' && opt.method === 'PUT') {
+        return [200, Object.assign({}, BOT, {
+            anthropic: { configured: true, source: 'settings', key_hint: 'sk-a…kkk' },
+            status: { state: 'running', detail: 'бот слушает Telegram', at: '2026-10-19T12:00:00+03:00', stale: false },
+            warnings: ['Anthropic отказал серверу (403): Request not allowed. Нужен прокси.'] })];
     }
-    if (url === '/api/admin/mcp/charts' && opt.method === 'PUT') {
-        return [200, { configured: true, source: 'settings', token_hint: '1234…xyz', bot_username: 'MCPkulturabot',
-            button: true, short_name: '', app_url: 'https://beerkultura.ru/tg/chart', warning: '' }];
+    if (url === '/api/admin/mcp/bot/link' && opt.method === 'POST') {
+        return [200, { code: 'abc', url: 'https://t.me/MCPkulturabot?start=abc', expires_in_s: 900 }];
     }
+    if (url.startsWith('/api/admin/mcp/bot/links/') && opt.method === 'DELETE') return [200, { ok: true }];
     return [404, { error: 'нет' }];
 }
 
@@ -335,21 +356,68 @@ test('исполнение: отзыв спрашивает подтвержде
     assert.equal(page.nodes.mcpSettingsOk.textContent, 'Сохранено');
 });
 
-test('исполнение: графики в Telegram — токен не показывается, флажок кнопки, сохранение PUT', async () => {
-    const page = boot(respond);
+test('исполнение: бот — секреты подсказками, состояние и расход, сохранение PUT, привязка и отвязка', async () => {
+    const bot = JSON.parse(JSON.stringify(BOT));       // своё состояние: другие проверки идут параллельно
+    const page = boot((url, opt) => (url === '/api/admin/mcp/bot' && opt.method === 'GET' ? [200, bot]
+        : respond(url, opt)));
     await tick(); await tick(); await tick();
-    assert.match(page.nodes.mcpChartsStatus.textContent, /Не настроено/);
-    assert.equal(page.nodes.mcpChartsButton.checked, true, 'пока токена нет — кнопка предложена включённой');
-    page.nodes.mcpChartsToken.value = ' 1234567890:' + 'A'.repeat(35) + ' ';
-    page.nodes.mcpChartsShortName.value = ' chart ';
-    page.nodes.mcpChartsSave.fire('click');
+    assert.match(page.nodes.mcpBotState.textContent, /ждёт настройки: нет ключа Anthropic API/);
+    assert.equal(page.nodes.mcpBotState.className, 'mcp-note mcp-state-bad');
+    assert.match(page.nodes.mcpBotStatus.textContent, /нет токена бота/, 'подсказка бота отчётов не затёрта');
+    assert.match(page.nodes.mcpBotTokenHint.textContent, /^Сохранён: 1234…xyz \(@MCPkulturabot\)/);
+    assert.match(page.nodes.mcpBotKeyHint.textContent, /^Нет\. console\.anthropic\.com/);
+    assert.match(page.nodes.mcpBotUsage.textContent, /сегодня \$0\.42 из \$15\.00 \(запросов к модели 7\), за 30 дней \$3\.10/);
+    assert.match(page.nodes.mcpBotModel.textContent, /модель claude-opus-5-5, усилие medium.*Агенты: Аналитик, Зарплаты и график/);
+    const row = page.nodes.mcpBotLinksBody.children[0];
+    assert.equal(row.children[0].textContent, 'owner');
+    assert.equal(row.children[1].textContent, EVIL, 'имя в Telegram — текстом, как есть');
+    assert.equal(row.children[2].textContent, '19.10.2026 10:05');
+    assert.equal(page.nodes.mcpBotLinksEmpty.hidden, true);
+
+    page.nodes.mcpBotKey.value = ' sk-ant-api03-' + 'k'.repeat(40) + ' ';
+    page.nodes.mcpBotProxy.value = '-';
+    page.nodes.mcpBotSave.fire('click');
     await tick(); await tick();
-    const put = page.calls.find((c) => c.method === 'PUT' && c.url === '/api/admin/mcp/charts');
-    assert.deepEqual(put.body, { button: true, short_name: 'chart', token: '1234567890:' + 'A'.repeat(35) });
-    assert.match(page.nodes.mcpChartsStatus.textContent, /Бот @MCPkulturabot подключён \(токен 1234…xyz\)/);
-    assert.match(page.nodes.mcpChartsStatus.textContent, /В группах кнопки нет/);
-    assert.equal(page.nodes.mcpChartsToken.value, '', 'поле токена очищается после сохранения');
-    assert.equal(page.nodes.mcpChartsOk.textContent, 'Сохранено');
+    const put = page.calls.find((c) => c.method === 'PUT' && c.url === '/api/admin/mcp/bot');
+    assert.deepEqual(put.body, { paused: false, anthropic_key: 'sk-ant-api03-' + 'k'.repeat(40), proxy: '' },
+        'пустой токен не отправляется, «-» убирает прокси');
+    assert.match(page.nodes.mcpBotState.textContent, /работает/);
+    assert.equal(page.nodes.mcpBotState.className, 'mcp-note mcp-state-good');
+    bot.status = { state: 'running', detail: 'бот слушает Telegram', stale: false,
+        claude_error: 'Anthropic не принял ключ API (401).' };
+    page.intervals.length = 0;
+    assert.equal(page.nodes.mcpBotKey.value, '', 'поле ключа очищается после сохранения');
+    assert.equal(page.nodes.mcpBotOk.textContent, 'Сохранено');
+    assert.match(page.nodes.mcpBotError.textContent, /Нужен прокси/, 'предупреждение сохранения видно');
+
+    page.nodes.mcpBotLink.fire('click');
+    await tick(); await tick();
+    assert.ok(page.calls.some((c) => c.method === 'POST' && c.url === '/api/admin/mcp/bot/link'));
+    assert.equal(page.nodes.mcpBotLinkUrl.hidden, false);
+    assert.equal(page.nodes.mcpBotLinkUrl.href, 'https://t.me/MCPkulturabot?start=abc');
+    assert.match(page.nodes.mcpBotLinkHint.textContent, /одноразовая и действует 15 минут/);
+    assert.equal(page.intervals.length, 1, 'страница ждёт привязку опросом');
+
+    page.nodes.mcpBotPaused.checked = true;            // владелец начал заполнять форму
+    page.nodes.mcpBotKey.value = 'черновик';
+    page.intervals[0].fn();                             // опрос: привязки ещё нет
+    await tick(); await tick();
+    assert.equal(page.nodes.mcpBotPaused.checked, true, 'опрос не сбрасывает «Паузу»');
+    assert.equal(page.nodes.mcpBotKey.value, 'черновик', 'опрос не стирает введённое');
+    assert.match(page.nodes.mcpBotLinkHint.textContent, /одноразовая/, 'привязки ещё нет — ждём дальше');
+    bot.links = [Object.assign({}, bot.links[0], { linked_at: '2026-10-19T12:01:00+03:00' })];   // тот же Telegram заново
+    page.intervals[0].fn();
+    await tick(); await tick();
+    assert.equal(page.nodes.mcpBotLinkHint.textContent, 'Готово: Telegram подключён.', 'повторная привязка замечена');
+    assert.equal(page.nodes.mcpBotLinkUrl.hidden, true);
+    assert.match(page.nodes.mcpBotState.textContent, /слушает Telegram, но Claude не ответил: Anthropic не принял ключ/,
+        'ошибка Claude видна, хотя опрос Telegram идёт');
+    assert.equal(page.nodes.mcpBotState.className, 'mcp-note mcp-state-bad');
+
+    row.children[3].children[0].fire('click');
+    await tick(); await tick();
+    assert.equal(page.confirms.length, 1, 'отвязка спрашивает подтверждение');
+    assert.ok(page.calls.some((c) => c.method === 'DELETE' && c.url === '/api/admin/mcp/bot/links/555'));
 });
 
 test('исполнение: OAuth-приложения с режимом доступа', async () => {

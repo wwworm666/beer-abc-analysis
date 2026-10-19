@@ -23,9 +23,12 @@
     GET    /api/admin/mcp/audit                ?limit=&tool=&status= -> {items}
     GET    /api/admin/mcp/settings             {settings, subscribers, bot_configured, defaults}
     PUT    /api/admin/mcp/settings             {notify_chat_id?, oauth_redirect_hosts?} -> то же
-    GET    /api/admin/mcp/charts               графики в Telegram: {configured, source, token_hint,
-                                               bot_username, button, short_name, app_url} — без токена
-    PUT    /api/admin/mcp/charts               {token?, clear_token?, button?, short_name?} -> то же + warning
+    GET    /api/admin/mcp/bot                  бот @MCPkulturabot: секреты подсказками (без самих
+                                               секретов), состояние, расход, привязки, агенты
+    PUT    /api/admin/mcp/bot                  {token?, clear_token?, anthropic_key?, clear_anthropic_key?,
+                                               proxy?, paused?} -> то же + warnings (kultura_bot/credentials.py)
+    POST   /api/admin/mcp/bot/link             одноразовая ссылка «Подключить мой Telegram» -> {url, expires_in_s}
+    DELETE /api/admin/mcp/bot/links/<tg_id>    отвязать Telegram -> {ok}
 Админ-API в охват MCP не входит (core/mcp/tools/common.py, EXCLUDED): агент не
 управляет доступом к себе — выпуск токенов, отзыв и настройки только руками владельца.
 """
@@ -249,32 +252,63 @@ def admin_settings_put():
     return jsonify(_settings_payload())
 
 
-# ------------------------------------------------------------------ графики в Telegram
+# ------------------------------------------------------------------ бот @MCPkulturabot
 
-@mcp_bp.route('/api/admin/mcp/charts', methods=['GET'])
+BOT_FIELDS = {'token', 'clear_token', 'anthropic_key', 'clear_anthropic_key', 'proxy', 'paused'}
+
+
+def _bot_payload(warnings=None) -> dict:
+    from kultura_bot import credentials, service
+    return dict(credentials.public_view(), **service.status_view(), warnings=list(warnings or []))
+
+
+@mcp_bp.route('/api/admin/mcp/bot', methods=['GET'])
 @admin_required
-def admin_charts_get():
-    """Состояние графиков бота @MCPkulturabot (core/tg_chart_settings.py) — токен не отдаётся."""
-    from core import tg_chart_settings
-    return jsonify(tg_chart_settings.public_view())
+def admin_bot_get():
+    """Бот: секреты подсказками (kultura_bot/credentials.py), состояние, расход, привязки."""
+    return jsonify(_bot_payload())
 
 
-@mcp_bp.route('/api/admin/mcp/charts', methods=['PUT'])
+@mcp_bp.route('/api/admin/mcp/bot', methods=['PUT'])
 @admin_required
-def admin_charts_put():
-    """Сохранить токен (проверка getMe в Telegram), кнопку и короткое имя мини-приложения."""
-    from core import tg_chart_settings
+def admin_bot_put():
+    """Сохранить токен (getMe), ключ Anthropic (список моделей), прокси, паузу."""
+    from kultura_bot import credentials
     body = _json_body()
-    unknown = sorted(set(body) - {'token', 'clear_token', 'button', 'short_name'})
+    unknown = sorted(set(body) - BOT_FIELDS)
     if unknown:
         return _error('Неизвестные настройки: ' + ', '.join(unknown))
-    token = body.get('token')
-    if token is not None and not isinstance(token, str):
-        return _error('Токен — строка')
+    for name in ('token', 'anthropic_key', 'proxy'):
+        if body.get(name) is not None and not isinstance(body.get(name), str):
+            return _error(f'{name} — строка')
+    paused = body.get('paused')
+    if paused is not None and not isinstance(paused, bool):
+        return _error('paused — да или нет')
     try:
-        view = tg_chart_settings.save(token=token, clear_token=body.get('clear_token') is True,
-                                      button=body.get('button'), short_name_value=body.get('short_name'),
-                                      by=_login())
+        view = credentials.save(token=body.get('token'), clear_token=body.get('clear_token') is True,
+                                anthropic_key_value=body.get('anthropic_key'),
+                                clear_anthropic_key=body.get('clear_anthropic_key') is True,
+                                proxy=body.get('proxy'), paused_value=paused, by=_login())
     except ValueError as exc:
         return _error(str(exc))
-    return jsonify(view)
+    return jsonify(_bot_payload(view.get('warnings')))
+
+
+@mcp_bp.route('/api/admin/mcp/bot/link', methods=['POST'])
+@admin_required
+def admin_bot_link():
+    """Одноразовая ссылка t.me/<бот>?start=<код> для текущего администратора (15 минут)."""
+    from kultura_bot import access
+    user = current_user() or {}
+    if not user.get('id'):
+        return _error('Нет пользователя', 401)
+    return jsonify(access.create_code(int(user['id']), user.get('login') or ''))
+
+
+@mcp_bp.route('/api/admin/mcp/bot/links/<tg_user_id>', methods=['DELETE'])
+@admin_required
+def admin_bot_unlink(tg_user_id):
+    from kultura_bot import store
+    if not tg_user_id.isdigit():
+        return _error('Номер Telegram — число')
+    return jsonify({'ok': store.delete_link(tg_user_id)})
