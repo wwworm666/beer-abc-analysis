@@ -38,13 +38,14 @@ def _safe_next(nxt: str) -> str:
 
 
 def _revoke_agent_access(user_id: int) -> None:
-    """Отозвать MCP-токены и OAuth-подключения аккаунта (core/mcp/tokens.py, oauth.py).
+    """Отозвать MCP-токены, OAuth-подключения и привязки Telegram к боту @MCPkulturabot
+    (core/mcp/tokens.py, oauth.py, kultura_bot/store.py).
 
-    Зовётся при удалении, отключении и снятии флага администратора: токены и так
-    перестают работать (доступ к MCP только у активного админа, проверка на каждом
-    вызове), но без отзыва возврат флага оживил бы старые токены. Ошибка отзыва не
-    ломает основное действие: оно уже выполнено, а токены всё равно не пройдут
-    проверку, пока аккаунт не админ.
+    Зовётся при удалении, отключении и снятии флага администратора: токены и привязки и
+    так перестают работать (доступ только у активного админа, проверка на каждом
+    вызове и сообщении), но без отзыва возврат флага оживил бы старые токены и старый
+    Telegram. Ошибка отзыва не ломает основное действие: оно уже выполнено, а токены
+    всё равно не пройдут проверку, пока аккаунт не админ.
     """
     try:
         from core.mcp import tokens
@@ -56,6 +57,11 @@ def _revoke_agent_access(user_id: int) -> None:
         oauth.revoke_all_for_user(user_id)
     except Exception as e:  # noqa: BLE001
         print(f"[AUTH] OAuth-подключения аккаунта {user_id} не отозваны: {e}")
+    try:
+        from kultura_bot import store as bot_store
+        bot_store.delete_links_for_user(user_id)
+    except Exception as e:  # noqa: BLE001
+        print(f"[AUTH] привязки Telegram аккаунта {user_id} к боту не сняты: {e}")
 
 
 @auth_bp.route('/login', methods=['GET', 'POST'])

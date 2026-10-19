@@ -61,7 +61,9 @@ CONFLICT_RETRY_S = 15            # токеном пользуется друг�
 HEARTBEAT_S = 60                 # как часто обновлять «бот работает» на странице
 INTERRUPTED_MAX_AGE_S = 1800     # сообщить об оборванном ответе, если вопрос моложе 30 минут
 TYPING_EVERY_S = 4.5             # «печатает…» у Telegram гаснет через ~5 с
-MAX_DIALOG_BYTES = 3_000_000     # история длиннее — новый диалог (каждый запрос шлёт её целиком)
+# История длиннее — новый диалог: каждый запрос шлёт её целиком, а Claude API принимает запрос
+# до 32 МБ. 16 МБ вмещают PDF предельного размера (10 МБ, в base64 — 13,3 МБ) и разговор о нём.
+MAX_DIALOG_BYTES = 16_000_000
 PHOTO_MIME = 'image/jpeg'        # Telegram пережимает фото в JPEG
 IMAGE_MAX_BYTES = 3_750_000      # Claude API: картинка до 5 МБ в base64 = 3,75 МБ файла
 DOCUMENT_MIMES = {'application/pdf': 'document', 'image/jpeg': 'image', 'image/png': 'image',
@@ -72,6 +74,9 @@ HELP_TEXT = ('Я помощник сети «Культура»: отвечаю 
              'приложить фото или PDF. Графики приходят с кнопкой «Открыть интерактивно».\n\n'
              '/new — начать новый диалог')
 UNSUPPORTED_TEXT = 'Пока понимаю текст, фото и PDF. Напишите вопрос словами.'
+UNSUPPORTED_FILE_TEXT = ('Этот файл я не читаю: понимаю фото, картинки (JPEG, PNG, WebP, GIF) и PDF. '
+                         'Отвечаю по тексту сообщения.')
+NEW_DIALOG_TEXT = 'Начинаю новый диалог.'
 INTERRUPTED_TEXT = 'Ответ на прошлый вопрос прервался: сервер перезапускался. Повторите вопрос, пожалуйста.'
 RESTARTING_TEXT = 'Сервер перезапускается — повторите вопрос через минуту.'
 FINGERPRINT_NOTICE = 'Обновились инструкции бота — начинаю новый диалог.'
@@ -122,6 +127,7 @@ class Service:
         self.bot_id: Optional[int] = None
         self.username = credentials.bot_username()
         self.offset: Optional[int] = None
+        self.claude_error = ''
         self.executor = ThreadPoolExecutor(max_workers=max(1, settings.MAX_PARALLEL_DIALOGS),
                                            thread_name_prefix='kultura-bot-chat')
         self.queues: Dict[str, deque] = {}
@@ -138,7 +144,9 @@ class Service:
         if not force and state == self._status_state and now - self._status_at < HEARTBEAT_S:
             return
         self._status_state, self._status_at = state, now
-        store.set_status(state, detail, bot=self.username, pid=os.getpid())
+        # claude_error — последняя ошибка Claude API (ключ, отказ серверу, деньги, связь): опрос
+        # Telegram при этом идёт, но страница должна её показывать, пока ответ не получится.
+        store.set_status(state, detail, bot=self.username, pid=os.getpid(), claude_error=self.claude_error)
 
     # ---------------------------------------------------------------- цикл опроса
 
@@ -287,8 +295,9 @@ class Service:
                 self.tg.send_plain(chat_id, access.refusal_text())
             return
         if command == 'new':
-            store.delete_dialog(chat_id)
-            self.tg.send_plain(chat_id, 'Начинаю новый диалог.')
+            # Через очередь чата: ответ, который ещё пишется, иначе сохранил бы старый диалог обратно.
+            self.enqueue(chat_id, {'kind': 'new', 'message': message, 'actor': actor, 'text': '',
+                                   'chat_type': chat_type})
             return
         if command == 'help':
             self.tg.send_plain(chat_id, HELP_TEXT)
@@ -302,6 +311,10 @@ class Service:
     # ---------------------------------------------------------------- очередь
 
     def enqueue(self, chat_id: str, job: Dict[str, Any]) -> None:
+        if job.get('kind') != 'new':
+            # Вопрос записан сразу ('queued'): перезапуск, пока он ждёт очереди, не потеряет его
+            # молча — после запуска чат получит «повторите вопрос» (store.take_interrupted_jobs).
+            job['job_id'] = store.start_job(chat_id, job['actor']['tg_user_id'], status='queued')
         with self.lock:
             self.queues.setdefault(chat_id, deque()).append(job)
             if chat_id in self.busy:
@@ -314,7 +327,10 @@ class Service:
             # конца, новых не берёт. Вопрос не теряем молча — просим повторить.
             with self.lock:
                 self.busy.discard(chat_id)
-                self.queues.pop(chat_id, None)
+                dropped = list(self.queues.pop(chat_id, None) or [])
+            for item in dropped:
+                if item.get('job_id'):
+                    store.finish_job(item['job_id'], 'error', 'restarting')
             self.tg.send_plain(chat_id, RESTARTING_TEXT)
 
     def _drain(self, chat_id: str) -> None:
@@ -327,9 +343,17 @@ class Service:
                     return
                 job = queue.popleft()
             try:
-                self.answer(chat_id, job)
+                self.run_job(chat_id, job)
             except Exception:  # noqa: BLE001
                 log.exception('[KULTURA-BOT] ответ в чат %s упал', chat_id)
+
+    def run_job(self, chat_id: str, job: Dict[str, Any]) -> None:
+        """Задание из очереди чата: /new или вопрос."""
+        if job.get('kind') == 'new':
+            store.delete_dialog(chat_id)
+            self.tg.send_plain(chat_id, NEW_DIALOG_TEXT)
+            return
+        self.answer(chat_id, job)
 
     # ---------------------------------------------------------------- ответ
 
@@ -372,9 +396,15 @@ class Service:
                 f'пишет {actor["display_name"]} ({actor["login"]})]')
 
     def answer(self, chat_id: str, job: Dict[str, Any]) -> None:
-        message, actor = job['message'], job['actor']
+        message = job['message']
         reply_to = message.get('message_id') if job['chat_type'] != 'private' else None
-        job_id = store.start_job(chat_id, actor['tg_user_id'])
+        job_id = job.get('job_id') or store.start_job(chat_id, job['actor']['tg_user_id'])
+        store.run_job(job_id)
+        # Права — ещё раз: пока вопрос ждал очереди, привязку могли снять, а админство — отозвать.
+        actor = access.actor_for(job['actor']['tg_user_id'])
+        if actor is None:
+            store.finish_job(job_id, 'error', 'no access')
+            return
         stop = threading.Event()
         threading.Thread(target=self._typing, args=(chat_id, stop), daemon=True).start()
         status, error = 'done', ''
@@ -382,7 +412,10 @@ class Service:
             header = self.header(actor)
             user_content = [{'type': 'text', 'text': f'{header}\n{job["text"] or "(без текста)"}'}]
             files = self._files(message)
-            if (message.get('photo') or message.get('document')) and not files:
+            document = message.get('document') or {}
+            if document and document.get('mime_type') not in DOCUMENT_MIMES:
+                self.tg.send_plain(chat_id, UNSUPPORTED_FILE_TEXT, reply_to=reply_to)
+            elif (message.get('photo') or document) and not files:
                 self.tg.send_plain(chat_id, f'Файл не скачался или слишком большой (картинка — до '
                                             f'{self._limit("image") / 1e6:.1f} МБ, PDF — до '
                                             f'{self._limit("document") / 1e6:.0f} МБ) — отвечаю без него.',
@@ -417,6 +450,9 @@ class Service:
             if notice:
                 text = f'*{notice}*\n\n{text}'
             self.tg.send_markdown(chat_id, text, reply_to=reply_to)
+            if self.claude_error:                        # Claude снова отвечает — ошибку со страницы убрать
+                self.claude_error = ''
+                self._status('running', 'бот слушает Telegram', force=True)
         except agent.BudgetExceeded as exc:
             status, error = 'error', 'budget'
             self.tg.send_plain(chat_id, str(exc), reply_to=reply_to)
@@ -431,9 +467,11 @@ class Service:
                 log.exception('[KULTURA-BOT] сбой ответа')
                 text = f'Не получилось ответить: {text}'
             self.tg.send_plain(chat_id, text, reply_to=reply_to)
-            self._status('error' if kind in ('auth', 'denied', 'billing', 'offline') else 'running',
-                         text if kind in ('auth', 'denied', 'billing', 'offline') else 'бот слушает Telegram',
-                         force=True)
+            if kind in ('auth', 'denied', 'billing', 'offline'):
+                # Опрос Telegram идёт и перезапишет состояние «работает» — ошибка Claude держится
+                # отдельным полем, пока следующий ответ не получится.
+                self.claude_error = text
+                self._status('running', 'бот слушает Telegram', force=True)
         finally:
             stop.set()
             store.finish_job(job_id, status, error)

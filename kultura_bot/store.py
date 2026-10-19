@@ -12,8 +12,9 @@
     bot_dialogs     текущий диалог чата: chat_id (PK), fingerprint (инструкции и инструменты,
                     с которыми он начат), started_at, last_ts, turns, messages — история
                     Messages API как есть (JSON): Claude принимает её назад только без правок
-    bot_jobs        вопросы в работе и отвеченные: id, chat_id, tg_user_id, started_ts,
-                    finished_ts, status (running | done | error | interrupted), error
+    bot_jobs        вопросы: id, chat_id, tg_user_id, started_ts (когда пришёл), finished_ts,
+                    status (queued — ждёт очереди чата | running | done | error | interrupted),
+                    error
     bot_usage       расход по дням и моделям: day + model (PK), requests, input_tokens,
                     output_tokens, cache_read, cache_write, cost_usd
 
@@ -142,6 +143,14 @@ def delete_link(tg_user_id: str) -> bool:
         return conn.execute('DELETE FROM bot_links WHERE tg_user_id = ?', (str(tg_user_id),)).rowcount > 0
 
 
+def delete_links_for_user(user_id: int) -> int:
+    """Снять все привязки Telegram администратора (отключение, снятие админства, удаление)."""
+    _ensure()
+    with db.write() as conn:
+        conn.execute('DELETE FROM bot_link_codes WHERE user_id = ?', (int(user_id),))
+        return conn.execute('DELETE FROM bot_links WHERE user_id = ?', (int(user_id),)).rowcount
+
+
 # ------------------------------------------------------------------ диалоги
 
 def get_dialog(chat_id: str) -> Optional[Dict[str, Any]]:
@@ -176,13 +185,21 @@ def delete_dialog(chat_id: str) -> bool:
 
 # ------------------------------------------------------------------ задания
 
-def start_job(chat_id: str, tg_user_id: str = '', now: Optional[float] = None) -> int:
+def start_job(chat_id: str, tg_user_id: str = '', now: Optional[float] = None, status: str = 'running') -> int:
+    """Записать вопрос: 'queued' — пришёл и ждёт очереди чата, 'running' — ответ начат."""
     _ensure()
     now = time.time() if now is None else now
     with db.write() as conn:
         conn.execute('DELETE FROM bot_jobs WHERE started_ts < ?', (now - JOBS_KEEP_DAYS * 86400,))
         return conn.execute('INSERT INTO bot_jobs (chat_id, tg_user_id, started_ts, status) VALUES (?, ?, ?, ?)',
-                            (str(chat_id), str(tg_user_id), now, 'running')).lastrowid
+                            (str(chat_id), str(tg_user_id), now, status)).lastrowid
+
+
+def run_job(job_id: int) -> None:
+    """Вопрос из очереди взят в работу: 'queued' -> 'running'."""
+    _ensure()
+    with db.write() as conn:
+        conn.execute("UPDATE bot_jobs SET status = 'running' WHERE id = ? AND status = 'queued'", (job_id,))
 
 
 def finish_job(job_id: int, status: str, error: str = '', now: Optional[float] = None) -> None:
@@ -194,13 +211,15 @@ def finish_job(job_id: int, status: str, error: str = '', now: Optional[float] =
 
 
 def take_interrupted_jobs(max_age_s: float, now: Optional[float] = None) -> List[Dict[str, Any]]:
-    """Задания, оборванные перезапуском процесса: 'running' -> 'interrupted'. Вернуть свежие
-    (моложе max_age_s) — их чатам бот скажет, что ответ прервался."""
+    """Вопросы, оборванные перезапуском процесса — в работе и ждавшие очереди:
+    'running' и 'queued' -> 'interrupted'. Вернуть свежие (моложе max_age_s) — их чатам бот
+    скажет, что ответ прервался."""
     _ensure()
     now = time.time() if now is None else now
     with db.write() as conn:
-        rows = [dict(r) for r in conn.execute("SELECT * FROM bot_jobs WHERE status = 'running'")]
-        conn.execute("UPDATE bot_jobs SET status = 'interrupted', finished_ts = ? WHERE status = 'running'", (now,))
+        rows = [dict(r) for r in conn.execute("SELECT * FROM bot_jobs WHERE status IN ('running', 'queued')")]
+        conn.execute("UPDATE bot_jobs SET status = 'interrupted', finished_ts = ? "
+                     "WHERE status IN ('running', 'queued')", (now,))
     return [r for r in rows if now - r['started_ts'] <= max_age_s]
 
 

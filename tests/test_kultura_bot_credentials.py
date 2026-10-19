@@ -112,6 +112,13 @@ def test_proxy_rechecks_key_and_is_shown_without_password(store):
         cs.save(proxy='socks5://host:1080', check_key=check())
     with pytest.raises(ValueError, match='Прокси'):
         cs.save(proxy='не адрес', check_key=check())
+    for bad_port in ('http://u:p@host:abc', 'http://host:70000'):
+        with pytest.raises(ValueError, match='порт'):
+            cs.save(proxy=bad_port, check_key=check())
+    assert cs.proxy_url() == '', 'кривой порт — ничего не записано'
+    store.setenv(cs.PROXY_ENV, 'http://host:abc')
+    assert cs.public_view()['proxy']['display'].startswith('задан'), 'кривой адрес из окружения не роняет страницу'
+    store.delenv(cs.PROXY_ENV)
     fake = check()
     view = cs.save(proxy='http://user:secret@proxy.example:3128', check_key=fake)
     assert fake.calls == [(KEY, 'http://user:secret@proxy.example:3128')], 'ключ проверен через новый прокси'

@@ -24,8 +24,10 @@ import re
 from typing import List
 
 LIMIT = 3500           # Telegram принимает 4096 символов текста; запас на теги и переводы строк
+TELEGRAM_MAX = 4096    # предел Telegram на одно сообщение
 
-_FENCE_RE = re.compile(r'```[^\n`]*\n?(.*?)```', re.S)
+# ```язык\n…``` — строка языка только если за ней перевод строки: «```ls -la```» — это код «ls -la».
+_FENCE_RE = re.compile(r'```(?:[^\n`]*\n)?(.*?)```', re.S)
 _INLINE_CODE_RE = re.compile(r'`([^`\n]+)`')
 _BOLD_RE = re.compile(r'\*\*(?=\S)(.+?)(?<=\S)\*\*')
 _ITALIC_RE = re.compile(r'(?<![\w*])\*(?=\S)([^*\n]+?)(?<=\S)\*(?![\w*])')
@@ -108,19 +110,24 @@ def to_html(markdown: str) -> str:
 
 def plain(markdown: str) -> str:
     """Запасной вариант без разметки: снять ``` и звёздочки, оставить текст как есть."""
-    text = re.sub(r'```[^\n`]*\n?', '', markdown)
+    text = re.sub(r'```(?:[^\n`]*\n)?', '', markdown)
     text = text.replace('**', '')
     return text.strip()
 
 
 def _split_code(block: str, limit: int) -> List[str]:
-    """Блок ``` длиннее части — по строкам, каждая часть снова в ```."""
-    match = re.match(r'(```[^\n`]*\n?)(.*?)(```)\s*$', block, re.S)
+    """Блок ``` длиннее части — по строкам, каждая часть снова в ```; строка длиннее части
+    режется на куски (иначе часть вышла бы за предел Telegram и не ушла)."""
+    match = re.match(r'(```(?:[^\n`]*\n)?)(.*?)(```)\s*$', block, re.S)
     opener, body = (match.group(1), match.group(2)) if match else ('```\n', block)
     if not opener.endswith('\n'):
         opener += '\n'
-    chunks, current = [], ''
+    width = max(1, limit - len(opener) - 4)
+    lines: List[str] = []
     for line in body.rstrip('\n').split('\n'):
+        lines += [line[i:i + width] for i in range(0, len(line), width)] or ['']
+    chunks, current = [], ''
+    for line in lines:
         candidate = current + line + '\n'
         if current and len(opener) + len(candidate) + 3 > limit:
             chunks.append(opener + current + '```')

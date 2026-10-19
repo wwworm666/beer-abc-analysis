@@ -6,9 +6,12 @@
 (docs/open-check-bot.md, «Блокировки»), поэтому апдейты бот забирает сам.
 
 Ответ модели (Markdown) режется на части и переводится в HTML Telegram
-(kultura_bot/formatting.py); Telegram не принял разметку — часть уходит простым текстом.
+(kultura_bot/formatting.py); Telegram не принял разметку или часть вышла длиннее его предела
+(4096) — она уходит простым текстом кусками. Telegram просит подождать (429) — бот ждёт
+retry_after (не дольше 30 с) и шлёт ещё раз.
 """
 import logging
+import time
 from typing import Any, Dict, List, Optional
 
 from kultura_bot import formatting
@@ -16,6 +19,7 @@ from kultura_bot import formatting
 log = logging.getLogger('kultura-bot')
 
 POLL_TIMEOUT = 25                    # long poll getUpdates, с
+RETRY_AFTER_MAX_S = 30               # Telegram просит подождать (429) — ждём не дольше
 HTTP_TIMEOUT = POLL_TIMEOUT + 10
 ALLOWED_UPDATES = ['message']
 COMMANDS = [
@@ -55,22 +59,40 @@ class TelegramIO:
 
     # ---------------------------------------------------------------- ответы
 
+    def _send(self, payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """sendMessage; Telegram просит подождать (429) — ждём (не дольше 30 с) и шлём ещё раз."""
+        data = self.call('sendMessage', payload, timeout=20)
+        if data and not data.get('ok') and data.get('error_code') == 429:
+            wait = (data.get('parameters') or {}).get('retry_after') or 1
+            time.sleep(min(float(wait), RETRY_AFTER_MAX_S))
+            data = self.call('sendMessage', payload, timeout=20)
+        return data
+
     def send_html(self, chat_id: str, text_html: str, *, fallback_text: str = '',
                   reply_to: Optional[int] = None) -> Optional[int]:
-        """Одно сообщение HTML; разметку не приняли — простым текстом. message_id или None."""
+        """Одно сообщение HTML. Разметку не приняли или текст длиннее предела Telegram — простым
+        текстом, кусками. message_id первого ушедшего или None."""
         payload: Dict[str, Any] = {'chat_id': chat_id, 'text': text_html, 'parse_mode': 'HTML',
                                    'link_preview_options': {'is_disabled': True}}
         if reply_to:
             payload['reply_parameters'] = {'message_id': reply_to, 'allow_sending_without_reply': True}
-        data = self.call('sendMessage', payload, timeout=20)
+        data = self._send(payload) if len(text_html) <= formatting.TELEGRAM_MAX else \
+            {'ok': False, 'description': 'message is too long'}
         if data and data.get('ok'):
             return (data.get('result') or {}).get('message_id')
-        if data and 'parse' in str(data.get('description') or '').lower():
+        description = str((data or {}).get('description') or '').lower()
+        if data and ('parse' in description or 'too long' in description):
             payload.pop('parse_mode', None)
-            payload['text'] = fallback_text or text_html
-            data = self.call('sendMessage', payload, timeout=20)
-            if data and data.get('ok'):
-                return (data.get('result') or {}).get('message_id')
+            text = fallback_text or text_html
+            first = None
+            for start in range(0, len(text), formatting.TELEGRAM_MAX):
+                payload['text'] = text[start:start + formatting.TELEGRAM_MAX]
+                data = self._send(payload)
+                if data and data.get('ok') and first is None:
+                    first = (data.get('result') or {}).get('message_id')
+                payload.pop('reply_parameters', None)          # ответом — только первый кусок
+            if first is not None:
+                return first
         log.warning('[BOT] сообщение не ушло в чат %s: %s', chat_id, (data or {}).get('description'))
         return None
 

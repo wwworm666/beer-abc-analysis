@@ -41,7 +41,9 @@ _disabled) — бот отвечает, а в журнале остаётся п
   отвечает тем, что уже узнала;
 - дневной расход settings.DAILY_BUDGET_USD: перед каждым шагом сверяется с bot_usage;
   исчерпан — BudgetExceeded (бот отвечает «лимит на сегодня»);
-- pause_turn (серверный инструмент не уложился в шаг) — запрос повторяется как есть.
+- pause_turn (серверный инструмент не уложился в шаг) — запрос повторяется как есть;
+- шаг оборвался на пределе длины посреди вызова инструмента — вызов не выполняется (в истории
+  на него — ответ-ошибка, чтобы история осталась корректной), последний запрос без инструментов.
 """
 import logging
 from dataclasses import dataclass, field
@@ -76,7 +78,7 @@ class TurnResult:
     stop_reason: str = ''
     rounds: int = 0
     cost_usd: float = 0.0
-    notes: List[str] = field(default_factory=list)   # max_rounds | max_tokens | refusal
+    notes: List[str] = field(default_factory=list)   # max_rounds | max_tokens | max_tokens_tool | refusal
 
 
 def request_params(*, model: str, effort: str, system_text: str, tool_list: List[Dict[str, Any]],
@@ -207,13 +209,25 @@ def run_turn(client: Any, *, system_text: str, tool_list: List[Dict[str, Any]], 
                 break
             continue
         pauses = 0
+        tool_uses = [b for b in content if b.get('type') == 'tool_use']
         if response.stop_reason != 'tool_use':
+            if tool_uses:
+                # Шаг оборвался на вызове инструмента (предел длины, отказ): вызов не выполняется,
+                # но на каждый tool_use в истории должен быть tool_result, иначе следующий запрос
+                # диалога Claude отклонит (400).
+                messages.append({'role': 'user', 'content': [
+                    tools.tool_result(b['id'], 'Вызов не выполнен: ответ модели оборвался на пределе длины. '
+                                                'Ответь тем, что уже знаешь, и скажи, что не успел.', is_error=True)
+                    for b in tool_uses]})
+                if response.stop_reason == 'max_tokens' and not final:
+                    result.notes.append('max_tokens_tool')
+                    final = True                       # последний запрос — без инструментов, ответ текстом
+                    continue
             if response.stop_reason == 'max_tokens':
                 result.notes.append('max_tokens')
             elif response.stop_reason == 'refusal':
                 result.notes.append('refusal')
             break
-        tool_uses = [b for b in content if b.get('type') == 'tool_use']
         if not tool_uses:
             break
         result.rounds += 1

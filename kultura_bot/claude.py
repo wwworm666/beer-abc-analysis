@@ -39,16 +39,14 @@ def make_client(api_key: str, proxy: str = '', *, timeout: float = REQUEST_TIMEO
 
 
 def client_for(api_key: str, proxy: str = ''):
-    """Общий клиент на пару (ключ, прокси): пул соединений переиспользуется между вопросами."""
+    """Общий клиент на пару (ключ, прокси): пул соединений переиспользуется между вопросами.
+
+    Ключ или прокси сменили — новый клиент, а старый не закрывается: им ещё могут
+    дописываться ответы в других чатах. Он уходит вместе с последним из них (сборщик мусора)."""
     key = (api_key, proxy)
     with _CLIENTS_LOCK:
         client = _CLIENTS.get(key)
         if client is None:
-            for old in _CLIENTS.values():       # ключ сменили — старый пул закрываем
-                try:
-                    old.close()
-                except Exception:  # noqa: BLE001
-                    pass
             _CLIENTS.clear()
             client = _CLIENTS[key] = make_client(api_key, proxy)
         return client

@@ -357,7 +357,9 @@ test('исполнение: отзыв спрашивает подтвержде
 });
 
 test('исполнение: бот — секреты подсказками, состояние и расход, сохранение PUT, привязка и отвязка', async () => {
-    const page = boot(respond);
+    const bot = JSON.parse(JSON.stringify(BOT));       // своё состояние: другие проверки идут параллельно
+    const page = boot((url, opt) => (url === '/api/admin/mcp/bot' && opt.method === 'GET' ? [200, bot]
+        : respond(url, opt)));
     await tick(); await tick(); await tick();
     assert.match(page.nodes.mcpBotState.textContent, /ждёт настройки: нет ключа Anthropic API/);
     assert.equal(page.nodes.mcpBotState.className, 'mcp-note mcp-state-bad');
@@ -381,6 +383,9 @@ test('исполнение: бот — секреты подсказками, с
         'пустой токен не отправляется, «-» убирает прокси');
     assert.match(page.nodes.mcpBotState.textContent, /работает/);
     assert.equal(page.nodes.mcpBotState.className, 'mcp-note mcp-state-good');
+    bot.status = { state: 'running', detail: 'бот слушает Telegram', stale: false,
+        claude_error: 'Anthropic не принял ключ API (401).' };
+    page.intervals.length = 0;
     assert.equal(page.nodes.mcpBotKey.value, '', 'поле ключа очищается после сохранения');
     assert.equal(page.nodes.mcpBotOk.textContent, 'Сохранено');
     assert.match(page.nodes.mcpBotError.textContent, /Нужен прокси/, 'предупреждение сохранения видно');
@@ -392,6 +397,22 @@ test('исполнение: бот — секреты подсказками, с
     assert.equal(page.nodes.mcpBotLinkUrl.href, 'https://t.me/MCPkulturabot?start=abc');
     assert.match(page.nodes.mcpBotLinkHint.textContent, /одноразовая и действует 15 минут/);
     assert.equal(page.intervals.length, 1, 'страница ждёт привязку опросом');
+
+    page.nodes.mcpBotPaused.checked = true;            // владелец начал заполнять форму
+    page.nodes.mcpBotKey.value = 'черновик';
+    page.intervals[0].fn();                             // опрос: привязки ещё нет
+    await tick(); await tick();
+    assert.equal(page.nodes.mcpBotPaused.checked, true, 'опрос не сбрасывает «Паузу»');
+    assert.equal(page.nodes.mcpBotKey.value, 'черновик', 'опрос не стирает введённое');
+    assert.match(page.nodes.mcpBotLinkHint.textContent, /одноразовая/, 'привязки ещё нет — ждём дальше');
+    bot.links = [Object.assign({}, bot.links[0], { linked_at: '2026-10-19T12:01:00+03:00' })];   // тот же Telegram заново
+    page.intervals[0].fn();
+    await tick(); await tick();
+    assert.equal(page.nodes.mcpBotLinkHint.textContent, 'Готово: Telegram подключён.', 'повторная привязка замечена');
+    assert.equal(page.nodes.mcpBotLinkUrl.hidden, true);
+    assert.match(page.nodes.mcpBotState.textContent, /слушает Telegram, но Claude не ответил: Anthropic не принял ключ/,
+        'ошибка Claude видна, хотя опрос Telegram идёт');
+    assert.equal(page.nodes.mcpBotState.className, 'mcp-note mcp-state-bad');
 
     row.children[3].children[0].fire('click');
     await tick(); await tick();

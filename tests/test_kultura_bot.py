@@ -331,6 +331,23 @@ def test_rejected_optional_feature_is_dropped_and_retried(env):
     assert len(client.calls) == 4, 'чужая ошибка 400 — наверх без повтора'
 
 
+def test_max_tokens_mid_tool_call_keeps_history_valid(env):
+    client = FakeClient(
+        resp(thinking(), use('common_whoami', {}, 'cut'), stop='max_tokens'),
+        resp(text('Ответ без инструмента.')),
+    )
+    result = agent.run_turn(client, system_text='S', tool_list=[], history=[], user_content=[text('?')],
+                            ctx=ctx_for(env))
+    assert result.text == 'Ответ без инструмента.' and 'max_tokens_tool' in result.notes
+    assert 'max_tokens' not in result.notes, 'итоговый ответ не помечен обрезанным'
+    closing = client.calls[1]['messages'][-1]
+    assert closing['role'] == 'user' and closing['content'][0]['tool_use_id'] == 'cut'
+    assert closing['content'][0]['is_error'] is True and client.calls[1]['tool_choice'] == {'type': 'none'}
+    assert audit.recent(limit=5) == [], 'обрезанный вызов не исполняется'
+    roles = [m['role'] for m in result.messages]
+    assert roles == ['user', 'assistant', 'user', 'assistant'], 'на каждый tool_use — tool_result'
+
+
 def test_daily_budget_stops_before_request(env):
     env.monkeypatch.setattr(settings, 'DAILY_BUDGET_USD', 0.01)
     store.add_usage('claude-opus-5-5', {'input_tokens': 10_000}, 0.04)
@@ -415,6 +432,39 @@ def test_markdown_to_telegram_html():
     assert formatting.to_html('2 * 3 * 4 и snake_case_name') == '2 * 3 * 4 и snake_case_name'
 
 
+def test_single_line_fence_and_very_long_code_line():
+    assert formatting.to_html('Команда ```ls -la``` выводит') == 'Команда <pre>ls -la</pre> выводит'
+    assert formatting.plain('Команда ```ls -la``` выводит') == 'Команда ls -la выводит'
+    parts = formatting.split('Вот JSON:\n\n```json\n' + 'x' * 5000 + '\n```')
+    assert all(len(formatting.to_html(p)) <= formatting.TELEGRAM_MAX for p in parts)
+    assert ''.join(formatting.to_html(p) for p in parts).count('x') == 5000, 'длинная строка не потерялась'
+
+
+def test_telegram_waits_on_429_and_sends_too_long_as_plain_chunks(monkeypatch):
+    from kultura_bot import telegram_io
+    calls = []
+    total = []
+
+    class IO(telegram_io.TelegramIO):
+        def call(self, method, payload=None, timeout=8):
+            calls.append(dict(payload or {}))
+            total.append(1)
+            if len(total) == 1:                # самый первый запрос — «подождите 3 с»
+                return {'ok': False, 'error_code': 429, 'parameters': {'retry_after': 3}}
+            return {'ok': True, 'result': {'message_id': len(calls)}}
+
+    slept = []
+    monkeypatch.setattr(telegram_io.time, 'sleep', slept.append)
+    io = IO('t')
+    assert io.send_html('1', 'привет') == 2 and slept == [3], '429 — подождать и повторить'
+    calls.clear()
+    big = 'я' * 5000
+    assert io.send_html('1', big, fallback_text=big, reply_to=7) == 1
+    assert [len(c['text']) for c in calls] == [4096, 904], 'длиннее предела — простым текстом, кусками'
+    assert all('parse_mode' not in c for c in calls)
+    assert 'reply_parameters' in calls[0] and 'reply_parameters' not in calls[1], 'ответом — только первый кусок'
+
+
 def test_long_answer_is_split_by_paragraphs_and_code_kept_whole():
     paragraph = 'Абзац. ' * 60
     code = '```\n' + '\n'.join(f'строка {i:03d}' for i in range(40)) + '\n```'
@@ -476,7 +526,7 @@ def bot(env):
     tg = FakeTelegram()
     svc = service.Service(env.app, io_factory=lambda token: tg)
     assert svc.ready() is True
-    svc.enqueue = lambda chat_id, job: svc.answer(chat_id, job)        # без потоков: ответ сразу
+    svc.enqueue = lambda chat_id, job: svc.run_job(chat_id, job)       # без потоков: ответ сразу
     client = FakeClient()
     env.monkeypatch.setattr(claude, 'client_for', lambda key, proxy: client)
     return SimpleNamespace(svc=svc, tg=tg, client=client, env=env)
@@ -559,13 +609,75 @@ def test_anthropic_errors_become_plain_text(bot):
                                                           response=httpx2.Response(403, request=req), body=None)]
     bot.svc.handle_update(message('вопрос'))
     assert 'Anthropic отказал серверу (403)' in bot.tg.sent[-1][1] and 'прокси' in bot.tg.sent[-1][1]
-    assert store.get_status()['state'] == 'error'
+    assert 'отказал серверу' in store.get_status()['claude_error'], 'страница видит ошибку Claude'
     assert store.recent_jobs()[0]['status'] == 'error'
     bot.client.script += [anthropic.BadRequestError('messages.1: bad', response=httpx2.Response(400, request=req),
                                                     body=None)]
     store.save_dialog(OWNER_TG, 'fp', '2026-10-19T10:00:00+03:00', [], 1)
     bot.svc.handle_update(message('вопрос 2'))
     assert 'Диалог начат заново' in bot.tg.sent[-1][1] and store.get_dialog(OWNER_TG) is None
+
+
+def test_new_waits_for_answer_in_progress_and_queued_questions_survive_restart(bot):
+    store.save_link(OWNER_TG, bot.env.accounts.owner['id'], 'owner')
+    del bot.svc.enqueue                        # настоящая очередь
+    submitted = []
+    bot.svc.executor = SimpleNamespace(submit=lambda fn, *args: submitted.append((fn, args)))
+    bot.svc.handle_update(message('вопрос 1'))
+    bot.svc.handle_update(message('/new'))
+    bot.svc.handle_update(message('вопрос 2'))
+    assert len(submitted) == 1 and bot.tg.sent == [], 'всё ждёт в очереди чата'
+    assert [j['status'] for j in store.recent_jobs()] == ['queued', 'queued'], 'вопросы записаны сразу'
+    interrupted = store.take_interrupted_jobs(1800)
+    assert len(interrupted) == 2, 'перезапуск, пока вопросы ждали, — чату скажут «повторите»'
+
+    bot.svc.queues.clear()                     # как после перезапуска
+    bot.svc.busy.clear()
+    submitted.clear()
+    bot.svc.handle_update(message('вопрос 1'))
+    bot.svc.handle_update(message('/new'))
+    bot.svc.handle_update(message('вопрос 2'))
+    bot.client.script += [resp(text('Ответ 1')), resp(text('Ответ 2'))]
+    fn, args = submitted[0]
+    fn(*args)                                  # очередь чата: вопрос 1, /new, вопрос 2
+    assert [m[1] for m in bot.tg.sent] == ['Ответ 1', service.NEW_DIALOG_TEXT, 'Ответ 2']
+    assert len(bot.client.calls[-1]['messages']) == 1, 'вопрос 2 — в новом диалоге, /new не отменён'
+    assert store.get_dialog(OWNER_TG)['turns'] == 1
+
+
+def test_answer_rechecks_access_and_revoked_admin_loses_links(bot):
+    from routes.auth import _revoke_agent_access
+    store.save_link(OWNER_TG, bot.env.accounts.owner['id'], 'owner')
+    job = {'message': message('вопрос')['message'], 'actor': owner_actor(bot.env), 'text': 'вопрос',
+           'chat_type': 'private'}
+    store.delete_link(OWNER_TG)                # привязку сняли, пока вопрос ждал очереди
+    bot.svc.run_job(OWNER_TG, job)
+    assert bot.client.calls == [] and bot.tg.sent == [], 'без доступа — ни Claude, ни ответа'
+    assert store.recent_jobs()[0]['error'] == 'no access'
+    store.save_link(OWNER_TG, bot.env.accounts.owner['id'], 'owner')
+    code = access.create_code(bot.env.accounts.owner['id'], 'owner')['code']
+    _revoke_agent_access(bot.env.accounts.owner['id'])        # отключили или сняли админство
+    assert store.list_links() == [] and store.take_link_code(code) is None, \
+        'возврат флага не оживит старый Telegram и неиспользованную ссылку'
+
+
+def test_claude_error_stays_on_page_until_answer_succeeds(bot):
+    import anthropic
+    import httpx2
+    store.save_link(OWNER_TG, bot.env.accounts.owner['id'], 'owner')
+    req = httpx2.Request('POST', 'https://api.anthropic.com/v1/messages')
+    bot.client.script += [anthropic.AuthenticationError('invalid x-api-key', response=httpx2.Response(401, request=req),
+                                                        body=None)]
+    bot.svc.handle_update(message('вопрос'))
+    status = store.get_status()
+    assert status['state'] == 'running' and 'не принял ключ' in status['claude_error']
+    bot.svc.tg.updates.append({'ok': True, 'result': []})
+    bot.svc._status_at = 0                     # опрос Telegram пишет «работает» — ошибка Claude остаётся
+    bot.svc.poll_once()
+    assert 'не принял ключ' in store.get_status()['claude_error']
+    bot.client.script += [resp(text('Снова отвечаю'))]
+    bot.svc.handle_update(message('вопрос 2'))
+    assert store.get_status()['claude_error'] == ''
 
 
 def test_question_during_worker_shutdown_is_not_lost_silently(bot):
@@ -591,6 +703,9 @@ def test_photo_is_passed_to_model(bot):
     content = bot.client.calls[-1]['messages'][0]['content']
     assert content[1]['type'] == 'image' and content[1]['source']['media_type'] == 'image/jpeg'
     assert content[0]['text'].endswith('\nчто это?')
+    bot.client.script += [resp(text('По тексту'))]
+    bot.svc.handle_update(message('посмотри смету', document={'file_id': 'x1', 'mime_type': 'application/msword'}))
+    assert bot.tg.sent[-2][1] == service.UNSUPPORTED_FILE_TEXT and bot.tg.sent[-1][1] == 'По тексту'
     asked = []
     bot.tg.download = lambda file_id, max_bytes: asked.append((file_id, max_bytes))   # не скачалось
     bot.client.script += [resp(text('Без файла'))]

@@ -121,12 +121,16 @@ def hint(secret: str) -> str:
 
 
 def proxy_display(url: str) -> str:
-    """Прокси без логина и пароля: «http://proxy.example:3128»."""
+    """Прокси без логина и пароля: «http://proxy.example:3128». Адрес не разбирается (старое
+    значение из окружения) — «задан» без подробностей: страница не должна падать из-за него."""
     if not url:
         return ''
-    parts = urlsplit(url)
-    host = parts.hostname or ''
-    port = f':{parts.port}' if parts.port else ''
+    try:
+        parts = urlsplit(url)
+        host = parts.hostname or ''
+        port = f':{parts.port}' if parts.port else ''
+    except ValueError:
+        return 'задан (адрес не разобрать — сохраните заново)'
     return f'{parts.scheme}://{host}{port}'
 
 
@@ -159,9 +163,14 @@ def _clean_proxy(value: Any) -> str:
     text = str(value or '').strip()
     if not text:
         return ''
-    parts = urlsplit(text)
-    if parts.scheme not in PROXY_SCHEMES or not parts.hostname:
-        raise ValueError('Прокси — адрес вида http://логин:пароль@хост:порт или https://хост:порт')
+    message = 'Прокси — адрес вида http://логин:пароль@хост:порт или https://хост:порт (порт — число 1–65535)'
+    try:
+        parts = urlsplit(text)
+        port = parts.port                # порт не число или больше 65535 — ValueError
+    except ValueError:
+        raise ValueError(message) from None
+    if parts.scheme not in PROXY_SCHEMES or not parts.hostname or port == 0:
+        raise ValueError(message)
     return text
 
 

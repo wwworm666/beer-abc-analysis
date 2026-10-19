@@ -351,7 +351,8 @@
     var BOT_LINK_POLL_MS = 5000;      // после «Подключить мой Telegram» — ждём привязку
     var BOT_LINK_POLL_TIMES = 60;     // 5 минут
     var botLinkPoll = null;
-    var botLinksCount = 0;
+    var botLinksSig = '';             // привязки как строка: изменилась — Telegram подключили
+    var botLinksBaseline = null;      // привязки в момент «Подключить мой Telegram»
 
     function money(value) {
         return '$' + (Number(value) || 0).toFixed(2);
@@ -363,7 +364,12 @@
         if (st.stale) return { text: 'Бот ' + bot + ' давно не отзывался (последний раз ' + fmtTime(st.at) +
             '): сервис перезапускается или упал. Если так дольше пяти минут — напишите разработчику.', bad: true };
         switch (st.state) {
-            case 'running': return { text: 'Бот ' + bot + ' работает: слушает Telegram и отвечает.', bad: false };
+            case 'running':
+                // Telegram слушается, но последний ответ Claude не получился (ключ, отказ серверу,
+                // деньги, связь) — держим это на виду, пока следующий ответ не получится.
+                if (st.claude_error) return { text: 'Бот ' + bot + ' слушает Telegram, но Claude не ответил: ' +
+                    st.claude_error, bad: true };
+                return { text: 'Бот ' + bot + ' работает: слушает Telegram и отвечает.', bad: false };
             case 'waiting': return { text: 'Бот ждёт настройки: ' + st.detail + '.', bad: true };
             case 'paused': return { text: 'Бот на паузе: на сообщения не отвечает.', bad: true };
             case 'conflict': return { text: 'Конфликт: ' + st.detail + '.', bad: true };
@@ -373,7 +379,9 @@
         }
     }
 
-    function renderBot(data) {
+    // resetForm — после загрузки страницы и сохранения: поля секретов пустые, «Пауза» — как
+    // сохранено. Опрос привязки форму не трогает: владелец мог начать её заполнять.
+    function renderBot(data, resetForm) {
         var status = botStatusText(data);
         var node = byId('mcpBotState');
         node.textContent = status.text;
@@ -393,10 +401,12 @@
             ? 'Задан: ' + proxy.display + '. Чтобы убрать, сохраните поле с одним знаком «-».'
             : 'Не нужен, если Anthropic отвечает серверу напрямую. Нужен, если после сохранения ключа видно ' +
               '«Anthropic отказал серверу (403)» или «Нет связи с Anthropic».');
-        byId('mcpBotToken').value = '';
-        byId('mcpBotKey').value = '';
-        byId('mcpBotProxy').value = '';
-        byId('mcpBotPaused').checked = !!data.paused;
+        if (resetForm) {
+            byId('mcpBotToken').value = '';
+            byId('mcpBotKey').value = '';
+            byId('mcpBotProxy').value = '';
+            byId('mcpBotPaused').checked = !!data.paused;
+        }
 
         var usage = data.usage || {};
         var today = usage.today || {};
@@ -426,17 +436,17 @@
             body.appendChild(row);
         });
         byId('mcpBotLinksEmpty').hidden = links.length > 0;
-        if (botLinkPoll && links.length > botLinksCount) {
+        botLinksSig = links.map(function (l) { return l.tg_user_id + '@' + l.linked_at; }).join(',');
+        if (botLinkPoll && botLinksBaseline !== null && botLinksSig !== botLinksBaseline) {
             clearInterval(botLinkPoll);
             botLinkPoll = null;
             byId('mcpBotLinkUrl').hidden = true;
             setText('mcpBotLinkHint', 'Готово: Telegram подключён.');
         }
-        botLinksCount = links.length;
     }
 
-    function loadBot() {
-        return call('GET', API.bot).then(renderBot)
+    function loadBot(resetForm) {
+        return call('GET', API.bot).then(function (data) { renderBot(data, resetForm); })
             .catch(function (e) { setText('mcpBotError', e.message); });
     }
 
@@ -454,7 +464,7 @@
         button.disabled = true;
         call('PUT', API.bot, body)
             .then(function (data) {
-                renderBot(data);
+                renderBot(data, true);
                 setText('mcpBotOk', 'Сохранено');
                 if (data.warnings && data.warnings.length) setText('mcpBotError', data.warnings.join(' '));
             })
@@ -473,10 +483,11 @@
                     ' минут: откройте её там, где у вас Telegram, и нажмите «Старт».');
                 var times = 0;
                 if (botLinkPoll) clearInterval(botLinkPoll);
+                botLinksBaseline = botLinksSig;
                 botLinkPoll = setInterval(function () {
                     times += 1;
                     if (times > BOT_LINK_POLL_TIMES) { clearInterval(botLinkPoll); botLinkPoll = null; return; }
-                    loadBot();
+                    loadBot(false);
                 }, BOT_LINK_POLL_MS);
             })
             .catch(function (e) { setText('mcpBotError', e.message); });
@@ -486,7 +497,7 @@
         if (!window.confirm('Отключить Telegram «' + (link.tg_name || link.tg_user_id) + '» (' + link.login +
             ')? Бот перестанет ему отвечать.')) return;
         call('DELETE', API.botLinks + encodeURIComponent(link.tg_user_id))
-            .then(loadBot)
+            .then(function () { return loadBot(false); })
             .catch(function (e) { setText('mcpBotError', e.message); });
     }
 
@@ -510,7 +521,7 @@
         loadGrants();
         loadAudit();
         loadSettings();
-        loadBot();
+        loadBot(true);
     }
 
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
