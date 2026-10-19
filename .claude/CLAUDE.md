@@ -155,8 +155,8 @@ Before finishing any task:
   (`/etc/kultura-bot.env`, пишет команда установки со страницы);
 - просят поменять поведение бота — правь эти файлы (PR -> слияние в `main`): сервер бота сам
   сверяется с GitHub раз в 2 минуты и перезапускается с новой версией;
-- `kultura_bot/engine/` не импортирует код сайта (`core`, `routes`, Flask): на сервере бота
-  лежит только папка `kultura_bot/` (проверяет `tests/test_kultura_bot.py`).
+- `kultura_bot/engine/` не импортирует код сайта (`core`, `routes`, Flask): на сервер бота
+  ставится только папка `kultura_bot/` и её зависимости (проверяет `tests/test_kultura_bot.py`).
 
 ---
 

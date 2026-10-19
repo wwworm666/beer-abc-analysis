@@ -28,5 +28,5 @@
     formatting.py   Markdown модели -> HTML Telegram
 
 Кода сайта (core/, routes/) сервер бота не содержит и не импортирует: на сервере лежит
-только папка kultura_bot/ (установка — kultura_bot/deploy/install.sh).
+папка kultura_bot/ (частичный клон, установка — kultura_bot/deploy/install.sh).
 """

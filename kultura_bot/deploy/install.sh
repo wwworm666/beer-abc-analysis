@@ -11,7 +11,8 @@
 #   1. git и curl — если их нет (apt / dnf / yum);
 #   2. uv — ставит Python для бота (>= 3.10), не трогая системный;
 #   3. системный пользователь kultura-bot — от него работает бот;
-#   4. /opt/kultura-bot/repo — только папка kultura_bot/ из GitHub (ветка main);
+#   4. /opt/kultura-bot/repo — папка kultura_bot/ из GitHub (ветка main; частичный клон:
+#      других папок репозитория нет, файлы корня git кладёт всегда — бот их не использует);
 #   5. /opt/kultura-bot/venv — Python и зависимости (kultura_bot/deploy/requirements.txt);
 #   6. /etc/kultura-bot.env — ключ сервера бота и адрес сайта (читает только root);
 #   7. службы systemd: kultura-bot (бот) и kultura-bot-update.timer (раз в 2 минуты
