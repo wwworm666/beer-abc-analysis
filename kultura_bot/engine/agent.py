@@ -15,8 +15,14 @@
 
 ## Параметры запроса
 
+Запрос идёт потоком (client.beta.messages.stream, итог — get_final_message): на xhigh шаг
+бывает долгим, а поток не упирается в таймаут HTTP.
+
 - model, effort, max_tokens — kultura_bot/settings.py; думает модель всегда (adaptive),
   рассуждения не показываются (display по умолчанию);
+- speed="fast" — быстрый режим (settings.FAST_MODE): вывод до 2,5 раза быстрее, цена × 2;
+  не ответил (429, сбой, отказ именно в нём) — тот же шаг на обычной скорости, и
+  settings.FAST_COOLDOWN_S быстрый режим не просится (fast_mode_on);
 - инструменты — kultura_bot/engine/tools.py (поиск по описаниям + отложенная загрузка);
 - кэш: системный промпт — явная точка кэша, хвост разговора — автоматическая
   (cache_control верхнего уровня); повторные запросы диалога читают начало из кэша;
@@ -34,6 +40,14 @@ fallbacks, context editing и block_binding — бета-параметры API.
 этой возможности и до перезапуска процесса больше её не шлёт (OPTIONAL_FEATURES,
 _disabled) — бот отвечает, а в журнале остаётся предупреждение.
 
+## Смена модели посреди ответа (fallbacks)
+
+Отказ основной модели посреди вывода: в потоке остаётся её начало, затем блок fallback и
+ответ запасной модели. В историю и на исполнение идёт то, что разрешает документация
+Anthropic («Echoing fallback turns back»): до последнего блока fallback — только текст и
+парные блоки серверных инструментов; рассуждения и вызовы инструментов отказавшей модели
+не исполняются и назад не отправляются (after_fallback).
+
 ## Пределы
 
 - settings.MAX_TOOL_ROUNDS шагов с инструментами на вопрос (агенту —
@@ -47,6 +61,7 @@ _disabled) — бот отвечает, а в журнале остаётся п
   на него — ответ-ошибка, чтобы история осталась корректной), последний запрос без инструментов.
 """
 import logging
+import time
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional
 
@@ -58,7 +73,11 @@ log = logging.getLogger('kultura-bot')
 BETA_CONTEXT = 'context-management-2025-06-27'
 BETA_THINKING_BINDING = 'thinking-binding-controls-2026-08-01'
 BETA_FALLBACK = 'server-side-fallback-2026-07-01'
+# Быстрый режим Opus 5.5 беты не требует, а Opus 5 и Opus 4.8 — требуют: они запасные модели
+# (fallbacks), и запрос с speed="fast" должен быть верным и для них.
+BETA_FAST = 'fast-mode-2026-02-01'
 MAX_PAUSE_RESUMES = 5            # подряд pause_turn без нового содержания — хватит
+FAST_WORDS = ('speed', 'fast mode', 'fast-mode', 'fast_mode')     # отказ именно в быстром режиме
 
 # Необязательные возможности: имя -> слова в тексте ошибки 400, по которым её узнать.
 OPTIONAL_FEATURES = {
@@ -67,6 +86,19 @@ OPTIONAL_FEATURES = {
     'block_binding': ('block_binding', 'thinking-binding', 'prefix_mismatch'),
 }
 _disabled = set()                # отвергнутые API возможности (до перезапуска процесса)
+_fast_paused_until = 0.0         # быстрый режим не ответил — до этого времени обычная скорость
+
+
+def fast_mode_on(now: Optional[float] = None) -> bool:
+    """Просить ли быстрый режим: включён в настройках и не на паузе после сбоя."""
+    return settings.FAST_MODE and (time.time() if now is None else now) >= _fast_paused_until
+
+
+def pause_fast_mode(reason: str, now: Optional[float] = None) -> None:
+    global _fast_paused_until
+    _fast_paused_until = (time.time() if now is None else now) + settings.FAST_COOLDOWN_S
+    log.warning('[BOT] быстрый режим не ответил (%s) — %d мин на обычной скорости', reason,
+                settings.FAST_COOLDOWN_S // 60)
 
 
 class BudgetExceeded(Exception):
@@ -85,7 +117,7 @@ class TurnResult:
 
 def request_params(*, model: str, effort: str, system_text: str, tool_list: List[Dict[str, Any]],
                    messages: List[Dict[str, Any]], final: bool = False) -> Dict[str, Any]:
-    """Параметры client.beta.messages.create (отдельно — для тестов и отладки)."""
+    """Параметры client.beta.messages.stream (отдельно — для тестов и отладки)."""
     betas = []
     params: Dict[str, Any] = {
         'model': model,
@@ -111,6 +143,9 @@ def request_params(*, model: str, effort: str, system_text: str, tool_list: List
     if settings.REFUSAL_FALLBACK and 'fallbacks' not in _disabled:
         params['fallbacks'] = 'default'
         betas.append(BETA_FALLBACK)
+    if fast_mode_on():
+        params['speed'] = 'fast'
+        betas.append(BETA_FAST)
     if final:
         params['tool_choice'] = {'type': 'none'}
     if betas:
@@ -130,12 +165,42 @@ def rejected_feature(exc: BaseException) -> Optional[str]:
     return None
 
 
+def fast_failure(exc: BaseException) -> bool:
+    """Быстрый режим не дал ответа: нет мощности или сбой (429, 5xx, 529, обрыв связи) либо
+    отказ именно в нём (400/403 со словом speed / fast mode)."""
+    import anthropic
+    if isinstance(exc, anthropic.APIConnectionError):
+        return True
+    if not isinstance(exc, anthropic.APIStatusError):
+        return False
+    status = claude.api_status(exc)
+    if status == 429 or status >= 500:
+        return True
+    message = str(getattr(exc, 'message', '') or exc).lower()
+    return status in (400, 403) and any(word in message for word in FAST_WORDS)
+
+
+def send(client: Any, params: Dict[str, Any]):
+    """Один запрос потоком; вернуть итоговое сообщение (как у messages.create)."""
+    with client.beta.messages.stream(**params) as stream:
+        return stream.get_final_message()
+
+
 def create_message(client: Any, build: Callable[[], Dict[str, Any]]):
-    """Запрос к Claude; отвергнутую необязательную возможность выключить и повторить."""
+    """Запрос к Claude. Отвергнутую необязательную возможность — выключить и повторить;
+    быстрый режим не ответил — тот же запрос на обычной скорости (pause_fast_mode)."""
     while True:
+        params = build()
+        fast = params.get('speed') == 'fast'
         try:
-            return client.beta.messages.create(**build())
+            # Быстрый запрос — без повторов SDK: нет мощности — сразу обычная скорость, а не
+            # ожидание (документация fast mode, «Falling back to standard speed»).
+            return send(client.with_options(max_retries=0) if fast else client, params)
         except Exception as exc:  # noqa: BLE001 — разбор ниже, остальное — наверх как есть
+            if fast and fast_failure(exc):
+                status = f' {claude.api_status(exc)}' if hasattr(exc, 'status_code') else ''
+                pause_fast_mode(type(exc).__name__ + status)
+                continue
             feature = rejected_feature(exc)
             if feature is None:
                 raise
@@ -155,6 +220,24 @@ def _block_dict(block: Any) -> Dict[str, Any]:
     if isinstance(block, dict):
         return block
     return block.to_dict(mode='json')
+
+
+def after_fallback(content: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Блоки ответа для истории и исполнения, если посреди вывода сменилась модель.
+
+    До последнего блока fallback остаются только текст и парные блоки серверных инструментов
+    (server_tool_use с его результатом); рассуждения, вызовы инструментов и прочие блоки
+    отказавшей модели отбрасываются. Блок fallback и всё после него — как есть."""
+    last = max((i for i, b in enumerate(content) if b.get('type') == 'fallback'), default=-1)
+    if last <= 0:
+        return content
+    before = content[:last]
+    results = {b.get('tool_use_id') for b in before if str(b.get('type') or '').endswith('_tool_result')}
+    paired = {b.get('id') for b in before if b.get('type') == 'server_tool_use' and b.get('id') in results}
+    kept = [b for b in before if b.get('type') == 'text'
+            or (b.get('type') == 'server_tool_use' and b.get('id') in paired)
+            or (str(b.get('type') or '').endswith('_tool_result') and b.get('tool_use_id') in paired)]
+    return kept + content[last:]
 
 
 def _texts(content: List[Dict[str, Any]]) -> str:
@@ -196,7 +279,7 @@ def run_turn(client: Any, *, system_text: str, tool_list: List[Dict[str, Any]], 
             final=final))
         usage = _usage_dict(response.usage)
         served_by = getattr(response, 'model', None) or model
-        cost = claude.cost_usd(served_by, usage)
+        cost = claude.cost_usd(served_by, usage, speed=getattr(response.usage, 'speed', None))
         result.cost_usd += cost
         try:
             store.add_usage(served_by, usage, cost)
@@ -204,7 +287,7 @@ def run_turn(client: Any, *, system_text: str, tool_list: List[Dict[str, Any]], 
                 on_usage(served_by, usage, cost)
         except Exception:  # noqa: BLE001 — учёт не должен ронять ответ
             log.exception('[BOT] не удалось записать расход')
-        content = [_block_dict(b) for b in response.content]
+        content = after_fallback([_block_dict(b) for b in response.content])
         messages.append({'role': 'assistant', 'content': content})
         result.stop_reason = response.stop_reason or ''
         text = _texts(content)

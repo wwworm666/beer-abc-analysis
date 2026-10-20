@@ -166,19 +166,43 @@ class FakeSite:
 
 
 class FakeClient:
-    """client.beta.messages.create: ответы по сценарию; каждый запрос запоминается копией."""
+    """client.beta.messages.stream: ответы по сценарию; каждый запрос запоминается копией.
+
+    Бот шлёт запросы потоком (agent.send): with ...stream(**params) as s: s.get_final_message().
+    with_options(...) запоминается в options (быстрый запрос — max_retries=0)."""
 
     def __init__(self, *script):
         self.script = list(script)
         self.calls = []
-        self.beta = SimpleNamespace(messages=SimpleNamespace(create=self._create))
+        self.options = []
+        self.beta = SimpleNamespace(messages=SimpleNamespace(stream=self._stream))
 
-    def _create(self, **params):
+    def with_options(self, **options):
+        self.options.append(options)
+        return self
+
+    def _stream(self, **params):
         self.calls.append(copy.deepcopy(params))
         item = self.script.pop(0)
-        if isinstance(item, Exception):
-            raise item
-        return item(params) if callable(item) else item
+        return _FakeStream(item(params) if callable(item) and not isinstance(item, Exception) else item)
+
+
+class _FakeStream:
+    def __init__(self, item):
+        self.item = item
+
+    def __enter__(self):
+        if isinstance(self.item, Exception):          # ошибка до потока (HTTP 4xx/5xx)
+            raise self.item
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def get_final_message(self):
+        if isinstance(self.item, BaseException):
+            raise self.item
+        return self.item
 
 
 class FakeTelegram:
@@ -218,16 +242,25 @@ class FakeTelegram:
         return self.files.get(file_id, b'jpegbytes')
 
 
-def api_error(cls, code, message='ошибка'):
+def api_error(cls, code, message='ошибка', body=None):
     import httpx2
     req = httpx2.Request('POST', 'https://api.anthropic.com/v1/messages')
-    return cls(message, response=httpx2.Response(code, request=req), body=None)
+    return cls(message, response=httpx2.Response(code, request=req), body=body)
+
+
+def stream_error(kind, message='ошибка'):
+    """Ошибка посреди потока: событие error при HTTP 200 (так её отдаёт SDK)."""
+    import anthropic
+    body = {'type': 'error', 'error': {'type': kind, 'message': message}}
+    return api_error(anthropic.APIStatusError, 200, str(body), body=body)
 
 
 @pytest.fixture
 def env(tmp_path, monkeypatch):
     monkeypatch.setattr(settings, 'DAILY_BUDGET_USD', 15.0)
+    monkeypatch.setattr(settings, 'FAST_MODE', True)
     monkeypatch.setattr(agent, '_disabled', set())
+    monkeypatch.setattr(agent, '_fast_paused_until', 0.0)
     site = FakeSite()
     store = Store(str(tmp_path / 'bot.db'))
     yield SimpleNamespace(site=site, store=store, monkeypatch=monkeypatch, tmp_path=tmp_path)
@@ -339,9 +372,13 @@ def test_turn_calls_site_tool_and_keeps_history_append_only(env):
     assert first['messages'][:2] == frozen and second['messages'][:len(first['messages'])] == first['messages'], \
         'история только дописывается'
     assert first['model'] == settings.MODEL and first['output_config'] == {'effort': settings.EFFORT}
+    assert settings.EFFORT == 'xhigh' and settings.AGENT_EFFORT == 'xhigh', 'решение владельца 2026-10-20'
+    assert first['max_tokens'] == settings.MAX_TOKENS == 64000 and first['speed'] == 'fast'
+    assert client.options == [{'max_retries': 0}] * 2, 'быстрый запрос — без повторов SDK'
     assert first['system'] == [{'type': 'text', 'text': 'СИСТЕМА', 'cache_control': {'type': 'ephemeral'}}]
     assert first['cache_control'] == {'type': 'ephemeral'} and first['fallbacks'] == 'default'
-    assert set(first['betas']) == {agent.BETA_CONTEXT, agent.BETA_THINKING_BINDING, agent.BETA_FALLBACK}
+    assert set(first['betas']) == {agent.BETA_CONTEXT, agent.BETA_THINKING_BINDING, agent.BETA_FALLBACK,
+                                   agent.BETA_FAST}
     assert first['thinking'] == {'type': 'adaptive', 'block_binding': {'prefix_mismatch_behavior': 'drop_block'}}
     edit = first['context_management']['edits'][0]
     assert edit['type'] == 'clear_tool_uses_20250919' and edit['exclude_tools'] == ['tool_search_tool_regex']
@@ -390,6 +427,70 @@ def test_rejected_optional_feature_is_dropped_and_retried(env):
     with pytest.raises(anthropic.BadRequestError):
         turn(env, client)
     assert len(client.calls) == 4, 'чужая ошибка 400 — наверх без повтора'
+
+
+def test_fast_mode_falls_back_to_standard_and_pauses(env):
+    import anthropic
+    client = FakeClient(api_error(anthropic.RateLimitError, 429, 'Fast mode rate limit exceeded'),
+                        resp(text('Ответ')), resp(text('Ещё')), stream_error('overloaded_error', 'Overloaded'),
+                        resp(text('Снова')), api_error(anthropic.BadRequestError, 400, 'speed: fast mode is not '
+                                                       'available for this organization'), resp(text('Обычно')),
+                        api_error(anthropic.BadRequestError, 400, 'messages.0: что-то другое'))
+    assert turn(env, client).text == 'Ответ'
+    first, second = client.calls
+    assert first['speed'] == 'fast' and agent.BETA_FAST in first['betas']
+    assert 'speed' not in second and agent.BETA_FAST not in second['betas'], 'тот же шаг — на обычной скорости'
+    assert second['messages'] == first['messages'] and second['output_config'] == first['output_config']
+    assert client.options == [{'max_retries': 0}], 'быстрый — без повторов SDK, обычный — с ними'
+    assert agent.fast_mode_on() is False and agent.fast_mode_on(agent._fast_paused_until) is True, \
+        'пауза FAST_COOLDOWN_S'
+    turn(env, client)
+    assert 'speed' not in client.calls[2], 'на паузе — обычная скорость'
+    for expected in ('Снова', 'Обычно'):                  # ошибка посреди потока; отказ в быстром режиме
+        env.monkeypatch.setattr(agent, '_fast_paused_until', 0.0)
+        before = len(client.calls)
+        assert turn(env, client).text == expected
+        fast, standard = client.calls[before:]
+        assert fast['speed'] == 'fast' and 'speed' not in standard
+    env.monkeypatch.setattr(agent, '_fast_paused_until', 0.0)
+    with pytest.raises(anthropic.BadRequestError):
+        turn(env, client)
+    assert agent.fast_mode_on(), 'чужая ошибка 400 — наверх, быстрый режим не на паузе'
+
+
+def test_fast_mode_off_and_fast_price(env):
+    env.monkeypatch.setattr(settings, 'FAST_MODE', False)
+    client = FakeClient(resp(text('Ответ')))
+    turn(env, client)
+    assert 'speed' not in client.calls[0] and agent.BETA_FAST not in client.calls[0]['betas']
+    assert client.options == [], 'обычная скорость — с повторами SDK'
+    env.monkeypatch.setattr(settings, 'FAST_MODE', True)
+    fast = resp(text('Быстро'))
+    fast.usage.speed = 'fast'
+    result = turn(env, FakeClient(fast))
+    usage = {'input_tokens': 1000, 'output_tokens': 200}
+    assert result.cost_usd == pytest.approx(2 * claude.cost_usd('claude-opus-5-5', usage)), \
+        'шаг в быстром режиме — по двойной цене'
+
+
+def test_mid_output_fallback_drops_declined_partial(env):
+    declined = [text('Начинаю. '), thinking(), use('stocks_taps_list', {}, 'declined'),
+                {'type': 'fallback', 'from': {'model': 'claude-opus-5-5'}, 'to': {'model': 'claude-opus-5'}},
+                thinking(), use('common_whoami', {}, 'ok')]
+    client = FakeClient(resp(*declined, stop='tool_use', model='claude-opus-5'), resp(text('Готово')))
+    result = turn(env, client)
+    assert result.text == 'Готово'
+    assert env.site.calls == [('common_whoami', {})], 'вызов отказавшей модели не исполняется'
+    echoed = client.calls[1]['messages'][-2]['content']
+    assert [b['type'] for b in echoed] == ['text', 'fallback', 'thinking', 'tool_use']
+    assert echoed[-1]['id'] == 'ok' and client.calls[1]['messages'][-1]['content'][0]['tool_use_id'] == 'ok'
+    paired = [{'type': 'server_tool_use', 'id': 's1', 'name': 'tool_search_tool_regex', 'input': {}},
+              {'type': 'tool_search_tool_result', 'tool_use_id': 's1', 'content': {}},
+              {'type': 'server_tool_use', 'id': 's2', 'name': 'tool_search_tool_regex', 'input': {}},
+              {'type': 'fallback'}, text('Дальше')]
+    assert [b.get('id') or b.get('tool_use_id') or b['type'] for b in agent.after_fallback(paired)] == \
+        ['s1', 's1', 'fallback', 'text'], 'парный серверный вызов остаётся, непарный — нет'
+    assert agent.after_fallback([{'type': 'fallback'}, text('x')]) == [{'type': 'fallback'}, text('x')]
 
 
 def test_pause_turn_is_resumed_without_new_message(env):
@@ -480,6 +581,10 @@ def test_describe_error_scrub_and_cost():
     assert claude.describe_error(api_error(anthropic.InternalServerError, 529, 'Overloaded'))[0] == 'overloaded'
     assert claude.describe_error(api_error(anthropic.BadRequestError, 400,
                                            'Your credit balance is too low'))[0] == 'billing'
+    assert claude.describe_error(stream_error('overloaded_error', 'Overloaded'))[0] == 'overloaded', \
+        'ошибка посреди потока (HTTP 200) — по её типу'
+    assert claude.describe_error(stream_error('api_error', 'Internal'))[0] == 'server', 'а не «битый диалог»'
+    assert claude.describe_error(stream_error('invalid_request_error', 'bad'))[0] == 'bad_request'
     req = httpx2.Request('POST', 'https://api.anthropic.com/v1/messages')
     assert claude.describe_error(anthropic.APIConnectionError(request=req))[0] == 'offline'
     kind, message = claude.describe_error(ValueError(f'boom {KEY} {ENGINE_KEY} {TOKEN}'), secrets=(KEY, ENGINE_KEY, TOKEN, ''))
@@ -490,6 +595,10 @@ def test_describe_error_scrub_and_cost():
     assert claude.cost_usd('claude-opus-5-5-20261001', usage) == pytest.approx(4.0 + 2.0 + 0.4)
     assert claude.cost_usd('claude-opus-5', usage) == pytest.approx(5.0 + 2.5 + 1.0), 'запасная модель — своя цена'
     assert claude.cost_usd('claude-unknown', usage) == claude.cost_usd(settings.MODEL, usage)
+    assert claude.cost_usd('claude-opus-5-5', usage, speed='fast') == pytest.approx(2 * (4.0 + 2.0 + 0.4)), \
+        'быстрый режим: $8 / $40, кэш — поверх'
+    assert claude.cost_usd('claude-opus-5', usage, speed='fast') == pytest.approx(2 * (5.0 + 2.5 + 1.0))
+    assert claude.cost_usd('claude-opus-5-5', usage, speed='standard') == claude.cost_usd('claude-opus-5-5', usage)
 
 
 # ------------------------------------------------------------------ оформление и Telegram

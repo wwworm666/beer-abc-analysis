@@ -253,7 +253,7 @@ const BOT = {
     status: { state: 'waiting', detail: 'нет ключа Anthropic API: вставьте его на этой странице',
         at: '2026-10-19T11:59:00+03:00', stale: false },
     usage: { days: 30, today: { cost_usd: 0.4234, requests: 7 }, period: { cost_usd: 3.1 } },
-    budget_usd: 15, model: 'claude-opus-5-5', effort: 'medium',
+    budget_usd: 15, model: 'claude-opus-5-5', effort: 'xhigh', agent_effort: 'xhigh', fast_mode: true,
     links: [{ tg_user_id: '555', login: 'owner', tg_name: EVIL, linked_at: '2026-10-19T10:05:00+03:00' }],
     agents: [{ name: 'analyst', title: 'Аналитик' }, { name: 'payroll', title: 'Зарплаты и график' }],
     engine: { issued: true, active: true, prefix: 'kmcp_abcdefg', owner: 'owner',
@@ -374,7 +374,8 @@ test('исполнение: бот — секреты подсказками, с
     assert.match(page.nodes.mcpBotTokenHint.textContent, /^Сохранён: 1234…xyz \(@MCPkulturabot\)/);
     assert.match(page.nodes.mcpBotKeyHint.textContent, /^Нет\. console\.anthropic\.com/);
     assert.match(page.nodes.mcpBotUsage.textContent, /сегодня \$0\.42 из \$15\.00 \(запросов к модели 7\), за 30 дней \$3\.10/);
-    assert.match(page.nodes.mcpBotModel.textContent, /модель claude-opus-5-5, усилие medium.*Агенты: Аналитик, Зарплаты и график/);
+    assert.match(page.nodes.mcpBotModel.textContent,
+        /^Сейчас: модель claude-opus-5-5, усилие xhigh, быстрый режим \(цена ×2\), предел \$15\.00 в сутки\. Агенты: Аналитик, Зарплаты и график/);
     assert.equal(page.nodes.mcpBotEngine.textContent, 'Ключ сервера: kmcp_abcdefg… (выпустил owner 19.10.2026 11:00, ' +
         'сервер последний раз обращался 19.10.2026 11:59).');
     const row = page.nodes.mcpBotLinksBody.children[0];

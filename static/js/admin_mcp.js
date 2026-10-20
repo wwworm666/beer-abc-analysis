@@ -431,7 +431,10 @@
             (data.budget_usd ? ' из ' + money(data.budget_usd) : '') + ' (запросов к модели ' + (today.requests || 0) +
             '), за ' + (usage.days || 30) + ' дней ' + money(period.cost_usd) + '.');
         var agents = (data.agents || []).map(function (a) { return a.title; }).join(', ');
-        setText('mcpBotModel', 'Сейчас: модель ' + data.model + ', усилие ' + data.effort +
+        var effort = data.effort + (data.agent_effort && data.agent_effort !== data.effort
+            ? ' (агентам ' + data.agent_effort + ')' : '');
+        setText('mcpBotModel', 'Сейчас: модель ' + data.model + ', усилие ' + effort +
+            (data.fast_mode ? ', быстрый режим (цена ×2)' : '') +
             (data.budget_usd ? ', предел ' + money(data.budget_usd) + ' в сутки' : '') +
             (agents ? '. Агенты: ' + agents + '.' : '.'));
 
