@@ -146,6 +146,7 @@ class ToolContext:
     run_agent: Optional[Callable[[str, str], str]] = None    # ask_agent: (имя агента, задача) -> отчёт
     is_agent: bool = False                                   # агент не поручает задачи другим агентам
     charts_sent: List[Dict[str, Any]] = field(default_factory=list)
+    spend: Any = None                                        # расход вопроса (agent.Spend): общий у бота и агентов
 
 
 def tool_result(tool_use_id: str, content: Any, is_error: bool = False) -> Dict[str, Any]:
