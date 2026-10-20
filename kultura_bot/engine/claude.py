@@ -6,9 +6,10 @@ Anthropic недоступен, и к Anthropic не обращается (docs/
 и цены — kultura_bot/settings.py. Клиент — официальный SDK `anthropic` (1.x, на httpx2).
 
 Ошибки API превращаются в короткий текст для человека (describe_error): бот пишет его в
-чат, страница — в строку состояния. Секреты в тексты ошибок не попадают: тексты API их не
-содержат, а всё, что пришло из чужого исключения, проходит scrub — переданные секреты
-заменяются на «***».
+чат, страница — в строку состояния. Запросы идут потоком (agent.py): ошибка посреди потока
+приходит событием error при HTTP 200 — её код восстанавливается по типу ошибки
+(api_status). Секреты в тексты ошибок не попадают: тексты API их не содержат, а всё, что
+пришло из чужого исключения, проходит scrub — переданные секреты заменяются на «***».
 """
 import threading
 from typing import Any, Dict, Iterable, Optional, Tuple
@@ -21,6 +22,12 @@ from kultura_bot import settings
 REQUEST_TIMEOUT_S = 600
 MAX_RETRIES = 2
 CHECK_TIMEOUT_S = 20          # проверка ключа при запуске и смене: быстрый ответ, без повторов
+
+# Тип ошибки API -> код ответа (документация Anthropic, «Errors»): ошибка посреди потока
+# приходит при HTTP 200, и вид её понятен только по типу. Неизвестный тип — сбой Anthropic.
+ERROR_TYPE_STATUS = {'invalid_request_error': 400, 'authentication_error': 401, 'billing_error': 402,
+                     'permission_error': 403, 'not_found_error': 404, 'request_too_large': 413,
+                     'rate_limit_error': 429, 'api_error': 500, 'overloaded_error': 529}
 
 _CLIENTS: Dict[str, Any] = {}
 _CLIENTS_LOCK = threading.Lock()
@@ -60,25 +67,33 @@ def describe_error(exc: BaseException, secrets: Iterable[str] = ()) -> Tuple[str
     return kind, scrub(text, secrets)
 
 
+def api_status(exc: BaseException) -> int:
+    """Код ответа ошибки API; для ошибки посреди потока (HTTP 200) — по её типу."""
+    status = int(getattr(exc, 'status_code', 0) or 0)
+    if status >= 400:
+        return status
+    return ERROR_TYPE_STATUS.get(getattr(exc, 'type', None), 500)
+
+
 def _describe(exc: BaseException) -> Tuple[str, str]:
     import anthropic
     page = settings.ADMIN_PAGE_URL
-    if isinstance(exc, anthropic.AuthenticationError):
-        return 'auth', (f'Anthropic не принял ключ API (401). Новый ключ — в консоли Anthropic, вставить на '
-                        f'странице {page}, раздел «Бот @{settings.BOT_USERNAME}».')
-    if isinstance(exc, anthropic.PermissionDeniedError):
-        return 'denied', (f'Anthropic отказал (403): {_message(exc)}. У ключа нет доступа к модели '
-                          f'{settings.MODEL} или к организации — проверьте ключ в консоли Anthropic.')
-    if isinstance(exc, anthropic.RateLimitError):
-        return 'rate', 'Anthropic ограничил частоту запросов (429). Повторите через минуту.'
     if isinstance(exc, anthropic.APIStatusError):
-        status = getattr(exc, 'status_code', 0) or 0
+        status = api_status(exc)
         text = _message(exc)
+        if status == 401:
+            return 'auth', (f'Anthropic не принял ключ API (401). Новый ключ — в консоли Anthropic, вставить на '
+                            f'странице {page}, раздел «Бот @{settings.BOT_USERNAME}».')
+        if status == 403:
+            return 'denied', (f'Anthropic отказал (403): {text}. У ключа нет доступа к модели '
+                              f'{settings.MODEL} или к организации — проверьте ключ в консоли Anthropic.')
+        if status == 429:
+            return 'rate', 'Anthropic ограничил частоту запросов (429). Повторите через минуту.'
         if status == 529 or 'overloaded' in text.lower():
             return 'overloaded', 'Claude сейчас перегружен (529). Повторите через пару минут.'
         if status >= 500:
             return 'server', f'Сбой на стороне Anthropic ({status}). Повторите через пару минут.'
-        if 'credit balance' in text.lower() or 'billing' in text.lower():
+        if status == 402 or 'credit balance' in text.lower() or 'billing' in text.lower():
             return 'billing', (f'На счёте Anthropic кончились деньги: {text}. Пополнить — в консоли Anthropic '
                                f'(Billing).')
         return 'bad_request', f'Anthropic вернул ошибку {status}: {text}'
@@ -117,10 +132,15 @@ def prices_for(model: Optional[str]) -> Tuple[float, float, float, float]:
     return settings.PRICES_PER_MTOK.get(settings.MODEL, (0.0, 0.0, 0.0, 0.0))
 
 
-def cost_usd(model: Optional[str], usage: Dict[str, int]) -> float:
-    """Цена шага по токенам из usage ответа: вход + выход + кэш (чтение и запись)."""
+def cost_usd(model: Optional[str], usage: Dict[str, int], speed: Optional[str] = None) -> float:
+    """Цена шага по токенам из usage ответа: вход + выход + кэш (чтение и запись).
+
+    speed — usage.speed ответа: "fast" (шаг прошёл в быстром режиме) — всё ×
+    settings.FAST_PRICE_MULTIPLIER; "standard" или нет поля — обычная цена."""
     price_in, price_out, price_read, price_write = prices_for(model)
     total = (usage.get('input_tokens', 0) * price_in + usage.get('output_tokens', 0) * price_out
              + usage.get('cache_read_input_tokens', 0) * price_read
              + usage.get('cache_creation_input_tokens', 0) * price_write)
+    if speed == 'fast':
+        total *= settings.FAST_PRICE_MULTIPLIER
     return round(total / 1_000_000, 6)
