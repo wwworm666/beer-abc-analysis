@@ -372,6 +372,7 @@ def test_engine_works_with_site_end_to_end(site_env, tmp_path, monkeypatch):
     from kultura_bot.engine.store import Store
 
     env = site_env
+    monkeypatch.setattr(bot_settings, 'SHOW_COST', False)        # строку цены проверяет test_kultura_bot.py
     cs.save(token=GOOD, anthropic_key_value=KEY)
     raw = engine_key(site_api.issue_install(env.owner)['command'])
     adapter = FlaskAdapter(env.app)

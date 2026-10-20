@@ -41,7 +41,7 @@ conflict на странице, пока её не остановят.
 
 Права проверяются ещё раз (привязку могли снять, пока вопрос ждал). Диалог чата
 продолжается, если с прошлого вопроса прошло меньше settings.DIALOG_IDLE_MINUTES,
-инструкции и инструменты те же (отпечаток каталога) и история короче MAX_DIALOG_BYTES;
+инструкции и инструменты те же (отпечаток каталога) и история короче settings.DIALOG_MAX_CHARS;
 иначе — новый, с пометкой в начале ответа. Пока модель думает, в чате «печатает…».
 Графики модель отправляет сама (common_chart_send — их рисует и шлёт сайт). Ошибка
 Anthropic — понятный текст в чат (claude.describe_error); дневной предел — «лимит на
@@ -80,9 +80,6 @@ ACTOR_CACHE_S = 60               # ответ сайта «кто пишет» �
 REFUSAL_EVERY_S = 3600           # незнакомцу «закрытый бот» — не чаще раза в час
 INTERRUPTED_MAX_AGE_S = 1800     # сообщить об оборванном ответе, если вопрос моложе 30 минут
 TYPING_EVERY_S = 4.5             # «печатает…» у Telegram гаснет через ~5 с
-# История длиннее — новый диалог: каждый запрос шлёт её целиком, а Claude API принимает запрос
-# до 32 МБ. 16 МБ вмещают PDF предельного размера (10 МБ, в base64 — 13,3 МБ) и разговор о нём.
-MAX_DIALOG_BYTES = 16_000_000
 PHOTO_MIME = 'image/jpeg'        # Telegram пережимает фото в JPEG
 IMAGE_MAX_BYTES = 3_750_000      # Claude API: картинка до 5 МБ в base64 = 3,75 МБ файла
 DOCUMENT_MIMES = {'application/pdf': 'document', 'image/jpeg': 'image', 'image/png': 'image',
@@ -102,6 +99,16 @@ RESTARTING_TEXT = 'Сервер перезапускается — повтор�
 SITE_DOWN_TEXT = 'Сайт сейчас не отвечает, без него я не вижу данных. Повторите вопрос через пару минут.'
 FINGERPRINT_NOTICE = 'Обновились инструкции бота — начинаю новый диалог.'
 LONG_DIALOG_NOTICE = 'Диалог стал слишком длинным — начинаю новый.'
+
+
+def cost_line(spend: agent.Spend) -> str:
+    """Последняя строка ответа: во что он обошёлся (бот и агенты вместе); упёрся в предел на
+    вопрос — так и сказано."""
+    line = f'Ответ обошёлся в ${spend.usd:.2f} (запросов к модели: {spend.steps})'
+    limit = settings.QUESTION_BUDGET_USD
+    if limit and spend.usd >= limit:
+        line += f' — остановился на пределе ${limit:.2f} на вопрос'
+    return f'*{line}.*'
 
 
 def refusal_text() -> str:
@@ -563,14 +570,15 @@ class Service:
                     notice, dialog = settings.NEW_DIALOG_NOTICE, None
                 elif dialog['fingerprint'] != persona.fingerprint:
                     notice, dialog = FINGERPRINT_NOTICE, None
-                elif len(str(dialog['messages'])) > MAX_DIALOG_BYTES:
+                elif len(str(dialog['messages'])) > settings.DIALOG_MAX_CHARS:
                     notice, dialog = LONG_DIALOG_NOTICE, None
             history = dialog['messages'] if dialog else []
             started_at = dialog['started_at'] if dialog else msk_now().isoformat(timespec='seconds')
             turns = dialog['turns'] if dialog else 0
 
             client = self.client_factory(self.key)
-            ctx = tools.ToolContext(site=self.site, chat_id=chat_id, allowed=persona.toolset.names)
+            spend = agent.Spend()
+            ctx = tools.ToolContext(site=self.site, chat_id=chat_id, allowed=persona.toolset.names, spend=spend)
             ctx.run_agent = lambda name, task: agent.run_agent(client, catalog.agents[name], task, parent=ctx,
                                                                store=self.store, header=header,
                                                                on_usage=self.add_usage)
@@ -581,6 +589,9 @@ class Service:
             text = result.text or ('Готово: график выше.' if ctx.charts_sent else 'Готово.')
             if notice:
                 text = f'*{notice}*\n\n{text}'
+            limit = settings.QUESTION_BUDGET_USD
+            if settings.SHOW_COST or (limit and spend.usd >= limit):
+                text = f'{text}\n\n{cost_line(spend)}'
             self.tg.send_markdown(chat_id, text, reply_to=reply_to)
             if self.status['claude_error']:             # Claude снова отвечает — ошибку со страницы убрать
                 self.set_status(self.status['state'], self.status['detail'], claude_error='')

@@ -259,6 +259,8 @@ def stream_error(kind, message='ошибка'):
 def env(tmp_path, monkeypatch):
     monkeypatch.setattr(settings, 'DAILY_BUDGET_USD', 15.0)
     monkeypatch.setattr(settings, 'FAST_MODE', True)
+    monkeypatch.setattr(settings, 'SHOW_COST', False)          # строку цены проверяет свой тест
+    monkeypatch.setattr(settings, 'QUESTION_BUDGET_USD', 2.0)
     monkeypatch.setattr(agent, '_disabled', set())
     monkeypatch.setattr(agent, '_fast_paused_until', 0.0)
     site = FakeSite()
@@ -382,6 +384,9 @@ def test_turn_calls_site_tool_and_keeps_history_append_only(env):
     assert first['thinking'] == {'type': 'adaptive', 'block_binding': {'prefix_mismatch_behavior': 'drop_block'}}
     edit = first['context_management']['edits'][0]
     assert edit['type'] == 'clear_tool_uses_20250919' and edit['exclude_tools'] == ['tool_search_tool_regex']
+    assert edit['trigger'] == {'type': 'input_tokens', 'value': 300000}
+    assert edit['clear_at_least'] == {'type': 'input_tokens', 'value': 150000}, \
+        'чистка редкая и крупная: каждая заново пишет разговор в кэш'
     assert 'tool_choice' not in first
     assert env.site.calls == [('common_whoami', {})], 'инструмент исполнил сайт'
     tool_result = second['messages'][-1]['content'][0]
@@ -491,6 +496,43 @@ def test_mid_output_fallback_drops_declined_partial(env):
     assert [b.get('id') or b.get('tool_use_id') or b['type'] for b in agent.after_fallback(paired)] == \
         ['s1', 's1', 'fallback', 'text'], 'парный серверный вызов остаётся, непарный — нет'
     assert agent.after_fallback([{'type': 'fallback'}, text('x')]) == [{'type': 'fallback'}, text('x')]
+
+
+def test_question_budget_stops_tools_and_is_shared_with_agent(env):
+    step = claude.cost_usd('claude-opus-5-5', {'input_tokens': 1000, 'output_tokens': 200})     # $0.008
+    env.monkeypatch.setattr(settings, 'QUESTION_BUDGET_USD', 1.5 * step)
+    client = FakeClient(resp(use('common_whoami', {}, 't1'), stop='tool_use'),
+                        resp(use('common_whoami', {}, 't2'), stop='tool_use'),
+                        resp(text('Что успел — то знаю.')))
+    spend = agent.Spend()
+    ctx = ctx_for(env)
+    ctx.spend = spend
+    result = turn(env, client, ctx=ctx)
+    assert result.text == 'Что успел — то знаю.' and 'question_budget' in result.notes
+    assert 'tool_choice' not in client.calls[1], 'первый шаг предел не перешёл'
+    last = client.calls[2]['messages'][-1]['content']
+    assert client.calls[2]['tool_choice'] == {'type': 'none'}
+    assert [b['type'] for b in last] == ['tool_result', 'text'] and 'Предел расхода' in last[1]['text'], \
+        'пояснение — в том же сообщении после результатов'
+    assert spend.steps == 3 and spend.usd == pytest.approx(3 * step)
+
+    env.monkeypatch.setattr(settings, 'QUESTION_BUDGET_USD', 1.5 * step)
+    client = FakeClient(
+        resp(use(tools.ASK_AGENT, {'agent': 'payroll', 'task': 'Проверь ЗП за сентябрь 2026 по всем барам'}),
+             stop='tool_use'),
+        resp(use('staff_salary_month', {}, 'a1'), stop='tool_use'),          # агент: шаг 1
+        resp(text('Отчёт: успел посмотреть ЗП.')),                           # агент: шаг 2 — без инструментов
+        resp(text('Агент успел посмотреть ЗП.')))                            # бот — без инструментов
+    catalog = tools.load_catalog(env.site)
+    spend = agent.Spend()
+    ctx = ctx_for(env, allowed=catalog.bot.toolset.names)
+    ctx.spend = spend
+    ctx.run_agent = lambda name, task: agent.run_agent(client, catalog.agents[name], task, parent=ctx,
+                                                       store=env.store)
+    result = turn(env, client, ctx=ctx)
+    assert result.text == 'Агент успел посмотреть ЗП.' and spend.steps == 4
+    assert client.calls[2]['tool_choice'] == {'type': 'none'} and client.calls[3]['tool_choice'] == {'type': 'none'}, \
+        'предел общий: агент и бот заканчивают без инструментов'
 
 
 def test_pause_turn_is_resumed_without_new_message(env):
@@ -787,6 +829,28 @@ def test_new_dialog_after_pause_and_after_catalog_change(bot):
     bot.client.script += [resp(text('Ответ'))]
     bot.svc.handle_update(message('ещё'))
     assert service.FINGERPRINT_NOTICE in bot.tg.sent[-1][1] and len(bot.client.calls[-1]['messages']) == 1
+
+
+def test_cost_line_and_long_dialog(bot):
+    bot.env.monkeypatch.setattr(settings, 'SHOW_COST', True)
+    bot.client.script += [resp(text('Ответ'))]
+    bot.svc.handle_update(message('вопрос'))
+    one = claude.cost_usd('claude-opus-5-5', {'input_tokens': 1000, 'output_tokens': 200})
+    assert bot.tg.sent[-1][1] == f'Ответ\n\n*Ответ обошёлся в ${one:.2f} (запросов к модели: 1).*'
+    assert formatting.to_html('*Ответ обошёлся в $0.01 (запросов к модели: 1).*') == \
+        '<i>Ответ обошёлся в $0.01 (запросов к модели: 1).</i>'
+    bot.env.monkeypatch.setattr(settings, 'SHOW_COST', False)
+    bot.env.monkeypatch.setattr(settings, 'QUESTION_BUDGET_USD', one / 2)
+    bot.client.script += [resp(use('common_whoami', {}), stop='tool_use'), resp(text('Коротко'))]
+    bot.svc.handle_update(message('ещё вопрос'))
+    assert bot.tg.sent[-1][1].startswith('Коротко\n\n*Ответ обошёлся в $0.02 (запросов к модели: 2) — '
+                                         'остановился на пределе $0.00 на вопрос.*'), 'предел — строка есть всегда'
+    bot.env.monkeypatch.setattr(settings, 'QUESTION_BUDGET_USD', 2.0)
+    bot.env.monkeypatch.setattr(settings, 'DIALOG_MAX_CHARS', 100)
+    bot.client.script += [resp(text('С чистого листа'))]
+    bot.svc.handle_update(message('третий вопрос'))
+    assert bot.tg.sent[-1][1] == f'*{service.LONG_DIALOG_NOTICE}*\n\nС чистого листа'
+    assert len(bot.client.calls[-1]['messages']) == 1, 'длинная история не тянется в новый вопрос'
 
 
 def test_new_waits_for_answer_in_progress_and_queued_questions_survive_restart(bot):

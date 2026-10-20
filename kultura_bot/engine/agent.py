@@ -27,7 +27,9 @@
 - кэш: системный промпт — явная точка кэша, хвост разговора — автоматическая
   (cache_control верхнего уровня); повторные запросы диалога читают начало из кэша;
 - context editing: когда контекст больше settings.CONTEXT_CLEAR_AT_TOKENS, Anthropic
-  вычищает старые ответы инструментов (кроме результатов поиска инструментов);
+  вычищает старые ответы инструментов (кроме результатов поиска инструментов) — не меньше
+  settings.CONTEXT_CLEAR_AT_LEAST_TOKENS за раз: каждая чистка заново пишет разговор в кэш,
+  поэтому она редкая и крупная;
 - fallbacks="default": отказ модели по правилам безопасности (ложное срабатывание) —
   ответ запасной модели в том же запросе (settings.REFUSAL_FALLBACK);
 - thinking.block_binding = drop_block: если начало разговора всё же разошлось с тем, к
@@ -56,6 +58,9 @@ Anthropic («Echoing fallback turns back»): до последнего блок�
 - дневной расход settings.DAILY_BUDGET_USD: перед каждым шагом сверяется со своей базой
   сервера бота (store.usage); исчерпан — BudgetExceeded (бот отвечает «лимит на сегодня»);
   расход каждого шага пишется туда же и уходит сайту в отчёте (on_usage);
+- расход вопроса settings.QUESTION_BUDGET_USD — бот и его агенты вместе (Spend в
+  ToolContext): дошёл — к результатам инструментов добавляется QUESTION_BUDGET_NOTE, и
+  следующий запрос идёт без инструментов (модель отвечает тем, что уже узнала);
 - pause_turn (серверный инструмент не уложился в шаг) — запрос повторяется как есть;
 - шаг оборвался на пределе длины посреди вызова инструмента — вызов не выполняется (в истории
   на него — ответ-ошибка, чтобы история осталась корректной), последний запрос без инструментов.
@@ -77,6 +82,8 @@ BETA_FALLBACK = 'server-side-fallback-2026-07-01'
 # (fallbacks), и запрос с speed="fast" должен быть верным и для них.
 BETA_FAST = 'fast-mode-2026-02-01'
 MAX_PAUSE_RESUMES = 5            # подряд pause_turn без нового содержания — хватит
+QUESTION_BUDGET_NOTE = ('Предел расхода на этот вопрос (${limit:.2f}) исчерпан: больше не вызывай инструменты — '
+                        'ответь тем, что уже знаешь, и коротко скажи, что не успел проверить.')
 FAST_WORDS = ('speed', 'fast mode', 'fast-mode', 'fast_mode')     # отказ именно в быстром режиме
 
 # Необязательные возможности: имя -> слова в тексте ошибки 400, по которым её узнать.
@@ -106,13 +113,21 @@ class BudgetExceeded(Exception):
 
 
 @dataclass
+class Spend:
+    """Расход одного вопроса: бот и его агенты вместе (ToolContext.spend)."""
+    usd: float = 0.0
+    steps: int = 0                             # запросов к модели
+
+
+@dataclass
 class TurnResult:
     text: str                                  # ответ для человека (Markdown)
     messages: List[Dict[str, Any]]             # история после вопроса (дописанная)
     stop_reason: str = ''
     rounds: int = 0
     cost_usd: float = 0.0
-    notes: List[str] = field(default_factory=list)   # max_rounds | max_tokens | max_tokens_tool | refusal
+    notes: List[str] = field(default_factory=list)   # max_rounds | max_tokens | max_tokens_tool | refusal |
+    #                                                  question_budget
 
 
 def request_params(*, model: str, effort: str, system_text: str, tool_list: List[Dict[str, Any]],
@@ -137,6 +152,7 @@ def request_params(*, model: str, effort: str, system_text: str, tool_list: List
             'type': 'clear_tool_uses_20250919',
             'trigger': {'type': 'input_tokens', 'value': settings.CONTEXT_CLEAR_AT_TOKENS},
             'keep': {'type': 'tool_uses', 'value': settings.CONTEXT_KEEP_TOOL_RESULTS},
+            'clear_at_least': {'type': 'input_tokens', 'value': settings.CONTEXT_CLEAR_AT_LEAST_TOKENS},
             'exclude_tools': [tools.SEARCH_TOOL['name']],
         }]}
         betas.append(BETA_CONTEXT)
@@ -267,6 +283,7 @@ def run_turn(client: Any, *, system_text: str, tool_list: List[Dict[str, Any]], 
     model = model or settings.MODEL
     effort = effort or settings.EFFORT
     max_rounds = settings.MAX_TOOL_ROUNDS if max_rounds is None else max_rounds
+    spend = ctx.spend if ctx.spend is not None else Spend()
     messages = list(history) + [{'role': 'user', 'content': user_content}]
     result = TurnResult(text='', messages=messages)
     final_texts: List[str] = []
@@ -281,6 +298,8 @@ def run_turn(client: Any, *, system_text: str, tool_list: List[Dict[str, Any]], 
         served_by = getattr(response, 'model', None) or model
         cost = claude.cost_usd(served_by, usage, speed=getattr(response.usage, 'speed', None))
         result.cost_usd += cost
+        spend.usd += cost
+        spend.steps += 1
         try:
             store.add_usage(served_by, usage, cost)
             if on_usage is not None:
@@ -333,7 +352,15 @@ def run_turn(client: Any, *, system_text: str, tool_list: List[Dict[str, Any]], 
                                             'скажи, чего не успел проверить.', is_error=True) for b in tool_uses]})
             final = True
             continue
-        messages.append({'role': 'user', 'content': [tools.execute(b, ctx) for b in tool_uses]})
+        results = [tools.execute(b, ctx) for b in tool_uses]
+        limit = settings.QUESTION_BUDGET_USD
+        if limit and spend.usd >= limit and not final:
+            # Вопрос разросся: следующий запрос — без инструментов, ответ тем, что уже есть.
+            # Текст — в том же сообщении после результатов (история только дописывается).
+            result.notes.append('question_budget')
+            results.append({'type': 'text', 'text': QUESTION_BUDGET_NOTE.format(limit=limit)})
+            final = True
+        messages.append({'role': 'user', 'content': results})
 
     result.text = '\n\n'.join(final_texts).strip()
     if 'refusal' in result.notes and not result.text:
@@ -347,7 +374,7 @@ def run_agent(client: Any, persona: tools.Persona, task: str, *, parent: tools.T
               header: str = '', on_usage: Optional[UsageHook] = None) -> str:
     """Поручение агенту: отдельный разговор с его инструкциями и инструментами. Вернуть отчёт."""
     ctx = tools.ToolContext(site=parent.site, chat_id=parent.chat_id, allowed=persona.toolset.names,
-                            is_agent=True, charts_sent=parent.charts_sent)
+                            is_agent=True, charts_sent=parent.charts_sent, spend=parent.spend)
     text = (header + '\n' if header else '') + task
     result = run_turn(client, system_text=persona.system, tool_list=persona.toolset.defs, history=[],
                       user_content=[{'type': 'text', 'text': text}], ctx=ctx, store=store,
