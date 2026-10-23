@@ -73,7 +73,7 @@ test('шаблон подключает стили и скрипты с кэш-�
 
 test('каркас страницы: body, сайдбар, шапка раздела внутри .gh-wrap', () => {
     // data-is-admin — права пользователя для экрана (решает сервер: 403 admin_required).
-    assert.match(html, /<body class="gh-page gh-scope" data-is-admin="\{\{ 'true' if current_user and current_user\.is_admin else 'false' \}\}">/,
+    assert.match(html, /<body class="gh-page gh-scope" data-is-admin="\{\{ 'true' if current_user and current_user\.is_admin else 'false' \}\}" data-cp-view="\{\{ cp_view or 'calendar' \}\}">/,
         'нет классов страницы раздела или флага прав на body');
     assert.match(html, /\{% include 'shared\/nav\.html' %\}/, 'нет общего сайдбара');
     const wrapAt = html.indexOf('class="gh-wrap');
@@ -785,14 +785,15 @@ test('бриф для агента: поля и пределы — из отве
 // и возвращает промис, который не выполнится (проверяется, ЧТО ушло на сервер).
 // confirm — синхронный «промис» с ответом answer(opts) (по умолчанию «да»).
 const plain = (x) => JSON.parse(JSON.stringify(x));
-function loadReal({ answer = () => true, copy = true } = {}) {
+// win — свойства window страницы (location, history) для проверок адреса.
+function loadReal({ answer = () => true, copy = true, win = {} } = {}) {
     const calls = [];
     const toasts = [];
     const confirms = [];
     const ctx = {
-        window: {},
+        window: { ...win },
         document: { readyState: 'loading', addEventListener() {}, activeElement: null },
-        console, setTimeout, clearTimeout, Promise, Date,
+        console, setTimeout, clearTimeout, Promise, Date, URLSearchParams,
     };
     vm.createContext(ctx);
     vm.runInContext(common, ctx);
@@ -1649,6 +1650,252 @@ test('каналы: дошедший тест подключает канал о
     assert.match(fnBody('testChannel'), /if \(res && res\.channels\) S\.chan\.data = res;/);
     // Подсказка «Как это работает» — о подключении тестом.
     assert.match(fnBody('chanTelegramHtml'), /Дошедший тест сам подключает канал/);
+});
+
+// ==================== 2026-10-23: календарь — главная, перенос, сорт в посте, другие бары ====================
+
+test('вид — страница: календарь /content-plan (главная), таблица /content-plan/table; адрес сохраняет месяц и фильтры', () => {
+    // Владелец 2026-10-23: «убираем под страницу таблицы и делаем календарь основной страницей».
+    const { cp } = loadReal({ win: { location: { pathname: '/content-plan', search: '?month=2026-10&view=table&state=failed' } } });
+    assert.equal(cp.viewOfPath('/content-plan'), 'calendar');
+    assert.equal(cp.viewOfPath('/content-plan/'), 'calendar');
+    assert.equal(cp.viewOfPath('/content-plan/table'), 'table');
+    assert.equal(cp.viewOfPath('/content-plan/table/'), 'table');
+    assert.equal(cp.viewOfPath(undefined), 'calendar');
+    assert.equal(cp.viewHref('table'), '/content-plan/table?month=2026-10&state=failed', 'старый ?view= уехал в адрес');
+    assert.equal(cp.viewHref('calendar'), '/content-plan?month=2026-10&state=failed');
+    // Вид по умолчанию — календарь; страница берёт его из шаблона (data-cp-view).
+    assert.match(js, /view: 'calendar'/, 'вид по умолчанию — не календарь');
+    assert.match(js, /getAttribute\('data-cp-view'\)/);
+    // Ссылки настоящие (открываются в новой вкладке), текущая отмечена сервером.
+    assert.match(html, /<nav class="gh-seg gh-cp-views" id="cpViewSeg" aria-label="Вид плана">/);
+    assert.match(html, /<a class="gh-seg-btn\{\{ ' is-on' if cp_view != 'table' else '' \}\}" href="\/content-plan" data-value="calendar"/);
+    assert.match(html, /<a class="gh-seg-btn\{\{ ' is-on' if cp_view == 'table' else '' \}\}" href="\/content-plan\/table" data-value="table"/);
+    assert.match(hubCss, /a\.gh-seg-btn \{ text-decoration: none; \}/, 'ссылки вида подчёркнуты, как обычные ссылки');
+    // Обычное нажатие — без перезагрузки (history), с Ctrl/Cmd/Shift — как ссылка; «Назад» — прежний вид.
+    assert.match(fnBody('onViewLinkClick'), /if \(e\.button \|\| e\.ctrlKey \|\| e\.metaKey \|\| e\.shiftKey \|\| e\.altKey\) return;/);
+    assert.match(fnBody('setView'), /window\.history\.pushState\(null, '', viewHref\(S\.view\)\)/);
+    assert.match(js, /window\.addEventListener\('popstate'/);
+    // Маршруты: подстраница таблицы, старый ?view=table и сквозной ?state= без месяца ведут на неё.
+    assert.match(routes, /@content_plan_bp\.route\('\/content-plan\/table'\)/);
+    assert.match(routes, /return redirect\(url_for\('content_plan\.content_plan_table_page', \*\*args\)\)/);
+    // Ссылки полосы «Требует внимания» — сразу на таблицу (вид по всем месяцам есть только у неё).
+    const strip = read('templates/shared/guest_hub_strip.html');
+    assert.match(strip, /\/content-plan\/table\?state=failed/);
+    assert.match(strip, /\/content-plan\/table\?state=overdue/);
+});
+
+// План для переноса: сегодня 23 октября 12:00 (МСК), пост Лиговского на 25-е.
+function dragPlan() {
+    const pl = (id, extra = {}) => ({ id, channel: 'telegram', bar: 'ligovskiy', date: '2026-10-25', time: '19:00',
+                                       status: 'draft', display_state: 'ready', ...extra });
+    const m1 = { id: 'm1', title: 'Лиг, 25 окт — Хеллес', planned_date: '2026-10-25', placements: [pl('a'), pl('b', { bar: 'bolshoy' })] };
+    const m2 = { id: 'm2', title: 'Лиг, 26 окт — Устрицы и стаут', placements: [
+        pl('c', { date: '2026-10-26' }), pl('d', { date: '2026-10-27', bar: 'kremenchugskaya', status: 'cancelled' }),
+        pl('e', { date: '2026-10-27', channel: 'instagram', bar: 'all' })] };
+    return { pl, m1, m2, data: { today: '2026-10-23', now: '2026-10-23T12:00', materials: [m1, m2] } };
+}
+
+test('календарь: какую плашку можно тянуть — черновик, утверждённое и на паузе; не вышедшее, отменённое, неудавшееся и отправляющееся', () => {
+    const { cp } = loadReal();
+    const { pl, m1, data } = dragPlan();
+    cp.state.data = data;
+    for (const status of ['draft', 'approved', 'paused']) assert.equal(cp.pillDraggable({ m: m1, p: pl('a', { status }) }), true, status);
+    for (const status of ['published', 'cancelled', 'failed']) assert.equal(cp.pillDraggable({ m: m1, p: pl('a', { status }) }), false, status);
+    const sending = pl('a', { status: 'approved', delivery: { state: 'sending', started_at: '2026-10-23T11:59' } });
+    assert.equal(cp.pillDraggable({ m: m1, p: sending }), false, 'отправляющееся тянется');
+    // Плашка нескольких баров тянется, только если тянется каждое её размещение.
+    assert.equal(cp.pillDraggable({ m: m1, p: pl('a'), ps: [pl('a'), pl('b', { status: 'published' })] }), false);
+    // Тема: с датой — тянется (меняется дата темы), без даты — нет.
+    assert.equal(cp.pillDraggable({ m: { id: 't', title: 'Тема', planned_date: '2026-10-25' }, theme: true }), true);
+    assert.equal(cp.pillDraggable({ m: { id: 't', title: 'Тема', planned_date: null }, theme: true }), false);
+    // Разметка плашки: все размещения плашки, день и подсказка; у вышедшей ничего этого нет.
+    const pill = cp.pillHtml({ m: m1, p: pl('a'), bars: ['ligovskiy', 'bolshoy'], ps: [pl('a'), pl('b', { bar: 'bolshoy' })] });
+    assert.match(pill, /data-drag="1" data-pids="a,b" data-day="2026-10-25"/);
+    assert.match(pill, /Перетащите на другой день, чтобы перенести \(пальцем — после долгого нажатия\)/);
+    // Телефон — список по дням без клеток дней: там плашка не тянется (дату меняют в карточке).
+    const listed = cp.pillHtml({ m: m1, p: pl('a'), bars: ['ligovskiy'], ps: [pl('a')] }, true);
+    assert.ok(!/data-drag|Перетащите/.test(listed), 'плашку списка по дням можно «взять», но некуда отпустить');
+    assert.match(js, /agenda \+= pillHtml\(x, true\);/);
+    const done = cp.pillHtml({ m: m1, p: pl('a', { status: 'published', display_state: 'published' }), bars: ['ligovskiy'] });
+    assert.ok(!/data-drag|Перетащите/.test(done), 'вышедшую плашку предлагают перетащить');
+    const theme = cp.pillHtml({ m: { id: 't', title: 'Тема', planned_date: '2026-10-25' }, theme: true });
+    assert.match(theme, /data-drag="theme" data-day="2026-10-25"/);
+    // Мышь — с порога сдвига, палец — после долгого нажатия; сразу после переноса карточка не открывается.
+    assert.match(js, /var DRAG_START_PX = 6;/);
+    assert.match(js, /var DRAG_HOLD_MS = 350;/);
+    assert.match(js, /addEventListener\('touchmove', onDragTouchMove, \{ passive: false, capture: true \}\)/);
+    assert.match(js, /el\.cal\.addEventListener\('touchstart', onCalTouchStart, \{ passive: true \}\)/);
+    assert.match(js, /if \(S\.dragEndAt && Date\.now\(\) - S\.dragEndAt < CLICK_AFTER_DRAG_MS\) return;/);
+    assert.match(fnBody('onDragKey'), /e\.key === 'Escape'/);
+    for (const cls of ['.gh-cp-ghost', '.gh-cp-day.is-drop', '.gh-cp-day.is-drop-no', '.gh-cp-pill.is-dragging']) {
+        assert.ok(css.includes(cls + ' {') || css.includes(cls + ','), `нет стиля ${cls}`);
+    }
+});
+
+test('календарь: куда можно отпустить — не в прошлое, утверждённое сегодня — не раньше «сейчас»; день с постом — с вопросом', () => {
+    const { cp } = loadReal();
+    const { m1, data } = dragPlan();
+    cp.state.data = data;
+    const d = { mid: 'm1', pids: ['a', 'b'], theme: false, from: '2026-10-25' };
+    assert.equal(cp.dropProblem(d, '2026-10-25'), '', 'тот же день');
+    assert.equal(cp.dropProblem(d, '2026-10-30'), '');
+    assert.match(cp.dropProblem(d, '2026-10-22'), /^В прошлое переносить нельзя/);
+    assert.match(cp.dropProblem({ ...d, theme: true, pids: [] }, '2026-10-01'), /^В прошлое/, 'тема ушла в прошлое');
+    assert.equal(cp.dropProblem(d, '2026-10-23'), '', 'черновик сегодня — можно');
+    m1.placements[0].status = 'approved';
+    m1.placements[0].time = '10:00';
+    assert.match(cp.dropProblem(d, '2026-10-23'), /Время выхода сегодня уже прошло/);
+    m1.placements[0].time = '18:00';
+    assert.equal(cp.dropProblem(d, '2026-10-23'), '');
+    // Канал бара: в этот день там уже пост другого материала (отменённые и Instagram не считаются).
+    assert.match(cp.channelConflict(d, '2026-10-26'), /^В этот день в канале бара уже есть: «Устрицы и стаут» \(Лиг\)\./);
+    assert.equal(cp.channelConflict(d, '2026-10-27'), '', 'отменённое или Instagram мешают переносу');
+    assert.equal(cp.channelConflict({ ...d, theme: true }, '2026-10-26'), '');
+    assert.equal(cp.channelConflict({ mid: 'm2', pids: ['c'], theme: false, from: '2026-10-26' }, '2026-10-26'), '',
+        'свой материал считается чужим постом');
+});
+
+test('календарь: перенос — POST /placements/move всех размещений плашки, тема — дата темы; «Отменить» без вопроса', () => {
+    const answers = [false, true];
+    const { cp, calls, confirms } = loadReal({ answer: () => answers.shift() });
+    const { data } = dragPlan();
+    cp.state.month = '2026-10';
+    cp.state.data = data;
+    const d = { mid: 'm1', pids: ['a', 'b'], theme: false, from: '2026-10-25' };
+    cp.movePill(d, '2026-10-28');
+    const moved = calls.filter((c) => c[1] && c[1].indexOf('/placements/move') >= 0);
+    assert.equal(moved.length, 1);
+    assert.deepEqual(plain(moved[0].slice(0, 3)), ['POST', '/api/content-plan/placements/move?month=2026-10',
+                                                   { placement_ids: ['a', 'b'], date: '2026-10-28' }]);
+    assert.equal(confirms.length, 0, 'свободный день — без вопроса');
+    // День, где в канале бара уже есть пост: сначала вопрос; «нет» — ничего не уходит, «да» — перенос.
+    cp.movePill(d, '2026-10-26');
+    assert.equal(confirms.length, 1);
+    assert.match(confirms[0].text, /«Устрицы и стаут» \(Лиг\)/);
+    assert.equal(calls.filter((c) => c[1] && c[1].indexOf('/placements/move') >= 0).length, 1, 'ушло без согласия');
+    cp.movePill(d, '2026-10-26');
+    assert.equal(calls.filter((c) => c[1] && c[1].indexOf('/placements/move') >= 0).length, 2);
+    // Возврат («Отменить» в тосте) — без вопроса.
+    cp.movePill({ ...d, from: '2026-10-26' }, '2026-10-26', true);
+    assert.equal(confirms.length, 2);
+    // Тема без размещений — дата темы материала.
+    cp.movePill({ mid: 't1', pids: [], theme: true, from: '2026-10-25' }, '2026-10-29');
+    const last = calls[calls.length - 1];
+    assert.deepEqual(plain(last.slice(0, 3)), ['PATCH', '/api/content-plan/materials/t1?month=2026-10', { planned_date: '2026-10-29' }]);
+    assert.ok(cpRules.some((r) => r.path === '/api/content-plan/placements/move' && r.methods.includes('POST')));
+});
+
+test('сорт в посте: плашка — точка по самому важному состоянию, карточка — что будет при выходе и «Другой сорт»', () => {
+    // Владелец 2026-10-23: «если согласованный сорт сняли, то мы меняем на другой» — сервер сверяет
+    // последний абзац с кранами (beer_info размещения), страница это показывает.
+    const { cp } = loadReal();
+    const { pl, m1, data } = dragPlan();
+    cp.state.data = data;
+    const info = (state, extra = {}) => ({ state, line: 'Сегодня на восьмом кране «Культуры Каск» — Riegele Feines Urhell.',
+                                           new_line: null, note: '', beers: [], stale: null, ...extra });
+    const swap = info('swap', { note: '«Riegele Feines Urhell» сняли с крана: в посте будет «Festhaus Helles» (кран 5, тот же стиль)',
+                                new_line: 'Сегодня на пятом кране «Культуры Каск» — Festhaus Helles, светлый лагер, 4,5%.' });
+    const moved = info('moved', { note: '«Riegele» теперь на кране 4, а не 8', new_line: 'Сегодня на четвёртом кране …' });
+    const none = info('no_beer', { note: '«Riegele» сняли, заменить нечем <b>' });
+    assert.equal(cp.pillBeer([pl('a', { beer_info: info('on_tap') }), pl('b', { beer_info: null })]), null, 'на кране — без точки');
+    assert.equal(cp.pillBeer([pl('a', { beer_info: moved }), pl('b', { beer_info: swap })]).state, 'swap');
+    assert.equal(cp.pillBeer([pl('a', { beer_info: swap }), pl('b', { beer_info: none })]).state, 'no_beer');
+    const pill = cp.pillHtml({ m: m1, p: pl('a', { beer_info: swap }), bars: ['ligovskiy'], ps: [pl('a', { beer_info: swap })] });
+    assert.match(pill, /class="gh-cp-pill [^"]* has-beer is-beer-swap"/);
+    assert.match(pill, /<span class="gh-cp-pill-beer" aria-hidden="true"><\/span>/);
+    assert.match(pill, /Сорт в посте: «Riegele Feines Urhell» сняли с крана/);
+    assert.ok(css.includes('.gh-cp-pill.is-beer-swap .gh-cp-pill-beer') && css.includes('.gh-cp-pill.is-beer-no_beer .gh-cp-pill-beer'));
+    // Карточка: тон по состоянию, новая строка, пояснение под «Как считается», кнопка выбора.
+    let html = cp.beerHtml(m1, pl('a', { beer_info: swap }), true);
+    assert.match(html, /<div class="gh-cp-beer gh-tone-warning"><span class="gh-cp-beer-t">«Riegele Feines Urhell» сняли с крана/);
+    assert.match(html, /<div class="gh-cp-beer-line"[^>]*>Сегодня на пятом кране «Культуры Каск» — Festhaus Helles/);
+    assert.match(html, />Другой сорт<\/button>/);
+    assert.match(html, /<details class="gh-cp-how" data-how="beer"><summary>Как считается<\/summary>[\s\S]*тот же стиль Untappd/);
+    html = cp.beerHtml(m1, pl('a', { beer_info: none }), true);
+    assert.match(html, /gh-tone-danger/);
+    assert.match(html, />Выбрать сорт<\/button>/);
+    assert.ok(html.includes('заменить нечем &lt;b&gt;'), 'текст сервера не экранирован');
+    html = cp.beerHtml(m1, pl('a', { beer_info: info('on_tap', { beers: [{ name: 'Riegele Feines Urhell', tap: 8 }] }) }), false);
+    assert.match(html, /gh-tone-muted"><span class="gh-cp-beer-t">Сорт в посте: «Riegele Feines Urhell», кран 8<\/span><\/div>/);
+    assert.ok(!/<button/.test(html.split('<details')[0]), 'у вышедшего — кнопка выбора сорта');
+    html = cp.beerHtml(m1, pl('a', { beer_info: info('moved', { new_line: 'Сегодня на четвёртом кране', stale: 'краны не обновлялись 9 дней' }) }), true);
+    assert.match(html, /gh-tone-accent/);
+    assert.match(html, /Проверка может ошибаться: краны не обновлялись 9 дней/);
+    assert.equal(cp.beerHtml(m1, pl('a', { beer_info: info('none') }), true), '', 'без сорта в посте — пусто');
+    assert.equal(cp.beerHtml(m1, pl('a', { beer_info: null }), true), '');
+    assert.match(fnBody('placementHtml'), /html \+= beerHtml\(m, p, editable\);/);
+    assert.match(fnBody('editorHtml'), /Поставить сорт с крана/);
+});
+
+test('сорт в посте: выбор с кранов бара — номер, сорт, стиль; выбранный кран уходит POST …/placements/<id>/beer', () => {
+    const { cp, calls } = loadReal();
+    const { pl, m1, data } = dragPlan();
+    cp.state.month = '2026-10';
+    cp.state.data = data;
+    const p = pl('a', { status: 'approved' });
+    cp.state.beerPick = { pid: 'a', bar: 'ligovskiy', loading: true };
+    assert.match(cp.beerPickHtml(p), /Сорт с крана: Лиговский[\s\S]*Загружаю краны…/);
+    cp.state.beerPick = { pid: 'a', bar: 'ligovskiy', data: { taps: [] } };
+    assert.match(cp.beerPickHtml(p), /На кранах бара сейчас нет пива\./);
+    cp.state.beerPick = { pid: 'a', bar: 'ligovskiy', data: { taps: [], error: 'Краны бара не прочитались' } };
+    assert.match(cp.beerPickHtml(p), /is-err">Краны бара не прочитались/);
+    cp.state.beerPick = { pid: 'a', bar: 'ligovskiy', data: { stale: 'краны не обновлялись 9 дней', taps: [
+        { tap: 5, name: 'Festhaus Helles', style_ru: 'светлый лагер', abv: 4.5,
+          line: 'Сегодня на пятом кране «Культуры Каск» — Festhaus Helles, светлый лагер, 4,5%.' },
+        { tap: 6, name: 'Zubr <Gold>', style_ru: '', abv: null, line: 'Сегодня на шестом кране' }] } };
+    const html = cp.beerPickHtml(p);
+    assert.match(html, /Изменение снимет утверждение/, 'у утверждённого нет предупреждения');
+    assert.match(html, /Список мог устареть: краны не обновлялись 9 дней/);
+    assert.match(html, /data-act="beer-set" data-pid="a" data-tap="5" data-tip="В пост встанет: Сегодня на пятом кране «Культуры Каск» — Festhaus Helles, светлый лагер, 4,5%\."/);
+    assert.match(html, /<span class="gh-cp-beerpick-n">5<\/span><span class="gh-cp-beerpick-b">Festhaus Helles<\/span><span class="gh-cp-beerpick-s">светлый лагер, 4,5%<\/span>/);
+    assert.ok(html.includes('Zubr &lt;Gold&gt;') && !html.includes('<Gold>'), 'название сорта не экранировано');
+    assert.ok(!cp.beerPickHtml(pl('a')).includes('снимет утверждение'), 'у черновика — лишнее предупреждение');
+    cp.setBeer(m1, p, '5');
+    cp.setBeer(m1, p, '6');
+    const sent = calls.filter((c) => c[1] && /\/beer\?/.test(c[1]));
+    assert.equal(sent.length, 1, 'второе нажатие во время запроса ушло на сервер');
+    assert.deepEqual(plain(sent[0].slice(0, 3)), ['POST', '/api/content-plan/placements/a/beer?month=2026-10', { tap: '5' }]);
+    assert.ok(cpRules.some((r) => r.path === '/api/content-plan/placements/<x>/beer' && r.methods.includes('POST')));
+    assert.ok(cpRules.some((r) => r.path === '/api/content-plan/beer-options'));
+    assert.match(fnBody('openBeerPick'), /GH\.api\('GET', API \+ '\/beer-options\?bar=' \+ enc\(p\.bar\)\)/);
+});
+
+test('«На другие бары»: бары, где пост уже есть, выключены; дата и время — поля data-dt; на сервер — только отмеченное', () => {
+    // Владелец 2026-10-23: «хорошие посты с других точек можно в следующем месяце переносить на другие бары.
+    // В одном канале посты не должны дублироваться».
+    const { cp, calls } = loadReal();
+    const { m1, data } = dragPlan();
+    cp.state.data = data;
+    let html = cp.barCopyHtml(m1);
+    assert.match(html, /<span class="gh-field-cap">На другие бары<\/span>/);
+    assert.match(html, /value="ligovskiy" disabled><span data-tip="Лиговский: этот пост уже здесь">Лиг</);
+    assert.match(html, /value="bolshoy" disabled>/);
+    assert.match(html, /value="varshavskaya"><span data-tip="Варшавская">Вар</);
+    assert.match(html, /<input type="date" class="gh-input" data-dt="date" data-bc="date" data-fk="bc_date"/);
+    assert.match(html, /<input type="time" class="gh-input" data-dt="time" data-bc="time" data-fk="bc_time"/);
+    assert.match(html, /data-act="bars-copy" disabled>Повторить в каналах/);
+    assert.match(html, /data-how="barcopy"[\s\S]*тот же день недели с тем же номером в следующем месяце/);
+    assert.equal(cp.barCopyHtml({ ...m1, kind: 'live' }), '', 'у таплиста (live) — повтор в другие бары');
+    // Отменённое размещение бар не занимает.
+    html = cp.barCopyHtml({ ...m1, placements: [{ id: 'z', channel: 'telegram', bar: 'kremenchugskaya', status: 'cancelled' }] });
+    assert.ok(!/value="kremenchugskaya" disabled/.test(html));
+    const f = cp.barCopyState(m1);
+    f.bars.push('varshavskaya', 'kremenchugskaya');
+    f.date = '2026-11-08';
+    html = cp.barCopyHtml(m1);
+    assert.match(html, /value="varshavskaya" checked>/);
+    assert.match(html, /data-act="bars-copy">Повторить в каналах/);
+    cp.copyToBars(m1);
+    cp.copyToBars(m1);
+    const sent = calls.filter((c) => c[1] && c[1].indexOf('/copy-to-bars') >= 0);
+    assert.equal(sent.length, 1, 'повторное нажатие создало вторые копии');
+    assert.deepEqual(plain(sent[0].slice(0, 3)), ['POST', '/api/content-plan/materials/m1/copy-to-bars',
+                                                  { bars: ['varshavskaya', 'kremenchugskaya'], date: '2026-11-08' }]);
+    assert.ok(cpRules.some((r) => r.path === '/api/content-plan/materials/<x>/copy-to-bars' && r.methods.includes('POST')));
+    // Дата и время копий — в состоянии формы, без запроса; в «Ещё» — подпись про другие бары.
+    assert.match(fnBody('dtTarget'), /var bc = node\.getAttribute\('data-bc'\);/);
+    assert.match(fnBody('secMore'), /'тип, перенос, повтор, другие бары, удаление'/);
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

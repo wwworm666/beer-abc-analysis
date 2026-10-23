@@ -87,7 +87,9 @@ effective_media = placement.media (только имена, которые ещ�
    площадке с 'all' — текст «для таплиста выберите бар»;
 8. no_audience «не выбрана аудитория» — бот без аудитории;
 9. no_date «нет даты», no_time «нет времени»;
-10. in_past «время выхода уже прошло» — дата+время раньше текущей минуты по Москве.
+10. in_past «время выхода уже прошло» — дата+время раньше текущей минуты по Москве;
+11. duplicate «этот пост уже вышел / уже есть в канале TG Лиг: «…», 11 окт» — тот же
+    пост в том же канале (DuplicateIndex, раздел «Сорт в посте, повтор, перенос»).
 
 ready = статус draft и список пуст. Сравнение времени — с точностью до минуты:
 публикация на 16:00 «в прошлом» с 16:01.
@@ -206,6 +208,7 @@ stats — по этим материалам). С month — обычный ме�
   60 дней — два месяца: дальше это уже планирование другого месяца.
 - repeat: копии материала на каждый выбранный день недели месяца, не раньше
   сегодняшнего дня и не на занятые серией даты. Источник и копии — одна серия.
+- move_placements, copy_to_bars, set_beer — раздел «Сорт в посте, повтор, перенос».
 - copy_month (подробно — `copy_month()` и `COPY_RULES`):
   * обычный материал: ОПОРНАЯ дата (`copy_anchor`: дата темы; нет её — самая
     ранняя дата неотменённого размещения внутри месяца-источника; нет и
@@ -357,6 +360,23 @@ MEDIA_SOURCE_TEXT_MAX). original_name — «<домен>.jpg» (content_image_se
 раньше загрузка была только в полном режиме, теперь прикрепление найденного
 доступно и расписаниям.
 
+## Сорт в посте, повтор, перенос (2026-10-23)
+
+Решения владельца 2026-10-23 (docs/content-plan.md, одноимённые разделы):
+- Сорт в посте (core/content_beer.py): у готовой публикации в Telegram-канале бара
+  (beer_applies) последний абзац — строка про сорт; beer_info размещения показывает
+  сверку с кранами на сейчас (кэш BEER_CONTEXT_TTL_SEC), отправщик сверяет заново и
+  меняет снятый сорт. set_beer — «Поставить сорт» с крана (правка содержания:
+  утверждение снимается); beer_options — краны бара для выбора.
+- Повтор в одном канале (DuplicateIndex): тот же текст без последнего абзаца (не
+  короче DUPLICATE_BODY_MIN) в том же канале -> код готовности duplicate у черновика.
+- copy_to_bars — «На другие бары»: материал-черновик на каждый бар, строка про сорт
+  под краны бара (content_beer.adapt_to_bar), дата — тот же n-й день недели в
+  следующем месяце; бар, где пост уже есть, пропускается.
+- move_placements — перенос плашки календаря: все размещения на другой день, время и
+  утверждение остаются, всё или ничего, до MOVE_MAX за раз; дата темы — следом, если
+  все размещения стояли в её день.
+
 ## Changelog
 
 - 2026-09-26 — модуль создан (этап «только интерфейс», без отправки).
@@ -378,6 +398,8 @@ MEDIA_SOURCE_TEXT_MAX). original_name — «<домен>.jpg» (content_image_se
   agent_original и agent_edits; компактный вид месяца.
 - 2026-10-02 — картинки из поиска: add_media(source=...) хранит media[].source,
   guard_draft_mode в add_media.
+- 2026-10-23 — сорт в посте (beer_info, set_beer, beer_options), код готовности
+  duplicate, copy_to_bars, move_placements; delivery.sent_text у вышедшего.
 """
 
 import copy
@@ -3070,6 +3092,24 @@ class ContentPlanStore:
                     original['placements'][placement['id']] = placement['text']
             result = self._json(material, now_str, month, data=data)
         return result, unapproved
+
+    def beer_options(self, bar) -> dict:
+        """Краны бара для «Поставить сорт» (окно выбора на экране, агенту — то же):
+        {bar, taps: [{tap, name, style, style_ru, abv, mapped, line}], stale, error}. line — ровно
+        та строка, что встанет последним абзацем поста (content_beer.beer_line); stale —
+        краны бара давно не обновлялись (список мог устареть); error — краны не прочитались."""
+        bar = parse_bar(bar)
+        if bar == BAR_ALL:
+            raise ValueError('Выберите бар: у каждого бара свои краны')
+        ctx = self.beer_context(fresh=True)
+        if ctx is None or ctx.error:
+            return {'bar': bar, 'taps': [], 'stale': None, 'error': 'Краны бара не прочитались'}
+        names = ctx.names
+        taps = [{'tap': row.get('tap_number'), 'name': content_beer.beer_name(row, names),
+                 'style': row.get('style'), 'style_ru': taplist_post.style_ru(row.get('style'), names),
+                 'abv': row.get('abv'), 'mapped': bool(row.get('mapped')),
+                 'line': content_beer.beer_line(row, bar, names)} for row in ctx.rows(bar)]
+        return {'bar': bar, 'taps': taps, 'stale': ctx.stale(bar), 'error': None}
 
     def set_beer(self, placement_id: str, tap, user: Optional[dict],
                  month: Optional[str] = None) -> Tuple[dict, List[str]]:

@@ -49,7 +49,9 @@
    без подходящих размещений скрывается; тема без размещений видна при фильтрах
    бара и площадки, но не при фильтре состояния (у неё нет состояния).
 
-   Адрес: ?month=YYYY-MM, ?view=table|calendar, ?open=<id материала>,
+   Адрес: путь — вид (/content-plan — календарь, главная; /content-plan/table —
+   таблица, с 2026-10-23; старый ?view=table сервер переводит на таблицу),
+   ?month=YYYY-MM, ?open=<id материала>,
    ?state=overdue|failed|incomplete|ready|scheduled|paused, ?origin=agent
    (только материалы ИИ-агента), ?brief=1 (открыть бриф для агента),
    ?channels=1 (открыть «Каналы и отправка»).
@@ -310,7 +312,9 @@
 
     var S = {
         month: null,
-        view: 'table',
+        // Вид: календарь — главная страница (/content-plan, решение владельца 2026-10-23),
+        // таблица — подстраница /content-plan/table (VIEW_PATHS, setView).
+        view: 'calendar',
         bar: '',                 // '' = все бары
         channel: '',             // '' = все площадки
         stateFilter: '',
@@ -352,6 +356,12 @@
         reviewsDays: null,
         reviewsErr: false,
         calOpen: {},             // день -> показаны все размещения
+        dragEndAt: 0,            // когда закончили тянуть плашку (клик после этого — не открытие карточки)
+        // «Поставить сорт» у размещения: {pid, bar, loading} | {pid, bar, data} | {pid, bar, error}
+        // (GET /beer-options), busy — идёт запрос.
+        beerPick: null,
+        // «На другие бары» в «Ещё»: {mid, bars: [ключи], date, time, busy}.
+        barCopy: null,
         approve: null,
         copy: null,
         newPost: null,           // диалог «Новый материал»: {title, channel, bars, bar, audience, date, time, busy, error}
@@ -1185,7 +1195,7 @@
         }
         el.barLabel.textContent = S.bar ? GH.barName(S.bar) : 'Все бары';
         el.chLabel.textContent = S.channel ? chName(S.channel) : 'Все площадки';
-        GH.setSeg(el.viewSeg, S.view);
+        renderViewLinks();
         renderDelivery();
     }
 
@@ -1702,18 +1712,48 @@
     }
     // Плашка: время, где и название. Пометки «ИИ» в плашке нет (она — в
     // подсказке): от агента почти весь план, а метка съедала место названия.
-    function pillHtml(x) {
+    // inList — плашка в списке по дням (телефон): там нет клеток дней, куда отпустить, поэтому
+    // плашка не перетаскивается — дату меняют в карточке.
+    function pillHtml(x, inList) {
+        var canDrag = !inList && pillDraggable(x);
         if (x.theme) {
             return '<button type="button" class="gh-cp-pill is-theme" data-open="' + esc(x.m.id) + '"' +
-                tip(pillTip(x)) + '><span class="gh-cp-pill-n">Тема: ' + esc(pillTitle(x.m.title)) + '</span></button>';
+                (canDrag ? ' data-drag="theme" data-day="' + esc(x.m.planned_date) + '"' : '') +
+                tip(pillTip(x) + (canDrag ? DRAG_TIP : '')) + '><span class="gh-cp-pill-n">Тема: ' +
+                esc(pillTitle(x.m.title)) + '</span></button>';
         }
         var p = x.p;
+        var ps = x.ps && x.ps.length ? x.ps : [p];
+        var pids = [];
+        each(ps, function (q) { pids.push(q.id); });
+        var beer = pillBeer(ps);
+        var text = pillTip(x);
+        if (beer) text += '\nСорт в посте: ' + beer.note;
+        if (canDrag) text += DRAG_TIP;
         return '<button type="button" class="gh-cp-pill ' + stateCls(p.display_state) +
-            (p.display_state === 'cancelled' ? ' is-cancel' : '') + '" data-open="' + esc(x.m.id) +
-            '" data-pid="' + esc(p.id) + '"' + tip(pillTip(x)) + '>' +
+            (p.display_state === 'cancelled' ? ' is-cancel' : '') + (beer ? ' has-beer is-beer-' + beer.state : '') +
+            '" data-open="' + esc(x.m.id) + '" data-pid="' + esc(p.id) + '"' +
+            (canDrag ? ' data-drag="1" data-pids="' + esc(pids.join(',')) + '" data-day="' + esc(p.date) + '"' : '') +
+            tip(text) + '>' +
             '<span class="gh-cp-pill-t">' + esc(p.time || '—') + '</span> ' +
             '<span class="gh-cp-pill-w">' + esc(pillWhere(x)) + '</span> ' +
+            (beer ? '<span class="gh-cp-pill-beer" aria-hidden="true"></span>' : '') +
             '<span class="gh-cp-pill-n">' + esc(pillTitle(x.m.title)) + '</span></button>';
+    }
+
+    // Сорт в посте на плашке: самое важное из размещений плашки — no_beer (заменить
+    // нечем, пост не уйдёт), swap (строка заменится), moved (номер крана поправится).
+    var BEER_ALERT_ORDER = ['no_beer', 'swap', 'moved'];
+    function pillBeer(ps) {
+        var found = null;
+        each(ps, function (q) {
+            var info = q.beer_info;
+            if (!info) return;
+            var rank = BEER_ALERT_ORDER.indexOf(info.state);
+            if (rank < 0) return;
+            if (!found || rank < BEER_ALERT_ORDER.indexOf(found.state)) found = info;
+        });
+        return found;
     }
 
     // Пункты дня для плашек: размещения одного материала в одно время на одной
@@ -1727,10 +1767,11 @@
             if (!x.p) { out.push(x); return; }
             var key = [x.m.id, x.p.channel, x.p.time || '', x.p.display_state].join('|');
             if (!index[key]) {
-                index[key] = { m: x.m, p: x.p, bars: [] };
+                index[key] = { m: x.m, p: x.p, bars: [], ps: [] };
                 out.push(index[key]);
             }
             index[key].bars.push(x.p.bar);
+            index[key].ps.push(x.p);
         });
         return out;
     }
@@ -1873,7 +1914,7 @@
                     esc(day) + '">' + PLUS_SVG + 'материал</button>' : '') + '</div>' +
                 '<div class="gh-cp-ag-list">';
             if (!list.length) agenda += '<span class="gh-cp-none">публикаций нет</span>';
-            each(pillGroups(list), function (x) { agenda += pillHtml(x); });
+            each(pillGroups(list), function (x) { agenda += pillHtml(x, true); });
             agenda += '</div></section>';
         });
         if (!days.length) {
@@ -1905,6 +1946,224 @@
             S.reviewsErr = true;
             if (S.view === 'calendar' && S.data) renderView();
         });
+    }
+
+    // ==================== календарь: перетаскивание ====================
+    // Решение владельца 2026-10-23: «на календаре я хочу перетаскивать посты между днями,
+    // редактировать их». Плашку тянут мышью (сдвиг от DRAG_START_PX) или пальцем после
+    // долгого нажатия (DRAG_HOLD_MS — иначе палец прокручивает страницу). Отпустили над
+    // другим днём — POST /placements/move: меняется дата всех размещений плашки, время и
+    // утверждение остаются; у темы без размещений — дата темы (PATCH материала). В
+    // прошлое не переносится; вышедшее, отменённое и отправляющееся не тянется, как и
+    // неудавшееся: у него в карточке причина и «Повторить» (повтор уходит сразу, а не в
+    // новый день). Нажатие без перетаскивания, как раньше, открывает карточку — там
+    // правится всё. На телефоне календарь — список по дням (только дни с публикациями,
+    // клеток дней нет): там плашки не тянутся (pillHtml inList), дату меняют в карточке.
+    var DRAG_START_PX = 6;          // мышь: сдвиг до начала перетаскивания (иначе это нажатие)
+    var DRAG_HOLD_MS = 350;         // палец: долгое нажатие, после которого плашка «берётся»
+    var DRAG_TOUCH_SLOP = 10;       // палец сдвинулся раньше — это прокрутка, а не перенос
+    var CLICK_AFTER_DRAG_MS = 400;  // клик сразу после переноса — не открытие карточки
+    var DRAG_STATUSES = ['draft', 'approved', 'paused'];
+    var DRAG_TIP = '\nПеретащите на другой день, чтобы перенести (пальцем — после долгого нажатия).';
+    var drag = null;
+
+    function pillDraggable(x) {
+        if (x.theme) return !!x.m.planned_date;
+        var ok = true;
+        each(x.ps && x.ps.length ? x.ps : [x.p], function (q) {
+            if (DRAG_STATUSES.indexOf(q.status) < 0 || inFlight(q)) ok = false;
+        });
+        return ok;
+    }
+
+    // Почему на этот день нельзя ('' — можно). d — {theme, pids, from}.
+    function dropProblem(d, day) {
+        if (!day || day === d.from) return '';
+        var today = (S.data && S.data.today) || GH.mskNow().date;
+        if (day < today) return 'В прошлое переносить нельзя: выберите сегодняшний или будущий день';
+        if (d.theme || day !== today) return '';
+        var now = nowStamp();
+        var late = '';
+        each(d.pids, function (pid) {
+            var q = placementById(pid);
+            if (q && (q.status === 'approved' || q.status === 'paused') && q.time && day + 'T' + q.time < now) {
+                late = 'Время выхода сегодня уже прошло — перенесите на другой день или поменяйте время в карточке';
+            }
+        });
+        return late;
+    }
+
+    function placementById(pid) {
+        var hit = null;
+        each(materials(), function (m) { each(m.placements, function (q) { if (q.id === pid) hit = q; }); });
+        return hit;
+    }
+
+    // В канал бара обычно выходит один пост в день (бриф): если в этот день в том же
+    // канале уже есть другой пост — спросить перед переносом.
+    function channelConflict(d, day) {
+        if (d.theme) return '';
+        var moving = d.pids.map(placementById).filter(Boolean);
+        var bars = [];
+        each(moving, function (q) { if (q.channel === 'telegram' && bars.indexOf(q.bar) < 0) bars.push(q.bar); });
+        if (!bars.length) return '';
+        var hits = [];
+        each(materials(), function (m) {
+            if (m.id === d.mid) return;
+            each(m.placements, function (q) {
+                if (q.date === day && q.channel === 'telegram' && bars.indexOf(q.bar) >= 0 && q.status !== 'cancelled') {
+                    hits.push('«' + pillTitle(m.title) + '» (' + GH.barShort(q.bar) + ')');
+                }
+            });
+        });
+        if (!hits.length) return '';
+        return 'В этот день в канале бара уже есть: ' + hits.join(', ') + '. Обычно в канал бара выходит один ' +
+            'пост в день.';
+    }
+
+    function movePill(d, day, undo) {
+        function go() {
+            var req = d.theme
+                ? mutate('PATCH', API + '/materials/' + enc(d.mid), { planned_date: day })
+                : mutate('POST', API + '/placements/move', { placement_ids: d.pids, date: day });
+            req.then(function (res) {
+                if (!res) return;
+                if (undo) { GH.toast('Вернул на ' + GH.fmtDate(day), 'muted'); return; }
+                GH.toast('Перенесено на ' + GH.fmtDate(day), 'success', {
+                    actionLabel: 'Отменить',
+                    onAction: function () { movePill({ mid: d.mid, pids: d.pids, theme: d.theme, from: day }, d.from, true); }
+                });
+            });
+        }
+        var conflict = undo ? '' : channelConflict(d, day);
+        if (!conflict) { go(); return; }
+        GH.confirm({ title: 'Перенести в день, где уже есть пост?', text: conflict, ok: 'Перенести' })
+            .then(function (ok) { if (ok) go(); });
+    }
+
+    function dragPrepare(pill, x, y) {
+        drag = {
+            pill: pill, x0: x, y0: y, x: x, y: y, on: false, timer: null, over: null, ghost: null,
+            mid: pill.getAttribute('data-open'), from: pill.getAttribute('data-day'),
+            theme: pill.getAttribute('data-drag') === 'theme',
+            pids: (pill.getAttribute('data-pids') || '').split(',').filter(Boolean)
+        };
+    }
+    function dayUnder(x, y) {
+        var node = document.elementFromPoint ? document.elementFromPoint(x, y) : null;
+        var cell = closest(node, '.gh-cp-day[data-day]');
+        return cell && el.cal.contains(cell) && !cell.classList.contains('is-out') ? cell : null;
+    }
+    function dragBegin() {
+        if (!drag || drag.on) return;
+        drag.on = true;
+        drag.pill.classList.add('is-dragging');
+        document.body.classList.add('gh-cp-dragging');
+        var ghost = drag.pill.cloneNode(true);
+        ghost.classList.remove('is-dragging');
+        ghost.classList.add('gh-cp-ghost');
+        ghost.removeAttribute('data-drag');
+        ghost.removeAttribute('data-tip');
+        ghost.style.width = drag.pill.offsetWidth + 'px';
+        document.body.appendChild(ghost);
+        drag.ghost = ghost;
+        dragTrack();
+    }
+    function dragTrack() {
+        if (drag.ghost) drag.ghost.style.transform = 'translate(' + (drag.x + 10) + 'px, ' + (drag.y + 10) + 'px)';
+        var cell = dayUnder(drag.x, drag.y);
+        if (drag.over && drag.over !== cell) drag.over.classList.remove('is-drop', 'is-drop-no');
+        drag.over = cell;
+        if (!cell) return;
+        var day = cell.getAttribute('data-day');
+        var ok = day !== drag.from && !dropProblem(drag, day);
+        cell.classList.toggle('is-drop', ok);
+        cell.classList.toggle('is-drop-no', !ok && day !== drag.from);
+    }
+    function dragDrop() {
+        var cell = dayUnder(drag.x, drag.y);
+        if (!cell) return;
+        var day = cell.getAttribute('data-day');
+        if (day === drag.from) return;
+        var why = dropProblem(drag, day);
+        if (why) { GH.toast(why, 'warning'); return; }
+        movePill({ mid: drag.mid, pids: drag.pids.slice(), theme: drag.theme, from: drag.from }, day);
+    }
+    function dragStop() {
+        if (!drag) return;
+        if (drag.timer) clearTimeout(drag.timer);
+        if (drag.on) S.dragEndAt = Date.now();
+        if (drag.ghost && drag.ghost.parentNode) drag.ghost.parentNode.removeChild(drag.ghost);
+        if (drag.over) drag.over.classList.remove('is-drop', 'is-drop-no');
+        drag.pill.classList.remove('is-dragging');
+        document.body.classList.remove('gh-cp-dragging');
+        document.removeEventListener('pointermove', onDragPointerMove, true);
+        document.removeEventListener('pointerup', onDragPointerUp, true);
+        document.removeEventListener('pointercancel', dragStop, true);
+        document.removeEventListener('touchmove', onDragTouchMove, true);
+        document.removeEventListener('touchend', onDragTouchEnd, true);
+        document.removeEventListener('touchcancel', dragStop, true);
+        document.removeEventListener('keydown', onDragKey, true);
+        drag = null;
+    }
+    // Esc — бросить плашку на месте.
+    function onDragKey(e) { if (e.key === 'Escape' && drag) dragStop(); }
+
+    // Мышь и перо.
+    function onCalPointerDown(e) {
+        if (e.pointerType === 'touch' || e.button !== 0 || S.view !== 'calendar' || drag) return;
+        var pill = closest(e.target, '[data-drag]');
+        if (!pill || !el.cal.contains(pill)) return;
+        dragPrepare(pill, e.clientX, e.clientY);
+        document.addEventListener('pointermove', onDragPointerMove, true);
+        document.addEventListener('pointerup', onDragPointerUp, true);
+        document.addEventListener('pointercancel', dragStop, true);
+        document.addEventListener('keydown', onDragKey, true);
+    }
+    function onDragPointerMove(e) {
+        if (!drag) return;
+        drag.x = e.clientX;
+        drag.y = e.clientY;
+        if (!drag.on && Math.abs(drag.x - drag.x0) + Math.abs(drag.y - drag.y0) >= DRAG_START_PX) dragBegin();
+        if (drag.on) { e.preventDefault(); dragTrack(); }
+    }
+    function onDragPointerUp(e) {
+        if (!drag) return;
+        if (drag.on) { e.preventDefault(); dragDrop(); }
+        dragStop();
+    }
+
+    // Палец: перетаскивание включает долгое нажатие; до него палец прокручивает страницу.
+    function onCalTouchStart(e) {
+        if (S.view !== 'calendar' || drag || !e.touches || e.touches.length !== 1) return;
+        var pill = closest(e.target, '[data-drag]');
+        if (!pill || !el.cal.contains(pill)) return;
+        var t = e.touches[0];
+        dragPrepare(pill, t.clientX, t.clientY);
+        drag.timer = setTimeout(function () {
+            if (!drag || drag.on) return;
+            dragBegin();
+            if (window.navigator && window.navigator.vibrate) window.navigator.vibrate(15);
+        }, DRAG_HOLD_MS);
+        document.addEventListener('touchmove', onDragTouchMove, { passive: false, capture: true });
+        document.addEventListener('touchend', onDragTouchEnd, true);
+        document.addEventListener('touchcancel', dragStop, true);
+    }
+    function onDragTouchMove(e) {
+        if (!drag || !e.touches || !e.touches.length) return;
+        drag.x = e.touches[0].clientX;
+        drag.y = e.touches[0].clientY;
+        if (!drag.on) {
+            if (Math.abs(drag.x - drag.x0) + Math.abs(drag.y - drag.y0) > DRAG_TOUCH_SLOP) dragStop();
+            return;
+        }
+        e.preventDefault();
+        dragTrack();
+    }
+    function onDragTouchEnd(e) {
+        if (!drag) return;
+        if (drag.on) { e.preventDefault(); dragDrop(); }
+        dragStop();
     }
 
     // ==================== выбор строк и массовые действия ====================
@@ -2304,6 +2563,12 @@
             var f = addFormState(m);
             return { stored: f[add] || '', send: function (v) { f[add] = v || ''; } };
         }
+        // «На другие бары»: дата и время копий — в состоянии формы, на сервер — по кнопке.
+        var bc = node.getAttribute('data-bc');
+        if (bc === 'date' || bc === 'time') {
+            var cf = barCopyState(m);
+            return { stored: cf[bc] || '', send: function (v) { cf[bc] = v || ''; } };
+        }
         if (node.getAttribute('data-mf') === 'planned_date') {
             return { stored: m.planned_date || '', send: function (v) { patchMaterial(m.id, { planned_date: v }); } };
         }
@@ -2354,8 +2619,8 @@
             GH.toast(v.why + ' — оставлено прежнее значение', 'warning');
         } else if (v.value !== target.stored) {
             target.send(v.value || null);
-            // Запрос перечитает план и перерисует карточку сам.
-            if (!node.getAttribute('data-add')) return;
+            // Запрос перечитает план и перерисует карточку сам (поля форм — без запроса).
+            if (!node.getAttribute('data-add') && !node.getAttribute('data-bc')) return;
         }
         if (S.drawerStale) renderDrawerSoon();
     }
@@ -2821,9 +3086,10 @@
                 help('Отметьте, если публикация без фото не имеет смысла: размещения без фото будут в состоянии ' +
                     '«Не хватает: нет фото». Для Instagram фото обязательно всегда.') + '</div>' +
             repeatHtml(m) +
+            barCopyHtml(m) +
             '<div class="gh-cp-moredel"><button type="button" class="gh-btn gh-btn-danger gh-btn-outline gh-btn-sm" ' +
                 'data-act="delete">Удалить материал</button></div>';
-        return foldHtml('fold:more', 'Ещё', 'тип, перенос, повтор, удаление', inner, 'more');
+        return foldHtml('fold:more', 'Ещё', 'тип, перенос, повтор, другие бары, удаление', inner, 'more');
     }
 
     function liveSourceHtml(m) {
@@ -3151,6 +3417,12 @@
                 audienceOptions(seg, 'Выберите аудиторию') + '</select>' +
                 audienceNote(seg, p.bar, p.audience_info, 'aud:' + p.id));
         }
+        if (p.beer_info && p.beer_info.state === 'none' && !(S.beerPick && S.beerPick.pid === p.id)) {
+            html += '<div class="gh-cp-beer-ed"><button type="button" class="gh-btn gh-btn-sm" data-act="beer-pick" ' +
+                'data-pid="' + esc(p.id) + '">Поставить сорт с крана</button>' +
+                help('Последним абзацем поста встанет строка про сорт с выбранного крана этого бара: «Сегодня на ' +
+                    'пятом кране «Культуры» — …». Перед выходом сайт сверит её с кранами.') + '</div>';
+        }
         var own = p.text !== null && p.text !== undefined;
         html += '<label class="gh-cb gh-cp-own"><input type="checkbox" data-pf="own" data-pid="' + esc(p.id) + '"' +
             ' data-fk="po:' + esc(p.id) + '"' +
@@ -3255,6 +3527,7 @@
             html += '<div class="gh-cp-pl-miss"' + tip(stateTip(p)) + '>' +
                 esc(text.charAt(0).toUpperCase() + text.slice(1)) + '</div>';
         }
+        html += beerHtml(m, p, editable);
         html += placementMeta(m, p);
         html += deliveryHtml(m, p);
         html += sentHtml(m, p);
@@ -3262,6 +3535,179 @@
             html += '<div class="gh-cp-pl-x">' + actionButtons(m, p, main) + (editable ? editorHtml(m, p) : '') + '</div>';
         }
         return html + '</div>';
+    }
+
+    // ----- сорт в посте (решение владельца 2026-10-23, core/content_beer.py) -----
+    // Последний абзац поста — строка про сорт на кране этого бара. Сервер сверяет его с
+    // кранами (beer_info размещения): здесь — что будет при выходе и выбор сорта вручную.
+    var BEER_RULES = [
+        'Строка про сорт — последний абзац поста. Сайт ищет в нём сорта с кранов всех баров и из ' +
+            'реестра Untappd (по названию, без учёта регистра).',
+        'Перед выходом строка сверяется с кранами этого бара. Сорт стоит — пост уходит как есть; переехал ' +
+            'на другой кран — поправится только номер крана.',
+        'Сорт сняли — строка пишется заново под сорт с кранов бара, по порядку: тот же стиль Untappd, ' +
+            'похожий стиль (та же группа Untappd: любой стаут, любой IPA), та же группа (тёмное, лагер, ' +
+            'пшеничное, кислое, хмелевое, бельгийское светлое, особое), любое пиво. Сидр и медовуха — только ' +
+            'вместо сидра и медовухи.',
+        'Из подходящих — с проверенной карточкой Untappd, затем подключённый позже всех, затем меньший ' +
+            'номер крана. Пива для замены нет — пост не уйдёт: выберите сорт и нажмите «Повторить».',
+        'Здесь показано по кранам на сейчас; при выходе проверка повторяется.'
+    ];
+    var BEER_TONES = { on_tap: 'muted', moved: 'accent', swap: 'warning', no_beer: 'danger', no_data: 'muted' };
+
+    function beerText(info) {
+        if (info.state === 'on_tap') {
+            var parts = [];
+            each(info.beers, function (b) { parts.push('«' + b.name + '», кран ' + b.tap); });
+            return 'Сорт в посте: ' + parts.join('; ');
+        }
+        if (info.state === 'no_data') return 'Краны бара не прочитались — сорт в посте не проверен';
+        return info.note || '';
+    }
+
+    function beerHtml(m, p, editable) {
+        var info = p.beer_info;
+        if (!info) return '';
+        var picking = S.beerPick && S.beerPick.pid === p.id;
+        if (info.state === 'none' && !picking) return '';
+        var html = '';
+        if (info.state !== 'none') {
+            var btn = editable && !picking
+                ? '<button type="button" class="gh-btn gh-btn-ghost gh-btn-sm" data-act="beer-pick" data-pid="' +
+                    esc(p.id) + '">' + (info.state === 'no_beer' ? 'Выбрать сорт' : 'Другой сорт') + '</button>'
+                : '';
+            html += '<div class="gh-cp-beer ' + GH.toneClass(BEER_TONES[info.state] || 'muted') + '">' +
+                '<span class="gh-cp-beer-t">' + esc(beerText(info)) + '</span>' + btn + '</div>';
+            if (info.new_line && (info.state === 'swap' || info.state === 'moved')) {
+                html += '<div class="gh-cp-beer-line"' + tip('Так будет выглядеть последний абзац при выходе') + '>' +
+                    esc(info.new_line) + '</div>';
+            }
+            if (info.stale) html += '<div class="gh-cp-beer-stale">' + esc('Проверка может ошибаться: ' + info.stale) + '</div>';
+            html += howHtml('beer', howList(BEER_RULES));
+        }
+        if (picking) html += beerPickHtml(p);
+        return html;
+    }
+
+    function beerPickHtml(p) {
+        var pick = S.beerPick;
+        var html = '<div class="gh-cp-beerpick" data-beerpick="' + esc(p.id) + '">' +
+            '<div class="gh-cp-beerpick-h">Сорт с крана: ' + esc(GH.barName(p.bar)) +
+            '<button type="button" class="gh-btn gh-btn-ghost gh-btn-sm" data-act="beer-close">Закрыть</button></div>';
+        if (pick.loading) return html + '<p class="gh-cp-explain">Загружаю краны…</p></div>';
+        if (pick.error) return html + '<p class="gh-cp-explain is-err">' + esc(pick.error) + '</p></div>';
+        var data = pick.data || {};
+        if (data.error) return html + '<p class="gh-cp-explain is-err">' + esc(data.error) + '</p></div>';
+        if (!(data.taps || []).length) return html + '<p class="gh-cp-explain">На кранах бара сейчас нет пива.</p></div>';
+        if (p.status === 'approved' || p.status === 'paused' || p.status === 'failed') {
+            html += '<div class="gh-cp-warn">Изменение снимет утверждение: последний абзац — часть текста.</div>';
+        }
+        if (data.stale) html += '<div class="gh-cp-beer-stale">' + esc('Список мог устареть: ' + data.stale) + '</div>';
+        html += '<div class="gh-cp-beerpick-list">';
+        each(data.taps, function (t) {
+            var info = [];
+            if (t.style_ru) info.push(t.style_ru);
+            if (t.abv) info.push(String(t.abv).replace('.', ',') + '%');
+            html += '<button type="button" class="gh-cp-beerpick-i" data-act="beer-set" data-pid="' + esc(p.id) +
+                '" data-tap="' + esc(t.tap) + '"' + (pick.busy ? ' disabled' : '') + tip('В пост встанет: ' + t.line) + '>' +
+                '<span class="gh-cp-beerpick-n">' + esc(t.tap) + '</span>' +
+                '<span class="gh-cp-beerpick-b">' + esc(t.name) + '</span>' +
+                (info.length ? '<span class="gh-cp-beerpick-s">' + esc(info.join(', ')) + '</span>' : '') + '</button>';
+        });
+        return html + '</div></div>';
+    }
+
+    function openBeerPick(m, p) {
+        S.beerPick = { pid: p.id, bar: p.bar, loading: true };
+        renderDrawer();
+        GH.api('GET', API + '/beer-options?bar=' + enc(p.bar)).then(function (res) {
+            if (!S.beerPick || S.beerPick.pid !== p.id) return;
+            S.beerPick = { pid: p.id, bar: p.bar, data: res || {} };
+            if (current()) renderDrawer();
+        }, function (err) {
+            if (!S.beerPick || S.beerPick.pid !== p.id) return;
+            S.beerPick = { pid: p.id, bar: p.bar, error: (err && err.message) || 'Краны не загрузились' };
+            if (current()) renderDrawer();
+        });
+    }
+
+    function setBeer(m, p, tapNo) {
+        if (!S.beerPick || S.beerPick.busy) return;
+        flushSavers();
+        S.beerPick.busy = true;
+        renderDrawer();
+        mutate('POST', API + '/placements/' + enc(p.id) + '/beer', { tap: tapNo }).then(function (res) {
+            if (S.beerPick && S.beerPick.pid === p.id) S.beerPick = null;
+            if (res && res.material) GH.toast('Строка про сорт обновлена: кран ' + tapNo, 'success');
+            if (current()) renderDrawer();
+        });
+    }
+
+    // ----- «На другие бары» (решение владельца 2026-10-23) -----
+    // Удачный пост одного бара — черновиком в каналы других баров, обычно в следующем
+    // месяце. В одном канале пост не повторяется: бар, где он уже есть, сервер пропустит.
+    var BAR_COPY_RULES = [
+        'На каждый отмеченный бар — свой материал-черновик: текст и фото этого поста, размещение в ' +
+            'Telegram-канале бара. Утверждаете их, как обычно.',
+        'Последний абзац — строка про сорт — переписывается под краны нового бара: тот же сорт, если он ' +
+            'там стоит, иначе сорт того же стиля. Перед выходом строка ещё раз сверится с кранами.',
+        'Дата по умолчанию — тот же день недели с тем же номером в следующем месяце (второе воскресенье — ' +
+            'второе воскресенье), время — как у этого поста.',
+        'В одном канале пост выходит один раз: бар, где этот пост уже есть, пропускается.'
+    ];
+
+    function barCopyState(m) {
+        if (!S.barCopy || S.barCopy.mid !== m.id) S.barCopy = { mid: m.id, bars: [], date: '', time: '', busy: false };
+        return S.barCopy;
+    }
+
+    function barCopyHtml(m) {
+        if (m.kind === 'live') return '';
+        var f = barCopyState(m);
+        var own = {};
+        each(m.placements, function (p) { if (p.channel === 'telegram' && p.status !== 'cancelled') own[p.bar] = true; });
+        var checks = '';
+        each(GH.BARS, function (b) {
+            checks += '<label class="gh-check"><input type="checkbox" data-bc="bar" value="' + esc(b.key) + '"' +
+                (f.bars.indexOf(b.key) >= 0 ? ' checked' : '') + (own[b.key] ? ' disabled' : '') + '><span' +
+                tip(own[b.key] ? b.name + ': этот пост уже здесь' : b.name) + '>' + esc(b.short) + '</span></label>';
+        });
+        return field('На другие бары', '<div class="gh-checks">' + checks + '</div>' +
+                '<div class="gh-form-row">' +
+                    field('Дата', dateInput('data-bc="date" data-fk="bc_date"', f.date, 'Дата выхода копий')) +
+                    field('Время', timeInput('data-bc="time" data-fk="bc_time"', f.time, 'Время выхода копий')) +
+                '</div>' +
+                '<div class="gh-cp-rep-go"><button type="button" class="gh-btn gh-btn-sm" data-act="bars-copy"' +
+                    (f.bars.length && !f.busy ? '' : ' disabled') + '>Повторить в каналах</button></div>' +
+                howHtml('barcopy', howList(BAR_COPY_RULES)), 'gh-cp-barcopy');
+    }
+
+    function copyToBars(m) {
+        var f = barCopyState(m);
+        if (!f.bars.length || f.busy) return;
+        var body = { bars: f.bars.slice() };
+        if (f.date) body.date = f.date;
+        if (f.time) body.time = f.time;
+        f.busy = true;
+        renderDrawer();
+        GH.api('POST', API + '/materials/' + enc(m.id) + '/copy-to-bars', body, apiOpts()).then(function (res) {
+            S.barCopy = null;
+            var created = (res && res.created) || [];
+            var skipped = (res && res.skipped) || [];
+            var parts = [];
+            if (created.length) {
+                parts.push('Создано: ' + nText(created.length, 'черновик', 'черновика', 'черновиков') + ' на ' +
+                    GH.fmtDate(res.date) + (res.time ? ' ' + res.time : ''));
+            }
+            each(skipped, function (x) { parts.push(GH.barShort(x.bar) + ': ' + x.reason); });
+            GH.toast(parts.join('. ') || 'Ничего не создано', created.length ? 'success' : 'warning',
+                created.length ? { actionLabel: 'Открыть', onAction: function () { openMaterial(created[0]); } } : undefined);
+            reload();
+        }, function (err) {
+            if (S.barCopy) S.barCopy.busy = false;
+            reportError(err);
+            if (current()) renderDrawer();
+        });
     }
 
     function addFormState(m) {
@@ -4280,6 +4726,15 @@
             S.previewPid = pid;
             renderSection('preview');
             maybeLoadPreviewLive(m);
+        } else if (a === 'beer-pick' && p) {
+            openBeerPick(m, p);
+        } else if (a === 'beer-set' && p) {
+            setBeer(m, p, act.getAttribute('data-tap'));
+        } else if (a === 'beer-close') {
+            S.beerPick = null;
+            renderDrawer();
+        } else if (a === 'bars-copy') {
+            copyToBars(m);
         } else if (a === 'shift') {
             shiftMaterial(m);
         } else if (a === 'repeat') {
@@ -4377,6 +4832,18 @@
                 f.audience = t.value;
             }
             renderDrawer();
+            return;
+        }
+        var bc = t.getAttribute('data-bc');
+        if (bc) {
+            var cf = barCopyState(m);
+            if (bc === 'bar') {
+                var bi = cf.bars.indexOf(t.value);
+                if (t.checked && bi < 0) cf.bars.push(t.value);
+                if (!t.checked && bi >= 0) cf.bars.splice(bi, 1);
+                var go = el.drawer.querySelector('[data-act="bars-copy"]');
+                if (go) go.disabled = !cf.bars.length || cf.busy;
+            }
             return;
         }
         var rep = t.getAttribute('data-rep');
@@ -6099,9 +6566,26 @@
         if (S.reviewsOn) loadReviews();
     }
 
-    function setView(v) {
-        S.view = v === 'calendar' ? 'calendar' : 'table';
-        GH.setParams({ view: S.view === 'table' ? null : S.view });
+    // Вид — это страница: календарь — /content-plan (главная), таблица — /content-plan/table
+    // (решение владельца 2026-10-23: «убираем под страницу таблицы и делаем календарь
+    // основной страницей»). Переключение меняет путь без перезагрузки (history), месяц и
+    // фильтры в адресе сохраняются; кнопка «Назад» браузера возвращает вид (popstate).
+    var VIEW_PATHS = { calendar: '/content-plan', table: '/content-plan/table' };
+    function viewOfPath(path) { return /\/content-plan\/table\/?$/.test(String(path || '')) ? 'table' : 'calendar'; }
+    function viewHref(v) {
+        var search = '';
+        try {
+            var p = new URLSearchParams(window.location.search);
+            p.delete('view');
+            search = p.toString();
+        } catch (e) { search = ''; }
+        return VIEW_PATHS[v] + (search ? '?' + search : '');
+    }
+    function setView(v, fromHistory) {
+        S.view = v === 'table' ? 'table' : 'calendar';
+        if (!fromHistory) {
+            try { window.history.pushState(null, '', viewHref(S.view)); } catch (e) { /* адрес не сменился — вид всё равно */ }
+        }
         // Календарь — сетка одного месяца: сквозной вид в нём не показать,
         // поэтому переход в календарь открывает текущий месяц с тем же фильтром.
         if (S.view === 'calendar' && S.scope) { leaveScope(S.month, S.stateFilter); return; }
@@ -6110,11 +6594,35 @@
         renderView();
         renderBulk();
     }
+    // Ссылки вида: подсветка текущего и адреса с месяцем и фильтрами (открыть в новой вкладке).
+    function renderViewLinks() {
+        if (!el.viewSeg || !el.viewSeg.querySelectorAll) return;
+        var links = el.viewSeg.querySelectorAll('[data-value]');
+        for (var i = 0; i < links.length; i++) {
+            var v = links[i].getAttribute('data-value');
+            var on = v === S.view;
+            links[i].classList.toggle('is-on', on);
+            if (on) links[i].setAttribute('aria-current', 'page');
+            else links[i].removeAttribute('aria-current');
+            links[i].setAttribute('href', viewHref(v));
+        }
+    }
+    function onViewLinkClick(e) {
+        var link = closest(e.target, '[data-value]');
+        if (!link || !el.viewSeg.contains(link)) return;
+        // Ctrl, Cmd, Shift, средняя кнопка — как обычная ссылка (новая вкладка или окно).
+        if (e.button || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+        e.preventDefault();
+        var v = link.getAttribute('data-value');
+        if (v !== S.view) setView(v);
+    }
 
     // ==================== обработчики страницы ====================
 
     function onViewClick(e) {
         var t = e.target;
+        // Плашку только что перетащили: отпускание — не нажатие, карточку не открываем.
+        if (S.dragEndAt && Date.now() - S.dragEndAt < CLICK_AFTER_DRAG_MS) return;
         var act = closest(t, '[data-act]');
         if (act && !el.drawer.contains(act)) {
             var a = act.getAttribute('data-act');
@@ -6210,7 +6718,11 @@
             renderChrome();
             renderView();
         });
-        GH.bindSeg(el.viewSeg, setView);
+        el.viewSeg.addEventListener('click', onViewLinkClick);
+        window.addEventListener('popstate', function () {
+            var v = viewOfPath(window.location.pathname);
+            if (v !== S.view) setView(v, true);
+        });
 
         el.approveBtn.addEventListener('click', function () { openApprove(); });
         el.addBtn.addEventListener('click', function () { openNew(null); });
@@ -6279,6 +6791,9 @@
 
         el.table.addEventListener('click', onViewClick);
         el.cal.addEventListener('click', onViewClick);
+        // Перетаскивание плашек календаря: мышь — pointer, палец — touch (долгое нажатие).
+        el.cal.addEventListener('pointerdown', onCalPointerDown);
+        el.cal.addEventListener('touchstart', onCalTouchStart, { passive: true });
         el.table.addEventListener('change', onViewChange);
         el.cal.addEventListener('change', onViewChange);
 
@@ -6409,7 +6924,11 @@
         var mon = params.get('month');
         var monthGiven = MONTH_RE.test(mon || '');
         S.month = monthGiven ? mon : GH.mskNow().month;
-        S.view = params.get('view') === 'calendar' ? 'calendar' : 'table';
+        // Вид — по странице (data-cp-view шаблона, иначе путь); старый ?view=table сервер
+        // уже перевёл на /content-plan/table.
+        var pageView = document.body && document.body.getAttribute ? document.body.getAttribute('data-cp-view') : null;
+        S.view = pageView === 'table' || pageView === 'calendar' ? pageView
+            : (params.get('view') === 'table' ? 'table' : viewOfPath(window.location && window.location.pathname));
         var st = params.get('state');
         S.stateFilter = STATE_FILTERS.indexOf(st) >= 0 ? st : '';
         // Сквозной вид — ?state=overdue|failed без ?month= (ссылки полосы
@@ -6474,6 +6993,11 @@
         linkedText: linkedText, previewHtml: previewHtml, previewKey: previewKey,
         // Гифка к таплисту 2026-10-09: показ и выбор.
         gifHtml: gifHtml, gifsBlockHtml: gifsBlockHtml, gifPickerHtml: gifPickerHtml, gifMediaHtml: gifMediaHtml,
-        bubbleGifHtml: bubbleGifHtml, chooseGif: chooseGif, openGifPicker: openGifPicker
+        bubbleGifHtml: bubbleGifHtml, chooseGif: chooseGif, openGifPicker: openGifPicker,
+        // 2026-10-23: сорт в посте, перенос плашек по календарю, «На другие бары», вид — страница.
+        pillHtml: pillHtml, pillBeer: pillBeer, pillDraggable: pillDraggable, dropProblem: dropProblem,
+        channelConflict: channelConflict, movePill: movePill, beerText: beerText, beerHtml: beerHtml,
+        beerPickHtml: beerPickHtml, setBeer: setBeer, barCopyHtml: barCopyHtml, barCopyState: barCopyState,
+        copyToBars: copyToBars, viewHref: viewHref, viewOfPath: viewOfPath
     };
 })();

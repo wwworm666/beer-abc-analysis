@@ -265,7 +265,7 @@ POST /mcp[/<раздел>][/read|/draft]              routes/mcp.py  (откры
 
 **Черновики (`draft_write`).** Пометка только для записи, которая остаётся черновиком внутри
 сервиса и никуда не уходит без утверждения владельца; `validate_tool_spec` не даёт поставить её
-вместе с `read_only`, `destructive` или `open_world`. Сейчас это 9 инструментов: 8 раздела «Контент
+вместе с `read_only`, `destructive` или `open_world`. Сейчас это 12 инструментов: 11 раздела «Контент
 и отзывы» и предложение связи с Untappd; набор закреплён тестом `tests/test_mcp_modes.py` —
 расширить его можно только осознанной правкой теста.
 
@@ -276,6 +276,9 @@ POST /mcp[/<раздел>][/read|/draft]              routes/mcp.py  (откры
 | `content_material_repeat` | `POST /api/content-plan/materials/<id>/repeat` | только свой черновик; копии — тоже черновики агента (`origin` по тому, кто повторяет, размещения — черновиками) |
 | `content_placements_add` | `POST /api/content-plan/materials/<id>/placements` | только к своему черновику; размещения создаются черновиками |
 | `content_placement_update` | `PATCH /api/content-plan/placements/<id>` | только у своего черновика |
+| `content_placement_beer` | `POST /api/content-plan/placements/<id>/beer` | «Поставить сорт» (с 2026-10-23) — только у своего черновика |
+| `content_placements_move` | `POST /api/content-plan/placements/move` | перенос на другой день (с 2026-10-23) — только размещения своих черновиков; всё или ничего |
+| `content_material_copy_to_bars` | `POST /api/content-plan/materials/<id>/copy-to-bars` | повтор поста в каналах других баров (с 2026-10-23): источник только читается, копии — новые черновики агента (как `content_material_create`) |
 | `content_review_update` | `PATCH /api/reviews/<id>` | только поле `reply_draft` (черновик ответа) |
 | `content_image_search` | `POST /api/content-plan/image-search` | поиск картинок пишет только файл поиска и тратит суточный предел (150 на сеть, 60 на подключение) |
 | `content_media_add_found` | `POST /api/content-plan/materials/<id>/media/found` | только в свой черновик и только вариант из файла поиска сервера |
@@ -1325,6 +1328,18 @@ py -3 scripts/mcp_eval.py          # сухой план эталонного п
 
 ## Changelog
 
+- **2026-10-23 (сорт в посте, другие бары, перенос)** — четыре инструмента контент-плана на новые
+  маршруты ([content-plan.md](content-plan.md), разделы «Сорт в посте», «Один пост — один раз в
+  канале», «Перенос по календарю»): `content_beer_options` (чтение: краны бара и строка, что
+  встанет в пост), `content_placement_beer` («Поставить сорт»), `content_placements_move`
+  (перенос размещений на другой день), `content_material_copy_to_bars` («На другие бары»);
+  последние три — `draft_write` (первые два — только у своих черновиков, `guard_draft_mode`;
+  повтор создаёт новые черновики агента), набор в `tests/test_mcp_modes.py` расширен. В описаниях
+  — код готовности `duplicate`, `beer_info` / `beer_state` размещения и действие журнала
+  `copy_bars`; в `INSTRUCTIONS` раздела — три строки: строка про сорт (последний абзац, при выходе
+  сверяется сама), повтор поста в другие бары, повтор в одном канале не утверждается. Числа: 251
+  инструмент (content 51), охват 262 пары — 235 инструментами и 27 исключениями; `read_only` 147;
+  в режиме `draft` пишут 12 инструментов.
 - **2026-10-19 (бот в Амстердаме)** — бот @MCPkulturabot переехал на отдельный сервер в Амстердаме
   (сайт в России, API Anthropic оттуда недоступен) и стал обычным клиентом MCP: правила и
   инструменты берёт `initialize` и `tools/list` (`/mcp` и `/mcp/<раздел>`), вызывает `tools/call`

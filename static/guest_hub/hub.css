@@ -957,6 +957,9 @@ a.gh-chip:hover { border-color: color-mix(in srgb, var(--gh-t) 70%, var(--gh-car
     box-shadow: var(--gh-shadow-seg);
 }
 .gh-seg-btn:disabled { opacity: .4; cursor: default; }
+/* Сегмент из ссылок (вид контент-плана: «Календарь» — /content-plan, «Таблица» — /content-plan/table)
+   выглядит как кнопки: без подчёркивания и цвета ссылки браузера. */
+a.gh-seg-btn { text-decoration: none; }
 .gh-seg.gh-seg-block { display: flex; width: 100%; }
 .gh-seg.gh-seg-block .gh-seg-btn { flex: 1 1 0; min-width: 0; }
 

@@ -20,7 +20,9 @@
      «Отправить сейчас», повторять отправку, снимать паузу, менять каналы). Это только
      подсказка экрану (content_plan.js прячет и выключает такие кнопки): решает сервер,
      остальным он отвечает 403 {code: 'admin_required'}. -->
-<body class="gh-page gh-scope" data-is-admin="{{ 'true' if current_user and current_user.is_admin else 'false' }}">
+<!-- data-cp-view — какой вид открыла страница: calendar (/content-plan — главная, решение владельца
+     2026-10-23) или table (/content-plan/table — подстраница). -->
+<body class="gh-page gh-scope" data-is-admin="{{ 'true' if current_user and current_user.is_admin else 'false' }}" data-cp-view="{{ cp_view or 'calendar' }}">
     <div class="container">
         {% set page_title = "Контент-план" %}
         {% set page_subtitle = "План публикаций и рассылок на месяц" %}
@@ -78,11 +80,15 @@
 
             <span class="gh-sep"></span>
 
+            <!-- Вид: календарь — главная страница плана, таблица — подстраница
+                 (/content-plan/table: строки, массовые действия, вид «по всем месяцам»).
+                 Ссылки настоящие (открываются и в новой вкладке); обычное нажатие
+                 переключает вид без перезагрузки (content_plan.js, setView). -->
             <div class="gh-filters-seg">
-                <div class="gh-seg" id="cpViewSeg" role="group" aria-label="Вид">
-                    <button type="button" class="gh-seg-btn is-on" data-value="table" aria-pressed="true">Таблица</button>
-                    <button type="button" class="gh-seg-btn" data-value="calendar" aria-pressed="false">Календарь</button>
-                </div>
+                <nav class="gh-seg gh-cp-views" id="cpViewSeg" aria-label="Вид плана">
+                    <a class="gh-seg-btn{{ ' is-on' if cp_view != 'table' else '' }}" href="/content-plan" data-value="calendar"{{ ' aria-current="page"'|safe if cp_view != 'table' else '' }}>Календарь</a>
+                    <a class="gh-seg-btn{{ ' is-on' if cp_view == 'table' else '' }}" href="/content-plan/table" data-value="table"{{ ' aria-current="page"'|safe if cp_view == 'table' else '' }}>Таблица</a>
+                </nav>
             </div>
 
             <span class="gh-grow"></span>

@@ -772,6 +772,21 @@ _tool(
 )
 
 _tool(
+    name='content_beer_options',
+    title='Краны бара для строки про сорт',
+    description=(
+        'Активные краны бара — то, из чего выбирают сорт для последнего абзаца поста: taps [{tap, name '
+        '(пивоварня и название, как в таплисте), style (Untappd), style_ru, abv, mapped (проверенная карточка '
+        'Untappd), line — ровно та строка, что встанет в пост через content_placement_beer}], stale — краны бара '
+        'давно не обновлялись (список мог устареть), error — краны не прочитались.'
+    ),
+    input_schema=_obj({'bar': _enum(BAR_KEYS, 'Бар: ' + BAR_HELP + '.')}, required=('bar',)),
+    method='GET', path='/api/content-plan/beer-options', query_params=('bar',),
+    read_only=True, idempotent=True,
+    examples=({'bar': 'bolshoy'},),
+)
+
+_tool(
     name='content_placement_beer',
     title='Поставить сорт в пост',
     description=(

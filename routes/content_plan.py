@@ -10,7 +10,11 @@ core/content_media.py; отправка в площадки — core/content_pub
 Эндпоинты:
     GET    /content-plan                                  страница: календарь — главный вид (решение
                                                           владельца 2026-10-23); ?view=table -> подстраница
-    GET    /content-plan/table                            подстраница «Таблица» (тот же шаблон, вид таблицы)
+    GET    /content-plan/table                            подстраница «Таблица» (тот же шаблон, вид таблицы);
+                                                          /content-plan?state=overdue|failed без month — сюда
+    GET    /api/content-plan/beer-options?bar=            {bar, taps: [{tap, name, style, style_ru, abv,
+                                                          mapped, line}], stale, error} — краны бара для
+                                                          «Поставить сорт»
     GET    /api/content-plan?month=YYYY-MM                материалы месяца + справочники + stats
                                                           + delivery (что подключено к отправке) и
                                                           delivery_connected (прежний вид); размер
@@ -368,7 +372,12 @@ def _current_month(store) -> str:
 def content_plan_page():
     """Главная страница плана — календарь (решение владельца 2026-10-23). Старые ссылки
     ?view=table ведут на подстраницу таблицы."""
-    if (request.args.get('view') or '').strip() == 'table':
+    view = (request.args.get('view') or '').strip()
+    # Вид «по всем месяцам» (?state=overdue|failed без month, ссылки полосы «Требует внимания»)
+    # есть только у таблицы: календарь — сетка одного месяца.
+    scope = (not (request.args.get('month') or '').strip()
+             and (request.args.get('state') or '').strip() in CROSS_MONTH_STATES)
+    if view == 'table' or (scope and view != 'calendar'):
         args = request.args.to_dict(flat=True)
         args.pop('view', None)
         return redirect(url_for('content_plan.content_plan_table_page', **args))
@@ -586,6 +595,13 @@ def set_placement_beer(placement_id):
     material, unapproved = _store().set_beer(placement_id, _json_body().get('tap'), current_user(),
                                              _view_month())
     return jsonify({'material': material, 'unapproved': unapproved})
+
+
+@content_plan_bp.route('/api/content-plan/beer-options', methods=['GET'])
+@_guard
+def beer_options():
+    """Краны бара для «Поставить сорт»: что встанет последним абзацем поста с каждого крана."""
+    return jsonify(_store().beer_options(request.args.get('bar')))
 
 
 @content_plan_bp.route('/api/content-plan/placements/move', methods=['POST'])

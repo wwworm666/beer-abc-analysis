@@ -347,3 +347,54 @@ def test_pages_and_routes():
                    json={'bars': ['varshavskaya'], 'date': '2026-11-08', 'time': '19:00'})
         body = r.get_json()
         assert r.status_code == 200 and len(body['created']) == 1 and body['date'] == '2026-11-08'
+        # краны бара для «Поставить сорт»: строка — ровно та, что встанет в пост
+        r = c.get('/api/content-plan/beer-options?bar=ligovskiy')
+        body = r.get_json()
+        assert r.status_code == 200 and [t['tap'] for t in body['taps']] == [5], body
+        assert body['taps'][0]['line'] == ('Сегодня на пятом кране «Культуры Каск» — Festhaus Helles, '
+                                           'светлый лагер, 4,5%.')
+        assert c.get('/api/content-plan/beer-options?bar=all').status_code == 400
+        assert c.get('/api/content-plan/beer-options?bar=moon').status_code == 400
+
+
+def test_beer_options_lists_bar_taps():
+    taps = Taps(ligovskiy=[tcb._tap(6, 'pils'), tcb._tap(5, 'festhaus'), tcb._tap(7)],
+                varshavskaya=[tcb._tap(2, 'ipa')])
+    env = _env(taps)
+    with _names():
+        got = env.store.beer_options('ligovskiy')
+        assert got['bar'] == 'ligovskiy' and got['error'] is None and got['stale'] is None
+        # по номеру крана, пустой кран не в списке; имя, стиль и крепость — как в строке поста
+        assert [(t['tap'], t['name'], t['style_ru'], t['abv']) for t in got['taps']] == [
+            (5, 'Festhaus Helles', 'светлый лагер', 4.5), (6, 'Zubr Gold', 'чешский пилснер', 4.6)]
+        assert got['taps'][1]['line'] == 'Сегодня на шестом кране «Культуры Каск» — Zubr Gold, чешский пилснер, 4,6%.'
+        assert all(t['mapped'] for t in got['taps'])
+        # у другого бара — своё название в строке
+        assert env.store.beer_options('varshavskaya')['taps'][0]['line'].startswith('Сегодня на втором кране «Культуры» — ')
+        # краны не прочитались — пустой список и причина, а не ошибка страницы
+        env.store.taps_fn = lambda: (_ for _ in ()).throw(OSError('нет файла'))
+        _refresh(env)
+        broken = env.store.beer_options('ligovskiy')
+        assert broken['taps'] == [] and broken['error'] == 'Краны бара не прочитались'
+        for bad in ('all', '', 'moon'):
+            try:
+                env.store.beer_options(bad)
+                raise AssertionError(f'бар {bad!r} принят')
+            except ValueError:
+                pass
+
+
+# --------------------------------------------------------------------------- самозапуск
+
+if __name__ == '__main__':
+    tests = [(name, fn) for name, fn in sorted(globals().items()) if name.startswith('test_') and callable(fn)]
+    failed = 0
+    for name, fn in tests:
+        try:
+            fn()
+            print('ok   ', name)
+        except Exception as e:  # noqa: BLE001 — отчёт по каждому тесту
+            failed += 1
+            print('FAIL ', name, '-', repr(e)[:800])
+    print('\n' + str(len(tests) - failed) + ' passed, ' + str(failed) + ' failed')
+    sys.exit(1 if failed else 0)

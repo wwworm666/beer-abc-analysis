@@ -5,10 +5,14 @@
 «Сорт в посте».
 """
 import json
+import os
+import sys
 from datetime import datetime
 from pathlib import Path
 
-from core import content_beer as cb
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from core import content_beer as cb  # noqa: E402
 
 BAR_IDS = {'bolshoy': 'bar1', 'ligovskiy': 'bar2', 'kremenchugskaya': 'bar3', 'varshavskaya': 'bar4'}
 NOW = datetime(2026, 10, 23, 12, 0)
@@ -224,3 +228,19 @@ def test_beer_line_parts():
     assert cb.beer_line(row, 'kremenchugskaya', NAMES) == 'Сегодня на третьем кране «Культуры» — Zubr Gold, чешский пилснер, 4,6%.'
     row = {'tap_number': 30, 'beer_name': 'Неизвестное'}
     assert cb.beer_line(row, 'ligovskiy', NAMES) == 'Сегодня на кране № 30 «Культуры Каск» — Неизвестное.'
+
+
+# --------------------------------------------------------------------------- самозапуск
+
+if __name__ == '__main__':
+    tests = [(name, fn) for name, fn in sorted(globals().items()) if name.startswith('test_') and callable(fn)]
+    failed = 0
+    for name, fn in tests:
+        try:
+            fn()
+            print('ok   ', name)
+        except Exception as e:  # noqa: BLE001 — отчёт по каждому тесту
+            failed += 1
+            print('FAIL ', name, '-', repr(e)[:800])
+    print('\n' + str(len(tests) - failed) + ' passed, ' + str(failed) + ' failed')
+    sys.exit(1 if failed else 0)
