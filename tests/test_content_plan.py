@@ -2155,7 +2155,8 @@ def test_page_route_renders_template():
         app = Flask('test_content_plan_page')
         app.register_blueprint(content_plan_bp)
         r = app.test_client().get('/content-plan')
-        assert r.status_code == 200 and calls == [('content_plan.html', {'app_version': 'abc123'})]
+        assert r.status_code == 200 and calls == [('content_plan.html', {'app_version': 'abc123',
+                                                                          'cp_view': 'calendar'})]
         rcp.render_template = saved_render
         if not os.path.exists(os.path.join(REPO, 'templates', 'content_plan.html')):
             _skip('templates/content_plan.html ещё нет — настоящая отрисовка не проверена')
