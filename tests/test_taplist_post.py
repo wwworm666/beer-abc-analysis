@@ -205,13 +205,15 @@ def test_stale_taps_rule():
         'день', 'дня', 'дня', 'дней', 'дней', 'дней', 'день', 'дня', 'дней', 'дней']
 
 
-def test_stale_taps_stops_rendered_post():
+def test_stale_taps_warns_but_does_not_stop_post():
+    """Решение владельца 2026-10-24: давно не менявшиеся краны пост не останавливают."""
     snapshot = {'bar3': {'name': 'Кременчугская', 'taps': [
         tap(9, GUID_X, '2026-08-11T14:22:15+03:00', [ev('2026-08-11T14:22:15+03:00', 'replace', GUID_X)])]}}
     r = cp.render_live('taplist', 'kremenchugskaya', '{таплист}', snapshot=snapshot, registry=REGISTRY, now=POST)
-    assert r['ok'] is False and [p['code'] for p in r['problems']] == ['stale_taps']
-    assert r['problems'][0]['text'] == ('краны бара не обновлялись 59 дней (последнее изменение 11 августа) — '
-                                        'список мог устареть')
+    assert r['ok'] is True and r['problems'] == []
+    stale = [n for n in r['notes'] if n['code'] == 'stale_taps']
+    assert [n['text'] for n in stale] == ['краны бара не обновлялись 59 дней (последнее изменение 11 августа) — '
+                                          'список мог устареть']
     assert r['taps_changed_at'] == '2026-08-11T14:22' and r['text'] == '9. Festhaus Helles — светлый лагер, 4,5%'
 
 
