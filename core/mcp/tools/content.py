@@ -147,6 +147,7 @@ TEXT_MAX = 10000            # content_plan.TEXT_MAX
 NOTE_MAX = 2000             # content_plan.NOTE_MAX
 AGENT_TEXT_MAX = 2000       # agent_rationale и shot_list (контракт, раздел 6)
 SHIFT_DAYS_MAX = 60         # content_plan.SHIFT_DAYS_MAX
+MOVE_MAX = 50               # content_plan.MOVE_MAX — размещений за один перенос
 BULK_MAX = 500              # routes.content_plan.BULK_MAX
 MATERIAL_MEDIA_MAX = 20     # content_plan.MATERIAL_MEDIA_MAX
 TG_TEXT_LIMIT, TG_CAPTION_LIMIT, IG_CAPTION_LIMIT, MEDIA_MAX = 4096, 1024, 2200, 10
@@ -420,7 +421,9 @@ _tool(
         'времени или уже отправляется), overdue (время прошло, выход не отмечен), paused, published, '
         'failed (ошибка отправки — failed_error), cancelled. Коды missing: no_live_source, no_text / '
         'no_template, bad_placeholder, no_media, too_many_media, text_too_long, no_bar, no_audience, '
-        "no_date, no_time, in_past. Правила — common_docs_read('content-plan')."
+        'no_date, no_time, in_past, duplicate (тот же пост уже есть в этом канале — повтор не утверждается). '
+        'В компактном виде у размещения beer_state — сорт из последнего абзаца сняли с крана: moved (номер '
+        "крана поправится), swap (строка заменится), no_beer (заменить нечем). Правила — common_docs_read('content-plan')."
     ),
     input_schema=_obj({
         'month': _month('Месяц YYYY-MM; по умолчанию текущий по Москве.'),
@@ -446,7 +449,10 @@ _tool(
         'неотменённых размещений, иначе дата темы; summary — сводка готовности (label, missing с местами). '
         'У каждого размещения: channel, bar, date, time, audience, status, display_state, missing, '
         'effective_text и media_items — что именно выйдет (своя версия или общие; у вышедших — снимок на '
-        'момент утверждения, content_source=snapshot). 404 — материала нет.'
+        'момент утверждения, content_source=snapshot). beer_info у готовой публикации в канале бара — сорт из '
+        'последнего абзаца против кранов на сейчас: {state: none|on_tap|moved|swap|no_beer|no_data, line, '
+        'new_line (что встанет при выходе), beers [{name, on_tap, tap}], replacement {name, tap, level_text}, '
+        'note}. 404 — материала нет.'
     ),
     input_schema=_obj({'material_id': _MATERIAL_ID}, required=('material_id',)),
     method='GET', path='/api/content-plan/materials/<material_id>', path_params=('material_id',),
@@ -462,7 +468,8 @@ _tool(
         'text}]. action: create, edit, delete, add_placement, edit_placement, delete_placement, '
         'unapprove_auto (утверждение снято из-за правки содержания), approve, pause, resume, unapprove, '
         'mark_published, cancel, restore, retry, retry_failed, bulk_pause, bulk_resume, shift, repeat, '
-        'copy_month, media_add, media_delete; отправка: publish_now («Отправить сейчас»), auto_publish '
+        'copy_month, copy_bars (повтор в каналах других баров), media_add, media_delete; отправка: publish_now '
+        '(«Отправить сейчас»), auto_publish '
         '(вышло, подпись «бот»), auto_failed (ошибка или остановка), reminder (напоминание об Instagram), '
         'delivery_progress (рассылка продолжится в следующем проходе). '
         'Действия через MCP подписаны «<логин> · агент». Работает и для удалённого материала, если записи '
@@ -762,6 +769,89 @@ _tool(
     }, required=('placement_id',)),
     method='PATCH', path='/api/content-plan/placements/<placement_id>', path_params=('placement_id',),
     body='json', read_only=False, draft_write=True, idempotent=True,
+)
+
+_tool(
+    name='content_beer_options',
+    title='Краны бара для строки про сорт',
+    description=(
+        'Активные краны бара — то, из чего выбирают сорт для последнего абзаца поста: taps [{tap, name '
+        '(пивоварня и название, как в таплисте), style (Untappd), style_ru, abv, mapped (проверенная карточка '
+        'Untappd), line — ровно та строка, что встанет в пост через content_placement_beer}], stale — краны бара '
+        'давно не обновлялись (список мог устареть), error — краны не прочитались.'
+    ),
+    input_schema=_obj({'bar': _enum(BAR_KEYS, 'Бар: ' + BAR_HELP + '.')}, required=('bar',)),
+    method='GET', path='/api/content-plan/beer-options', query_params=('bar',),
+    read_only=True, idempotent=True,
+    examples=({'bar': 'bolshoy'},),
+)
+
+_tool(
+    name='content_placement_beer',
+    title='Поставить сорт в пост',
+    description=(
+        'Сорт в посте: последний абзац поста — строка про сорт на кране этого бара (бриф «Истории»). Этот '
+        'инструмент делает её про сорт с крана tap бара размещения: «Сегодня на пятом кране «Культуры» — '
+        '{пивоварня и название}, {стиль}, {крепость}%.» (как в таплисте). Сорта в последнем абзаце не было — '
+        'строка добавляется новым абзацем. Пишется в свою версию текста размещения, если она есть; иначе в '
+        'общий текст, если все размещения с общим текстом — этого бара; иначе у размещения появляется своя '
+        'версия. Правка содержания: с утверждённого утверждение снимается (unapproved). Только готовая '
+        'публикация (kind fixed) в Telegram-канале конкретного бара. Краны — stocks_taps_bar. Перед выходом сайт '
+        'и сам сверяет строку с кранами и меняет снятый сорт (beer_info у размещения в content_material_get). '
+        'В режиме «чтение и черновики» — только свои черновики.'
+    ),
+    input_schema=_obj({
+        'placement_id': _PLACEMENT_ID,
+        'tap': _str('Номер крана бара размещения, на котором стоит сорт (как в stocks_taps_bar: «5»).',
+                    minLength=1, maxLength=8),
+    }, required=('placement_id', 'tap')),
+    method='POST', path='/api/content-plan/placements/<placement_id>/beer', path_params=('placement_id',),
+    body='json', read_only=False, draft_write=True, idempotent=True,
+)
+
+_tool(
+    name='content_placements_move',
+    title='Перенести размещения на другой день',
+    description=(
+        'Перенести размещения на день date (время не меняется) — то же, что перетащить плашку в календаре. '
+        'Утверждение сохраняется; вышедшее, отменённое и отправляющееся не переносится; утверждённое и на паузе — '
+        'не в прошлое и только со временем (400). Всё или ничего. Дата темы материала переезжает вместе с ними, '
+        'если все его невышедшие размещения стояли в день темы и все переносятся. Ответ {moved: [id], '
+        'materials}. Утверждённое двигать только по просьбе владельца. В режиме «чтение и черновики» — только '
+        'свои черновики.'
+    ),
+    input_schema=_obj({
+        'placement_ids': {'type': 'array', 'items': _PLACEMENT_ID, 'minItems': 1, 'maxItems': MOVE_MAX,
+                          'description': 'Размещения (p_...), до ' + str(MOVE_MAX) + ' за раз.'},
+        'date': _str('Новый день YYYY-MM-DD (Москва).', pattern=DATE_PATTERN),
+    }, required=('placement_ids', 'date')),
+    method='POST', path='/api/content-plan/placements/move', body='json', read_only=False, draft_write=True,
+    idempotent=True,
+)
+
+_tool(
+    name='content_material_copy_to_bars',
+    title='Повторить пост в каналах других баров',
+    description=(
+        'Удачный пост одного бара — черновиком в каналы других баров (правило владельца 2026-10-23: в одном '
+        'канале пост не повторяется, между каналами — можно; обычно в следующем месяце). На каждый бар — свой '
+        'материал (copied_from = источник, название «<бар>, <дата> — …», текст и файлы источника, размещение '
+        'telegram этого бара). Строку про сорт (последний абзац) сайт переписывает под краны нового бара: тот '
+        'же сорт, если он там стоит, иначе того же стиля. date по умолчанию — тот же n-й день недели в '
+        'следующем месяце, time — время источника. Бар, где этот пост уже есть, — в skipped с причиной. Ответ '
+        '{created: [id], skipped: [{bar, reason}], date, time}. Таплист (live) — 400: он и так в каждом баре.'
+    ),
+    input_schema=_obj({
+        'material_id': _MATERIAL_ID,
+        'bars': {'type': 'array', 'items': _enum(BAR_KEYS, 'Бар: ' + BAR_HELP + '.'), 'minItems': 1,
+                 'description': 'Бары, в каналы которых повторить пост.'},
+        'date': _str('День выхода YYYY-MM-DD; по умолчанию — тот же n-й день недели в следующем месяце.',
+                     pattern=DATE_PATTERN),
+        'time': _str('Время HH:MM; по умолчанию — время первого размещения Telegram источника.',
+                     pattern=r'^\d{1,2}:\d{2}$'),
+    }, required=('material_id', 'bars')),
+    method='POST', path='/api/content-plan/materials/<material_id>/copy-to-bars', path_params=('material_id',),
+    body='json', read_only=False, draft_write=True,
 )
 
 _tool(
@@ -1442,6 +1532,9 @@ INSTRUCTIONS = """\
   14 дней (stale_taps) остановят пост — скажите владельцу; кран без связи с Untappd выйдет без ссылки. Пост —
   текст (названия — ссылки на Untappd, без цен и фото) и гифка из набора: выбирает сайт, gif — по просьбе владельца.
 - Telegram — канал каждого бара (конкретный бар): 4096 знаков без фото, 1024 с фото, до 10 файлов.
+- Пост про пиво: ПОСЛЕДНИЙ абзац — строка про сорт на кране ЭТОГО бара (content_placement_beer); перед
+  выходом сайт сам меняет снятый сорт на того же стиля (beer_info). Удачный пост бара можно повторить в
+  других барах (content_material_copy_to_bars); в одном канале — один раз (missing duplicate).
 - Instagram — один аккаунт сети (bar all): 2200 знаков, от 1 до 10 фото (см. «ФОТО»); фото бара
   нет — shot_list (кадры, бар, время суток, люди) и media_required=true.
 - Бот — редко, только по поводу и с явной аудиторией (bot_all, bot_bar с баром, bot_recent_30,
@@ -1586,7 +1679,9 @@ def _render_plan_month(args: dict) -> str:
         'Instagram — bar all и фото; бот — только по поводу и с явной аудиторией (размер — content_audience). '
         'К историям, праздникам и событиям — картинки сразу: content_image_search -> '
         'content_image_search_collage (посмотреть) -> content_media_add_found, 1–3 на материал; фото баров, '
-        'кранов и блюд — только shot_list.',
+        'кранов и блюд — только shot_list. Пост про пиво кончается строкой про сорт на кране этого бара '
+        '(content_placement_beer). Удачные вышедшие посты прошлого месяца других баров — кандидаты на повтор в '
+        'своём канале (content_material_copy_to_bars); в одном канале пост не повторять.',
         '9. Идеи, которым нужно решение владельца (акции, скидки, цены, новые события), — материалы-темы без '
         'размещений с note «нужно решение владельца: ...».',
         "10. content_approve_preview(month='" + month_arg + "') — что готово и чего не хватает.",

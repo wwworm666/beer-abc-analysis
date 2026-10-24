@@ -28,9 +28,9 @@
           отзывы за любую дату, поэтому и список открывается «За всё время»
           (без month страница показала бы только текущий месяц, и 1-го числа
           отзывы, ждущие дольше всех, пропали бы из списка);
-      «Публикаций сегодня» -> /content-plan?view=calendar;
-      «Ошибки отправки» / «Время вышло» -> /content-plan?state=failed|overdue —
-          без month контент-план открывает эти состояния по всем месяцам. -#}
+      «Публикаций сегодня» -> /content-plan (календарь — главная страница плана);
+      «Ошибки отправки» / «Время вышло» -> /content-plan/table?state=failed|overdue —
+          без month таблица плана открывает эти состояния по всем месяцам. -#}
 <div class="gh-strip">
   <nav class="gh-tabs" aria-label="Раздел «Гости»">
     <a class="gh-tab{% if hub_active == 'content' %} is-active{% endif %}" href="/content-plan"{% if hub_active == 'content' %} aria-current="page"{% endif %}>Контент-план</a>
@@ -45,15 +45,15 @@
        data-tip="Отзывы без ответа: все отзывы со статусом «без ответа», за любую дату. Отзывы, оставленные без ответа по решению, сюда не входят. При выбранном баре — только отзывы этого бара.">
       <b class="gh-attn-n">—</b><span class="gh-attn-l">Отзывы без ответа</span>
     </a>
-    <a class="gh-attn-item" data-attn="publications_today" href="/content-plan?view=calendar"
+    <a class="gh-attn-item" data-attn="publications_today" href="/content-plan"
        data-tip="Публикаций сегодня: размещения с датой выхода сегодня (по Москве) в статусах «утверждено», «на паузе» и «вышло». Черновики и отменённые не считаются. При выбранном баре — размещения этого бара и размещения на всю сеть.">
       <b class="gh-attn-n">—</b><span class="gh-attn-l">Публикаций сегодня</span>
     </a>
-    <a class="gh-attn-item" data-attn="delivery_errors" href="/content-plan?state=failed" hidden
+    <a class="gh-attn-item" data-attn="delivery_errors" href="/content-plan/table?state=failed" hidden
        data-tip="Ошибки отправки: размещения со статусом «ошибка отправки», за любую дату. Пока отправка не подключена, таких не бывает. При выбранном баре — размещения этого бара и размещения на всю сеть.">
       <b class="gh-attn-n">—</b><span class="gh-attn-l">Ошибки отправки</span>
     </a>
-    <a class="gh-attn-item" data-attn="overdue" href="/content-plan?state=overdue" hidden
+    <a class="gh-attn-item" data-attn="overdue" href="/content-plan/table?state=overdue" hidden
        data-tip="Время вышло: утверждённые размещения, у которых дата и время выхода уже прошли, а выход не отмечен. Пока отправка не подключена, выход отмечается вручную. При выбранном баре — размещения этого бара и размещения на всю сеть.">
       <b class="gh-attn-n">—</b><span class="gh-attn-l">Время вышло</span>
     </a>

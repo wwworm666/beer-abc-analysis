@@ -8,7 +8,13 @@ core/content_media.py; отправка в площадки — core/content_pub
 владелец включил в «Каналы и отправка»; остальное «вышло» отмечают вручную.
 
 Эндпоинты:
-    GET    /content-plan                                  страница (templates/content_plan.html)
+    GET    /content-plan                                  страница: календарь — главный вид (решение
+                                                          владельца 2026-10-23); ?view=table -> подстраница
+    GET    /content-plan/table                            подстраница «Таблица» (тот же шаблон, вид таблицы);
+                                                          /content-plan?state=overdue|failed без month — сюда
+    GET    /api/content-plan/beer-options?bar=            {bar, taps: [{tap, name, style, style_ru, abv,
+                                                          mapped, line}], stale, error} — краны бара для
+                                                          «Поставить сорт»
     GET    /api/content-plan?month=YYYY-MM                материалы месяца + справочники + stats
                                                           + delivery (что подключено к отправке) и
                                                           delivery_connected (прежний вид); размер
@@ -38,6 +44,15 @@ core/content_media.py; отправка в площадки — core/content_pub
     PATCH  /api/content-plan/placements/<pid>             {channel?, bar?, date?, time?, text?, media?,
                                                            audience?} -> {material, unapproved}
     DELETE /api/content-plan/placements/<pid>             -> {material}; 409 если вышло
+    POST   /api/content-plan/placements/<pid>/beer        {tap} -> {material, unapproved} — «Поставить сорт»:
+                                                          последний абзац — про сорт с этого крана бара
+                                                          (core/content_beer.py)
+    POST   /api/content-plan/placements/move              {placement_ids, date} -> {moved, materials} —
+                                                          перенос на другой день (календарь), утверждение
+                                                          сохраняется, всё или ничего
+    POST   /api/content-plan/materials/<id>/copy-to-bars  {bars, date?, time?} -> {created, skipped, date,
+                                                          time} — «На другие бары»: повтор поста в каналах
+                                                          других баров; бар, где он уже есть, — skipped
     POST   /api/content-plan/placements/<pid>/action      {action} -> {material, notice?}; 409 — не тот
                                                           статус; retry / retry_failed / resume — только
                                                           администратор (403 admin_required); пауза или
@@ -155,7 +170,7 @@ TELEGRAM_BOT_TOKEN) — посты, проверка, тест, напомина
 import io
 from functools import wraps
 
-from flask import Blueprint, jsonify, render_template, request, send_file, send_from_directory
+from flask import Blueprint, jsonify, redirect, render_template, request, send_file, send_from_directory, url_for
 
 from core import content_channels, content_image_search, content_media, content_publisher, taplist_gifs
 from core.auth_guard import current_user
@@ -355,7 +370,24 @@ def _current_month(store) -> str:
 
 @content_plan_bp.route('/content-plan')
 def content_plan_page():
-    return render_template('content_plan.html', app_version=_app_version())
+    """Главная страница плана — календарь (решение владельца 2026-10-23). Старые ссылки
+    ?view=table ведут на подстраницу таблицы."""
+    view = (request.args.get('view') or '').strip()
+    # Вид «по всем месяцам» (?state=overdue|failed без month, ссылки полосы «Требует внимания»)
+    # есть только у таблицы: календарь — сетка одного месяца.
+    scope = (not (request.args.get('month') or '').strip()
+             and (request.args.get('state') or '').strip() in CROSS_MONTH_STATES)
+    if view == 'table' or (scope and view != 'calendar'):
+        args = request.args.to_dict(flat=True)
+        args.pop('view', None)
+        return redirect(url_for('content_plan.content_plan_table_page', **args))
+    return render_template('content_plan.html', app_version=_app_version(), cp_view='calendar')
+
+
+@content_plan_bp.route('/content-plan/table')
+def content_plan_table_page():
+    """Подстраница «Таблица»: план строками, массовые действия, вид «по всем месяцам»."""
+    return render_template('content_plan.html', app_version=_app_version(), cp_view='table')
 
 
 # ------------------------------------------------------------------ чтение
@@ -553,6 +585,39 @@ def update_placement(placement_id):
     material, unapproved = _store().update_placement(placement_id, _json_body(), current_user(),
                                                      _view_month())
     return jsonify({'material': material, 'unapproved': unapproved})
+
+
+@content_plan_bp.route('/api/content-plan/placements/<placement_id>/beer', methods=['POST'])
+@_guard
+def set_placement_beer(placement_id):
+    """«Поставить сорт»: последний абзац поста — про сорт с крана tap бара размещения
+    (core/content_beer.py). Правка содержания: с утверждённого утверждение снимается."""
+    material, unapproved = _store().set_beer(placement_id, _json_body().get('tap'), current_user(),
+                                             _view_month())
+    return jsonify({'material': material, 'unapproved': unapproved})
+
+
+@content_plan_bp.route('/api/content-plan/beer-options', methods=['GET'])
+@_guard
+def beer_options():
+    """Краны бара для «Поставить сорт»: что встанет последним абзацем поста с каждого крана."""
+    return jsonify(_store().beer_options(request.args.get('bar')))
+
+
+@content_plan_bp.route('/api/content-plan/placements/move', methods=['POST'])
+@_guard
+def move_placements():
+    """Перенос размещений на другой день (календарь): {placement_ids, date}; утверждение
+    сохраняется, всё или ничего."""
+    return jsonify(_store().move_placements(_json_body(), current_user(), _view_month()))
+
+
+@content_plan_bp.route('/api/content-plan/materials/<material_id>/copy-to-bars', methods=['POST'])
+@_guard
+def copy_to_bars(material_id):
+    """«На другие бары»: удачный пост — черновиком в каналы других баров (по умолчанию —
+    тот же n-й день недели в следующем месяце); бар, где этот пост уже есть, пропускается."""
+    return jsonify(_store().copy_to_bars(material_id, _json_body(), current_user()))
 
 
 @content_plan_bp.route('/api/content-plan/placements/<placement_id>', methods=['DELETE'])

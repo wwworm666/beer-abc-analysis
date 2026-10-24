@@ -130,9 +130,9 @@ test('полоса: вкладки раздела ведут на три стр�
 // ждущие дольше всех, пропадали из списка при живом счётчике (ревью 2026-09-27).
 const ATTN = {
     reviews_unanswered: ['/reviews?status=new&amp;month=all', false],
-    publications_today: ['/content-plan?view=calendar', false],
-    delivery_errors: ['/content-plan?state=failed', true],
-    overdue: ['/content-plan?state=overdue', true],
+    publications_today: ['/content-plan', false],
+    delivery_errors: ['/content-plan/table?state=failed', true],
+    overdue: ['/content-plan/table?state=overdue', true],
 };
 
 function stripItems(src) {

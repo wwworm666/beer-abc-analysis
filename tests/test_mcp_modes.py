@@ -47,6 +47,10 @@ EXPECTED_DRAFT_WRITES = {
     # 2026-10-04: предложение связи кеги с Untappd — черновик до «Верно» администратора на
     # /taps/untappd; в режиме draft предложение сотрудника не заменяется (core/untappd_live).
     'stocks_untappd_propose',
+    # 2026-10-23: сорт в посте, перенос по календарю, повтор поста в других барах. Первые два
+    # правят только свои черновики (guard_draft_mode, иначе 409); повтор создаёт новые
+    # черновики агента, источник только читается — как content_material_create.
+    'content_placement_beer', 'content_placements_move', 'content_material_copy_to_bars',
 }
 EXPECTED_OWNER_NOTICE = {'common_notify_owner'}
 

@@ -87,7 +87,9 @@ effective_media = placement.media (только имена, которые ещ�
    площадке с 'all' — текст «для таплиста выберите бар»;
 8. no_audience «не выбрана аудитория» — бот без аудитории;
 9. no_date «нет даты», no_time «нет времени»;
-10. in_past «время выхода уже прошло» — дата+время раньше текущей минуты по Москве.
+10. in_past «время выхода уже прошло» — дата+время раньше текущей минуты по Москве;
+11. duplicate «этот пост уже вышел / уже есть в канале TG Лиг: «…», 11 окт» — тот же
+    пост в том же канале (DuplicateIndex, раздел «Сорт в посте, повтор, перенос»).
 
 ready = статус draft и список пуст. Сравнение времени — с точностью до минуты:
 публикация на 16:00 «в прошлом» с 16:01.
@@ -206,6 +208,7 @@ stats — по этим материалам). С month — обычный ме�
   60 дней — два месяца: дальше это уже планирование другого месяца.
 - repeat: копии материала на каждый выбранный день недели месяца, не раньше
   сегодняшнего дня и не на занятые серией даты. Источник и копии — одна серия.
+- move_placements, copy_to_bars, set_beer — раздел «Сорт в посте, повтор, перенос».
 - copy_month (подробно — `copy_month()` и `COPY_RULES`):
   * обычный материал: ОПОРНАЯ дата (`copy_anchor`: дата темы; нет её — самая
     ранняя дата неотменённого размещения внутри месяца-источника; нет и
@@ -357,6 +360,23 @@ MEDIA_SOURCE_TEXT_MAX). original_name — «<домен>.jpg» (content_image_se
 раньше загрузка была только в полном режиме, теперь прикрепление найденного
 доступно и расписаниям.
 
+## Сорт в посте, повтор, перенос (2026-10-23)
+
+Решения владельца 2026-10-23 (docs/content-plan.md, одноимённые разделы):
+- Сорт в посте (core/content_beer.py): у готовой публикации в Telegram-канале бара
+  (beer_applies) последний абзац — строка про сорт; beer_info размещения показывает
+  сверку с кранами на сейчас (кэш BEER_CONTEXT_TTL_SEC), отправщик сверяет заново и
+  меняет снятый сорт. set_beer — «Поставить сорт» с крана (правка содержания:
+  утверждение снимается); beer_options — краны бара для выбора.
+- Повтор в одном канале (DuplicateIndex): тот же текст без последнего абзаца (не
+  короче DUPLICATE_BODY_MIN) в том же канале -> код готовности duplicate у черновика.
+- copy_to_bars — «На другие бары»: материал-черновик на каждый бар, строка про сорт
+  под краны бара (content_beer.adapt_to_bar), дата — тот же n-й день недели в
+  следующем месяце; бар, где пост уже есть, пропускается.
+- move_placements — перенос плашки календаря: все размещения на другой день, время и
+  утверждение остаются, всё или ничего, до MOVE_MAX за раз; дата темы — следом, если
+  все размещения стояли в её день.
+
 ## Changelog
 
 - 2026-09-26 — модуль создан (этап «только интерфейс», без отправки).
@@ -378,6 +398,8 @@ MEDIA_SOURCE_TEXT_MAX). original_name — «<домен>.jpg» (content_image_se
   agent_original и agent_edits; компактный вид месяца.
 - 2026-10-02 — картинки из поиска: add_media(source=...) хранит media[].source,
   guard_draft_mode в add_media.
+- 2026-10-23 — сорт в посте (beer_info, set_beer, beer_options), код готовности
+  duplicate, copy_to_bars, move_placements; delivery.sent_text у вышедшего.
 """
 
 import copy
@@ -391,7 +413,7 @@ from contextlib import contextmanager
 from datetime import date, datetime, timedelta
 from typing import Callable, Dict, List, Optional, Tuple
 
-from core import content_media, msk_time, taplist_gifs, taplist_post
+from core import content_beer, content_media, msk_time, taplist_gifs, taplist_post
 from core.json_store import atomic_write_json, file_lock
 from core.storage_paths import get_data_path
 
@@ -573,7 +595,21 @@ READINESS_RULES = (
     'Instagram: до 2200 знаков, от 1 до 10 файлов.',
     'Telegram — конкретный бар; бот — аудитория; таплист — конкретный бар.',
     'Нужны дата и время, и время выхода ещё не прошло.',
+    'Один пост в одном канале — один раз: тот же текст (без последнего абзаца — строки про сорт) уже '
+    'вышел, утверждён или стоит раньше в этом канале — повтор не утверждается. В другом канале — можно.',
 )
+
+# Повтор поста в одном канале (решение владельца 2026-10-23): «В одном канале посты не должны
+# дублироваться, но можно дублировать между собой» — удачный пост одного бара можно повторить в
+# канале другого. Тот же пост = тот же текст без последнего абзаца (content_beer.body_of: строка
+# про сорт у каждого бара своя). Тексты короче DUPLICATE_BODY_MIN знаков (после нормализации) не
+# сравниваются: короткие служебные объявления («Сегодня работаем до двух») повторяются законно, а
+# пост рубрики — сотни знаков.
+DUPLICATE_BODY_MIN = 80
+# Краны для экрана (сорт в посте, beer_info) читаются не чаще раза в 30 с: ответ на каждое
+# автосохранение текста иначе перечитывал бы снимок кранов и реестр Untappd. Отправщик и
+# «Поставить сорт» читают краны заново (свежие данные).
+BEER_CONTEXT_TTL_SEC = 30
 
 # ---------------------------------------------------------------------------
 # Лимиты хранения (не платформенные: защита от опечаток и разбухания файла).
@@ -590,6 +626,9 @@ MATERIAL_MEDIA_MAX = 20     # файлов у материала: 2 x макси
                             # держать разные подборки для разных размещений
 LOG_MAX = 5000              # записей журнала (см. «Хранение» в докстроке)
 SHIFT_DAYS_MAX = 60         # сдвиг материала, дней в каждую сторону
+# Перенос размещений за раз (календарь): плашка — это размещения одного материала в одно время
+# на одной площадке, у таплиста на четыре бара — 4. 50 — с большим запасом, но не «весь план».
+MOVE_MAX = 50
 YEAR_MIN, YEAR_MAX = 2020, 2100
 
 # ---------------------------------------------------------------------------
@@ -657,6 +696,11 @@ SENDING_CONFLICT = 'Публикация сейчас отправляется �
 
 # Конец строки — \Z, а не $: `$` пропускает завершающий перевод строки.
 _DATE_RE = re.compile(r'^\d{4}-\d{2}-\d{2}\Z')
+# Приставка «<бар>, <дата> — », с которой агент начинает названия («Лиг, 11 окт — Устрицы и стаут»):
+# короткое имя бара, «Сеть» или «Бот», за ним пробел или запятая и до 16 знаков до « — » (то же
+# правило, что pillTitle в content_plan.js). Повтор на другом баре меняет её на свою.
+_TITLE_PREFIX_RE = re.compile(r'^\s*(?:' + '|'.join(re.escape(b['short']) for b in BARS)
+                              + r'|Сеть|Бот|вАРШ)(?=[\s,])[^—]{0,16}—\s*', re.IGNORECASE)
 _MONTH_RE = re.compile(r'^(\d{4})-(\d{2})\Z')
 _TIME_RE = re.compile(r'^(\d{1,2}):(\d{2})\Z')
 _TOKEN_RE = re.compile(r'\{[^{}\n]*\}')
@@ -1005,8 +1049,11 @@ def _segment(placement: dict) -> Optional[str]:
     return (placement.get('audience') or {}).get('segment')
 
 
-def readiness(material: dict, placement: dict, now_str: str) -> List[dict]:
-    """Чего не хватает черновику до утверждения (см. «Готовность» в докстроке)."""
+def readiness(material: dict, placement: dict, now_str: str,
+              dupes: Optional['DuplicateIndex'] = None) -> List[dict]:
+    """Чего не хватает черновику до утверждения (см. «Готовность» в докстроке).
+    dupes — указатель повторов в канале (DuplicateIndex по всему плану); без него
+    код duplicate не проверяется (отдельный материал без плана вокруг)."""
     if placement.get('status') != 'draft':
         return []
     missing: List[dict] = []
@@ -1052,6 +1099,9 @@ def readiness(material: dict, placement: dict, now_str: str) -> List[dict]:
     moment = placement_datetime(placement)
     if moment and moment < now_str:
         add('in_past', 'время выхода уже прошло')
+    twin = dupes.find(material, placement) if dupes is not None else None
+    if twin:
+        add('duplicate', duplicate_text(twin))
     return missing
 
 
@@ -1081,12 +1131,13 @@ def in_flight(placement: dict, now_str: str) -> bool:
     return False
 
 
-def display_state(material: dict, placement: dict, now_str: str) -> Tuple[str, List[dict]]:
+def display_state(material: dict, placement: dict, now_str: str,
+                  dupes: Optional['DuplicateIndex'] = None) -> Tuple[str, List[dict]]:
     """-> (display_state, missing). Утверждённое в работе у отправщика
     (`in_flight`) — scheduled, даже если время выхода прошло."""
     status = placement.get('status')
     if status == 'draft':
-        missing = readiness(material, placement, now_str)
+        missing = readiness(material, placement, now_str, dupes)
         return ('incomplete' if missing else 'ready'), missing
     if status == 'approved':
         moment = placement_datetime(placement)
@@ -1121,8 +1172,109 @@ def placement_content(material: dict, placement: dict) -> Tuple[str, List[str], 
             if content_media.is_valid_name(name) and name not in names:
                 names.append(name)
         text = snapshot.get('text')
+        sent = delivery_of(placement).get('sent_text')
+        if placement.get('status') == 'published' and isinstance(sent, str):
+            # Отправщик поправил строку про сорт (content_beer): ушёл этот текст, а не снимок.
+            return sent, names, 'snapshot'
         return ('' if text is None else str(text)), names, 'snapshot'
     return effective_text(material, placement), effective_media(material, placement), 'current'
+
+
+# ---------------------------------------------------------------------------
+# Повтор поста в одном канале (решение владельца 2026-10-23, DUPLICATE_BODY_MIN)
+# ---------------------------------------------------------------------------
+
+def channel_label(placement: dict) -> str:
+    """'TG Лиг', 'IG Сеть', 'Бот ВО' — канал размещения коротко."""
+    bar = placement.get('bar')
+    short = BAR_ALL_SHORT if bar == BAR_ALL else BAR_BY_KEY.get(bar, {}).get('short', bar)
+    return f'{CHANNELS.get(placement.get("channel"), {}).get("short", placement.get("channel"))} {short}'
+
+
+def _placement_order(placement: dict) -> tuple:
+    """Какой из двух одинаковых черновиков в канале — первый: раньше дата и время, затем id."""
+    return (placement.get('date') or '9999-99-99', placement.get('time') or '99:99', placement.get('id') or '')
+
+
+class DuplicateIndex:
+    """Указатель «тот же пост в том же канале» по всему плану.
+
+    Канал — площадка и бар (TG Лиг, IG Сеть, бот ВО). Тот же пост — тот же текст без
+    последнего абзаца (content_beer.body_of), не короче DUPLICATE_BODY_MIN. Не
+    считаются: материалы с актуальными данными (таплист выходит каждую неделю по
+    шаблону) и отменённые размещения. Черновик — повтор, если в его канале тот же пост
+    уже не черновик (вышел, утверждён, на паузе, ошибка отправки) или черновик раньше по
+    дате (`_placement_order`): так из двух одинаковых черновиков утвердить можно первый."""
+
+    def __init__(self, data: dict):
+        self._by_key: Dict[tuple, List[Tuple[dict, dict]]] = {}
+        for material in (data.get('materials') or {}).values():
+            for placement in material.get('placements') or []:
+                key = self.key(material, placement)
+                if key:
+                    self._by_key.setdefault(key, []).append((material, placement))
+
+    @staticmethod
+    def key(material: dict, placement: dict) -> Optional[tuple]:
+        if material.get('kind') == 'live' or placement.get('status') == 'cancelled':
+            return None
+        body = content_beer.body_of(placement_content(material, placement)[0])
+        if len(body) < DUPLICATE_BODY_MIN:
+            return None
+        return placement.get('channel'), placement.get('bar'), body
+
+    def find(self, material: dict, placement: dict) -> Optional[dict]:
+        """Более ранний тот же пост в канале размещения:
+        {material_id, placement_id, title, date, status, where} или None."""
+        key = self.key(material, placement)
+        if key is None:
+            return None
+        mine = _placement_order(placement)
+        for other_material, other in self._by_key.get(key, []):
+            if other.get('id') == placement.get('id'):
+                continue
+            if other.get('status') != 'draft' or _placement_order(other) < mine:
+                return {'material_id': other_material['id'], 'placement_id': other['id'],
+                        'title': other_material.get('title') or '', 'date': other.get('date'),
+                        'status': other.get('status'), 'where': channel_label(other)}
+        return None
+
+    def taken(self, material: dict, channel: str, bar: str, text: str) -> Optional[dict]:
+        """Есть ли уже такой текст в канале (channel, bar) — для «На другие бары»."""
+        probe = {'id': None, 'channel': channel, 'bar': bar, 'status': 'draft', 'text': text,
+                 'date': None, 'time': None}
+        return self.find(material, probe)
+
+
+def duplicate_text(twin: dict) -> str:
+    """«этот пост уже был в канале TG Лиг: «…», 11 окт»."""
+    when = f', {fmt_date_short(twin["date"])}' if twin.get('date') else ''
+    verb = 'уже вышел' if twin.get('status') == 'published' else 'уже есть'
+    return f'этот пост {verb} в канале {twin["where"]}: «{twin["title"]}»{when}'
+
+
+# ---------------------------------------------------------------------------
+# Сорт в посте (core/content_beer.py, решение владельца 2026-10-23)
+# ---------------------------------------------------------------------------
+
+def beer_applies(material: dict, placement: dict) -> bool:
+    """Сверка строки про сорт — у готовой публикации в Telegram-канале конкретного бара."""
+    return (material.get('kind') != 'live' and placement.get('channel') == 'telegram'
+            and placement.get('bar') in TAPLIST_BAR_IDS)
+
+
+def beer_check(material: dict, placement: dict, ctx) -> Optional[dict]:
+    """content_beer.check_post для размещения (по кранам ctx) или None — не к месту:
+    не готовая публикация в канале бара, вышло или отменено, кранов нет (ctx None)."""
+    if ctx is None or not beer_applies(material, placement) or placement.get('status') in ('published', 'cancelled'):
+        return None
+    return content_beer.check_post(placement_content(material, placement)[0], placement['bar'], ctx)
+
+
+def beer_context(snapshot, registry, now: Optional[datetime] = None, error: Optional[str] = None):
+    """Краны и реестр для content_beer на момент now."""
+    return content_beer.TapsContext(snapshot, registry, TAPLIST_BAR_IDS, now=now,
+                                    date_text=fmt_date_ru, error=error)
 
 
 def media_items(material: dict, names: List[str]) -> List[dict]:
@@ -1427,9 +1579,11 @@ def gif_info(material: dict, placement: dict, media: Optional[List[str]] = None)
 
 
 def _placement_view(material: dict, placement: dict, now_str: str,
-                    sizer: Optional[Callable] = None) -> Tuple[dict, str, List[dict]]:
-    state, missing = display_state(material, placement, now_str)
+                    sizer: Optional[Callable] = None, beer_ctx=None,
+                    dupes: Optional[DuplicateIndex] = None) -> Tuple[dict, str, List[dict]]:
+    state, missing = display_state(material, placement, now_str, dupes)
     text, media, source = placement_content(material, placement)
+    check = beer_check(material, placement, beer_ctx)
     view = copy.deepcopy(placement)
     view.update({
         'effective_text': text,
@@ -1446,12 +1600,14 @@ def _placement_view(material: dict, placement: dict, now_str: str,
         'delivery': delivery_view(placement),
         'post_url': post_url(placement),
         'gif_info': gif_info(material, placement, media),
+        'beer_info': content_beer.public_view(check) if check else None,
     })
     return view, state, missing
 
 
 def material_json(material: dict, now_str: str, month: Optional[str] = None,
-                  sizer: Optional[Callable] = None) -> dict:
+                  sizer: Optional[Callable] = None, beer_ctx=None,
+                  dupes: Optional[DuplicateIndex] = None) -> dict:
     """Материал для API: хранимые поля + date, summary, in_month, agent_draft,
     media[].url и вычисленные поля размещений. in_month — принадлежит ли
     материал месяцу month (без month — True: ответ на правку относится к самому
@@ -1465,7 +1621,7 @@ def material_json(material: dict, now_str: str, month: Optional[str] = None,
                     for item in material.get('media') or []]
     views, states = [], []
     for placement in material.get('placements') or []:
-        view, state, missing = _placement_view(material, placement, now_str, sizer)
+        view, state, missing = _placement_view(material, placement, now_str, sizer, beer_ctx, dupes)
         views.append(view)
         states.append((state, missing, placement_place(placement)))
     out['placements'] = views
@@ -1507,10 +1663,18 @@ def compact_material(view: dict) -> dict:
         'in_month': view.get('in_month'), 'date': view.get('date'), 'origin': view.get('origin'),
         'agent_draft': view.get('agent_draft'),
         'summary': {'label': summary.get('label'), 'state': summary.get('state')},
-        'placements': [{'id': p['id'], 'channel': p.get('channel'), 'bar': p.get('bar'), 'date': p.get('date'),
-                        'time': p.get('time'), 'display_state': p.get('display_state')}
+        'placements': [dict({'id': p['id'], 'channel': p.get('channel'), 'bar': p.get('bar'), 'date': p.get('date'),
+                             'time': p.get('time'), 'display_state': p.get('display_state')},
+                            **_compact_beer(p))
                        for p in view.get('placements') or []],
     }
+
+
+def _compact_beer(view: dict) -> dict:
+    """{beer_state} в компактном виде — только когда в посте что-то поменяется или он
+    не уйдёт (moved, swap, no_beer): агенту видно, где сорт сняли с крана."""
+    info = view.get('beer_info') or {}
+    return {'beer_state': info['state']} if info.get('state') in content_beer.ALERT_STATES else {}
 
 
 def _guard_not_sending(placement: dict, now_str: str) -> None:
@@ -2192,7 +2356,8 @@ class ContentPlanStore:
 
     def __init__(self, data_file: Optional[str] = None, now_fn: Optional[Callable[[], datetime]] = None,
                  media_dir: Optional[str] = None, audience_fn: Optional[Callable] = None,
-                 delivery_fn: Optional[Callable[[], dict]] = None):
+                 delivery_fn: Optional[Callable[[], dict]] = None,
+                 taps_fn: Optional[Callable[[], tuple]] = None):
         self.data_file = data_file or get_data_path(DATA_FILE_NAME)
         self._now_fn = now_fn or msk_time.now
         if media_dir is None:
@@ -2204,8 +2369,31 @@ class ContentPlanStore:
         self._lock_path = self.data_file + '.lock'
         self.audience_fn = audience_fn
         self.delivery_fn = delivery_fn
+        # taps_fn() -> (снимок кранов, реестр Untappd): сорт в посте (content_beer). Без
+        # него (тесты, отдельные экземпляры) сорт не сверяется — beer_info None.
+        self.taps_fn = taps_fn
+        self._beer_cache: Optional[tuple] = None        # (время чтения, контекст)
 
     # ----- подключаемые данные (аудитория бота, что подключено) ---------------
+
+    def beer_context(self, fresh: bool = False):
+        """Краны для сверки сорта в посте (content_beer.TapsContext) или None — taps_fn
+        не подключён. Для экрана — не старше BEER_CONTEXT_TTL_SEC (`fresh` — прочитать
+        сейчас). Краны не прочитались — контекст с error (состояние no_data)."""
+        if self.taps_fn is None:
+            return None
+        stamp = datetime.now().timestamp()
+        cached = self._beer_cache
+        if not fresh and cached and stamp - cached[0] < BEER_CONTEXT_TTL_SEC:
+            return cached[1]
+        try:
+            snapshot, registry = self.taps_fn()
+            ctx = beer_context(snapshot, registry, now=self.now())
+        except Exception as e:  # noqa: BLE001 — краны не прочитались: экран и отправка живут
+            print(f'[CONTENT_PLAN] taps for beer check unavailable: {e!r}')
+            ctx = beer_context(None, None, error=str(e) or 'краны не прочитались')
+        self._beer_cache = (stamp, ctx)
+        return ctx
 
     def sizer(self) -> Optional[Callable]:
         """sizer для audience_info: audience_fn с запоминанием на один ответ
@@ -2227,8 +2415,14 @@ class ContentPlanStore:
         return size
 
     def _json(self, material: dict, now_str: str, month: Optional[str] = None,
-              sizer: Optional[Callable] = None) -> dict:
-        return material_json(material, now_str, month, sizer=sizer or self.sizer())
+              sizer: Optional[Callable] = None, data: Optional[dict] = None,
+              dupes: Optional[DuplicateIndex] = None) -> dict:
+        """Материал для ответа. data — весь план (для повторов в канале: DuplicateIndex);
+        dupes — уже построенный указатель (ответ месяца строит его один раз)."""
+        if dupes is None and data is not None:
+            dupes = DuplicateIndex(data)
+        return material_json(material, now_str, month, sizer=sizer or self.sizer(),
+                             beer_ctx=self.beer_context(), dupes=dupes)
 
     def _live_meta(self, sizer: Optional[Callable]) -> dict:
         """Справочники ответа месяца + настоящие размеры аудиторий и delivery."""
@@ -2381,13 +2575,14 @@ class ContentPlanStore:
         data = self._load()
         now_str = self.now_str()
         sizer = self.sizer()
+        dupes = DuplicateIndex(data)
         materials, by_state = [], {}
         n_materials = n_placements = 0
         for material in data['materials'].values():
             in_month = material['month'] == month
             if not in_month and not any((p.get('date') or '')[:7] == month for p in material['placements']):
                 continue
-            view = self._json(material, now_str, month, sizer)
+            view = self._json(material, now_str, month, sizer, dupes=dupes)
             materials.append(view)
             n_materials += 1 if in_month else 0
             for placement in view['placements']:
@@ -2427,13 +2622,14 @@ class ContentPlanStore:
         data = self._load()
         now_str = self.now_str()
         sizer = self.sizer()
+        dupes = DuplicateIndex(data)
         materials, by_state = [], {}
         n_placements = 0
         for material in data['materials'].values():
             if not any(p['status'] == status and display_state(material, p, now_str)[0] == state
                        for p in material['placements']):
                 continue
-            view = self._json(material, now_str, None, sizer)
+            view = self._json(material, now_str, None, sizer, dupes=dupes)
             materials.append(view)
             for placement in view['placements']:
                 n_placements += 1
@@ -2453,7 +2649,7 @@ class ContentPlanStore:
 
     def get_material(self, material_id: str, month: Optional[str] = None) -> dict:
         data = self._load()
-        return self._json(self._material(data, material_id), self.now_str(), month)
+        return self._json(self._material(data, material_id), self.now_str(), month, data=data)
 
     def snapshot_data(self) -> dict:
         """Весь план, прочитанный с диска (для отправщика: выбрать, что пора
@@ -2535,6 +2731,7 @@ class ContentPlanStore:
         data = self._load()
         now_str = self.now_str()
         sizer = self.sizer()
+        dupes = DuplicateIndex(data)
         will, bot, stays = [], [], []
         for material in data['materials'].values():
             material_origin = material.get('origin') or ORIGIN_HUMAN
@@ -2554,7 +2751,7 @@ class ContentPlanStore:
                         'origin': material_origin,
                         'channel': placement['channel'], 'bar': placement['bar'],
                         'date': placement.get('date'), 'time': placement.get('time')}
-                missing = readiness(material, placement, now_str)
+                missing = readiness(material, placement, now_str, dupes)
                 if missing:
                     stays.append(dict(item, missing=missing))
                 elif placement['channel'] == 'bot':
@@ -2612,7 +2809,7 @@ class ContentPlanStore:
             if review_id:
                 text += ' из отзыва гостя'
             self._log(data, now_str, login, 'create', material['id'], None, text)
-        return self._json(material, now_str)
+        return self._json(material, now_str, data=data)
 
     def update_material(self, material_id: str, fields: dict, user: Optional[dict],
                         month: Optional[str] = None) -> Tuple[dict, List[str]]:
@@ -2653,7 +2850,7 @@ class ContentPlanStore:
                 # «правки владельца», которые агент потом читает (agent_edits).
                 if is_agent_user(user) and isinstance(original, dict) and 'base_text' in changed:
                     original['base_text'] = material['base_text']
-            result = self._json(material, now_str, month)
+            result = self._json(material, now_str, month, data=data)
         return result, unapproved
 
     def delete_material(self, material_id: str, user: Optional[dict]) -> bool:
@@ -2690,7 +2887,7 @@ class ContentPlanStore:
                     placement['updated_at'], placement['updated_by'] = now_str, login
                     self._log(data, now_str, login, 'cancel', material['id'], placement['id'],
                               f'Отменено: {_placement_label(placement)}')
-            result = self._json(material, now_str, month)
+            result = self._json(material, now_str, month, data=data)
         return result
 
     def delete_agent_drafts(self, month, user: Optional[dict], material_ids=None) -> dict:
@@ -2836,7 +3033,7 @@ class ContentPlanStore:
                 if is_agent_user(user) and isinstance(original, dict):
                     original['placements'][placement['id']] = placement['text']
             material['updated_at'], material['updated_by'] = now_str, login
-            result = self._json(material, now_str, month)
+            result = self._json(material, now_str, month, data=data)
         return result, created
 
     def update_placement(self, placement_id: str, fields: dict, user: Optional[dict],
@@ -2893,7 +3090,91 @@ class ContentPlanStore:
                 if (is_agent_user(user) and isinstance(original, dict) and 'text' in changed
                         and placement['id'] in original['placements']):
                     original['placements'][placement['id']] = placement['text']
-            result = self._json(material, now_str, month)
+            result = self._json(material, now_str, month, data=data)
+        return result, unapproved
+
+    def beer_options(self, bar) -> dict:
+        """Краны бара для «Поставить сорт» (окно выбора на экране, агенту — то же):
+        {bar, taps: [{tap, name, style, style_ru, abv, mapped, line}], stale, error}. line — ровно
+        та строка, что встанет последним абзацем поста (content_beer.beer_line); stale —
+        краны бара давно не обновлялись (список мог устареть); error — краны не прочитались."""
+        bar = parse_bar(bar)
+        if bar == BAR_ALL:
+            raise ValueError('Выберите бар: у каждого бара свои краны')
+        ctx = self.beer_context(fresh=True)
+        if ctx is None or ctx.error:
+            return {'bar': bar, 'taps': [], 'stale': None, 'error': 'Краны бара не прочитались'}
+        names = ctx.names
+        taps = [{'tap': row.get('tap_number'), 'name': content_beer.beer_name(row, names),
+                 'style': row.get('style'), 'style_ru': taplist_post.style_ru(row.get('style'), names),
+                 'abv': row.get('abv'), 'mapped': bool(row.get('mapped')),
+                 'line': content_beer.beer_line(row, bar, names)} for row in ctx.rows(bar)]
+        return {'bar': bar, 'taps': taps, 'stale': ctx.stale(bar), 'error': None}
+
+    def set_beer(self, placement_id: str, tap, user: Optional[dict],
+                 month: Optional[str] = None) -> Tuple[dict, List[str]]:
+        """«Поставить сорт» (решение владельца 2026-10-23, core/content_beer.py): строка про
+        сорт — последний абзац поста — становится строкой про сорт с крана tap бара
+        размещения («Сегодня на пятом кране «Культуры» — …»). В последнем абзаце сорта не
+        было — строка добавляется новым абзацем в конец.
+
+        Куда пишется: своя версия текста размещения, если она есть; иначе общий текст,
+        если все размещения материала с общим текстом — этого же бара; иначе у размещения
+        появляется своя версия (другие бары и площадки не трогаются). Это правка
+        содержания: с утверждённого утверждение снимается (как правка текста).
+        -> (материал, [id размещений, с которых снято утверждение])."""
+        tap_text = str(tap if tap is not None else '').strip()
+        if not tap_text:
+            raise ValueError('Укажите номер крана')
+        ctx = self.beer_context(fresh=True)
+        if ctx is None or ctx.error:
+            raise ValueError('Краны бара не прочитались — поправьте последний абзац текстом')
+        login = _login(user)
+        now_str = self.now_str()
+        with self._tx() as (data, _after):
+            material, placement = self._placement(data, placement_id)
+            guard_draft_mode(user, material)
+            _guard_not_sending(placement, now_str)
+            if placement['status'] == 'published':
+                raise ValueError('Размещение уже вышло')
+            if placement['status'] == 'cancelled':
+                raise ValueError('Размещение отменено')
+            if not beer_applies(material, placement):
+                raise ValueError('Сорт ставится у готовой публикации в Telegram-канале конкретного бара')
+            bar = placement['bar']
+            row = next((r for r in ctx.rows(bar) if str(r.get('tap_number')) == tap_text), None)
+            if row is None:
+                raise ValueError(f'На кране {tap_text} бара {BAR_BY_KEY[bar]["short"]} сейчас нет пива — '
+                                 'выберите кран из списка')
+            text = effective_text(material, placement)
+            if not text.strip():
+                raise ValueError('Сначала напишите текст поста: строка про сорт встанет последним абзацем')
+            line = content_beer.beer_line(row, bar, ctx.names)
+            if content_beer.check_post(text, bar, ctx)['state'] == 'none':
+                new_text = text.rstrip() + '\n\n' + line
+            else:
+                start, end = content_beer.last_paragraph(text)
+                new_text = text[:start] + line + text[end:]
+            before = self._signatures(material)
+            shared = [p for p in material['placements']
+                      if p is not placement and p.get('status') != 'cancelled' and p.get('text') is None]
+            original = material.get('agent_original')
+            agent = is_agent_user(user) and isinstance(original, dict)
+            if placement.get('text') is None and all(p.get('bar') == bar for p in shared):
+                material['base_text'] = new_text
+                if agent:
+                    original['base_text'] = new_text
+            else:
+                placement['text'] = new_text
+                if agent and placement['id'] in original['placements']:
+                    original['placements'][placement['id']] = new_text
+            name = content_beer.beer_name(row, ctx.names)
+            placement['updated_at'], placement['updated_by'] = now_str, login
+            material['updated_at'], material['updated_by'] = now_str, login
+            self._log(data, now_str, login, 'edit_placement', material['id'], placement['id'],
+                      f'{_placement_label(placement)}: сорт в посте — «{name}» (кран {row.get("tap_number")})')
+            unapproved = self._auto_unapprove(data, material, before, now_str, login)
+            result = self._json(material, now_str, month, data=data)
         return result, unapproved
 
     def delete_placement(self, placement_id: str, user: Optional[dict],
@@ -2909,7 +3190,7 @@ class ContentPlanStore:
             material['updated_at'], material['updated_by'] = now_str, login
             self._log(data, now_str, login, 'delete_placement', material['id'], placement['id'],
                       f'Удалено размещение: {_placement_label(placement)}')
-            result = self._json(material, now_str, month)
+            result = self._json(material, now_str, month, data=data)
         return result
 
     def placement_action(self, placement_id: str, action: str, user: Optional[dict],
@@ -2947,14 +3228,14 @@ class ContentPlanStore:
                     placement['updated_at'], placement['updated_by'] = now_str, login
                     self._log(data, now_str, login, action, material['id'], placement['id'],
                               f'{ACTION_LOG[action]}: {label} — рассылка остановится после текущей пачки')
-                    return self._json(material, now_str, month)
+                    return self._json(material, now_str, month, data=data)
                 if delivery.get('state') == 'queued' and delivery.get('continuation') and delivery.get('sent_to'):
                     stats = stop_mailing(placement, MAILING_STOP_WORDS[action], now_str)
                     placement['updated_at'], placement['updated_by'] = now_str, login
                     self._log(data, now_str, login, action, material['id'], placement['id'],
                               f'{ACTION_LOG[action]}: {label} — рассылка остановлена: дошло {stats["sent"]} '
                               f'из {stats["total"]}')
-                    return self._json(material, now_str, month)
+                    return self._json(material, now_str, month, data=data)
             _guard_not_sending(placement, now_str)
             if status not in allowed:
                 raise ContentPlanConflict(f'{ACTION_CONFLICT[action]} (сейчас: {STATUS_NAMES[status]})')
@@ -2985,7 +3266,7 @@ class ContentPlanStore:
                 placement['delivery'] = dict(delivery_of(placement), **_requeue(now_str))
             placement['updated_at'], placement['updated_by'] = now_str, login
             self._log(data, now_str, login, action, material['id'], placement['id'], text)
-            result = self._json(material, now_str, month)
+            result = self._json(material, now_str, month, data=data)
         return result
 
     def approve(self, placement_ids, user: Optional[dict], confirm_bot=False) -> dict:
@@ -3009,6 +3290,7 @@ class ContentPlanStore:
             index = {p['id']: (m, p) for m in data['materials'].values() for p in m['placements']}
             if not confirmed and any(index[pid][1]['channel'] == 'bot' for pid in ids if pid in index):
                 raise ValueError('Подтвердите аудиторию рассылки')
+            dupes = DuplicateIndex(data)
             approved, skipped = [], []
             for pid in ids:
                 if pid not in index:
@@ -3018,7 +3300,7 @@ class ContentPlanStore:
                 if placement['status'] != 'draft':
                     skipped.append({'id': pid, 'reasons': [f'уже не черновик ({STATUS_NAMES[placement["status"]]})']})
                     continue
-                missing = readiness(material, placement, now_str)
+                missing = readiness(material, placement, now_str, dupes)
                 if missing:
                     skipped.append({'id': pid, 'reasons': [item['text'] for item in missing]})
                     continue
@@ -3106,7 +3388,7 @@ class ContentPlanStore:
             sign = '+' if days > 0 else ''
             self._log(data, now_str, login, 'shift', material['id'], None,
                       f'Сдвиг на {sign}{days} дн.: размещений {len(moves)}')
-            result = self._json(material, now_str, month)
+            result = self._json(material, now_str, month, data=data)
         return result
 
     def repeat(self, material_id: str, weekdays, month, user: Optional[dict]) -> dict:
@@ -3170,6 +3452,171 @@ class ContentPlanStore:
                 self._log(data, now_str, login, 'repeat', source['id'], None,
                           f'Повтор по дням ({days_text}) в {month_label(month)}: создано {len(copies)}')
         return {'created': created}
+
+    def copy_to_bars(self, material_id: str, fields: dict, user: Optional[dict]) -> dict:
+        """«На другие бары» (решение владельца 2026-10-23: «хорошие посты с других точек можно
+        в следующем месяце переносить на другие бары; в одном канале посты не должны
+        дублироваться, но можно дублировать между собой»).
+
+        fields {bars: [ключи баров], date?, time?}. На каждый бар — свой материал-черновик
+        (copied_from = источник): название с приставкой «<бар>, <дата> — », текст и файлы
+        источника, размещение Telegram этого бара на date и time. Строка про сорт
+        (последний абзац) переписывается под краны нового бара (content_beer.adapt_to_bar):
+        тот же сорт, если он там стоит, иначе замена по тем же уровням, что при выходе.
+        date по умолчанию — тот же n-й день недели в следующем месяце (map_nth_weekday от
+        даты источника); time — время первого размещения Telegram источника.
+        Бар, в канале которого этот пост уже есть (DuplicateIndex), пропускается.
+        -> {created: [id материала], skipped: [{bar, reason}], date, time}."""
+        if not isinstance(fields, dict):
+            raise ValueError('Нужен объект: бары, дата и время')
+        bars = fields.get('bars')
+        if isinstance(bars, str):
+            bars = [bars]
+        if not isinstance(bars, list) or not bars:
+            raise ValueError('Выберите хотя бы один бар')
+        targets = []
+        for bar in bars:
+            bar = parse_bar(bar)
+            if bar == BAR_ALL:
+                raise ValueError('Повтор — в канал конкретного бара, не на всю сеть')
+            if bar not in targets:
+                targets.append(bar)
+        day = parse_date(fields.get('date')) if fields.get('date') not in (None, '') else None
+        time_value = parse_time(fields.get('time')) if fields.get('time') not in (None, '') else None
+        login = _login(user)
+        now_str = self.now_str()
+        origin = origin_of(user)
+        ctx = self.beer_context(fresh=True)
+        created, skipped = [], []
+        with self._tx() as (data, _after):
+            source = self._material(data, material_id)
+            if source.get('kind') == 'live':
+                raise ValueError('Таплист с актуальными данными и так выходит в каждом баре — '
+                                 'повтор нужен готовой публикации')
+            active = [p for p in source['placements'] if p.get('status') != 'cancelled']
+            telegram = sorted((p for p in active if p.get('channel') == 'telegram'), key=_placement_order)
+            first = telegram[0] if telegram else (sorted(active, key=_placement_order)[0] if active else None)
+            text = placement_content(source, first)[0] if first else (source.get('base_text') or '')
+            if not text.strip():
+                raise ValueError('У поста нет текста — повторять нечего')
+            if day is None:
+                anchor = material_date(source)
+                if not anchor:
+                    raise ValueError('Укажите дату: у поста нет даты, от которой считать следующий месяц')
+                day = map_nth_weekday(anchor, 1)[0]
+            if time_value is None and first is not None:
+                time_value = first.get('time')
+            selection = first.get('media') if first is not None else None
+            dupes = DuplicateIndex(data)
+            src_label = channel_label(first) if first is not None else 'план'
+            for bar in targets:
+                twin = dupes.taken(source, 'telegram', bar, text)
+                if twin:
+                    skipped.append({'bar': bar, 'reason': duplicate_text(twin)})
+                    continue
+                bar_text, beer = content_beer.adapt_to_bar(text, bar, ctx)
+                copy_material, _keep = _copy_material(source, day[:7], day, True, now_str, login, origin)
+                short = BAR_BY_KEY[bar]['short']
+                title = _TITLE_PREFIX_RE.sub('', source.get('title') or '').strip() or source.get('title') or ''
+                copy_material.update({
+                    'title': f'{short}, {fmt_date_short(day)} — {title}'[:TITLE_MAX],
+                    'base_text': bar_text, 'copied_from': source['id'],
+                    'agent_rationale': (f'Повтор поста «{source.get("title") or ""}» ({src_label}) в канале '
+                                        f'{short}: удачный пост можно повторить в другом баре (правило владельца '
+                                        '2026-10-23). ' + (source.get('agent_rationale') or ''))[:AGENT_TEXT_MAX],
+                })
+                media_names = {item['name'] for item in copy_material['media']}
+                placement = {
+                    'id': _new_id('p_'), 'channel': 'telegram', 'bar': bar, 'date': day, 'time': time_value,
+                    'text': None,
+                    'media': [n for n in selection if n in media_names] if selection is not None else None,
+                    'audience': None, 'status': 'draft', 'approved_at': None, 'approved_by': None,
+                    'approved_snapshot': None, 'published_at': None, 'published_by': None,
+                    'failed_error': None, 'updated_at': now_str, 'updated_by': login, 'delivery': None,
+                    'gif': None,
+                }
+                copy_material['placements'].append(placement)
+                _seal_copies([copy_material], origin)
+                data['materials'][copy_material['id']] = copy_material
+                created.append(copy_material['id'])
+                beer_note = (f'; сорт — «{beer["name"]}» (кран {beer["tap"]}, {beer["level_text"]})'
+                             if beer else '')
+                self._log(data, now_str, login, 'create', copy_material['id'], placement['id'],
+                          f'Создан материал «{copy_material["title"]}» — повтор поста «{source.get("title")}» '
+                          f'в канале {short}{beer_note}')
+            if created:
+                names = ', '.join(BAR_BY_KEY[data['materials'][mid]['placements'][0]['bar']]['short']
+                                  for mid in created)
+                self._log(data, now_str, login, 'copy_bars', source['id'], None,
+                          f'Повтор в каналах других баров: {names} — {fmt_date_short(day)}')
+        return {'created': created, 'skipped': skipped, 'date': day, 'time': time_value}
+
+    def move_placements(self, fields: dict, user: Optional[dict], month: Optional[str] = None) -> dict:
+        """Перенос размещений на другой день (календарь: плашку перетащили на другой день).
+
+        fields {placement_ids: [...], date}. Время не меняется. Как правка даты: утверждение
+        сохраняется; вышедшее, отменённое и то, что сейчас отправляется, — не переносится;
+        утверждённое и на паузе — не в прошлое и только со временем. Всё или ничего:
+        ошибка у одного — не переносится ни одно. Дата темы материала переезжает вместе с
+        размещениями, если все его невышедшие неотменённые размещения стояли в день темы и
+        все переносятся (иначе тема осталась бы в старом дне, а материал — в старом месяце).
+        -> {moved: [id размещения], materials: [материал]}."""
+        if not isinstance(fields, dict):
+            raise ValueError('Нужен объект: размещения и дата')
+        ids = fields.get('placement_ids')
+        if isinstance(ids, str):
+            ids = [ids]
+        if not isinstance(ids, list) or not ids:
+            raise ValueError('Не выбрано ни одного размещения')
+        if len(ids) > MOVE_MAX:
+            raise ValueError(f'За раз — не больше {MOVE_MAX} размещений')
+        day = parse_date(fields.get('date'))
+        if day is None:
+            raise ValueError('Укажите день, на который перенести')
+        login = _login(user)
+        now_str = self.now_str()
+        moved, touched = [], []
+        with self._tx() as (data, _after):
+            pairs = []
+            for pid in dict.fromkeys(str(x) for x in ids):
+                material, placement = self._placement(data, pid)
+                guard_draft_mode(user, material)
+                _guard_not_sending(placement, now_str)
+                label = _placement_label(placement)
+                if placement['status'] == 'published':
+                    raise ValueError(f'{label}: уже вышло — переносить нечего')
+                if placement['status'] == 'cancelled':
+                    raise ValueError(f'{label}: размещение отменено')
+                if placement['status'] in ('approved', 'paused'):
+                    if not placement.get('time'):
+                        raise ValueError(f'{label}: у утверждённой публикации нет времени — '
+                                         'сначала снимите утверждение')
+                    if f'{day}T{placement["time"]}' < now_str:
+                        raise ValueError(f'{label}: нельзя перенести утверждённую публикацию в прошлое')
+                pairs.append((material, placement))
+            for material, placement in pairs:
+                old = placement.get('date')
+                if old == day:
+                    continue
+                active = [p for p in material['placements'] if p['status'] not in ('published', 'cancelled')]
+                moving = {p['id'] for _m, p in pairs if _m is material}
+                if (material.get('planned_date') and all(p.get('date') == material['planned_date'] for p in active)
+                        and all(p['id'] in moving for p in active)):
+                    material['planned_date'] = day
+                    material['month'] = day[:7]
+                label = _placement_label(placement)
+                placement['date'] = day
+                placement['updated_at'], placement['updated_by'] = now_str, login
+                material['updated_at'], material['updated_by'] = now_str, login
+                kept = '; утверждение сохранено' if placement['status'] in ('approved', 'paused') else ''
+                self._log(data, now_str, login, 'edit_placement', material['id'], placement['id'],
+                          f'{label}: перенесено на {fmt_date_short(day)}{kept}')
+                moved.append(placement['id'])
+                if material not in touched:
+                    touched.append(material)
+            dupes = DuplicateIndex(data)
+            views = [self._json(m, now_str, month, dupes=dupes) for m in touched]
+        return {'moved': moved, 'materials': views}
 
     def copy_month(self, from_month, to_month, with_content, user: Optional[dict]) -> dict:
         """Скопировать план месяца from_month в to_month.
@@ -3367,7 +3814,7 @@ class ContentPlanStore:
                 what = f'Добавлен файл «{original}»'
             self._log(data, now_str, login, 'media_add', material['id'], None, what)
             unapproved = self._auto_unapprove(data, material, before, now_str, login)
-            result = self._json(material, now_str, month)
+            result = self._json(material, now_str, month, data=data)
         return result, unapproved
 
     def remove_media(self, material_id: str, name: str, user: Optional[dict],
@@ -3398,7 +3845,7 @@ class ContentPlanStore:
             unapproved = self._auto_unapprove(data, material, before, now_str, login)
             if not self._media_referenced(data, name):
                 after.append(lambda: self.media.delete(name))
-            result = self._json(material, now_str, month)
+            result = self._json(material, now_str, month, data=data)
         return result, unapproved
 
     # ----- отправка (core/content_publisher.py) --------------------------------
@@ -3425,7 +3872,7 @@ class ContentPlanStore:
                     action, by, text = outcome
                     placement['updated_at'], placement['updated_by'] = stamp, by
                     self._log(data, stamp, by, action, material['id'], placement['id'], text)
-                result = self._json(material, stamp) if view else True
+                result = self._json(material, stamp, data=data) if view else True
         except _Unchanged:
             return None
         return result
@@ -3831,8 +4278,10 @@ def get_content_plan_store(data_file: Optional[str] = None) -> ContentPlanStore:
             _store = ContentPlanStore(data_file)
         elif _store is None:
             from core import content_channels
+            # taps_fn — краны и реестр Untappd для сверки сорта в посте (content_beer).
             _store = ContentPlanStore(audience_fn=content_channels.audience_size,
-                                      delivery_fn=content_channels.payload_delivery)
+                                      delivery_fn=content_channels.payload_delivery,
+                                      taps_fn=load_live_data)
             # Прежний шаблон таплиста -> новый формат (просьба владельца 2026-10-09). Повтор
             # в другом процессе ничего не меняет; сбой — не повод не открыть план.
             try:

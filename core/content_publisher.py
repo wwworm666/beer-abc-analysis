@@ -187,6 +187,19 @@ Telegram (check.via 'test', без getChatMember); личный чат или о
 Правка вышедшего поста в канале (editMessageText) — вне объёма: исправление —
 новый пост, старый удаляют руками.
 
+### Сорт в посте (build_post, 2026-10-23)
+
+У готовой публикации в Telegram-канале бара (content_plan.beer_applies) последний
+абзац — строка про сорт; перед отправкой build_post сверяет его с кранами бара,
+прочитанными заново один раз за проход (_Run.beer_ctx, не кэш экрана):
+moved и swap — уходит исправленный текст (номер крана или строка под сорт с
+кранов, core/content_beer.py), в журнал — что сделано, в delivery.beer — {state,
+note, from, to, line_before, line_after}, в delivery.sent_text — ушедший текст;
+no_beer — проблема «… сняли с крана, а пива для замены на кранах бара нет …»,
+публикация не уходит (failed, «Повторить» после выбора сорта); no_data — пост как
+есть, в журнале «сорт не проверен». Утверждение замена не снимает — правило замены
+задал владелец.
+
 ## Changelog
 
 - 2026-09-28 — модуль создан: отправка в Telegram-каналы баров, напоминание об
@@ -202,6 +215,8 @@ Telegram (check.via 'test', без getChatMember); личный чат или о
   канал Лиговского с работающим ботом остался не подключён.
 - 2026-10-09 — гифка к таплисту (send_with_gif): подпись до 1024 или гифка отдельным
   сообщением перед текстом; выбор у размещения (gif_choice в build_post).
+- 2026-10-23 — сорт в посте: сверка строки про сорт с кранами перед отправкой и замена
+  снятого сорта (решение владельца: «пост точно должен выйти по пиву»).
 """
 
 import copy
@@ -216,7 +231,7 @@ from datetime import datetime
 from typing import Callable, Dict, List, Optional, Tuple
 
 from core import content_channels as channels_mod
-from core import content_media, msk_time, taplist_gifs
+from core import content_beer, content_media, msk_time, taplist_gifs
 from core import content_plan as cp
 
 GRACE_MINUTES = cp.DELIVERY_GRACE_MINUTES              # 120 — см. core/content_plan.py
@@ -441,6 +456,17 @@ class _Run:
         self.rate = RateLimiter(BOT_RATE_PER_SEC, self.clock, self.sleep)
         self.mailing_deadline: Optional[float] = None
         self._file_ids: Dict[int, Dict[str, str]] = {}
+        self._beer_ctx = None
+        self._beer_loaded = False
+
+    def beer_ctx(self):
+        """Краны для сверки сорта в посте (content_beer), прочитанные один раз за проход
+        и заново (не кэш экрана). None — у хранилища не подключены краны (тесты без кранов)."""
+        if not self._beer_loaded:
+            self._beer_loaded = True
+            getter = getattr(self.store, 'beer_context', None)
+            self._beer_ctx = getter(fresh=True) if getter else None
+        return self._beer_ctx
 
     def file_ids(self, transport) -> Dict[str, str]:
         """Кэш file_id этого бота на проход: {имя файла: file_id}."""
@@ -688,7 +714,9 @@ def send_with_gif(run: _Run, chat_id, text: str, entities: List[dict], gif: dict
 
 def build_post(run: _Run, material: dict, placement: dict, pub_date: Optional[str]) -> dict:
     """Что отправить: {text, entities, media: [{name, kind, path, filename, mime, size}], problems,
-    gif}. gif — гифка таплиста (render_live) у поста в Telegram-канале без своих файлов, иначе None.
+    gif, beer}. gif — гифка таплиста (render_live) у поста в Telegram-канале без своих файлов, иначе None.
+    beer — сверка строки про сорт с кранами (content_beer.check_post) у готовой публикации в канале
+    бара или None; при moved и swap text — уже с исправленной строкой.
 
     Текст и файлы — из снимка утверждения; у live — шаблон, собранный сейчас
     (render_live), и entities — ссылки на Untappd в таплисте (у готовой
@@ -708,6 +736,7 @@ def build_post(run: _Run, material: dict, placement: dict, pub_date: Optional[st
     problems: List[str] = []
     entities: List[dict] = []
     gif = None
+    beer = None
     if material.get('kind') == 'live':
         live = cp.render_live(material.get('live_source'), placement.get('bar'), text, pub_date=pub_date,
                               now=run.now, channel=channel, has_media=bool(names), gif_choice=placement.get('gif'))
@@ -717,6 +746,17 @@ def build_post(run: _Run, material: dict, placement: dict, pub_date: Optional[st
         text, entities = live['text'], live.get('entities') or []
         gif = live.get('gif') if channel == 'telegram' and not names else None
     else:
+        # Сорт в посте (решение владельца 2026-10-23, core/content_beer.py): строку про сорт
+        # сверяем с кранами бара; сорт сняли — строка переписывается под сорт с кранов, а
+        # если пива для замены нет — публикация останавливается с причиной.
+        if cp.beer_applies(material, placement) and run.beer_ctx() is not None:
+            beer = content_beer.check_post(text, placement['bar'], run.beer_ctx())
+            if beer['state'] in ('moved', 'swap'):
+                text = beer['text']
+            elif beer['state'] == 'no_beer':
+                gone = ', '.join(f'«{b["name"]}»' for b in beer['beers'] if not b['on_tap'])
+                problems.append(f'{gone} сняли с крана, а пива для замены на кранах бара нет — поставьте '
+                                'сорт в карточке («Сорт в посте») и нажмите «Повторить»')
         limit = cp.text_limit_for(channel, bool(names))
         if cp.text_units(text, channel) > limit:
             problems.append(f'текст длиннее {limit} знаков')
@@ -741,7 +781,7 @@ def build_post(run: _Run, material: dict, placement: dict, pub_date: Optional[st
                       'mime': content_media.mimetype_of(name), 'size': size})
     if total > UPLOAD_TOTAL_MAX:
         problems.append(f'файлы вместе больше {UPLOAD_TOTAL_MAX // (1024 * 1024)} МБ — уберите часть видео')
-    return {'text': text, 'entities': entities, 'media': media, 'problems': problems, 'gif': gif}
+    return {'text': text, 'entities': entities, 'media': media, 'problems': problems, 'gif': gif, 'beer': beer}
 
 
 def route_reason(settings: dict, placement: dict) -> Optional[str]:
@@ -888,6 +928,12 @@ def _send_telegram(run: _Run, material: dict, placement: dict, attempt: str, pub
     if gif_done:
         gif_note = (f', гифка «{gif_done["title"]}»' if gif_done['sent']
                     else f', без гифки: {gif_done["error"] or "Telegram не ответил"}')
+    beer = post.get('beer') or {}
+    beer_change = beer if beer.get('state') in ('moved', 'swap') else None
+    if beer_change:
+        gif_note += '; ' + beer_change['done']
+    elif beer.get('state') == 'no_data':
+        gif_note += '; ' + beer['note']
 
     def apply(_material, target, delivery, now_str):
         target['status'] = 'published'
@@ -897,6 +943,15 @@ def _send_telegram(run: _Run, material: dict, placement: dict, attempt: str, pub
                                   chat_username=check.get('chat_username'), message_ids=ids, error=None)
         if gif_done:
             target['delivery']['gif'] = gif_done
+        if beer_change:
+            # Что ушло на самом деле: строка про сорт исправлена (content_beer). Карточка
+            # вышедшего показывает sent_text (core/content_plan.placement_content).
+            target['delivery']['beer'] = {
+                'state': beer_change['state'], 'note': beer_change['done'],
+                'from': [b['name'] for b in beer_change['beers']],
+                'to': (beer_change.get('replacement') or {}).get('name'),
+                'line_before': beer_change['line'], 'line_after': beer_change['new_line']}
+            target['delivery']['sent_text'] = post['text']
 
     _finish(run, material, placement, attempt, apply, 'auto_publish',
             f'Вышло автоматически: {label} ({chat}){gif_note}',

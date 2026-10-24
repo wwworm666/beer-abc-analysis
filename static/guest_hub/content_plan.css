@@ -343,6 +343,40 @@ button.gh-cp-sum-i:focus-visible { outline: 2px solid var(--gh-accent-ink); outl
 }
 .gh-cp-pill.is-theme .gh-cp-pill-n { color: var(--gh-ink3); }
 .gh-cp-pill.is-cancel { text-decoration: line-through; opacity: .55; }
+/* Перетаскивание плашек между днями (решение владельца 2026-10-23, content_plan.js — «календарь:
+   перетаскивание»): пока плашку тянут, она полупрозрачная, под курсором — её копия; день, куда
+   можно отпустить, — рамка акцента, куда нельзя (прошлое) — красная. */
+/* Долгое нажатие пальцем — начало переноса, а не выделение текста и не меню браузера. */
+.gh-cp-pill[data-drag] { cursor: grab; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+.gh-cp-pill.is-dragging { opacity: .35; }
+.gh-cp-dragging, .gh-cp-dragging .gh-cp-pill { cursor: grabbing; user-select: none; -webkit-user-select: none; }
+.gh-cp-ghost {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 1000;
+    pointer-events: none;
+    opacity: .95;
+    box-shadow: var(--gh-shadow-menu);
+}
+.gh-cp-day.is-drop {
+    background: color-mix(in srgb, var(--gh-accent) 8%, var(--gh-card));
+    box-shadow: inset 0 0 0 2px var(--gh-accent);
+}
+.gh-cp-day.is-drop-no { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--gh-bad) 60%, var(--gh-card)); }
+/* Сорт в посте на плашке: точка перед названием — сорт сняли с крана (оранжевая — строка
+   заменится, красная — заменить нечем) или он переехал на другой кран (акцент). */
+.gh-cp-pill-beer {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    margin: 0 4px 1px 0;
+    border-radius: 50%;
+    background: var(--gh-accent);
+    vertical-align: middle;
+}
+.gh-cp-pill.is-beer-swap .gh-cp-pill-beer { background: var(--gh-warn); }
+.gh-cp-pill.is-beer-no_beer .gh-cp-pill-beer { background: var(--gh-bad); }
 .gh-cp-more {
     align-self: flex-start;
     min-height: 0;
@@ -746,6 +780,64 @@ button.gh-cp-media-add:hover { border-color: var(--gh-accent); color: var(--gh-a
 .gh-cp-pl-tg svg circle { fill: currentColor; stroke: none; }
 .gh-cp-pl-tg[aria-expanded="true"] { background: var(--gh-soft); color: var(--gh-ink); }
 .gh-cp-pl-miss { margin-top: 7px; font: 500 12.5px/1.45 var(--gh-sans); color: var(--gh-warn-ink); cursor: help; }
+/* Сорт в посте у размещения (beer_info сервера, core/content_beer.py): строка с тоном
+   состояния, что встанет при выходе, выбор сорта с кранов бара. */
+.gh-cp-beer {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px 10px;
+    margin-top: 7px;
+    padding-left: 10px;
+    border-left: 2px solid var(--gh-t);
+    font: 500 12.5px/1.45 var(--gh-sans);
+    color: var(--gh-t-ink);
+}
+.gh-cp-beer.gh-tone-muted { font-weight: 400; color: var(--gh-ink4); }
+.gh-cp-beer-t { min-width: 0; }
+.gh-cp-beer-line { margin: 4px 0 0 12px; font: italic 400 12px/1.45 var(--gh-sans); color: var(--gh-ink3); }
+.gh-cp-beer-stale { margin: 4px 0 0 12px; font: 400 11.5px/1.4 var(--gh-sans); color: var(--gh-ink4); }
+.gh-cp-beer-ed { display: flex; align-items: center; gap: 6px; }
+.gh-cp-beerpick {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 8px;
+    padding: 10px;
+    border: 1px solid var(--gh-hair);
+    border-radius: var(--gh-r-tile);
+    background: var(--gh-soft);
+}
+.gh-cp-beerpick-h {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font: 600 12.5px/1.3 var(--gh-sans);
+    color: var(--gh-ink2);
+}
+.gh-cp-beerpick-list { display: flex; flex-direction: column; gap: 4px; max-height: 280px; overflow-y: auto; }
+.gh-cp-beerpick-i {
+    display: grid;
+    grid-template-columns: 28px minmax(0, 1fr);
+    align-items: baseline;
+    gap: 0 8px;
+    padding: 6px 8px;
+    border: 1px solid var(--gh-hair);
+    border-radius: 8px;
+    background: var(--gh-card);
+    font: 500 12.5px/1.35 var(--gh-sans);
+    color: var(--gh-ink);
+    text-align: left;
+    cursor: pointer;
+}
+.gh-cp-beerpick-i:hover { background: var(--gh-hover); }
+.gh-cp-beerpick-i:disabled { opacity: .55; cursor: default; }
+.gh-cp-beerpick-n { grid-row: span 2; font: 600 12px/1.35 var(--gh-mono); color: var(--gh-ink4); }
+.gh-cp-beerpick-b { min-width: 0; }
+.gh-cp-beerpick-s { grid-column: 2; font: 400 11.5px/1.35 var(--gh-sans); color: var(--gh-ink4); }
+/* «На другие бары» в «Ещё»: бары, дата и время копий. */
+.gh-cp-barcopy .gh-form-row { margin-top: 8px; }
 .gh-cp-pl-meta { margin-top: 6px; font: 400 12px/1.45 var(--gh-sans); color: var(--gh-ink4); }
 .gh-cp-pl-x {
     display: flex;
