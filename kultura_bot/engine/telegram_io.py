@@ -31,6 +31,7 @@ RETRY_AFTER_MAX_S = 30               # Telegram просит подождать 
 HTTP_TIMEOUT = POLL_TIMEOUT + 10
 ALLOWED_UPDATES = ['message']
 COMMANDS = [
+    {'command': 'report', 'description': 'Отчёт: полный разбор на странице'},
     {'command': 'new', 'description': 'Начать новый диалог'},
     {'command': 'help', 'description': 'Что умеет бот'},
 ]
@@ -94,13 +95,16 @@ class TelegramIO:
         return data
 
     def send_html(self, chat_id: str, text_html: str, *, fallback_text: str = '',
-                  reply_to: Optional[int] = None) -> Optional[int]:
+                  reply_to: Optional[int] = None,
+                  reply_markup: Optional[Dict[str, Any]] = None) -> Optional[int]:
         """Одно сообщение HTML. Разметку не приняли или текст длиннее предела Telegram — простым
-        текстом, кусками. message_id первого ушедшего или None."""
+        текстом, кусками (кнопки — у первого куска). message_id первого ушедшего или None."""
         payload: Dict[str, Any] = {'chat_id': chat_id, 'text': text_html, 'parse_mode': 'HTML',
                                    'link_preview_options': {'is_disabled': True}}
         if reply_to:
             payload['reply_parameters'] = {'message_id': reply_to, 'allow_sending_without_reply': True}
+        if reply_markup:
+            payload['reply_markup'] = reply_markup
         data = self._send(payload) if len(text_html) <= formatting.TELEGRAM_MAX else \
             {'ok': False, 'description': 'message is too long'}
         if data and data.get('ok'):
@@ -116,17 +120,22 @@ class TelegramIO:
                 if data and data.get('ok') and first is None:
                     first = (data.get('result') or {}).get('message_id')
                 payload.pop('reply_parameters', None)          # ответом — только первый кусок
+                payload.pop('reply_markup', None)              # кнопки — только у первого
             if first is not None:
                 return first
         log.warning('[BOT] сообщение не ушло в чат %s: %s', chat_id, (data or {}).get('description'))
         return None
 
-    def send_markdown(self, chat_id: str, markdown: str, *, reply_to: Optional[int] = None) -> List[int]:
-        """Ответ модели: части по formatting.LIMIT, каждая — HTML. Вернуть message_id отправленных."""
+    def send_markdown(self, chat_id: str, markdown: str, *, reply_to: Optional[int] = None,
+                      reply_markup: Optional[Dict[str, Any]] = None) -> List[int]:
+        """Ответ модели: части по formatting.LIMIT, каждая — HTML; кнопки (reply_markup) — под
+        последней частью. Вернуть message_id отправленных."""
         sent: List[int] = []
-        for n, part in enumerate(formatting.split(markdown)):
+        parts = formatting.split(markdown)
+        for n, part in enumerate(parts):
             message_id = self.send_html(chat_id, formatting.to_html(part), fallback_text=formatting.plain(part),
-                                        reply_to=reply_to if n == 0 else None)
+                                        reply_to=reply_to if n == 0 else None,
+                                        reply_markup=reply_markup if n == len(parts) - 1 else None)
             if message_id is not None:
                 sent.append(message_id)
         return sent

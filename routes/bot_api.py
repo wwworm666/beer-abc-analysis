@@ -11,6 +11,10 @@ core/mcp/tools/common.py).
     POST /api/bot/link                  {code, tg_user_id, tg_name} -> {ok, text}
     GET  /api/bot/actor/<tg_user_id>    {actor: {tg_user_id, user_id, login, display_name} | null}
     POST /api/bot/report                {status, usage} -> {ok}
+    POST /api/bot/note                  {chat_id, text, title?} -> {id, expires_at}
+                                        записка «Как считается» к ответу (kultura_bot/charts/
+                                        reports.py): сервер бота вырезает её из ответа модели и
+                                        ставит в сообщении ссылку (kultura_bot/links.py)
 
 401 — нет ключа или не тот; 400 — ошибка ввода. Ответы не кэшируются (Cache-Control:
 no-store): в config — секреты.
@@ -20,7 +24,7 @@ import logging
 from flask import Blueprint, jsonify, request
 
 from core.mcp.auth import bearer_token
-from kultura_bot import access, credentials, site_api
+from kultura_bot import access, credentials, settings, site_api
 
 log = logging.getLogger(__name__)
 
@@ -97,3 +101,27 @@ def report():
     except ValueError as exc:
         return _error(400, str(exc))
     return _no_store(jsonify({'ok': True}))
+
+
+@bot_api_bp.route('/api/bot/note', methods=['POST'])
+def note():
+    principal = _engine()
+    if principal is None:
+        return _denied()
+    from core.mcp.tools.common import strip_foreign_urls
+    from kultura_bot.charts import reports
+    try:
+        data = _body()
+        chat_id = str(data.get('chat_id') or '').strip()
+        if not chat_id.lstrip('-').isdigit() or len(chat_id) > 21:
+            raise ValueError('chat_id — число (у групп со знаком минус)')
+        body = reports.normalize_note(data.get('text'), title=data.get('title'), page_filter=strip_foreign_urls)
+    except (ValueError, reports.ReportError) as exc:
+        return _error(400, str(exc))
+    try:
+        record = reports.create(body, chat_id=chat_id, token_id=principal.token_id,
+                                daily_limit=settings.REPORT_DAILY_LIMIT)
+    except reports.ReportLimitError as exc:
+        return _error(429, f'Не больше {settings.REPORT_DAILY_LIMIT} записок и отчётов в сутки — сегодня уже '
+                           f'{exc.used}')
+    return _no_store(jsonify({'id': record['id'], 'expires_at': record['expires_at']}))

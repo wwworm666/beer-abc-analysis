@@ -11,6 +11,8 @@
   запрос, но в контекст модели попадают только найденные.
 - **common_chart_send** — график картинкой с кнопкой «Открыть интерактивно» (рисует и
   отправляет сайт); chat_id подставляет бот — чат разговора, что бы ни прислала модель.
+- **common_report_send** — отчёт: страница с разделами на сайте и выжимка в чат с кнопкой
+  «Открыть отчёт»; chat_id — так же, только чат разговора.
 - **ask_agent** (только у бота) — поручить задачу агенту раздела (kultura_bot/agents/*.md):
   агент работает со своими инструкциями и инструментами своих разделов (коннекторы
   /mcp/<раздел>) и возвращает отчёт.
@@ -37,6 +39,8 @@ log = logging.getLogger('kultura-bot')
 
 SEARCH_TOOL = {'type': 'tool_search_tool_regex_20251119', 'name': 'tool_search_tool_regex'}
 CHART_TOOL = 'common_chart_send'
+REPORT_TOOL = 'common_report_send'
+SENDING_TOOLS = (CHART_TOOL, REPORT_TOOL)        # шлют в Telegram: чат — только чат разговора
 INSTRUCTIONS_TOOL = 'common_instructions'
 ASK_AGENT = 'ask_agent'
 FULL_CONNECTOR = '/mcp'
@@ -97,6 +101,8 @@ def ask_agent_def() -> Dict[str, Any]:
 def build_toolset(site_tools: List[Dict[str, Any]], *, with_agents: bool) -> Toolset:
     """Список tools для запроса: поиск, видимые сразу, ask_agent (боту), отложенные."""
     by_name = {t['name']: t for t in site_tools if t['name'] not in settings.HIDDEN_TOOLS}
+    if not with_agents:
+        by_name.pop(REPORT_TOOL, None)          # отчёт собирает бот из отчётов агентов, агент его не шлёт
     tools = [by_name[name] for name in sorted(by_name)]
     loaded = [t for t in tools if t['name'] in settings.ALWAYS_LOADED_TOOLS]
     deferred = [t for t in tools if t['name'] not in settings.ALWAYS_LOADED_TOOLS]
@@ -146,6 +152,7 @@ class ToolContext:
     run_agent: Optional[Callable[[str, str], str]] = None    # ask_agent: (имя агента, задача) -> отчёт
     is_agent: bool = False                                   # агент не поручает задачи другим агентам
     charts_sent: List[Dict[str, Any]] = field(default_factory=list)
+    reports_sent: List[Dict[str, Any]] = field(default_factory=list)
     spend: Any = None                                        # расход вопроса (agent.Spend): общий у бота и агентов
 
 
@@ -189,18 +196,19 @@ def execute(block: Dict[str, Any], ctx: ToolContext) -> Dict[str, Any]:
     if name not in ctx.allowed:
         return tool_result(tool_use_id, f'Нет инструмента {name}. Найди нужный поиском tool_search_tool_regex.',
                            is_error=True)
-    if name == CHART_TOOL:
-        args = dict(args, chat_id=str(ctx.chat_id))     # график — только в чат разговора
+    if name in SENDING_TOOLS:
+        args = dict(args, chat_id=str(ctx.chat_id))     # график и отчёт — только в чат разговора
     try:
         result = ctx.site.call_tool(name, args)
     except SiteError as exc:
         return tool_result(tool_use_id, f'Сайт не выполнил вызов: {exc.text}', is_error=True)
     is_error = bool(result.get('isError'))
-    if name == CHART_TOOL and not is_error:
+    if name in SENDING_TOOLS and not is_error:
         try:
-            ctx.charts_sent.append(json.loads(_text(result)))
+            sent = json.loads(_text(result))
         except ValueError:
-            ctx.charts_sent.append({})
+            sent = {}
+        (ctx.charts_sent if name == CHART_TOOL else ctx.reports_sent).append(sent if isinstance(sent, dict) else {})
     return tool_result(tool_use_id, _result_blocks(result.get('content') or []), is_error=is_error)
 
 

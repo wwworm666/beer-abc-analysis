@@ -196,3 +196,30 @@ def test_dev_page_both_themes(server, browser):
         page.wait_for_timeout(300)
         assert page.inner_text('#days .sum').startswith('24 сен – 30 сен 2026')
         assert errors == [], errors
+
+
+def test_report_and_how_note_open_in_mini_app(server, browser):
+    """Отчёт (id rep_…) открывается тем же мини-приложением: выжимка, разделы, интерактивный
+    график, таблица, свёрнутое «Как считается»; записка — одним блоком. Ошибок на странице нет."""
+    from kultura_bot.charts import reports
+    from test_tg_report import REPORT
+    rid = reports.create(reports.normalize_report(REPORT), chat_id=str(OWNER))['id']
+    note = reports.create(reports.normalize_note('> % плана = **98%**\nисточник iiko'), chat_id=str(OWNER))['id']
+    data = init_data()
+    page, errors = _page(browser, TG_STUB % {'init': json.dumps(data), 'start': json.dumps(rid)})
+    page.goto(f'{server["base"]}/tg/chart')
+    page.wait_for_selector('.rep .rep-chart svg', timeout=15000)
+    assert page.inner_text('.rep-head h1') == 'Бельгия в ивент: +58,0% к августу'
+    assert 'данные на 14 сен 2026, 00:58 МСК' in page.inner_text('.rep-meta')
+    assert page.inner_text('.rep-summary blockquote') == 'Квак · +136 · новый\nБарбе Руби · +23'
+    assert page.locator('.rep-sec').count() == 2 and page.locator('.rep-sec details.rep-how').count() == 1
+    assert page.locator('details.rep-how[open]').count() == 0, '«Как считается» свёрнуто'
+    cells = page.locator('.rep-tbl tbody tr').nth(2).locator('td').all_inner_texts()
+    assert cells == ['Гулден Драк', '—', '17 000'], 'null — «—», числа по-русски'
+    assert page.locator('.rep-tbl td.num').count() == 6, 'числа — вправо'
+    assert server['seen'][-1] == 'tma ' + data
+    page.goto(f'{server["base"]}/tg/chart?id={note}')
+    page.wait_for_selector('.rep-note blockquote', timeout=15000)
+    assert page.inner_text('.rep-head h1') == 'Как считается'
+    assert page.inner_html('.rep-note blockquote') == '% плана = <b>98%</b>'
+    assert not errors, errors

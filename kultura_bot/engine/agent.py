@@ -58,9 +58,10 @@ Anthropic («Echoing fallback turns back»): до последнего блок�
 - дневной расход settings.DAILY_BUDGET_USD: перед каждым шагом сверяется со своей базой
   сервера бота (store.usage); исчерпан — BudgetExceeded (бот отвечает «лимит на сегодня»);
   расход каждого шага пишется туда же и уходит сайту в отчёте (on_usage);
-- расход вопроса settings.QUESTION_BUDGET_USD — бот и его агенты вместе (Spend в
-  ToolContext): дошёл — к результатам инструментов добавляется QUESTION_BUDGET_NOTE, и
-  следующий запрос идёт без инструментов (модель отвечает тем, что уже узнала);
+- расход вопроса settings.QUESTION_BUDGET_USD (отчёта — REPORT_BUDGET_USD, Spend.limit) — бот
+  и его агенты вместе (Spend в ToolContext): дошёл — к результатам инструментов добавляется
+  QUESTION_BUDGET_NOTE, и следующий запрос идёт без инструментов (модель отвечает тем, что
+  уже узнала);
 - pause_turn (серверный инструмент не уложился в шаг) — запрос повторяется как есть;
 - шаг оборвался на пределе длины посреди вызова инструмента — вызов не выполняется (в истории
   на него — ответ-ошибка, чтобы история осталась корректной), последний запрос без инструментов.
@@ -117,6 +118,11 @@ class Spend:
     """Расход одного вопроса: бот и его агенты вместе (ToolContext.spend)."""
     usd: float = 0.0
     steps: int = 0                             # запросов к модели
+    limit: Optional[float] = None              # предел на вопрос; None — settings.QUESTION_BUDGET_USD
+                                               # (у отчёта — settings.REPORT_BUDGET_USD)
+
+    def budget(self) -> float:
+        return settings.QUESTION_BUDGET_USD if self.limit is None else self.limit
 
 
 @dataclass
@@ -352,8 +358,13 @@ def run_turn(client: Any, *, system_text: str, tool_list: List[Dict[str, Any]], 
                                             'скажи, чего не успел проверить.', is_error=True) for b in tool_uses]})
             final = True
             continue
+        sent_before = len(ctx.charts_sent) + len(ctx.reports_sent)
         results = [tools.execute(b, ctx) for b in tool_uses]
-        limit = settings.QUESTION_BUDGET_USD
+        if not ctx.is_agent and len(ctx.charts_sent) + len(ctx.reports_sent) > sent_before:
+            # Карточка (график с подписью-ответом или отчёт) ушла — она и есть ответ: текст до неё
+            # («Посмотрю выручку…») вторым сообщением не отправляется. Текст после неё — да.
+            final_texts = []
+        limit = spend.budget()
         if limit and spend.usd >= limit and not final:
             # Вопрос разросся: следующий запрос — без инструментов, ответ тем, что уже есть.
             # Текст — в том же сообщении после результатов (история только дописывается).
@@ -374,7 +385,8 @@ def run_agent(client: Any, persona: tools.Persona, task: str, *, parent: tools.T
               header: str = '', on_usage: Optional[UsageHook] = None) -> str:
     """Поручение агенту: отдельный разговор с его инструкциями и инструментами. Вернуть отчёт."""
     ctx = tools.ToolContext(site=parent.site, chat_id=parent.chat_id, allowed=persona.toolset.names,
-                            is_agent=True, charts_sent=parent.charts_sent, spend=parent.spend)
+                            is_agent=True, charts_sent=parent.charts_sent, reports_sent=parent.reports_sent,
+                            spend=parent.spend)
     text = (header + '\n' if header else '') + task
     result = run_turn(client, system_text=persona.system, tool_list=persona.toolset.defs, history=[],
                       user_content=[{'type': 'text', 'text': text}], ctx=ctx, store=store,

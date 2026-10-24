@@ -336,6 +336,35 @@ details.fold[open] summary { margin-bottom: 8px; }
              color: var(--ink); font-size: 12.5px; text-decoration: none; }
 
 /* PNG: только карточка, без рамки и скругления (снимок прямоугольный) */
+/* отчёт и «Как считается» (report.js): мини-приложение и страница сайта /tg/report/<id>.
+ * Текст отчёта — системным шрифтом (длинное чтение), цифры и подписи — Mono, как на карточках. */
+html.is-report .app { max-width: 720px; }
+.rep { display: grid; gap: 18px; min-width: 0; }
+.rep-head h1 { margin: 0; font-size: 20px; font-weight: 700; line-height: 1.3; letter-spacing: -0.01em; text-wrap: balance; }
+.rep-meta { margin: 6px 0 0; font-size: 12px; color: var(--muted); }
+.rep-text { font-family: var(--font-ui); font-size: 15px; line-height: 1.55; color: var(--ink); white-space: pre-wrap;
+  overflow-wrap: anywhere; }
+.rep-text b { font-weight: 650; }
+.rep-text a { color: var(--link); }
+.rep-text code, .rep-text pre { font-family: var(--font-mono); font-size: 13px; }
+.rep-text pre { margin: 0; padding: 10px 12px; background: var(--band); border-radius: 10px; overflow-x: auto; white-space: pre; }
+.rep-text blockquote { margin: 0; padding: 6px 12px; border-left: 3px solid var(--ev); background: var(--band);
+  border-radius: 0 10px 10px 0; font-variant-numeric: tabular-nums; }
+.rep-summary { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; }
+.rep-note { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; font-size: 14px; }
+.rep-sec { display: grid; gap: 10px; min-width: 0; padding-top: 6px; border-top: 1px solid var(--line); }
+.rep-sec h2 { margin: 6px 0 0; font-size: 16px; font-weight: 700; line-height: 1.35; text-wrap: balance; }
+.rep-chart { min-width: 0; }
+.rep-tbl { display: grid; gap: 6px; min-width: 0; }
+.rep-tbl table { width: 100%; border-collapse: collapse; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.rep-tbl th, .rep-tbl td { padding: 7px 6px; border-bottom: 1px solid var(--grid); text-align: left; vertical-align: top; }
+.rep-tbl th { font-weight: 600; color: var(--ink-2); position: sticky; top: 0; background: var(--page); }
+.rep-tbl .num { text-align: right; white-space: nowrap; }
+.rep-tbl-note { margin: 0; font-size: 11.5px; color: var(--muted); }
+details.rep-how summary { font-size: 12.5px; color: var(--ink-2); cursor: pointer; width: max-content; max-width: 100%; padding-block: 2px; }
+details.rep-how[open] summary { margin-bottom: 8px; }
+details.rep-how .rep-text { font-size: 13px; color: var(--ink-2); }
+
 html[data-mode="png"] body { background: var(--card); padding: 0; }
 html[data-mode="png"] .app { max-width: none; width: 430px; margin: 0; padding: 0; }
 html[data-mode="png"] .card { width: 430px; border: 0; border-radius: 0; padding: 22px 18px 16px; }

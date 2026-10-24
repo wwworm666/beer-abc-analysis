@@ -1,7 +1,9 @@
-/* Мини-приложение «Графики» (/tg/chart): Telegram -> initData -> /api/tg/charts/<id> -> карточка.
+/* Мини-приложение «Графики» (/tg/chart): Telegram -> initData -> /api/tg/charts/<id> -> карточка;
+ * id вида rep_… (отчёт или записка «Как считается», kultura_bot/links.py) -> /api/tg/reports/<id>
+ * -> страница отчёта (report.js).
  *
- * Откуда id графика: ?id=<id> (кнопка web_app в личке) или start_param (прямая ссылка
- * t.me/<бот>/<short_name>?startapp=<id> из группы). initData — из Telegram.WebApp; если
+ * Откуда id: ?id=<id> (кнопка web_app в личке) или start_param (прямая ссылка
+ * t.me/<бот>/<short_name>?startapp=<id> из группы или текстом в ответе). initData — из Telegram.WebApp; если
  * официальный скрипт не загрузился (telegram.org недоступен), — из #tgWebAppData в адресе:
  * клиент Telegram кладёт туда те же данные. Без initData страница просит открыть её из
  * Telegram. Тема — Telegram.WebApp.colorScheme и событие themeChanged. */
@@ -9,6 +11,7 @@
   'use strict';
 
   const ID_RE = /^[A-Za-z0-9_-]{16,64}$/;
+  const REPORT_RE = /^rep_[0-9a-f]{22}$/;
   const root = document.documentElement;
   const tg = window.Telegram && window.Telegram.WebApp;
   const hash = new URLSearchParams((location.hash || '').replace(/^#/, ''));
@@ -94,6 +97,10 @@
       show('В ссылке нет графика', 'Откройте график кнопкой «Открыть интерактивно» под картинкой в чате.');
       return;
     }
+    if (REPORT_RE.test(chartId)) {
+      await loadReport();
+      return;
+    }
     show('Загружаю график…', '');
     let resp, body = {};
     try {
@@ -121,6 +128,38 @@
       show('Не удалось проверить доступ', 'Telegram не ответил. Закройте окно и откройте график ещё раз.');
     } else {
       show('График не открылся', body.error || ('Ошибка сервера ' + resp.status));
+    }
+  }
+
+  async function loadReport() {
+    show('Загружаю…', '');
+    let resp, body = {};
+    try {
+      resp = await fetch('/api/tg/reports/' + encodeURIComponent(chartId), {
+        headers: { Authorization: 'tma ' + initData }, cache: 'no-store', credentials: 'omit',
+      });
+      body = await resp.json().catch(() => ({}));
+    } catch (e) {
+      show('Нет связи с сервером', 'Проверьте интернет и откройте ещё раз.');
+      return;
+    }
+    if (resp.ok && body.report) {
+      await TgChart.fontsReady();
+      stateEl.hidden = true;
+      root.classList.add('is-report');
+      card = TgReport.mount(cardsEl, body.report, { onSelect: haptic, toast });
+      return;
+    }
+    if (resp.status === 403) {
+      show('Нет доступа', 'Отчёт открывают только участники чата, куда его прислал бот.');
+    } else if (resp.status === 404) {
+      show('Не найдено', 'Отчёты и пояснения хранятся 90 дней. Попросите бота ответить заново.');
+    } else if (resp.status === 401) {
+      show('Сессия Telegram устарела', 'Закройте мини-приложение и откройте ссылку из чата ещё раз.');
+    } else if (body.code === 'access_check_failed') {
+      show('Не удалось проверить доступ', 'Telegram не ответил. Закройте окно и откройте ещё раз.');
+    } else {
+      show('Не открылось', body.error || ('Ошибка сервера ' + resp.status));
     }
   }
 
