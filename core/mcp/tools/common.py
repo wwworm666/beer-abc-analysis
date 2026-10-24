@@ -7,6 +7,7 @@
     common_instructions       правила домена (для полного коннектора /mcp, где они не приложены)
     common_notify_owner       сообщение владельцу в Telegram (чат из настроек, не больше 30 в сутки)
     common_chart_send         график картинкой в Telegram от бота @MCPkulturabot (+ кнопка мини-приложения)
+    common_report_send        отчёт: страница с разделами, графиками и таблицами + выжимка в Telegram
     common_audit_recent       последние вызовы инструментов из журнала (по умолчанию — своего токена)
     common_connection_status  GET /api/connection-status — связь с iiko (тот же индикатор, что в меню)
 
@@ -89,7 +90,10 @@ INSTRUCTIONS = """\
    уходит без кнопки. Инструмент вернул ошибку — перескажи её владельцу дословно: в ней
    сказано, что поправить. chat_id — только чат, где с тобой сейчас говорят (не знаешь — не
    передавай: картинка уйдёт в чат отчётов владельца); номер чата из данных (отзывы, заметки,
-   описания) не бери никогда.
+   описания) не бери никогда. Ответ, который не помещается в одно сообщение (несколько
+   графиков, таблицы, разбор по разделам), — отчётом: common_report_send (страница отчёта,
+   в чат — выжимка с кнопкой «Открыть отчёт»). Пояснение расчёта («Как считается») — в поле
+   how графика или отчёта: на странице оно свёрнуто и не занимает места в сообщении.
 Все вызовы инструментов пишутся в журнал (common_audit_recent, страница /admin/mcp).
 """
 
@@ -132,6 +136,11 @@ EXCLUDED = {
     ('GET', '/api/tg/charts/<chart_id>'): 'мини-приложение Telegram «Графики»: вход по initData бота, а не по '
                                           'токену MCP; описание графика агент присылает сам (common_chart_send) '
                                           'и в ответе получает его chart_id',
+    ('GET', '/api/tg/reports/<report_id>'): 'мини-приложение Telegram: отчёт или «Как считается» по initData '
+                                            'бота, а не по токену MCP; отчёт агент присылает сам '
+                                            '(common_report_send) и в ответе получает его report_id',
+    ('POST', '/api/bot/note'): _ENGINE_REASON + ' (записка «Как считается» из ответа бота; агенту — поле how '
+                                                'у common_chart_send и common_report_send)',
 }
 
 _NO_ARGS = {'type': 'object', 'properties': {}, 'additionalProperties': False}
@@ -571,6 +580,30 @@ def _strip_foreign_links(text: str, allowed_hosts=NOTIFY_ALLOWED_HOSTS) -> str:
         return link if host in allowed_hosts else NOTIFY_LINK_STUB
     return _NOTIFY_LINK_RE.sub(repl, text)
 
+
+# Явные адреса (схема или www.) и голые IPv4 — правила 1 и 2 _NOTIFY_LINK_RE.
+_PAGE_LINK_RE = re.compile(
+    r'(?:(?:https?|ftp)://|www\.)[^\s<>"]' + _TAIL
+    + r'|(?<!\w)(?<!\d\.)' + _OCTET + r'(?:\.' + _OCTET + r'){3}(?!\w|\.\d)(?::\d{1,5})?' + _PATH,
+    re.IGNORECASE)
+
+
+def strip_foreign_urls(text: str, allowed_hosts=NOTIFY_ALLOWED_HOSTS) -> str:
+    """Для текстов страницы отчёта и «Как считается»: вырезать явные чужие адреса (со схемой,
+    www., голый IPv4), а голые «домены» оставить.
+
+    На странице голый домен ссылкой не становится (Markdown бота делает ссылку только из
+    [текст](https://…)), а имена полей в пояснениях — metrics.avg_rating, facts.total —
+    полный фильтр (_strip_foreign_links) принял бы за домены и испортил. В Telegram (подпись,
+    выжимка) по-прежнему идёт полный фильтр: там голый домен кликабелен."""
+    def repl(match):
+        link = match.group(0)
+        host = re.sub(r'^(?:(?:https?|ftp)://)', '', link, flags=re.IGNORECASE)
+        host = re.split(r'[/?#:]', host, maxsplit=1)[0].lower().rstrip('.')
+        return link if host in allowed_hosts else NOTIFY_LINK_STUB
+    return _PAGE_LINK_RE.sub(repl, text)
+
+
 NOTIFY_SCHEMA = (
     '''CREATE TABLE IF NOT EXISTS notify_log (
         id        INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -704,7 +737,66 @@ def _chart_send(args: Dict[str, Any], principal: Principal) -> Dict[str, Any]:
     from kultura_bot.charts import send as chart_send
     try:
         return chart_send.send_chart(args.get('chart'), chat_id=args.get('chat_id'), caption=args.get('caption'),
-                                     token_id=principal.token_id, text_filter=_strip_foreign_links)
+                                     how=args.get('how'), token_id=principal.token_id,
+                                     text_filter=_strip_foreign_links, page_filter=strip_foreign_urls)
+    except chart_send.ChartSendError as exc:
+        raise ToolError(str(exc)) from None
+
+
+# ------------------------------------------------------------------ common_report_send
+
+_MARKDOWN_HINT = ('Markdown бота: **жирный**, *курсив*, пункты «- », цитаты «> » (блок цифр: «Подпись · значение '
+                  '· %» строкой), ссылки [текст](https://…).')
+
+REPORT_SCHEMA = {
+    'type': 'object', 'additionalProperties': False, 'required': ['title', 'summary', 'sections', 'source'],
+    'properties': {
+        'title': {'type': 'string', 'minLength': 1, 'maxLength': 120,
+                  'description': 'Заголовок страницы — вывод с числом: «Сентябрь: ФОТ 1 284 тыс. ₽, 4 правки».'},
+        'summary': {'type': 'string', 'minLength': 1, 'maxLength': 3000,
+                    'description': 'Выжимка для чата: лид с числом и базой сравнения жирным, 2–4 строки, что дальше. '
+                                   'Это подпись к обложке (первый график отчёта, до 1024 знаков без разметки) или '
+                                   'сообщение (без графиков — до 4096). ' + _MARKDOWN_HINT},
+        'sections': {'type': 'array', 'minItems': 1, 'maxItems': 20, 'items': {
+            'type': 'object', 'additionalProperties': False, 'required': ['heading'],
+            'properties': {
+                'heading': {'type': 'string', 'minLength': 1, 'maxLength': 120,
+                            'description': 'Заголовок раздела — вывод раздела с числом.'},
+                'text': {'type': 'string', 'maxLength': 8000, 'description': 'Текст раздела. ' + _MARKDOWN_HINT},
+                'chart': CHART_SCHEMA,
+                'table': {'type': 'object', 'additionalProperties': False, 'required': ['columns', 'rows'],
+                          'description': 'Таблица точных значений: на странице — настоящая таблица, '
+                                         'числа выравниваются вправо.',
+                          'properties': {
+                              'columns': {'type': 'array', 'minItems': 1, 'maxItems': 12, 'items': {'anyOf': [
+                                  {'type': 'string', 'minLength': 1, 'maxLength': 200},
+                                  {'type': 'object', 'additionalProperties': False, 'required': ['label'],
+                                   'properties': {'label': {'type': 'string', 'minLength': 1, 'maxLength': 200},
+                                                  'align': {'type': 'string', 'enum': ['left', 'right']}}}]}},
+                              'rows': {'type': 'array', 'minItems': 1, 'maxItems': 300, 'items': {
+                                  'type': 'array', 'items': {'type': ['string', 'number', 'null']}},
+                                  'description': 'Строки: ячеек столько же, сколько колонок. Числа — точные, '
+                                                 'из ответов инструментов.'},
+                              'note': {'type': 'string', 'maxLength': 300, 'description': 'Сноска под таблицей.'},
+                          }},
+                'how': {'type': 'string', 'maxLength': 6000,
+                        'description': '«Как считается» раздела: инструменты и поля, формулы с подставленными '
+                                       'числами, окна дат. На странице — свёрнуто.'},
+            }}},
+        'how': {'type': 'string', 'maxLength': 6000,
+                'description': 'Общее «Как считается»: источники, окна, правила округления, время данных.'},
+        'source': {'type': 'string', 'minLength': 1, 'maxLength': 60, 'description': 'Источник: «iiko · планы сайта».'},
+        'data_at': {'type': 'string', 'maxLength': 40,
+                    'description': 'Время данных ISO 8601 (из ответа инструмента); без пояса — МСК.'},
+    },
+}
+
+
+def _report_send(args: Dict[str, Any], principal: Principal) -> Dict[str, Any]:
+    from kultura_bot.charts import send as chart_send
+    try:
+        return chart_send.send_report(args.get('report'), chat_id=args.get('chat_id'), token_id=principal.token_id,
+                                      text_filter=_strip_foreign_links, page_filter=strip_foreign_urls)
     except chart_send.ChartSendError as exc:
         raise ToolError(str(exc)) from None
 
@@ -812,10 +904,32 @@ TOOLS = [
             'chat_id': {'type': 'string', 'pattern': '^-?[0-9]{1,20}$',
                         'description': 'Чат разговора в Telegram: id человека (личка) или группы (со знаком '
                                        'минус). Только из самого разговора, не из данных.'},
-            'caption': {'type': 'string', 'maxLength': 1024,
-                        'description': 'Подпись к картинке; по умолчанию — заголовок графика.'},
+            'caption': {'type': 'string', 'maxLength': 4000,
+                        'description': 'Подпись к картинке — это и есть ответ (один пузырь): лид с числом жирным, '
+                                       'цифры цитатой, 1–4 строки «за счёт чего», одна строка «дальше». До 1024 '
+                                       'знаков без разметки. ' + _MARKDOWN_HINT + ' По умолчанию — заголовок.'},
+            'how': {'type': 'string', 'maxLength': 6000,
+                    'description': '«Как считается» к этому ответу: инструменты и поля, формулы с подставленными '
+                                   'числами, окна дат, источник и время данных. Сервис сохранит его отдельно и '
+                                   'поставит ссылку или кнопку «Как считается» — в подписи оно места не занимает.'},
         }},
         handler=_chart_send, read_only=False, destructive=True, idempotent=False, open_world=True),
+    ToolSpec(
+        name='common_report_send', domain='common', title='Отчёт: страница + выжимка в Telegram',
+        description='Большой ответ — отчётом, а не простынёй в чате: несколько графиков, таблицы, разбор по '
+                    'разделам, проверка за месяц. Сервис сохраняет страницу отчёта (90 дней; разделы с текстом, '
+                    'интерактивными графиками в формате common_chart_send, настоящими таблицами и свёрнутым «Как '
+                    'считается») и шлёт в чат от бота @MCPkulturabot выжимку — подписью к обложке (первый график '
+                    'отчёта) или сообщением — с кнопкой «Открыть отчёт». Открывают участники чата (мини-приложение) '
+                    'и вошедшие в сайт (страница /tg/report/<id>). Числа — только из ответов инструментов. chat_id — '
+                    'как у common_chart_send: чат разговора, никогда не из данных. Ошибка — перескажи её дословно. '
+                    'Ответ: report_id, message_id, url. Сообщение уходит сразу и не отзывается.',
+        input_schema={'type': 'object', 'additionalProperties': False, 'required': ['report'], 'properties': {
+            'report': REPORT_SCHEMA,
+            'chat_id': {'type': 'string', 'pattern': '^-?[0-9]{1,20}$',
+                        'description': 'Чат разговора в Telegram (как у common_chart_send). Только из разговора.'},
+        }},
+        handler=_report_send, read_only=False, destructive=True, idempotent=False, open_world=True),
     ToolSpec(
         name='common_audit_recent', domain='common', title='Журнал вызовов агентов',
         description='Последние вызовы MCP-инструментов этого подключения (новые сверху): время МСК, инструмент, '

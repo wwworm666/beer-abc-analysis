@@ -11,13 +11,32 @@
     # Заголовок          -> <b>Заголовок</b>
     - пункт / * пункт    -> • пункт
     строки таблицы | … | -> <pre>…</pre>   (если модель забыла про ```)
+    > строка             -> <blockquote>…</blockquote>             (подряд идущие — одна цитата)
+    >> строка            -> <blockquote expandable>…</blockquote>  (свёрнутая цитата)
+
+Цитата — блок цифр («Подпись · значение · %») или текст гостя: в отличие от ```,
+пропорциональный шрифт и перенос по словам, на телефоне ничего не съезжает. Внутри
+цитаты — строчная разметка и пункты; цитаты не вкладываются (Telegram не разрешает).
 
 Всё остальное экранируется (&, <, >): текст модели не может сломать разметку.
 
 Длинный ответ режется на части не длиннее LIMIT символов по абзацам, блок кода не
 разрывается посередине без нужды (а если он сам длиннее части — режется по строкам и
-закрывается/открывается заново). Telegram отказал в разметке — то же сообщение уходит
+закрывается/открывается заново); длинный абзац или цитата — по строкам, каждая строка
+сохраняет свой знак цитаты. Telegram отказал в разметке — то же сообщение уходит
 простым текстом (plain).
+
+## «Как считается» (split_how)
+
+Решение владельца 2026-10-24: пояснение расчёта не занимает места в ответе. Модель пишет
+его последним блоком свёрнутой цитаты, первая строка — «Как считается»:
+
+    >> Как считается
+    >> % плана = факт / план × 100; …
+
+split_how вырезает этот блок; сервер бота сохраняет его запиской на сайте и ставит
+ссылку (with_link — в конец последней строки) или кнопку. Сайт не ответил — блок остаётся
+в ответе свёрнутой цитатой.
 """
 import html
 import re
@@ -36,6 +55,9 @@ _HEADING_RE = re.compile(r'^#{1,6}\s+(.+?)\s*#*\s*$')
 _BULLET_RE = re.compile(r'^(\s*)[-*]\s+')
 _TABLE_LINE_RE = re.compile(r'^\s*\|.*\|\s*$')
 _TABLE_RULE_RE = re.compile(r'^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$')
+_QUOTE_RE = re.compile(r'^\s{0,3}(>>?)(?: |$)')         # «> текст» или «>> текст» (пробел после знака)
+_TAG_RE = re.compile(r'<[^>]+>')
+_HOW_HEAD_RE = re.compile(r'^\W*как\s+считается\W*', re.I)
 
 
 def _inline(text: str) -> str:
@@ -65,11 +87,35 @@ def _inline(text: str) -> str:
     return ''.join(out)
 
 
+def _line(line: str) -> str:
+    """Одна строка текста -> HTML: заголовок, пункт или строчная разметка."""
+    heading = _HEADING_RE.match(line)
+    if heading:
+        return f'<b>{_inline(heading.group(1))}</b>'
+    bullet = _BULLET_RE.match(line)
+    if bullet:
+        return f'{bullet.group(1)}• {_inline(line[bullet.end():])}'
+    return _inline(line)
+
+
+def quote_kind(line: str) -> str:
+    """'>>' — строка свёрнутой цитаты, '>' — цитаты, '' — не цитата."""
+    match = _QUOTE_RE.match(line)
+    return match.group(1) if match else ''
+
+
+def _unquote(line: str) -> str:
+    match = _QUOTE_RE.match(line)
+    return line[match.end():] if match else line
+
+
 def _text_block(text: str) -> str:
-    """Текст вне блоков кода -> HTML: заголовки, списки, таблицы, строчная разметка."""
+    """Текст вне блоков кода -> HTML: заголовки, списки, таблицы, цитаты, строчная разметка."""
     lines = text.split('\n')
     out: List[str] = []
     table: List[str] = []
+    quote: List[str] = []
+    quote_type = ''
 
     def flush_table():
         if table:
@@ -77,21 +123,32 @@ def _text_block(text: str) -> str:
             out.append('<pre>' + html.escape('\n'.join(rows), quote=False) + '</pre>')
             table.clear()
 
+    def flush_quote():
+        nonlocal quote_type
+        if quote:
+            opener = '<blockquote expandable>' if quote_type == '>>' else '<blockquote>'
+            body = '\n'.join(_line(q) for q in quote).strip('\n')
+            out.append(f'{opener}{body}</blockquote>')
+            quote.clear()
+        quote_type = ''
+
     for line in lines:
+        kind = quote_kind(line)
+        if kind:
+            if kind != quote_type:
+                flush_table()
+                flush_quote()
+                quote_type = kind
+            quote.append(_unquote(line))
+            continue
+        flush_quote()
         if _TABLE_LINE_RE.match(line) or (table and _TABLE_RULE_RE.match(line)):
             table.append(line.strip())
             continue
         flush_table()
-        heading = _HEADING_RE.match(line)
-        if heading:
-            out.append(f'<b>{_inline(heading.group(1))}</b>')
-            continue
-        bullet = _BULLET_RE.match(line)
-        if bullet:
-            out.append(f'{bullet.group(1)}• {_inline(line[bullet.end():])}')
-            continue
-        out.append(_inline(line))
+        out.append(_line(line))
     flush_table()
+    flush_quote()
     return '\n'.join(out)
 
 
@@ -109,10 +166,61 @@ def to_html(markdown: str) -> str:
 
 
 def plain(markdown: str) -> str:
-    """Запасной вариант без разметки: снять ``` и звёздочки, оставить текст как есть."""
+    """Запасной вариант без разметки: снять ```, звёздочки и знаки цитат, оставить текст как есть."""
     text = re.sub(r'```(?:[^\n`]*\n)?', '', markdown)
     text = text.replace('**', '')
+    text = _LINK_RE.sub(r'\1: \2', text)
+    text = '\n'.join(_unquote(line) for line in text.split('\n'))
     return text.strip()
+
+
+def visible_len(text_html: str) -> int:
+    """Длина HTML Telegram так, как её считает Telegram (после разбора сущностей): без тегов."""
+    return len(html.unescape(_TAG_RE.sub('', text_html or '')))
+
+
+def split_how(markdown: str):
+    """Вырезать из ответа блок «Как считается» (последняя свёрнутая цитата «>> Как считается»).
+
+    Вернуть (ответ без блока, текст блока в Markdown без знаков цитаты и без строки-заголовка).
+    Блока нет — (ответ как есть, '')."""
+    lines = (markdown or '').split('\n')
+    blocks = []                                   # (начало, конец) подряд идущих строк «>>»
+    start = None
+    for i, line in enumerate(lines + ['']):
+        if i < len(lines) and quote_kind(line) == '>>':
+            if start is None:
+                start = i
+        elif start is not None:
+            blocks.append((start, i))
+            start = None
+    for begin, end in reversed(blocks):
+        first = _unquote(lines[begin]).replace('*', '').strip()
+        head = _HOW_HEAD_RE.match(first)
+        if not head:
+            continue
+        body = [_unquote(line) for line in lines[begin + 1:end]]
+        rest = first[head.end():].strip()
+        if rest:
+            body.insert(0, rest)
+        how = '\n'.join(body).strip()
+        visible = '\n'.join(lines[:begin] + lines[end:])
+        return re.sub(r'\n{3,}', '\n\n', visible).strip(), how
+    return (markdown or '').strip(), ''
+
+
+def with_link(markdown: str, text: str, url: str) -> str:
+    """Дописать ссылку [text](url) в конец последней строки ответа (ни строки места), а если
+    ответ кончается кодом, таблицей или цитатой — отдельной строкой."""
+    body = (markdown or '').rstrip()
+    link = f'[{text}]({url})'
+    if not body:
+        return link
+    last = body.split('\n')[-1]
+    if body.endswith('```') or quote_kind(last) or _TABLE_LINE_RE.match(last) or _HEADING_RE.match(last):
+        return f'{body}\n{link}'
+    joiner = ' ' if last.rstrip('*_ ').endswith(('.', '!', '?', '…', ':')) else ' · '
+    return f'{body}{joiner}{link}'
 
 
 def _split_code(block: str, limit: int) -> List[str]:
@@ -139,6 +247,29 @@ def _split_code(block: str, limit: int) -> List[str]:
     return chunks
 
 
+def _split_lines(piece: str, limit: int) -> List[str]:
+    """Абзац или цитата длиннее части — по строкам (строка цитаты сохраняет свой знак «>»);
+    строка длиннее части — кусками."""
+    chunks: List[str] = []
+    current = ''
+    for line in piece.split('\n'):
+        prefix = '>> ' if quote_kind(line) == '>>' else '> ' if quote_kind(line) else ''
+        pieces = [line] if len(line) <= limit else \
+            [prefix + line[i:i + limit - len(prefix)] if i else line[:limit]
+             for i in range(0, len(line), limit - len(prefix))]
+        for sub in pieces:
+            candidate = f'{current}\n{sub}' if current else sub
+            if len(candidate) <= limit:
+                current = candidate
+            else:
+                if current:
+                    chunks.append(current)
+                current = sub
+    if current:
+        chunks.append(current)
+    return chunks
+
+
 def split(markdown: str, limit: int = LIMIT) -> List[str]:
     """Разрезать Markdown на части не длиннее limit: по абзацам, блоки кода целиком."""
     markdown = (markdown or '').strip()
@@ -156,8 +287,7 @@ def split(markdown: str, limit: int = LIMIT) -> List[str]:
     current = ''
     for piece in pieces:
         if len(piece) > limit:
-            subpieces = (_split_code(piece, limit) if piece.startswith('```') else
-                         [piece[i:i + limit] for i in range(0, len(piece), limit)])
+            subpieces = _split_code(piece, limit) if piece.startswith('```') else _split_lines(piece, limit)
         else:
             subpieces = [piece]
         for sub in subpieces:

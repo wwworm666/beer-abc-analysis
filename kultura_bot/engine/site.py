@@ -8,7 +8,7 @@
   сервер в Амстердаме»;
 - API бота (/api/bot/*, routes/bot_api.py) — только этому токену: настройки с секретами
   (токен Telegram, ключ Anthropic, пауза), привязки Telegram к администраторам, отчёт о
-  работе для страницы.
+  работе для страницы, записки «Как считается» к ответам.
 
 MCP — «старой эпохи» протокола (initialize, tools/list, tools/call: JSON-RPC в теле POST,
 ответ — один JSON, сессий нет): её сайт поддерживает для всех клиентов
@@ -95,6 +95,16 @@ class Site:
     def report(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         """Отчёт для страницы: состояние и расход с прошлого отчёта."""
         return self._request('POST', '/api/bot/report', body=payload)
+
+    def note(self, chat_id: str, text: str, title: str = '') -> str:
+        """Записка «Как считается» к ответу: сайт хранит её 90 дней. Вернуть id (rep_…)."""
+        body = {'chat_id': str(chat_id), 'text': text}
+        if title:
+            body['title'] = title
+        note_id = self._request('POST', '/api/bot/note', body=body).get('id')
+        if not isinstance(note_id, str) or not note_id:
+            raise SiteError('protocol', 'Сайт не вернул id записки «Как считается»')
+        return note_id
 
     # ---------------------------------------------------------------- MCP
 

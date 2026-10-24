@@ -32,7 +32,8 @@ conflict на странице, пока её не остановят.
 3. Кто пишет — спрашиваем сайт (GET /api/bot/actor/<id>, ответ помнится ACTOR_CACHE_S):
    привязанный активный администратор, иначе одна фраза «закрытый бот» (в личке, не
    чаще раза в REFUSAL_EVERY_S) и всё.
-4. /new — новый диалог (в очереди чата); /help — что умеет бот.
+4. /new — новый диалог (в очереди чата); /help — что умеет бот; /report <вопрос> или
+   сообщение со слова из settings.REPORT_WORDS («отчёт: …», «исследуй …») — режим отчёта.
 5. Вопрос (текст, фото, PDF) — в очередь чата: в одном чате по порядку, разных чатов
    одновременно — не больше settings.MAX_PARALLEL_DIALOGS. Вопрос записан сразу
    (queued): остановка сервера не потеряет его молча.
@@ -46,6 +47,19 @@ conflict на странице, пока её не остановят.
 Графики модель отправляет сама (common_chart_send — их рисует и шлёт сайт). Ошибка
 Anthropic — понятный текст в чат (claude.describe_error); дневной предел — «лимит на
 сегодня».
+
+## Вид ответа (решения владельца 2026-10-24, docs/kultura-bot.md «Как выглядит ответ»)
+
+- обычный вопрос — один пузырь: текст модели или подпись к графику (её пишет модель в
+  common_chart_send). Пустой текст после графика или отчёта — второго сообщения нет
+  (только строка цены, пока она включена: settings.SHOW_COST);
+- «Как считается» — блок «>> Как считается» в конце ответа (formatting.split_how): сервер
+  вырезает его, сохраняет запиской на сайте (POST /api/bot/note) и ставит ссылку в конец
+  ответа или кнопку под ним (kultura_bot/links.py). Сайт не ответил — блок остаётся
+  свёрнутой цитатой;
+- режим отчёта (/report, «отчёт: …») — предел settings.REPORT_BUDGET_USD и
+  REPORT_MAX_TOOL_ROUNDS шагов, в служебной строке «режим: отчёт»: модель собирает страницу
+  common_report_send, в чат уходит выжимка с кнопкой «Открыть отчёт».
 
 ## Отчёт сайту
 
@@ -64,8 +78,8 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 from typing import Any, Dict, List, Optional
 
-from kultura_bot import settings
-from kultura_bot.engine import agent, claude, tools
+from kultura_bot import links, settings
+from kultura_bot.engine import agent, claude, formatting, tools
 from kultura_bot.engine.site import SiteError
 from kultura_bot.engine.store import msk_day, msk_now
 from kultura_bot.engine.telegram_io import TelegramIO
@@ -88,8 +102,14 @@ BUSINESS_DAY_SHIFT = timedelta(hours=6)    # рабочие сутки бара 
 
 HELP_TEXT = ('Я помощник сети «Культура»: отвечаю по данным сайта — продажи и планы, остатки и заказы, '
              'краны, смены и зарплаты, контент-план и отзывы. Пишите вопрос обычными словами, можно '
-             'приложить фото или PDF. Графики приходят с кнопкой «Открыть интерактивно».\n\n'
+             'приложить фото или PDF. Графики приходят с кнопкой «Открыть интерактивно», пояснение '
+             'расчёта — по ссылке «Как считается».\n\n'
+             'Большой вопрос — отчётом: «/report вопрос» или «Отчёт: вопрос». Соберу полный разбор на '
+             'странице (графики, таблицы), в чат пришлю выжимку с кнопкой «Открыть отчёт».\n\n'
              '/new — начать новый диалог')
+REPORT_EMPTY_TEXT = 'Напишите вопрос для отчёта: «/report как прошёл сентябрь по барам».'
+WEEKDAYS = ('пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс')
+MONTHS = ('янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек')
 UNSUPPORTED_TEXT = 'Пока понимаю текст, фото и PDF. Напишите вопрос словами.'
 UNSUPPORTED_FILE_TEXT = ('Этот файл я не читаю: понимаю фото, картинки (JPEG, PNG, WebP, GIF) и PDF. '
                          'Отвечаю по тексту сообщения.')
@@ -105,10 +125,46 @@ def cost_line(spend: agent.Spend) -> str:
     """Последняя строка ответа: во что он обошёлся (бот и агенты вместе); упёрся в предел на
     вопрос — так и сказано."""
     line = f'Ответ обошёлся в ${spend.usd:.2f} (запросов к модели: {spend.steps})'
-    limit = settings.QUESTION_BUDGET_USD
+    limit = spend.budget()
     if limit and spend.usd >= limit:
         line += f' — остановился на пределе ${limit:.2f} на вопрос'
     return f'*{line}.*'
+
+
+def _day(d) -> str:
+    return f'{WEEKDAYS[d.weekday()]} {d.day} {MONTHS[d.month - 1]}'
+
+
+def _span(a, b) -> str:
+    """«16–22 окт» или «28 сен – 4 окт» и ISO-границы в скобках: модель копирует, а не считает."""
+    if a == b:
+        text = f'{b.day} {MONTHS[b.month - 1]}'
+    elif (a.year, a.month) == (b.year, b.month):
+        text = f'{a.day}–{b.day} {MONTHS[b.month - 1]}'
+    else:
+        text = f'{a.day} {MONTHS[a.month - 1]} – {b.day} {MONTHS[b.month - 1]}'
+    return f'{text} ({a.isoformat()}..{b.isoformat()})'
+
+
+def calendar_text(now) -> str:
+    """Даты для служебной строки: дни недели и окна «вчера», «последние 7 дней», месяцы.
+
+    Модель дат не вычисляет (день недели «из памяти» — частая ошибка): подписи и границы
+    окон она копирует отсюда. Рабочие сутки бара — до 06:00 МСК, поэтому «вчера» и окна
+    считаются от рабочего дня, а не от календарной даты."""
+    from datetime import timedelta as _td
+    business = (now - BUSINESS_DAY_SHIFT).date()
+    yesterday = business - _td(days=1)
+    month_start = business.replace(day=1)
+    prev_end = month_start - _td(days=1)
+    parts = [f'рабочий день бара {_day(business)} ({business.isoformat()})',
+             f'вчера {_day(yesterday)} ({yesterday.isoformat()})',
+             f'последние 7 дней {_span(business - _td(days=7), yesterday)}',
+             f'предыдущие 7 дней {_span(business - _td(days=14), business - _td(days=8))}']
+    if business.day > 1:
+        parts.append(f'этот месяц до вчера {_span(month_start, yesterday)}')
+    parts.append(f'прошлый месяц {_span(prev_end.replace(day=1), prev_end)}')
+    return ' · '.join(parts)
 
 
 def refusal_text() -> str:
@@ -417,11 +473,20 @@ class Service:
         if command == 'help':
             self.tg.send_plain(chat_id, HELP_TEXT)
             return
+        mode = 'answer'
+        if command == settings.REPORT_COMMAND:
+            mode, text = 'report', rest
+            if not text:
+                self.tg.send_plain(chat_id, REPORT_EMPTY_TEXT)
+                return
+        elif text.lower().startswith(tuple(w.lower() for w in settings.REPORT_WORDS)):
+            mode = 'report'
         has_file = bool(message.get('photo') or (message.get('document') or {}).get('mime_type') in DOCUMENT_MIMES)
         if not text and not has_file:
             self.tg.send_plain(chat_id, UNSUPPORTED_TEXT)
             return
-        self.enqueue(chat_id, {'message': message, 'actor': actor, 'text': text, 'chat_type': chat_type})
+        self.enqueue(chat_id, {'message': message, 'actor': actor, 'text': text, 'chat_type': chat_type,
+                               'mode': mode})
 
     # ---------------------------------------------------------------- очередь
 
@@ -506,11 +571,28 @@ class Service:
         return blocks
 
     @staticmethod
-    def header(actor: Dict[str, Any]) -> str:
+    def header(actor: Dict[str, Any], mode: str = 'answer') -> str:
         now = msk_now()
-        business = (now - BUSINESS_DAY_SHIFT).date().isoformat()
-        return (f'[{now.strftime("%d.%m.%Y %H:%M")} МСК · рабочий день бара {business} · '
+        report = (f' · режим: отчёт — страница common_report_send, предел ${settings.REPORT_BUDGET_USD:.2f}'
+                  if mode == 'report' else '')
+        return (f'[{WEEKDAYS[now.weekday()]} {now.strftime("%d.%m.%Y %H:%M")} МСК · {calendar_text(now)}{report} · '
                 f'пишет {actor["display_name"]} ({actor["login"]})]')
+
+    def how_link(self, chat_id: str, visible: str, how: str):
+        """«Как считается» -> записка на сайте и ссылка или кнопка. Вернуть (текст, reply_markup).
+
+        Сайт не ответил — блок возвращается в ответ свёрнутой цитатой (ничего не теряется)."""
+        try:
+            note_id = self.site.note(chat_id, how)
+        except SiteError as exc:
+            log.warning('[BOT] записка «Как считается» не сохранилась: %s', exc.text)
+            quoted = '\n'.join('>> ' + line if line.strip() else '>>' for line in
+                               [links.HOW_TEXT] + how.split('\n'))
+            return (f'{visible}\n\n{quoted}' if visible else quoted), None
+        target = links.how_target(chat_id, note_id, self.username)
+        if 'link' in target:
+            return formatting.with_link(visible, links.HOW_TEXT, target['link']), None
+        return visible, {'inline_keyboard': [[target['button']]]}
 
     def get_catalog(self) -> tools.Catalog:
         """Правила и инструменты с сайта (обновляются раз в settings.CATALOG_TTL_S)."""
@@ -526,6 +608,26 @@ class Service:
                 log.warning('[BOT] каталог не обновился, отвечаю по прежнему: %s', exc.text)
                 self.catalog_at = time.time() - settings.CATALOG_TTL_S + 60     # ещё раз через минуту
             return self.catalog
+
+    def deliver(self, chat_id: str, answer: str, *, ctx: tools.ToolContext, spend: agent.Spend,
+                notice: str = '', reply_to: Optional[int] = None) -> None:
+        """Ответ модели -> Telegram: «Как считается» за ссылкой, строка цены, уведомление.
+
+        График или отчёт уже ушли подписью-ответом, а текста нет — второго сообщения нет
+        (кроме уведомления и строки цены, пока она включена)."""
+        visible, how = formatting.split_how(answer or '')
+        markup = None
+        if how:
+            visible, markup = self.how_link(chat_id, visible, how)
+        sent_card = bool(ctx.charts_sent or ctx.reports_sent)
+        text = visible or ('' if sent_card or markup else 'Готово.')
+        if notice:
+            text = f'*{notice}*\n\n{text}' if text else f'*{notice}*'
+        limit = spend.budget()
+        if settings.SHOW_COST or (limit and spend.usd >= limit):
+            text = f'{text}\n\n{cost_line(spend)}' if text else cost_line(spend)
+        if text or markup:
+            self.tg.send_markdown(chat_id, text or links.HOW_TEXT, reply_to=reply_to, reply_markup=markup)
 
     def answer(self, chat_id: str, job: Dict[str, Any]) -> None:
         message = job['message']
@@ -547,8 +649,9 @@ class Service:
         stop = threading.Event()
         threading.Thread(target=self._typing, args=(chat_id, stop), daemon=True).start()
         status, error = 'done', ''
+        report_mode = job.get('mode') == 'report'
         try:
-            header = self.header(actor)
+            header = self.header(actor, 'report' if report_mode else 'answer')
             user_content = [{'type': 'text', 'text': f'{header}\n{job["text"] or "(без текста)"}'}]
             files = self._files(message)
             document = message.get('document') or {}
@@ -577,22 +680,17 @@ class Service:
             turns = dialog['turns'] if dialog else 0
 
             client = self.client_factory(self.key)
-            spend = agent.Spend()
+            spend = agent.Spend(limit=settings.REPORT_BUDGET_USD if report_mode else None)
             ctx = tools.ToolContext(site=self.site, chat_id=chat_id, allowed=persona.toolset.names, spend=spend)
             ctx.run_agent = lambda name, task: agent.run_agent(client, catalog.agents[name], task, parent=ctx,
                                                                store=self.store, header=header,
                                                                on_usage=self.add_usage)
             result = agent.run_turn(client, system_text=persona.system, tool_list=persona.toolset.defs,
                                     history=history, user_content=user_content, ctx=ctx, store=self.store,
+                                    max_rounds=settings.REPORT_MAX_TOOL_ROUNDS if report_mode else None,
                                     on_usage=self.add_usage)
             self.store.save_dialog(chat_id, persona.fingerprint, started_at, result.messages, turns + 1)
-            text = result.text or ('Готово: график выше.' if ctx.charts_sent else 'Готово.')
-            if notice:
-                text = f'*{notice}*\n\n{text}'
-            limit = settings.QUESTION_BUDGET_USD
-            if settings.SHOW_COST or (limit and spend.usd >= limit):
-                text = f'{text}\n\n{cost_line(spend)}'
-            self.tg.send_markdown(chat_id, text, reply_to=reply_to)
+            self.deliver(chat_id, result.text, ctx=ctx, spend=spend, notice=notice, reply_to=reply_to)
             if self.status['claude_error']:             # Claude снова отвечает — ошибку со страницы убрать
                 self.set_status(self.status['state'], self.status['detail'], claude_error='')
         except agent.BudgetExceeded as exc:

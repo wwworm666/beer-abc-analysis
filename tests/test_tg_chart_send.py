@@ -83,7 +83,8 @@ def test_send_stores_description_every_time(setup):
     assert (stored['chat_id'], stored['token_id'], stored['sent'], stored['message_id']) == (OWNER, 'st_owner', 1, 77)
     call = setup['tg'].calls[0]
     assert call['png'] == PNG and call['token'] == 'test-mcp-bot-token'
-    assert call['fields'] == {'chat_id': OWNER, 'caption': raw['title']}, 'флаг выключен — кнопки нет'
+    assert call['fields'] == {'chat_id': OWNER, 'caption': raw['title'], 'parse_mode': 'HTML'}, \
+        'флаг выключен — кнопки нет; подпись — HTML'
     assert setup['rendered'][0]['title'] == raw['title'], 'картинка рисуется по тому же описанию'
     second = tg_chart_send.send_chart(raw, chat_id=OWNER, caption='  Выручка   за ивент ')
     assert second['chart_id'] != result['chart_id'] and len(rows()) == 2, 'новая отправка — новое описание'

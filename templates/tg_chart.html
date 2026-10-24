@@ -1,6 +1,9 @@
 <!doctype html>
 {#- Мини-приложение «Графики» бота @MCPkulturabot (routes/tg_miniapp.py, docs/tg-miniapp.md).
-    mode: app — в Telegram (данные приносит static/tg_chart/app.js по initData);
+    mode: app — в Telegram (данные приносит static/tg_chart/app.js по initData; график или
+                отчёт — static/tg_chart/report.js);
+          site — отчёт или «Как считается» страницей сайта /tg/report/<id> (данные — в payload,
+                вход — сайта; static/tg_chart/site.js);
           dev — фикстуры прототипа, только при debug (static/tg_chart/dev.js);
           png — картинка для чата в Chromium без сети (kultura_bot/charts/png.py, static/tg_chart/png.js).
     Шаблон самодостаточный: без url_for и current_user — его собирает и рендерер PNG вне запроса. -#}
@@ -11,7 +14,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="light dark">
 <meta name="referrer" content="no-referrer">
-<title>График · Культура</title>
+<title>{{ title|default('График') }} · Культура</title>
 {%- if mode == 'app' %}
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 {%- endif %}
@@ -31,6 +34,9 @@
 <script type="application/json" id="tg-chart-data">{{ payload|tojson }}</script>
 <script src="/static/libs/echarts-5.5.1/echarts.min.js"></script>
 <script src="/static/tg_chart/charts.js?v={{ v }}"></script>
+{%- if mode in ('app', 'site') %}
+<script src="/static/tg_chart/report.js?v={{ v }}"></script>
+{%- endif %}
 <script src="/static/tg_chart/{{ mode }}.js?v={{ v }}"></script>
 </body>
 </html>

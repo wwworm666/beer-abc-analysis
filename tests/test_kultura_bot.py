@@ -85,7 +85,7 @@ def site_tool(name, description='инструмент'):
 
 DOMAIN_TOOLS = {
     'common': ['common_bars_reference', 'common_chart_send', 'common_docs_read', 'common_instructions',
-               'common_notify_owner', 'common_whoami'],
+               'common_notify_owner', 'common_report_send', 'common_whoami'],
     'content': ['content_plan_get', 'content_reviews_list'],
     'stocks': ['stocks_orders_board', 'stocks_taps_list'],
     'analytics': ['analytics_dashboard', 'analytics_sales'],
@@ -108,6 +108,8 @@ class FakeSite:
         self.config_error = None
         self.extra_tools = []
         self.results = {}                   # имя -> {'content', 'isError'}
+        self.notes = []                     # (chat_id, text) — записки «Как считается»
+        self.note_error = None
 
     def _check(self):
         if self.down:
@@ -136,6 +138,13 @@ class FakeSite:
         self.reports.append(copy.deepcopy(payload))
         return {'ok': True}
 
+    def note(self, chat_id, text_value, title=''):
+        self._check()
+        if self.note_error is not None:
+            raise self.note_error
+        self.notes.append((str(chat_id), text_value))
+        return 'rep_' + f'{len(self.notes):022x}'
+
     def instructions(self, connector='/mcp'):
         self._check()
         return f'Правила коннектора {connector}.'
@@ -161,6 +170,9 @@ class FakeSite:
         if name == tools.CHART_TOOL:
             return {'content': [text(json.dumps({'chart_id': 'X' * 22, 'chat_id': arguments.get('chat_id')}))],
                     'isError': False}
+        if name == tools.REPORT_TOOL:
+            return {'content': [text(json.dumps({'report_id': 'rep_' + 'a' * 22, 'chat_id': arguments.get('chat_id'),
+                                                 'message_id': 9}))], 'isError': False}
         return copy.deepcopy(self.results.get(name, {'content': [text(json.dumps({'ok': name}))],
                                                      'isError': False}))
 
@@ -209,6 +221,7 @@ class FakeTelegram:
     def __init__(self, token=TOKEN):
         self.token = token
         self.sent = []          # (chat_id, text, reply_to)
+        self.markups = []       # reply_markup каждого send_markdown (None — без кнопок)
         self.updates = []
         self.webhook_deleted = 0
         self.typing_count = 0
@@ -234,8 +247,9 @@ class FakeTelegram:
         self.sent.append((str(chat_id), text_value, reply_to))
         return 1
 
-    def send_markdown(self, chat_id, markdown, reply_to=None):
+    def send_markdown(self, chat_id, markdown, reply_to=None, reply_markup=None):
         self.sent.append((str(chat_id), markdown, reply_to))
+        self.markups.append(reply_markup)
         return [1]
 
     def download(self, file_id, max_bytes):
@@ -1007,3 +1021,153 @@ def test_main_without_key_exits_with_hint(monkeypatch, capsys):
     monkeypatch.delenv('KULTURA_BOT_KEY', raising=False)
     assert main.main() == 2
     assert 'KULTURA_BOT_KEY' in capsys.readouterr().err
+
+
+# ------------------------------------------------------------------ вид ответа (решения 2026-10-24)
+
+HOW_ANSWER = ('**Неделя 16–22 окт: 4 412 тыс. ₽ — 98% плана.**\n\n'
+              '> **Вчера, тыс. ₽ · % плана**\n> Лиговский · 171 · 104%\n> Кременчугская · 129 · 86%\n\n'
+              'Могу разложить Кременчугскую по дням.\n\n'
+              '>> Как считается\n>> % плана = 4 412 / 4 520 = 98%; metrics.avg_rating — из инструмента.')
+
+
+def test_quotes_become_blockquotes_and_survive_splitting():
+    html = formatting.to_html('Вывод\n> **Вчера** · 171 · 104%\n> Лиг · <b>\n>> Как считается\n>> формула\nконец')
+    assert html == ('Вывод\n<blockquote><b>Вчера</b> · 171 · 104%\nЛиг · &lt;b&gt;</blockquote>\n'
+                    '<blockquote expandable>Как считается\nформула</blockquote>\nконец'), \
+        'подряд идущие строки — одна цитата, смена вида — новая, текст экранирован'
+    assert formatting.to_html('>5 смен подряд') == '&gt;5 смен подряд', 'без пробела после «>» — не цитата'
+    assert formatting.to_html('> - пункт') == '<blockquote>• пункт</blockquote>'
+    parts = formatting.split('> ' + 'а' * 50 + '\n> ' + 'б' * 50, limit=60)
+    assert parts == ['> ' + 'а' * 50, '> ' + 'б' * 50], 'длинная цитата режется по строкам, знак цитаты остаётся'
+    assert all(formatting.to_html(p).startswith('<blockquote>') for p in parts)
+    long_line = '> ' + 'в' * 130
+    assert all(p.startswith('> ') for p in formatting.split(long_line, limit=60)), 'и у кусков длинной строки'
+    assert formatting.plain('> цитата\n>> свёрнуто\n[сайт](https://beerkultura.ru)') == \
+        'цитата\nсвёрнуто\nсайт: https://beerkultura.ru'
+    assert formatting.visible_len('<b>a&amp;b</b>\n<blockquote expandable>в</blockquote>') == 5
+
+
+def test_split_how_and_with_link():
+    visible, how = formatting.split_how(HOW_ANSWER)
+    assert visible.endswith('Могу разложить Кременчугскую по дням.') and '>>' not in visible
+    assert how == '% плана = 4 412 / 4 520 = 98%; metrics.avg_rating — из инструмента.'
+    assert formatting.split_how('Ответ без пояснения') == ('Ответ без пояснения', '')
+    other = 'Ответ\n\n>> Ещё 5 позиций\n>> Палм · 2'
+    assert formatting.split_how(other) == (other, ''), 'свёрнутый хвост списка — не «Как считается»'
+    visible, how = formatting.split_how('Ответ\n\n>> **Как считается:** доля = 136 / 327 = 42%\n>> iiko')
+    assert (visible, how) == ('Ответ', 'доля = 136 / 327 = 42%\niiko'), 'текст в строке заголовка не теряется'
+    url = 'https://t.me/MCPkulturabot/app?startapp=rep_' + 'a' * 22
+    assert formatting.with_link('Могу показать по дням.', 'Как считается', url) == \
+        f'Могу показать по дням. [Как считается]({url})', 'ни строки места: в конец последней строки'
+    assert formatting.with_link('Итог 98%', 'Как считается', url).endswith(f'98% · [Как считается]({url})')
+    assert formatting.with_link('> Лиг · 171', 'Как считается', url) == f'> Лиг · 171\n[Как считается]({url})', \
+        'после цитаты — отдельной строкой'
+    assert f'<a href="{url}">Как считается</a>' in formatting.to_html(formatting.with_link('Итог.', 'Как считается',
+                                                                                             url))
+
+
+def test_how_goes_behind_link_or_button(bot):
+    mp = bot.env.monkeypatch
+    mp.setattr(settings, 'MINIAPP_SHORT_NAME', 'app')
+    bot.client.script += [resp(text(HOW_ANSWER))]
+    bot.svc.handle_update(message('как выручка?'))
+    sent = bot.tg.sent[-1][1]
+    note_id = 'rep_' + f'{1:022x}'
+    assert bot.env.site.notes == [(OWNER_TG, '% плана = 4 412 / 4 520 = 98%; metrics.avg_rating — из инструмента.')]
+    assert sent.endswith(f'по дням. [Как считается](https://t.me/MCPkulturabot/app?startapp={note_id})')
+    assert '>>' not in sent and bot.tg.markups[-1] is None, 'с коротким именем — ссылка текстом, без кнопок'
+
+    mp.setattr(settings, 'MINIAPP_SHORT_NAME', '')
+    bot.client.script += [resp(text(HOW_ANSWER))]
+    bot.svc.handle_update(message('ещё раз'))
+    assert bot.tg.sent[-1][1].endswith('Могу разложить Кременчугскую по дням.')
+    assert bot.tg.markups[-1] == {'inline_keyboard': [[{'text': 'Как считается', 'web_app': {
+        'url': 'https://beerkultura.ru/tg/chart?id=rep_' + f'{2:022x}'}}]]}, 'личка без имени — кнопка web_app'
+
+    group = '-100500'
+    bot.client.script += [resp(text(HOW_ANSWER))]
+    bot.svc.handle_update(message('@MCPkulturabot как выручка?', chat_id=group, chat_type='supergroup'))
+    assert bot.tg.sent[-1][1].endswith('по дням. [Как считается](https://beerkultura.ru/tg/report/rep_'
+                                       + f'{3:022x})'), 'группа без имени — страница сайта'
+
+    bot.env.site.note_error = SiteError('offline', 'Сайт не отвечает')
+    bot.client.script += [resp(text(HOW_ANSWER))]
+    bot.svc.handle_update(message('и ещё'))
+    sent = bot.tg.sent[-1][1]
+    assert sent.endswith('>> Как считается\n>> % плана = 4 412 / 4 520 = 98%; metrics.avg_rating — из инструмента.')
+    assert formatting.to_html(sent).count('<blockquote expandable>') == 1, 'сайт не ответил — свёрнутая цитата'
+
+
+def test_card_with_empty_text_sends_nothing_more(bot):
+    bot.client.script += [resp(use('common_chart_send', {'chart': {}, 'caption': 'Ответ подписью'}),
+                               stop='tool_use'), resp(text(''))]
+    bot.svc.handle_update(message('график выручки'))
+    assert bot.tg.sent == [], 'подпись к графику — это ответ: второго сообщения нет'
+    bot.env.monkeypatch.setattr(settings, 'SHOW_COST', True)
+    bot.client.script += [resp(use('common_report_send', {'report': {}}), stop='tool_use'), resp(text(''))]
+    bot.svc.handle_update(message('отчёт: сентябрь'))
+    assert len(bot.tg.sent) == 1 and bot.tg.sent[0][1].startswith('*Ответ обошёлся в $'), \
+        'пока строка цены включена — только она'
+    call = [c for c in bot.env.site.calls if c[0] == 'common_report_send'][-1]
+    assert call[1]['chat_id'] == OWNER_TG, 'отчёт — только в чат разговора'
+
+
+def test_report_mode_trigger_budget_and_header(bot):
+    mp = bot.env.monkeypatch
+    step = claude.cost_usd('claude-opus-5-5', {'input_tokens': 1000, 'output_tokens': 200})
+    mp.setattr(settings, 'QUESTION_BUDGET_USD', 1.5 * step)
+    mp.setattr(settings, 'REPORT_BUDGET_USD', 10 * step)
+    bot.svc.handle_update(message('/report'))
+    assert bot.tg.sent[-1][1] == service.REPORT_EMPTY_TEXT and not bot.client.calls
+    bot.client.script += [resp(use('common_whoami', {}, 't1'), stop='tool_use'),
+                          resp(use('common_whoami', {}, 't2'), stop='tool_use'),
+                          resp(use('common_whoami', {}, 't3'), stop='tool_use'),
+                          resp(text('Отчёт ушёл.'))]
+    bot.svc.handle_update(message('/report как прошёл сентябрь'))
+    first = bot.client.calls[-4]['messages'][0]['content'][0]['text']
+    assert 'режим: отчёт' in first and first.endswith('\nкак прошёл сентябрь'), 'команда снята, режим назван'
+    assert all('tool_choice' not in c for c in bot.client.calls[-4:]), 'предел отчёта больше: три шага с инструментами'
+    bot.client.script += [resp(use('common_whoami', {}, 't4'), stop='tool_use'),
+                          resp(use('common_whoami', {}, 't5'), stop='tool_use'), resp(text('Коротко.'))]
+    bot.svc.handle_update(message('отчёт по выручке за вчера'))
+    assert 'режим: отчёт' not in bot.client.calls[-3]['messages'][-1]['content'][0]['text'], \
+        '«отчёт» без двоеточия — обычный вопрос'
+    assert bot.client.calls[-1]['tool_choice'] == {'type': 'none'}, 'обычный предел — меньше'
+    bot.client.script += [resp(text('Ок'))]
+    bot.svc.handle_update(message('Исследуй продажи бельгийских сортов'))
+    assert 'режим: отчёт' in bot.client.calls[-1]['messages'][-1]['content'][0]['text']
+
+
+def test_header_has_weekdays_and_windows():
+    from datetime import datetime
+    from kultura_bot.engine.store import msk_now
+    tz = msk_now().tzinfo
+    text_value = service.calendar_text(datetime(2026, 10, 23, 9, 12, tzinfo=tz))
+    assert text_value == ('рабочий день бара пт 23 окт (2026-10-23) · вчера чт 22 окт (2026-10-22) · '
+                          'последние 7 дней 16–22 окт (2026-10-16..2026-10-22) · '
+                          'предыдущие 7 дней 9–15 окт (2026-10-09..2026-10-15) · '
+                          'этот месяц до вчера 1–22 окт (2026-10-01..2026-10-22) · '
+                          'прошлый месяц 1–30 сен (2026-09-01..2026-09-30)')
+    night = service.calendar_text(datetime(2026, 11, 1, 3, 0, tzinfo=tz))
+    assert night.startswith('рабочий день бара сб 31 окт'), 'до 06:00 — ещё вчерашний рабочий день'
+    monday = service.calendar_text(datetime(2026, 11, 2, 9, 0, tzinfo=tz))
+    assert 'последние 7 дней 26 окт – 1 ноя (2026-10-26..2026-11-01)' in monday
+    assert 'этот месяц до вчера 1 ноя (2026-11-01..2026-11-01)' in monday
+    first = service.calendar_text(datetime(2026, 12, 1, 12, 0, tzinfo=tz))
+    assert 'этот месяц' not in first and 'прошлый месяц 1–30 ноя' in first, 'первое число — месяц ещё пуст'
+
+
+def test_buttons_go_under_the_last_part(monkeypatch):
+    from kultura_bot.engine import telegram_io
+    calls = []
+
+    class IO(telegram_io.TelegramIO):
+        def call(self, method, payload=None, timeout=8):
+            calls.append(dict(payload or {}))
+            return {'ok': True, 'result': {'message_id': len(calls)}}
+
+    markup = {'inline_keyboard': [[{'text': 'Как считается', 'web_app': {'url': 'https://x/y'}}]]}
+    long_answer = ('абзац ' * 400 + '\n\n') * 2
+    IO('t').send_markdown('1', long_answer, reply_markup=markup)
+    assert len(calls) == 2 and 'reply_markup' not in calls[0] and calls[1]['reply_markup'] == markup

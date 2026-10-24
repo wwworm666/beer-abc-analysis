@@ -54,6 +54,7 @@ PUBLIC_ENDPOINTS = {
     # dev-страницы без debug отвечают 404.
     'tg_miniapp.chart_page',
     'tg_miniapp.chart_api',
+    'tg_miniapp.report_api',           # отчёты и «Как считается» — те же проверки, что у графиков
     'tg_miniapp.chart_dev',
     'tg_miniapp.chart_dev_png',
     # Сервер бота @MCPkulturabot в Амстердаме (routes/bot_api.py): у него нет cookie сайта.
@@ -63,6 +64,7 @@ PUBLIC_ENDPOINTS = {
     'bot_api.link',
     'bot_api.actor',
     'bot_api.report',
+    'bot_api.note',
 }
 
 
