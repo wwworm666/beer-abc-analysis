@@ -194,10 +194,10 @@ def normalize_report(raw: Any, *, text_filter: Optional[TextFilter] = None,
                      page_filter: Optional[TextFilter] = None, now: Optional[datetime] = None) -> Dict[str, Any]:
     """Проверить отчёт и привести к каноническому виду (его и храним). Ошибка — ReportError.
 
-    text_filter — для того, что уходит в Telegram (заголовок, выжимка): там голый домен
-    становится ссылкой. page_filter — для текстов страницы (разделы, «Как считается»):
-    там ссылкой становится только явный адрес, а имена полей вроде metrics.avg_rating
-    должны остаться как есть."""
+    text_filter — для того, что уходит в Telegram (выжимка): там голый домен становится
+    ссылкой. page_filter — для текстов страницы (заголовок, разделы, «Как считается»): там
+    ссылкой становится только явный адрес, а имена полей вроде metrics.avg_rating должны
+    остаться как есть."""
     if not isinstance(raw, dict):
         raise ReportError('отчёт: нужен объект')
     unknown = sorted(set(raw) - {'title', 'summary', 'sections', 'how', 'source', 'data_at'})
@@ -238,7 +238,7 @@ def normalize_report(raw: Any, *, text_filter: Optional[TextFilter] = None,
         sections.append(item)
     body = {
         'kind': 'report',
-        'title': _line(raw.get('title'), 'title', TITLE_MAX, required=True, text_filter=text_filter),
+        'title': _line(raw.get('title'), 'title', TITLE_MAX, required=True, text_filter=page_filter),
         'summary': _markdown(raw.get('summary'), 'summary', SUMMARY_MAX, required=True, text_filter=text_filter),
         'sections': sections,
         'how': _markdown(raw.get('how'), 'how', HOW_MAX, text_filter=page_filter),

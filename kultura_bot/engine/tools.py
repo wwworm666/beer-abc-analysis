@@ -101,6 +101,8 @@ def ask_agent_def() -> Dict[str, Any]:
 def build_toolset(site_tools: List[Dict[str, Any]], *, with_agents: bool) -> Toolset:
     """Список tools для запроса: поиск, видимые сразу, ask_agent (боту), отложенные."""
     by_name = {t['name']: t for t in site_tools if t['name'] not in settings.HIDDEN_TOOLS}
+    if not with_agents:
+        by_name.pop(REPORT_TOOL, None)          # отчёт собирает бот из отчётов агентов, агент его не шлёт
     tools = [by_name[name] for name in sorted(by_name)]
     loaded = [t for t in tools if t['name'] in settings.ALWAYS_LOADED_TOOLS]
     deferred = [t for t in tools if t['name'] not in settings.ALWAYS_LOADED_TOOLS]

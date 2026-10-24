@@ -374,3 +374,47 @@ def test_report_tool_in_full_mode_only_and_errors_are_text(setup):
     assert result['report_id'].startswith('rep_') and result['message_id'] == 77
     chart_tool = {t.name: t for t in registry.all_tools()}['common_chart_send']
     assert 'how' in chart_tool.input_schema['properties']
+
+
+# ------------------------------------------------------------------ замечания независимой проверки 2026-10-24
+
+@pytest.mark.parametrize('link', ['https://beerkultura.ru:x@evil.example/login', 'https://beerkultura.ru:443@evil.example',
+                                  'https://"@evil.example/login', 'https://<@evil.example/login',
+                                  'https://beerkultura.ru"@evil.example/login'])
+def test_filters_and_page_see_the_real_host(setup, link):
+    for flt in (full_filter, page_filter):
+        assert 'evil.example' not in flt(f'[Войти]({link})') and 'evil.example' not in flt(link), (flt, link)
+    raw = dict(REPORT, sections=[{'heading': 'Р', 'text': f'[Войти]({link})', 'how': link}])
+    view = reports.view({'id': 'rep_' + '0' * 22, 'created_at': '', 'body': reports.normalize_report(
+        raw, text_filter=full_filter, page_filter=page_filter)})
+    assert 'evil.example' not in json.dumps(view), 'ни ссылкой, ни текстом'
+
+
+def test_title_on_page_and_how_from_summary_and_caption(setup):
+    raw = dict(REPORT, title='A.Le Coq: +40% к августу',
+               summary='**Итог +58,0%.**\n\n>> Как считается\n>> (327 − 207) / 207')
+    result = tg_send.send_report(raw, chat_id=CHAT, text_filter=full_filter, page_filter=page_filter)
+    body = reports.get(result['report_id'])['body']
+    assert body['title'] == 'A.Le Coq: +40% к августу', 'заголовок только на странице — узкий фильтр'
+    assert body['summary'] == '**Итог +58,0%.**' and body['how'].endswith('(327 − 207) / 207')
+    assert 'Как считается' not in setup['tg'].calls[-1][1]['caption']
+    result = tg_send.send_chart(dict(FIXTURES)['check'], chat_id=CHAT,
+                                caption='Итог +83 ₽.\n\n>> Как считается\n>> 1 509 − 1 426 = 83')
+    assert setup['tg'].calls[-1][1]['caption'] == 'Итог +83 ₽.'
+    assert reports.get(result['how']['id'])['body']['text'] == '1 509 − 1 426 = 83', 'блок из подписи — запиской'
+
+
+def test_plain_fallback_keeps_how_link_whole(setup):
+    mp, tg = setup['monkeypatch'], setup['tg']
+    mp.setattr(bot_settings, 'MINIAPP_SHORT_NAME', 'app')
+    tg.replies = [{'ok': False, 'description': "Bad Request: can't parse entities"}]
+    result = tg_send.send_chart(dict(FIXTURES)['check'], chat_id=CHAT, caption='Итог.', how='формула')
+    caption = tg.calls[-1][1]['caption']
+    assert caption == f'Итог.\nКак считается: https://t.me/MCPkulturabot/app?startapp={result["how"]["id"]}'
+    tg.replies = [{'ok': False, 'description': "Bad Request: can't parse entities"}]
+    long_caption = 'я' * 985 + '.'          # со ссылкой в HTML влезает (1000), простым текстом с адресом — нет
+    result = tg_send.send_chart(dict(FIXTURES)['check'], chat_id=CHAT, caption=long_caption, how='формула')
+    fields = tg.calls[-1][1]
+    assert 'Как считается' not in fields['caption'] and len(fields['caption']) <= 1024
+    assert [b['text'] for b in json.loads(fields['reply_markup'])['inline_keyboard'][0]][-1] == 'Как считается', \
+        'ссылка не влезла в простую подпись — кнопкой, а не обрезанным адресом'

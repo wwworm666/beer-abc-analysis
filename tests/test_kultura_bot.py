@@ -1174,3 +1174,68 @@ def test_buttons_go_under_the_last_part(monkeypatch):
     long_answer = ('абзац ' * 400 + '\n\n') * 2
     IO('t').send_markdown('1', long_answer, reply_markup=markup)
     assert len(calls) == 2 and 'reply_markup' not in calls[0] and calls[1]['reply_markup'] == markup
+
+
+# ------------------------------------------------------------------ замечания независимой проверки 2026-10-24
+
+def test_unsafe_link_targets_are_not_links():
+    for url in ('https://beerkultura.ru:x@evil.example/login', 'https://"@evil.example/login',
+                'https://beerkultura.ru"@evil.example/login', 'javascript:alert(1)'):
+        assert '<a ' not in formatting.to_html(f'[Войти]({url})'), url
+    assert formatting.to_html('[ок](https://beerkultura.ru/x)') == '<a href="https://beerkultura.ru/x">ок</a>'
+
+
+def test_how_blocks_all_cut_and_heading_variants():
+    visible, how = formatting.split_how('Итог\n>> Как считается\n>> первый\n\nЕщё\n>> **Как считается:** % плана = 1\n'
+                                        '>> второй')
+    assert visible == 'Итог\n\nЕщё' and how == 'первый\n\n% плана = 1\nвторой', 'все блоки — в одну записку'
+    for head, body in (('«Как считается» — (факт − план) / план', '(факт − план) / план'),
+                       ('Как считается: −5% к плану', '−5% к плану'), ('_Как считается_', '')):
+        assert formatting.split_how(f'Ответ\n>> {head}\n>> x')[1] == (f'{body}\nx' if body else 'x'), head
+    body = 'б' * 130
+    for prefix in ('> ', '>> '):
+        parts = formatting.split(prefix + body, limit=40)
+        assert ''.join(p[len(prefix):] for p in parts) == body, 'длинная строка цитаты — без повторов'
+        assert all(len(p) <= 40 for p in parts)
+    assert formatting.truncate_utf16('ab🍺c', 3) == 'ab' and formatting.truncate_utf16('ab🍺c', 4) == 'ab🍺'
+
+
+def test_report_command_forms_and_group_mention(bot):
+    assert bot.svc._command('/report\nкак сентябрь') == ('report', 'как сентябрь')
+    assert bot.svc._command('/report@MCPkulturabot\tвопрос') == ('report', 'вопрос')
+    assert bot.svc._strip_mention('@MCPkulturabot, отчёт: сентябрь') == 'отчёт: сентябрь'
+    bot.client.script += [resp(text('Ок'))]
+    bot.svc.handle_update(message('@MCPkulturabot, отчёт: сентябрь', chat_id='-100500', chat_type='supergroup'))
+    assert 'режим: отчёт' in bot.client.calls[-1]['messages'][-1]['content'][0]['text']
+    bot.client.script += [resp(text('Ок'))]
+    pdf = message('', document={'file_id': 'f1', 'mime_type': 'application/pdf'}, caption='/report')
+    pdf['message'].pop('text')
+    bot.svc.handle_update(pdf)
+    first = bot.client.calls[-1]['messages'][-1]['content']
+    assert 'режим: отчёт' in first[0]['text'] and first[1]['type'] == 'document', '«/report» подписью к PDF'
+
+
+def test_narration_before_card_is_not_a_second_bubble(bot):
+    bot.client.script += [resp(text('Посмотрю выручку.'), use('common_whoami', {}, 't0'), stop='tool_use'),
+                          resp(use('common_chart_send', {'chart': {}, 'caption': 'Ответ'}, 't1'), stop='tool_use'),
+                          resp(text(''))]
+    bot.svc.handle_update(message('график'))
+    assert bot.tg.sent == [], 'текст до карточки — не ответ'
+    bot.client.script += [resp(text('Смотрю.'), use('common_chart_send', {'chart': {}, 'caption': 'Ответ'}, 't2'),
+                               stop='tool_use'), resp(text('И ещё одно уточнение.'))]
+    bot.svc.handle_update(message('ещё график'))
+    assert [m[1] for m in bot.tg.sent] == ['И ещё одно уточнение.'], 'текст после карточки остаётся'
+
+
+def test_agents_build_no_report_pages(bot):
+    catalog = bot.svc.get_catalog()
+    assert tools.REPORT_TOOL in catalog.bot.toolset.names
+    assert all(tools.REPORT_TOOL not in a.toolset.names for a in catalog.agents.values()), \
+        'отчёт собирает бот, агент его не шлёт'
+    bot.client.script += [
+        resp(use(tools.ASK_AGENT, {'agent': 'payroll', 'task': 'Проверь ЗП за сентябрь 2026 по всем барам'}),
+             stop='tool_use'),
+        resp(text('Отчёт агента.')), resp(text('Готово.'))]
+    bot.svc.handle_update(message('/report зарплата за сентябрь'))
+    agent_first = bot.client.calls[-2]['messages'][0]['content'][0]['text']
+    assert 'режим: отчёт' not in agent_first and 'последние 7 дней' in agent_first

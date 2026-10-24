@@ -575,15 +575,44 @@ def _strip_foreign_links(text: str, allowed_hosts=NOTIFY_ALLOWED_HOSTS) -> str:
     """
     def repl(match):
         link = match.group(0)
-        host = re.sub(r'^(?:(?:https?|ftp)://)', '', link, flags=re.IGNORECASE)
-        host = re.split(r'[/?#:]', host, maxsplit=1)[0].lower().rstrip('.')
-        return link if host in allowed_hosts else NOTIFY_LINK_STUB
-    return _NOTIFY_LINK_RE.sub(repl, text)
+        return link if _link_allowed(link, allowed_hosts) else NOTIFY_LINK_STUB
+    return _NOTIFY_LINK_RE.sub(repl, _MD_LINK_RE.sub(_md_link_repl(allowed_hosts), text))
 
 
-# Явные адреса (схема или www.) и голые IPv4 — правила 1 и 2 _NOTIFY_LINK_RE.
+# Цель ссылки Markdown бота — та же грамматика, что у kultura_bot/engine/formatting._LINK_RE:
+# фильтр проверяет ровно то, что потом станет ссылкой (иначе «https://"@evil.example» проскочит).
+_MD_LINK_RE = re.compile(r'\[([^\]\n]+)\]\(((?:https?|ftp)://[^)\s]+)\)', re.IGNORECASE)
+
+
+def _link_allowed(link: str, allowed_hosts) -> bool:
+    """Ссылка ведёт на разрешённый хост: настоящий хост по urlsplit (а не всё до первого «:»),
+    без «user:pass@» (https://beerkultura.ru:x@evil.example открывает evil.example) и без знаков,
+    которые браузер толкует по-своему (" < > \\)."""
+    from urllib.parse import urlsplit
+    if any(ch in link for ch in '"<>\\'):
+        return False
+    raw = link if re.match(r'(?i)^(?:https?|ftp)://', link) else 'http://' + link
+    try:
+        parts = urlsplit(raw)
+        host = (parts.hostname or '').rstrip('.').lower()
+    except ValueError:
+        return False
+    if '@' in parts.netloc:
+        return False
+    return host in allowed_hosts
+
+
+def _md_link_repl(allowed_hosts):
+    def repl(match):
+        return match.group(0) if _link_allowed(match.group(2), allowed_hosts) else \
+            f'{match.group(1)} {NOTIFY_LINK_STUB}'
+    return repl
+
+
+# Явные адреса (схема или www.) и голые IPv4 — правила 1 и 2 _NOTIFY_LINK_RE; первый знак после
+# схемы — любой, кроме пробела: «https://"@evil.example» тоже адрес (и не пройдёт _link_allowed).
 _PAGE_LINK_RE = re.compile(
-    r'(?:(?:https?|ftp)://|www\.)[^\s<>"]' + _TAIL
+    r'(?:(?:https?|ftp)://|www\.)(?:\S*[^\s.,;:!?)\]}»])?'
     + r'|(?<!\w)(?<!\d\.)' + _OCTET + r'(?:\.' + _OCTET + r'){3}(?!\w|\.\d)(?::\d{1,5})?' + _PATH,
     re.IGNORECASE)
 
@@ -598,10 +627,8 @@ def strip_foreign_urls(text: str, allowed_hosts=NOTIFY_ALLOWED_HOSTS) -> str:
     выжимка) по-прежнему идёт полный фильтр: там голый домен кликабелен."""
     def repl(match):
         link = match.group(0)
-        host = re.sub(r'^(?:(?:https?|ftp)://)', '', link, flags=re.IGNORECASE)
-        host = re.split(r'[/?#:]', host, maxsplit=1)[0].lower().rstrip('.')
-        return link if host in allowed_hosts else NOTIFY_LINK_STUB
-    return _PAGE_LINK_RE.sub(repl, text)
+        return link if _link_allowed(link, allowed_hosts) else NOTIFY_LINK_STUB
+    return _PAGE_LINK_RE.sub(repl, _MD_LINK_RE.sub(_md_link_repl(allowed_hosts), text))
 
 
 NOTIFY_SCHEMA = (

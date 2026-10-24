@@ -905,7 +905,7 @@ common 1.
 | `POST /api/bot/note` | common | API сервера бота: записка «Как считается» из ответа бота, вход только по ключу сервера бота; агенту — поле `how` у `common_chart_send` и `common_report_send` (с 2026-10-24, [kultura-bot.md](kultura-bot.md)) |
 | `GET /api/bot/config`, `POST /api/bot/link`, `GET /api/bot/actor/<tg_user_id>`, `POST /api/bot/report` | common | служебный API сервера бота @MCPkulturabot (Амстердам): вход только по ключу сервера бота, отдаёт его настройки с секретами и принимает отчёт — агенту закрыт (с 2026-10-19, [kultura-bot.md](kultura-bot.md)) |
 
-Всего 37 записей. Маршруты `/telegram/*` не входят в обязательный охват (он только `/api/*` и
+Всего 39 записей. Маршруты `/telegram/*` не входят в обязательный охват (он только `/api/*` и
 данные вне `/api/`), но записаны явно, чтобы решение было видно. Открыты агенту: список аккаунтов
 (`staff_auth_users`) и имя и сокращение аккаунта (`staff_auth_user_profile`) — это данные, а не
 доступ.

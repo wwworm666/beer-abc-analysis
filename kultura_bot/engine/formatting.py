@@ -58,7 +58,21 @@ _TABLE_RULE_RE = re.compile(r'^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$'
 _QUOTE_RE = re.compile(r'^\s*(>>?)(?: |$)')             # «> текст» или «>> текст» (пробел после знака;
 #                                                          отступ слева — тоже цитата: модель копирует его из примеров)
 _TAG_RE = re.compile(r'<[^>]+>')
-_HOW_HEAD_RE = re.compile(r'^\W*как\s+считается\W*', re.I)
+_HOW_HEAD_RE = re.compile(r'^[\s#*_«"]*как\s+считается[\s*_»"]*(?:[:.—–-][\s*_»"]*)?', re.I)
+
+
+def safe_url(url: str) -> bool:
+    """Ссылка http(s), которую браузер откроет там же, где она «написана»: без «user:pass@» и без
+    знаков " < > \\ (https://beerkultura.ru:x@evil.example открывает evil.example)."""
+    from urllib.parse import urlsplit
+    if any(ch in url for ch in '"<>\\'):
+        return False
+    try:
+        parts = urlsplit(url)
+        host = parts.hostname
+    except ValueError:
+        return False
+    return parts.scheme in ('http', 'https') and bool(host) and '@' not in parts.netloc
 
 
 def _inline(text: str) -> str:
@@ -82,6 +96,10 @@ def _inline(text: str) -> str:
 
         def put_link(match):
             label, url = links[int(match.group(1))]
+            if not safe_url(url):
+                # Ссылку, которую браузер откроет не там, где она «написана» (user@host, кавычки),
+                # не делаем: остаются подпись и адрес текстом.
+                return f'{html.escape(label, quote=False)} ({html.escape(url, quote=False)})'
             return f'<a href="{html.escape(url, quote=True)}">{html.escape(label, quote=False)}</a>'
 
         out.append(re.sub(r'\x00(\d+)\x00', put_link, piece))
@@ -183,10 +201,11 @@ def visible_len(text_html: str) -> int:
 
 
 def split_how(markdown: str):
-    """Вырезать из ответа блок «Как считается» (последняя свёрнутая цитата «>> Как считается»).
+    """Вырезать из ответа блоки «Как считается» (свёрнутые цитаты «>> Как считается …»).
 
-    Вернуть (ответ без блока, текст блока в Markdown без знаков цитаты и без строки-заголовка).
-    Блока нет — (ответ как есть, '')."""
+    Вернуть (ответ без блоков, их текст в Markdown без знаков цитаты и строк-заголовков; если
+    блоков несколько — например, бот передал отчёты двух агентов, — тексты через пустую
+    строку). Блоков нет — (ответ как есть, '')."""
     lines = (markdown or '').split('\n')
     blocks = []                                   # (начало, конец) подряд идущих строк «>>»
     start = None
@@ -197,8 +216,9 @@ def split_how(markdown: str):
         elif start is not None:
             blocks.append((start, i))
             start = None
-    for begin, end in reversed(blocks):
-        first = _unquote(lines[begin]).replace('*', '').strip()
+    bodies, cut = [], set()
+    for begin, end in blocks:
+        first = _unquote(lines[begin]).strip()
         head = _HOW_HEAD_RE.match(first)
         if not head:
             continue
@@ -206,10 +226,28 @@ def split_how(markdown: str):
         rest = first[head.end():].strip()
         if rest:
             body.insert(0, rest)
-        how = '\n'.join(body).strip()
-        visible = '\n'.join(lines[:begin] + lines[end:])
-        return re.sub(r'\n{3,}', '\n\n', visible).strip(), how
-    return (markdown or '').strip(), ''
+        text = '\n'.join(body).strip()
+        if text:
+            bodies.append(text)
+        cut.update(range(begin, end))
+    if not cut:
+        return (markdown or '').strip(), ''
+    visible = '\n'.join(line for i, line in enumerate(lines) if i not in cut)
+    return re.sub(r'\n{3,}', '\n\n', visible).strip(), '\n\n'.join(bodies)
+
+
+def truncate_utf16(text: str, limit: int) -> str:
+    """Обрезать до limit единиц UTF-16 (так считает Telegram), не разрывая символ."""
+    if len(text.encode('utf-16-le')) // 2 <= limit:
+        return text
+    out, used = [], 0
+    for ch in text:
+        size = 2 if ord(ch) > 0xFFFF else 1
+        if used + size > limit:
+            break
+        out.append(ch)
+        used += size
+    return ''.join(out)
 
 
 def with_link(markdown: str, text: str, url: str) -> str:
@@ -257,9 +295,9 @@ def _split_lines(piece: str, limit: int) -> List[str]:
     current = ''
     for line in piece.split('\n'):
         prefix = '>> ' if quote_kind(line) == '>>' else '> ' if quote_kind(line) else ''
+        step = limit - len(prefix)
         pieces = [line] if len(line) <= limit else \
-            [prefix + line[i:i + limit - len(prefix)] if i else line[:limit]
-             for i in range(0, len(line), limit - len(prefix))]
+            [line[:limit]] + [prefix + line[i:i + step] for i in range(limit, len(line), step)]
         for sub in pieces:
             candidate = f'{current}\n{sub}' if current else sub
             if len(candidate) <= limit:

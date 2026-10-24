@@ -358,7 +358,12 @@ def run_turn(client: Any, *, system_text: str, tool_list: List[Dict[str, Any]], 
                                             'скажи, чего не успел проверить.', is_error=True) for b in tool_uses]})
             final = True
             continue
+        sent_before = len(ctx.charts_sent) + len(ctx.reports_sent)
         results = [tools.execute(b, ctx) for b in tool_uses]
+        if not ctx.is_agent and len(ctx.charts_sent) + len(ctx.reports_sent) > sent_before:
+            # Карточка (график с подписью-ответом или отчёт) ушла — она и есть ответ: текст до неё
+            # («Посмотрю выручку…») вторым сообщением не отправляется. Текст после неё — да.
+            final_texts = []
         limit = spend.budget()
         if limit and spend.usd >= limit and not final:
             # Вопрос разросся: следующий запрос — без инструментов, ответ тем, что уже есть.

@@ -410,17 +410,21 @@ class Service:
         return bool(author.get('is_bot') and name != '@' and '@' + (author.get('username') or '').lower() == name)
 
     def _strip_mention(self, text: str) -> str:
+        """Убрать @имя бота и знаки, которые остаются после обращения: «@бот, отчёт: …» -> «отчёт: …»."""
         if not self.username:
             return text
-        return re.sub(r'@' + re.escape(self.username) + r'\b', '', text, flags=re.I).strip()
+        text = re.sub(r'@' + re.escape(self.username) + r'\b', '', text, flags=re.I)
+        return re.sub(r'^[\s,.:;!—–-]+', '', text).strip()
 
     @staticmethod
     def _command(text: str):
-        """('/new@bot аргументы') -> ('new', 'аргументы'); не команда -> (None, текст)."""
+        """('/new@bot аргументы') -> ('new', 'аргументы'); не команда -> (None, текст).
+        Аргументы — после любого пробела, в том числе перевода строки («/report\nвопрос»)."""
         if not text.startswith('/'):
             return None, text
-        head, _, rest = text.partition(' ')
-        return head[1:].split('@', 1)[0].lower(), rest.strip()
+        parts = text.split(None, 1)
+        rest = parts[1].strip() if len(parts) > 1 else ''
+        return parts[0][1:].split('@', 1)[0].lower(), rest
 
     def handle_update(self, update: Dict[str, Any]) -> None:
         message = update.get('message')
@@ -473,15 +477,15 @@ class Service:
         if command == 'help':
             self.tg.send_plain(chat_id, HELP_TEXT)
             return
+        has_file = bool(message.get('photo') or (message.get('document') or {}).get('mime_type') in DOCUMENT_MIMES)
         mode = 'answer'
         if command == settings.REPORT_COMMAND:
             mode, text = 'report', rest
-            if not text:
+            if not text and not has_file:             # «/report» подписью к PDF — отчёт по файлу
                 self.tg.send_plain(chat_id, REPORT_EMPTY_TEXT)
                 return
         elif text.lower().startswith(tuple(w.lower() for w in settings.REPORT_WORDS)):
             mode = 'report'
-        has_file = bool(message.get('photo') or (message.get('document') or {}).get('mime_type') in DOCUMENT_MIMES)
         if not text and not has_file:
             self.tg.send_plain(chat_id, UNSUPPORTED_TEXT)
             return
@@ -682,8 +686,9 @@ class Service:
             client = self.client_factory(self.key)
             spend = agent.Spend(limit=settings.REPORT_BUDGET_USD if report_mode else None)
             ctx = tools.ToolContext(site=self.site, chat_id=chat_id, allowed=persona.toolset.names, spend=spend)
+            agent_header = self.header(actor)          # агенту — без «режим: отчёт»: страницу собирает бот
             ctx.run_agent = lambda name, task: agent.run_agent(client, catalog.agents[name], task, parent=ctx,
-                                                               store=self.store, header=header,
+                                                               store=self.store, header=agent_header,
                                                                on_usage=self.add_usage)
             result = agent.run_turn(client, system_text=persona.system, tool_list=persona.toolset.defs,
                                     history=history, user_content=user_content, ctx=ctx, store=self.store,

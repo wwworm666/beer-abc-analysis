@@ -153,6 +153,21 @@ def _with_link(markdown: str, text: str, url: str) -> str:
     return formatting.with_link(markdown, text, url)
 
 
+def _split_how(markdown: str):
+    """Блок «>> Как считается» в подписи или выжимке -> (текст без него, пояснение)."""
+    from kultura_bot.engine import formatting
+    return formatting.split_how(markdown)
+
+
+def _cut(text: str, limit: int) -> str:
+    from kultura_bot.engine import formatting
+    return formatting.truncate_utf16(text, limit)
+
+
+def _join_how(*parts: Optional[str]) -> str:
+    return '\n\n'.join(p.strip() for p in parts if isinstance(p, str) and p.strip())
+
+
 def _save_note(how: Any, *, chat: str, token_id: str, page_filter: Optional[TextFilter]) -> Optional[str]:
     """Записка «Как считается» к ответу (или None, если how пуст). Ошибка — ChartSendError."""
     if how in (None, '') or (isinstance(how, str) and not how.strip()):
@@ -228,6 +243,8 @@ def send_chart(raw_spec: Any, *, chat_id: Any = None, caption: Optional[str] = N
     text = _caption_markdown(caption)
     if text_filter is not None and text:
         text = text_filter(text)
+    text, cut_how = _split_how(text)              # «>> Как считается» в подписи — тоже за ссылку
+    how = _join_how(how, cut_how) or None
     text = text or spec['title']
     if _visible_len(_html(text)) > CAPTION_MAX:
         raise ChartSendError(f'caption длиннее {CAPTION_MAX} знаков без разметки ({_visible_len(_html(text))}): '
@@ -255,8 +272,11 @@ def send_chart(raw_spec: Any, *, chat_id: Any = None, caption: Optional[str] = N
     if chart_btn:
         row.append(chart_btn)
     how_kind = None
+    base_text = text                              # подпись без ссылки — для запасного простого текста
+    how_url = ''
     if how_id:
         target = links.how_target(chat, how_id, credentials.bot_username())
+        how_url = target.get('link', '')
         if 'link' in target:
             linked = _with_link(text, links.HOW_TEXT, target['link'])
             if _visible_len(_html(linked)) <= CAPTION_MAX:
@@ -284,8 +304,19 @@ def send_chart(raw_spec: Any, *, chat_id: Any = None, caption: Optional[str] = N
     outcome: list = []
     data = _transport(fields, png, token, outcome)
     if _parse_failed(data):
+        # Разметку не разобрал — та же подпись простым текстом; ссылка «Как считается» — адресом
+        # в конце, а не влезает — кнопкой (обрезать подпись по ссылке нельзя: она перестанет работать).
         fields.pop('parse_mode')
-        fields['caption'] = _plain(text)[:CAPTION_MAX]
+        plain = _plain(base_text)
+        suffix = f'\n{links.HOW_TEXT}: {how_url}' if how_kind == 'link' else ''
+        if suffix and len((plain + suffix).encode('utf-16-le')) // 2 > CAPTION_MAX:
+            fallback = links.button(links.HOW_TEXT, chat, how_id, credentials.bot_username(), site_fallback=True)
+            if fallback:
+                row.append(fallback)
+                fields['reply_markup'] = json.dumps({'inline_keyboard': [row]}, ensure_ascii=False)
+                how_kind = 'button'
+            suffix = ''
+        fields['caption'] = _cut(plain, CAPTION_MAX - len(suffix.encode('utf-16-le')) // 2) + suffix
         outcome = []
         data = _transport(fields, png, token, outcome)
     if data is None and 'unknown' in outcome:
@@ -331,6 +362,10 @@ def send_report(raw_report: Any, *, chat_id: Any = None, token_id: str = '',
         body = reports.normalize_report(raw_report, text_filter=text_filter, page_filter=page_filter)
     except reports.ReportError as exc:
         raise ChartSendError(f'Отчёт: {exc}') from None
+    summary, cut_how = _split_how(body['summary'])   # «>> Как считается» в выжимке — на страницу
+    if cut_how:
+        body['summary'] = summary or body['title']
+        body['how'] = _join_how(body['how'], page_filter(cut_how) if page_filter else cut_how)
     cover = reports.cover_chart(body)
     summary_html = _html(body['summary'])
     limit = CAPTION_MAX if cover else MESSAGE_MAX
@@ -361,7 +396,7 @@ def send_report(raw_report: Any, *, chat_id: Any = None, token_id: str = '',
         data = _transport(fields, png, token, outcome)
         if _parse_failed(data):
             fields.pop('parse_mode')
-            fields['caption'] = _plain(body['summary'])[:CAPTION_MAX]
+            fields['caption'] = _cut(_plain(body['summary']), CAPTION_MAX)
             outcome = []
             data = _transport(fields, png, token, outcome)
     else:
@@ -372,7 +407,7 @@ def send_report(raw_report: Any, *, chat_id: Any = None, token_id: str = '',
         data = _transport_message(payload, token, outcome)
         if _parse_failed(data):
             payload.pop('parse_mode')
-            payload['text'] = _plain(body['summary'])[:MESSAGE_MAX]
+            payload['text'] = _cut(_plain(body['summary']), MESSAGE_MAX)
             outcome = []
             data = _transport_message(payload, token, outcome)
     if data is None and 'unknown' in outcome:
