@@ -55,7 +55,8 @@ _HEADING_RE = re.compile(r'^#{1,6}\s+(.+?)\s*#*\s*$')
 _BULLET_RE = re.compile(r'^(\s*)[-*]\s+')
 _TABLE_LINE_RE = re.compile(r'^\s*\|.*\|\s*$')
 _TABLE_RULE_RE = re.compile(r'^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$')
-_QUOTE_RE = re.compile(r'^\s{0,3}(>>?)(?: |$)')         # «> текст» или «>> текст» (пробел после знака)
+_QUOTE_RE = re.compile(r'^\s*(>>?)(?: |$)')             # «> текст» или «>> текст» (пробел после знака;
+#                                                          отступ слева — тоже цитата: модель копирует его из примеров)
 _TAG_RE = re.compile(r'<[^>]+>')
 _HOW_HEAD_RE = re.compile(r'^\W*как\s+считается\W*', re.I)
 
@@ -175,8 +176,10 @@ def plain(markdown: str) -> str:
 
 
 def visible_len(text_html: str) -> int:
-    """Длина HTML Telegram так, как её считает Telegram (после разбора сущностей): без тегов."""
-    return len(html.unescape(_TAG_RE.sub('', text_html or '')))
+    """Длина HTML Telegram так, как её считает Telegram: после разбора сущностей (без тегов) и в
+    единицах UTF-16 — символ вне BMP (эмодзи из текста гостя) считается за два."""
+    text = html.unescape(_TAG_RE.sub('', text_html or ''))
+    return len(text.encode('utf-16-le')) // 2
 
 
 def split_how(markdown: str):

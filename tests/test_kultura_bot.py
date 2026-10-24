@@ -1046,6 +1046,9 @@ def test_quotes_become_blockquotes_and_survive_splitting():
     assert formatting.plain('> цитата\n>> свёрнуто\n[сайт](https://beerkultura.ru)') == \
         'цитата\nсвёрнуто\nсайт: https://beerkultura.ru'
     assert formatting.visible_len('<b>a&amp;b</b>\n<blockquote expandable>в</blockquote>') == 5
+    assert formatting.visible_len('🍺 ₽') == 4, 'Telegram считает в UTF-16: эмодзи — за два'
+    assert formatting.to_html('    > Лиговский · 171') == '<blockquote>Лиговский · 171</blockquote>', \
+        'цитата с отступом (модель копирует его из примеров) — тоже цитата'
 
 
 def test_split_how_and_with_link():
