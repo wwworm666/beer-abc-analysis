@@ -198,6 +198,22 @@ def test_dev_page_both_themes(server, browser):
         assert errors == [], errors
 
 
+def test_report_chart_without_subtitle_has_no_empty_head(server, browser):
+    """Раздел отчёта: заголовок графика скрыт; нет подзаголовка и пояснения — карточка начинается с
+    переключателей, без пустой шапки (лишнего промежутка сверху)."""
+    from kultura_bot.charts import reports
+    bare = {k: v for k, v in dict(FIXTURES)['revenue'].items() if k not in ('subtitle', 'note')}
+    raw = {'title': 'Выручка', 'summary': 'Итог.', 'source': 'iiko',
+           'sections': [{'heading': 'Кременчугская −16,4%', 'chart': bare}]}
+    rid = reports.create(reports.normalize_report(raw), chat_id=str(OWNER))['id']
+    page, errors = _page(browser, TG_STUB % {'init': json.dumps(init_data()), 'start': json.dumps(rid)})
+    page.goto(f'{server["base"]}/tg/chart')
+    page.wait_for_selector('.rep .rep-chart svg', timeout=15000)
+    assert page.eval_on_selector('#s1 .card', 'e => e.firstElementChild.className') == 'controls'
+    assert page.locator('#s1 .card h2').count() == 0
+    assert not errors, errors
+
+
 def test_report_and_how_note_open_in_mini_app(server, browser):
     """Отчёт (id rep_…) открывается тем же мини-приложением: выжимка, разделы, интерактивный
     график, таблица, свёрнутое «Как считается»; записка — одним блоком. Ошибок на странице нет."""
@@ -225,6 +241,8 @@ def test_report_and_how_note_open_in_mini_app(server, browser):
     assert first.locator('.card .how .how-sub').inner_text() == 'Как устроен график'
     assert 'local' in page.eval_on_selector('.rep-tbl .tbl-wrap', 'e => getComputedStyle(e).backgroundAttachment'), \
         'тень у края широкой таблицы'
+    sum_line = page.eval_on_selector('#s1 .card .sum', 'e => e.textContent')
+    assert '327\u00a0тыс.\u00a0₽ к 207\u00a0тыс.\u00a0₽' in sum_line, 'итог не рвётся между числом и ₽'
     cells = page.locator('.rep-tbl tbody tr').nth(2).locator('td').all_inner_texts()
     assert cells == ['Гулден Драк', '—', '17 000'], 'null — «—», числа по-русски'
     assert page.locator('.rep-tbl td.num').count() == 6, 'числа — вправо'

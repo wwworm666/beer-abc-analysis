@@ -78,7 +78,8 @@
   // Неразрывный пробел (как formatting.nbsp в kultura_bot/engine/formatting.py): перенос строки
   // не отрывает «426 ₽» от «1» и «₽» от «24 тыс.». Внутри числа — перед группой ровно из трёх
   // цифр; после числа — перед единицей; после «тыс.», «млн», «млрд» — перед ₽, руб, л, шт.
-  // Ставится во все тексты карточки и страницы отчёта (h ниже); подписи ECharts не переносятся.
+  // Ставится во все тексты карточки и страницы отчёта: h() ниже, итоги, единица, легенда,
+  // подсказка по нажатию (их текст меняется на ходу). Подписи ECharts — SVG, не переносятся.
   const NBSP = '\u00a0';
   const NB_RULES = [
     [/(\d) (?=\d{3}(?!\d))/g, '$1' + NBSP],
@@ -242,7 +243,7 @@
     box.className = 'tip';
     const t = doc.createElement('div');
     t.className = 'tip-t';
-    t.textContent = title;
+    t.textContent = nb(title);
     box.appendChild(t);
     for (const l of lines) {
       const row = doc.createElement('div');
@@ -252,23 +253,23 @@
       key.style.background = l.color;
       const v = doc.createElement('b');
       v.className = 'tip-v';
-      v.textContent = l.value;
+      v.textContent = nb(l.value);
       const lab = doc.createElement('span');
       lab.className = 'tip-l';
-      lab.textContent = l.label || '';
+      lab.textContent = nb(l.label || '');
       row.append(key, v, lab);
       box.appendChild(row);
     }
     for (const f of [].concat(foot || []).filter(Boolean)) {
       const div = doc.createElement('div');
       div.className = 'tip-f';
-      if (typeof f === 'string') div.textContent = f;
+      if (typeof f === 'string') div.textContent = nb(f);
       else {
-        div.append(f.text);
+        div.append(nb(f.text));
         if (f.delta) {
           const span = doc.createElement('span');
           span.className = f.up ? 'up' : 'down';
-          span.textContent = f.delta;
+          span.textContent = nb(f.delta);
           div.append(' ', span);
         }
       }
@@ -782,7 +783,9 @@
     const unit = h('div', 'unit', scaledUnit(spec));
     const chartEl = h('div', 'chart');
     plot.append(unit, chartEl);
-    card.append(head, controls, hint, plot, sumLine);
+    // Без заголовка (раздел отчёта), подзаголовка и пояснения шапка пуста: в сетке карточки она
+    // добавила бы лишний промежуток сверху.
+    card.append(...(head.childNodes.length ? [head] : []), controls, hint, plot, sumLine);
 
     let tableBox = null;
     if (interactive) {
@@ -816,7 +819,7 @@
       const buttons = options.map(o => {
         const b = h('button');
         b.type = 'button';
-        b.append(root.document.createTextNode(o.label));
+        b.append(root.document.createTextNode(nb(o.label)));
         if (o.note) b.append(' ', h('small', null, o.note));
         b.addEventListener('click', () => {
           if (get() === o.value) return;
@@ -848,11 +851,11 @@
         const sw = h('span', 'lg-sw');
         sw.style.setProperty('--c', 'var(--' + COLOR_TOKEN[keys[s.key]] + ')');
         const note = h('small');
-        b.append(sw, root.document.createTextNode(s.name), note);
+        b.append(sw, root.document.createTextNode(nb(s.name)), note);
         const sync = () => {
           if (interactive) b.setAttribute('aria-pressed', String(!!st.show[s.key]));
           const t = noteFor ? noteFor(s) : '';
-          note.textContent = t ? ' ' + t : '';
+          note.textContent = t ? ' ' + nb(t) : '';
         };
         if (interactive) {
           b.addEventListener('click', () => {
@@ -915,20 +918,20 @@
       for (const sync of syncs) sync();
       for (const sync of legendItems) sync();
       if (legendBox) legendBox.hidden = spec.kind === 'periods' && st.values === 'pct';
-      unit.textContent = spec.kind === 'periods' && st.values === 'pct'
-        ? '% к ' + byRole(spec, 'base').name : scaledUnit(spec);
+      unit.textContent = nb(spec.kind === 'periods' && st.values === 'pct'
+        ? '% к ' + byRole(spec, 'base').name : scaledUnit(spec));
       // рейтинг: что не попало в группу
       hint.hidden = true;
       if (spec.kind === 'rating' && st.group !== 'all') {
         const left = ungrouped(spec);
         if (left.length) {
-          hint.textContent = 'Без группы: ' + left.map(r => r.c.label).join(', ') + ' — ' + exact(spec, sum(left.map(r => r.v))) + '; в этом виде их нет.';
+          hint.textContent = nb('Без группы: ' + left.map(r => r.c.label).join(', ') + ' — ' + exact(spec, sum(left.map(r => r.v))) + '; в этом виде их нет.');
           hint.hidden = false;
         }
       }
       sumLine.hidden = true;
       const text = summary();
-      if (text) { sumLine.textContent = text; sumLine.hidden = false; }
+      if (text) { sumLine.textContent = nb(text); sumLine.hidden = false; }
     }
     function summary() {
       if (!spec.additive) {
