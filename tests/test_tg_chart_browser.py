@@ -212,14 +212,26 @@ def test_report_and_how_note_open_in_mini_app(server, browser):
     assert page.inner_text('.rep-head h1') == 'Бельгия в ивент: +58,0% к августу'
     assert 'данные на 14 сен 2026, 00:58 МСК' in page.inner_text('.rep-meta')
     assert page.inner_text('.rep-summary blockquote') == 'Квак · +136 · новый\nБарбе Руби · +23'
-    assert page.locator('.rep-sec').count() == 2 and page.locator('.rep-sec details.rep-how').count() == 1
-    assert page.locator('details.rep-how[open]').count() == 0, '«Как считается» свёрнуто'
+    assert page.locator('.rep-sec').count() == 2
+    assert page.locator('.rep-sec details.rep-how').count() == 0, 'у раздела с графиком — одно «Как считается», в карточке'
+    assert page.locator('details[open]').count() == 0, '«Как считается» свёрнуто'
+    first = page.locator('#s1')
+    assert first.locator('summary', has_text='Как считается').count() == 1
+    assert first.locator('.card h2').inner_text() == '2–13 сен к 19–30 авг 2026 · Все', 'вывод — в заголовке раздела'
+    assert first.locator('.card').get_attribute('aria-label') == 'Бельгия на розливе'
+    assert page.eval_on_selector('#s1 .card-sub', 'e => getComputedStyle(e).fontWeight') == '400', 'подзаголовок не жирный'
+    first.locator('.card details.how-box summary').click()
+    assert first.locator('.card .how .rep-text').inner_text().startswith('Изменение = (ивент − база) / база × 100')
+    assert first.locator('.card .how .how-sub').inner_text() == 'Как устроен график'
+    assert 'local' in page.eval_on_selector('.rep-tbl .tbl-wrap', 'e => getComputedStyle(e).backgroundAttachment'), \
+        'тень у края широкой таблицы'
     cells = page.locator('.rep-tbl tbody tr').nth(2).locator('td').all_inner_texts()
     assert cells == ['Гулден Драк', '—', '17 000'], 'null — «—», числа по-русски'
     assert page.locator('.rep-tbl td.num').count() == 6, 'числа — вправо'
     assert server['seen'][-1] == 'tma ' + data
     page.goto(f'{server["base"]}/tg/chart?id={note}')
     page.wait_for_selector('.rep-note blockquote', timeout=15000)
+    assert page.locator('.rep-meta').count() == 0, 'у записки нет «данные на» — время сборки не время данных'
     assert page.inner_text('.rep-head h1') == 'Как считается'
     assert page.inner_html('.rep-note blockquote') == '% плана = <b>98%</b>'
     assert not errors, errors

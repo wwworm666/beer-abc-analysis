@@ -46,6 +46,7 @@ from test_tg_miniapp import GROUP, OWNER, STRANGER, TOKEN, FakeMembers, init_dat
 
 PNG = b'\x89PNG\r\n\x1a\nfake'
 CHAT = str(OWNER)
+NB = '\u00a0'                    # неразрывный пробел в числах (formatting.nbsp)
 
 REPORT = {
     'title': 'Бельгия в ивент: +58,0% к августу',
@@ -190,7 +191,7 @@ def test_report_with_chart_goes_as_cover_photo(setup):
                                  page_filter=page_filter)
     kind, fields = setup['tg'].calls[0]
     assert kind == 'photo' and fields['parse_mode'] == 'HTML'
-    assert fields['caption'].startswith('<b>Бельгия в ивент 2–13 сен: 327 тыс. ₽, +58,0% к 19–30 авг.</b>\n\n'
+    assert fields['caption'].startswith(f'<b>Бельгия в ивент 2–13 сен: 327{NB}тыс.{NB}₽, +58,0% к 19–30 авг.</b>\n\n'
                                         '<blockquote>Квак · +136 · новый\nБарбе Руби · +23</blockquote>')
     assert setup['rendered'][0]['title'] == 'Бельгия на розливе', 'обложка — первый график отчёта'
     markup = json.loads(fields['reply_markup'])
@@ -261,7 +262,7 @@ def test_chart_how_link_with_short_name_and_in_group(setup):
     result = tg_send.send_chart(dict(FIXTURES)['check'], chat_id=CHAT, caption='Итог: +83 ₽ на чек.', how='формула')
     fields = setup['tg'].calls[0][1]
     how_id = result['how']['id']
-    assert fields['caption'] == (f'Итог: +83 ₽ на чек. <a href="https://t.me/MCPkulturabot/app?startapp={how_id}">'
+    assert fields['caption'] == (f'Итог: +83{NB}₽ на чек. <a href="https://t.me/MCPkulturabot/app?startapp={how_id}">'
                                  'Как считается</a>'), 'ссылка в конце последней строки — ни строки места'
     assert result['how']['shown_as'] == 'link'
     assert len(json.loads(fields['reply_markup'])['inline_keyboard'][0]) == 1, 'кнопка — только «Открыть интерактивно»'
@@ -300,13 +301,13 @@ def test_report_api_checks_init_data_and_membership(setup, monkeypatch):
     assert resp.status_code == 200 and resp.headers['Cache-Control'] == 'no-store'
     view = resp.get_json()['report']
     assert view['kind'] == 'report' and view['summary_html'].startswith('<b>Бельгия в ивент')
-    assert view['sections'][0]['html'] == 'Без Квака шесть сортов — <b>191 к 207 тыс. ₽</b>, −7,7%.'
+    assert view['sections'][0]['html'] == f'Без Квака шесть сортов — <b>191 к 207{NB}тыс.{NB}₽</b>, −7,7%.'
     assert view['sections'][0]['chart']['kind'] == 'periods' and view['sections'][1]['table']['rows'][0][1] == 136000
     group_note = reports.create(reports.normalize_note('формула'), chat_id=GROUP)['id']
     monkeypatch.setattr(tg_chart_access, '_get_chat_member', FakeMembers({(GROUP, OWNER): 'member'}))
     assert get_report(client, group_note, init_data()).get_json()['report'] == {
         'id': group_note, 'kind': 'note', 'title': 'Как считается', 'how_html': 'формула',
-        'data_at': reports.get(group_note)['body']['data_at'], 'created_at': reports.get(group_note)['created_at']}
+        'data_at': None, 'created_at': reports.get(group_note)['created_at']}, 'у записки нет «данные на»: её время — сборка'
     assert get_report(client, group_note, init_data(user_id=STRANGER)).status_code == 403
 
 
@@ -400,7 +401,7 @@ def test_title_on_page_and_how_from_summary_and_caption(setup):
     assert 'Как считается' not in setup['tg'].calls[-1][1]['caption']
     result = tg_send.send_chart(dict(FIXTURES)['check'], chat_id=CHAT,
                                 caption='Итог +83 ₽.\n\n>> Как считается\n>> 1 509 − 1 426 = 83')
-    assert setup['tg'].calls[-1][1]['caption'] == 'Итог +83 ₽.'
+    assert setup['tg'].calls[-1][1]['caption'] == f'Итог +83{NB}₽.'
     assert reports.get(result['how']['id'])['body']['text'] == '1 509 − 1 426 = 83', 'блок из подписи — запиской'
 
 
@@ -418,3 +419,35 @@ def test_plain_fallback_keeps_how_link_whole(setup):
     assert 'Как считается' not in fields['caption'] and len(fields['caption']) <= 1024
     assert [b['text'] for b in json.loads(fields['reply_markup'])['inline_keyboard'][0]][-1] == 'Как считается', \
         'ссылка не влезла в простую подпись — кнопкой, а не обрезанным адресом'
+
+
+def test_report_data_time_is_never_build_time():
+    """Решение 2026-10-25: время сборки за время данных не выдаём. Не передано — самое раннее
+    время графиков, где оно указано; график без своего времени не в счёт; нет ни одного — нет."""
+    base = {'title': 'Итог', 'summary': 'Итог.', 'source': 'iiko'}
+    belgium, check = dict(FIXTURES)['belgium'], dict(FIXTURES)['check']     # 14 сен и 28 сен
+    no_time = {k: v for k, v in check.items() if k != 'data_at'}
+    two = dict(base, sections=[{'heading': 'Чек', 'chart': check}, {'heading': 'Бельгия', 'chart': belgium},
+                               {'heading': 'Без времени', 'chart': no_time}])
+    assert reports.normalize_report(two)['data_at'] == '2026-09-14T00:58:00+03:00', 'самое раннее из графиков'
+    only_untimed = dict(base, sections=[{'heading': 'Без времени', 'chart': no_time}])
+    assert reports.normalize_report(only_untimed)['data_at'] is None, 'время отправки графика — не время данных'
+    text_only = dict(base, sections=[{'heading': 'Текст', 'text': 'Итог.'}])
+    assert reports.normalize_report(text_only)['data_at'] is None
+    assert reports.normalize_report(dict(text_only, data_at='2026-10-01T09:00'))['data_at'] == '2026-10-01T09:00:00+03:00'
+    with pytest.raises(reports.ReportError):
+        reports.normalize_report(dict(text_only, data_at='вчера'))
+    rid = reports.create(reports.normalize_report(text_only), chat_id=CHAT)['id']
+    assert reports.view(reports.get(rid))['data_at'] is None
+
+
+def test_view_titles_keep_numbers_together():
+    """Заголовок отчёта и разделов — с неразрывными пробелами: «−24 тыс. ₽» не рвётся переносом."""
+    raw = {'title': 'Сеть −24 тыс. ₽ (1 931 тыс. ₽)', 'summary': 'Итог.', 'source': 'iiko',
+           'sections': [{'heading': 'Кременчугская 503 тыс. ₽, −16,4 %', 'text': 'Чек 1 509 ₽.'}]}
+    rid = reports.create(reports.normalize_report(raw), chat_id=CHAT)['id']
+    view = reports.view(reports.get(rid))
+    assert view['title'] == f'Сеть −24{NB}тыс.{NB}₽ (1{NB}931{NB}тыс.{NB}₽)'
+    assert view['sections'][0]['heading'] == f'Кременчугская 503{NB}тыс.{NB}₽, −16,4{NB}%'
+    assert view['sections'][0]['html'] == f'Чек 1{NB}509{NB}₽.'
+    assert reports.get(rid)['body']['title'] == 'Сеть −24 тыс. ₽ (1 931 тыс. ₽)', 'хранится как прислано'

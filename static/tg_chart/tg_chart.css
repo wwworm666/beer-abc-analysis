@@ -70,6 +70,7 @@
   --tip: #FFFFFF;
   --tip-line: #E6E4E0;
   --tip-shadow: rgba(40, 32, 24, 0.12);
+  --shade: rgba(26, 26, 26, 0.16);            /* тень у края таблицы, которую можно прокрутить */
   --seg-on: #1A1A1A;
   --seg-on-ink: #FFFFFF;
   --focus: #1F6FBF;
@@ -116,6 +117,7 @@
     --tip: #262422;
     --tip-line: #3A3734;
     --tip-shadow: rgba(0, 0, 0, 0.45);
+    --shade: rgba(0, 0, 0, 0.55);
     --seg-on: #EEEBE6;
     --seg-on-ink: #151413;
     --focus: #62AEF0;
@@ -160,6 +162,7 @@
   --tip: #262422;
   --tip-line: #3A3734;
   --tip-shadow: rgba(0, 0, 0, 0.45);
+  --shade: rgba(0, 0, 0, 0.55);
   --seg-on: #EEEBE6;
   --seg-on-ink: #151413;
   --focus: #62AEF0;
@@ -211,7 +214,7 @@ button { font: inherit; color: inherit; }
 .card > * { min-width: 0; }      /* таблица в <details> не распирает карточку шире экрана */
 .card h2 { margin: 0; font-size: 16px; font-weight: 700; line-height: 1.3; letter-spacing: -0.01em; text-wrap: balance; }
 .card h2 span { display: block; }
-.card h2 .card-sub { font-weight: 700; }
+.card h2 .card-sub { font-weight: 400; font-size: 0.875em; color: var(--ink-2); }   /* что измерено, период, бар — не продолжение вывода */
 .note { margin: 6px 0 0; font-size: 12px; line-height: 1.5; color: var(--ink-2); }
 .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
 .controls:empty { display: none; }
@@ -268,7 +271,19 @@ details.fold summary { font-size: 12px; color: var(--ink-2); cursor: pointer; wi
 details.fold[open] summary { margin-bottom: 8px; }
 .how { font-size: 11.5px; line-height: 1.55; color: var(--ink-2); }
 .how p { margin: 0 0 6px; }
-.tbl-wrap { overflow-x: auto; }
+/* Таблица шире экрана прокручивается вбок; тень у края говорит, что там ещё колонки. Светлые
+ * полосы цвета фона (local) едут вместе с таблицей и закрывают тень у края, до которого дошли;
+ * тени (scroll) стоят на месте. Фон под таблицей — --tbl-bg (в карточке --card, в отчёте --page). */
+.tbl-wrap {
+  overflow-x: auto;
+  --tbl-bg: var(--card);
+  background:
+    linear-gradient(to right, var(--tbl-bg) 30%, transparent) left / 28px 100% no-repeat local,
+    linear-gradient(to left, var(--tbl-bg) 30%, transparent) right / 28px 100% no-repeat local,
+    radial-gradient(farthest-side at 0 50%, var(--shade), transparent) left / 12px 100% no-repeat scroll,
+    radial-gradient(farthest-side at 100% 50%, var(--shade), transparent) right / 12px 100% no-repeat scroll;
+}
+.rep-tbl .tbl-wrap { --tbl-bg: var(--page); }
 .tbl table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
 .tbl caption { text-align: left; font-size: 11px; color: var(--muted); padding-bottom: 6px; }
 .tbl th, .tbl td { padding: 6px; border-bottom: 1px solid var(--grid); text-align: right; white-space: nowrap; }
@@ -358,12 +373,14 @@ html.is-report .app { max-width: 720px; }
 .rep-tbl { display: grid; gap: 6px; min-width: 0; }
 .rep-tbl table { width: 100%; border-collapse: collapse; font-size: 12.5px; font-variant-numeric: tabular-nums; }
 .rep-tbl th, .rep-tbl td { padding: 7px 6px; border-bottom: 1px solid var(--grid); text-align: left; vertical-align: top; }
-.rep-tbl th { font-weight: 600; color: var(--ink-2); position: sticky; top: 0; background: var(--page); }
+.rep-tbl th { font-weight: 600; color: var(--ink-2); }   /* без своего фона: тень у края видна и в шапке */
 .rep-tbl .num { text-align: right; white-space: nowrap; }
 .rep-tbl-note { margin: 0; font-size: 11.5px; color: var(--muted); }
 details.rep-how summary { font-size: 12.5px; color: var(--ink-2); cursor: pointer; width: max-content; max-width: 100%; padding-block: 2px; }
 details.rep-how[open] summary { margin-bottom: 8px; }
 details.rep-how .rep-text { font-size: 13px; color: var(--ink-2); }
+.how .rep-text { font-size: 13px; color: var(--ink-2); margin-bottom: 10px; }   /* «Как считается» раздела в карточке */
+.how .how-sub { font-weight: 600; color: var(--ink-2); }
 
 html[data-mode="png"] body { background: var(--card); padding: 0; }
 html[data-mode="png"] .app { max-width: none; width: 430px; margin: 0; padding: 0; }

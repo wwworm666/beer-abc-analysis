@@ -20,6 +20,9 @@
 
 Всё остальное экранируется (&, <, >): текст модели не может сломать разметку.
 
+Пробелы внутри чисел и между числом и единицей становятся неразрывными (nbsp): перенос
+строки не отрывает «426 ₽» от «1» и «₽» от «24 тыс.». Код и таблицы в <pre> не трогаются.
+
 Длинный ответ режется на части не длиннее LIMIT символов по абзацам, блок кода не
 разрывается посередине без нужды (а если он сам длиннее части — режется по строкам и
 закрывается/открывается заново); длинный абзац или цитата — по строкам, каждая строка
@@ -58,6 +61,14 @@ _TABLE_RULE_RE = re.compile(r'^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$'
 _QUOTE_RE = re.compile(r'^\s*(>>?)(?: |$)')             # «> текст» или «>> текст» (пробел после знака;
 #                                                          отступ слева — тоже цитата: модель копирует его из примеров)
 _TAG_RE = re.compile(r'<[^>]+>')
+# Неразрывный пробел (решение владельца 2026-10-25, макет отчёта): «1 426», «24 тыс. ₽», «16,4 %».
+# Внутри числа — перед группой ровно из трёх цифр; после числа — перед единицей (₽, %, тыс., млн,
+# млрд, руб, л, шт, ч); после «тыс.», «млн», «млрд» — перед ₽, руб, л, шт. Те же правила —
+# в static/tg_chart/charts.js (fmt.nb) для текстов карточки и страницы отчёта.
+NBSP = '\u00a0'
+_NB_GROUP_RE = re.compile(r'(\d) (?=\d{3}(?!\d))')
+_NB_UNIT_RE = re.compile(r'(\d) (?=(?:тыс\.|млн|млрд|₽|руб|%|л(?![а-яё])|шт|ч(?![а-яё])))')
+_NB_SCALE_RE = re.compile(r'(тыс\.|млн|млрд) (?=(?:₽|руб|л(?![а-яё])|шт))')
 _HOW_HEAD_RE = re.compile(r'^[\s#*_«"]*как\s+считается[\s*_»"]*(?:[:.—–-][\s*_»"]*)?', re.I)
 
 
@@ -75,6 +86,15 @@ def safe_url(url: str) -> bool:
     return parts.scheme in ('http', 'https') and bool(host) and '@' not in parts.netloc
 
 
+def nbsp(text: str) -> str:
+    """Пробелы внутри чисел и между числом и единицей -> неразрывные (вид и длина те же)."""
+    if not text or ' ' not in text:
+        return text
+    text = _NB_GROUP_RE.sub('\\1' + NBSP, text)
+    text = _NB_UNIT_RE.sub('\\1' + NBSP, text)
+    return _NB_SCALE_RE.sub('\\1' + NBSP, text)
+
+
 def _inline(text: str) -> str:
     """Экранировать и перевести разметку внутри строки (код — первым: внутри него не трогаем)."""
     parts = _INLINE_CODE_RE.split(text)
@@ -89,7 +109,7 @@ def _inline(text: str) -> str:
             links.append((match.group(1), match.group(2)))
             return f'\x00{len(links) - 1}\x00'
 
-        piece = _LINK_RE.sub(keep_link, part)
+        piece = nbsp(_LINK_RE.sub(keep_link, part))
         piece = html.escape(piece, quote=False)
         piece = _BOLD_RE.sub(r'<b>\1</b>', piece)
         piece = _ITALIC_RE.sub(r'<i>\1</i>', piece)
@@ -100,7 +120,7 @@ def _inline(text: str) -> str:
                 # Ссылку, которую браузер откроет не там, где она «написана» (user@host, кавычки),
                 # не делаем: остаются подпись и адрес текстом.
                 return f'{html.escape(label, quote=False)} ({html.escape(url, quote=False)})'
-            return f'<a href="{html.escape(url, quote=True)}">{html.escape(label, quote=False)}</a>'
+            return f'<a href="{html.escape(url, quote=True)}">{html.escape(nbsp(label), quote=False)}</a>'
 
         out.append(re.sub(r'\x00(\d+)\x00', put_link, piece))
     return ''.join(out)
@@ -190,7 +210,7 @@ def plain(markdown: str) -> str:
     text = text.replace('**', '')
     text = _LINK_RE.sub(r'\1: \2', text)
     text = '\n'.join(_unquote(line) for line in text.split('\n'))
-    return text.strip()
+    return nbsp(text.strip())
 
 
 def visible_len(text_html: str) -> int:

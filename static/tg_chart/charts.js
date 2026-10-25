@@ -75,6 +75,22 @@
     const forms = spec.unit_forms || [];
     return forms.length === 3 && v != null ? plural(roundTo(v, spec.decimals), forms) : spec.unit;
   }
+  // Неразрывный пробел (как formatting.nbsp в kultura_bot/engine/formatting.py): перенос строки
+  // не отрывает «426 ₽» от «1» и «₽» от «24 тыс.». Внутри числа — перед группой ровно из трёх
+  // цифр; после числа — перед единицей; после «тыс.», «млн», «млрд» — перед ₽, руб, л, шт.
+  // Ставится во все тексты карточки и страницы отчёта (h ниже); подписи ECharts не переносятся.
+  const NBSP = '\u00a0';
+  const NB_RULES = [
+    [/(\d) (?=\d{3}(?!\d))/g, '$1' + NBSP],
+    [/(\d) (?=(?:тыс\.|млн|млрд|₽|руб|%|л(?![а-яё])|шт|ч(?![а-яё])))/g, '$1' + NBSP],
+    [/(тыс\.|млн|млрд) (?=(?:₽|руб|л(?![а-яё])|шт))/g, '$1' + NBSP],
+  ];
+  function nb(text) {
+    let out = String(text);
+    if (out.indexOf(' ') < 0) return out;
+    for (const [re, to] of NB_RULES) out = out.replace(re, to);
+    return out;
+  }
   const exact = (spec, v) => (v == null ? '—' : num(v, spec.decimals) + ' ' + unitFor(spec, v));
   const exactSigned = (spec, v) => (v == null ? '—' : signed(v, spec.decimals) + ' ' + unitFor(spec, Math.abs(v)));
   function scaledUnit(spec) {
@@ -725,7 +741,7 @@
   function h(tag, cls, text) {
     const e = root.document.createElement(tag);
     if (cls) e.className = cls;
-    if (text != null) e.textContent = text;
+    if (text != null) e.textContent = nb(text);
     return e;
   }
   function fontsReady(timeoutMs) {
@@ -750,9 +766,12 @@
     if (opts.id) card.id = opts.id;
     const head = h('div');
     const h2 = h('h2');
-    h2.append(h('span', null, spec.title));
+    // В разделе отчёта вывод уже стоит в заголовке раздела (report.js): заголовок графика не
+    // повторяем, остаётся подзаголовок — что измерено, период, бар. Название — для чтения с экрана.
+    if (opts.hideTitle) card.setAttribute('aria-label', spec.title);
+    else h2.append(h('span', null, spec.title));
     if (spec.subtitle) h2.append(h('span', 'card-sub', spec.subtitle));
-    head.append(h2);
+    if (h2.childNodes.length) head.append(h2);
     if (spec.note) head.append(h('p', 'note', spec.note));
     const controls = h('div', 'controls');
     const hint = h('p', 'hint');
@@ -770,6 +789,9 @@
       const how = h('details', 'fold how-box');
       how.append(h('summary', null, 'Как считается'));
       const howBody = h('div', 'how');
+      // Раздел отчёта: его «Как считается» (готовый узел от report.js) — здесь же, одним блоком
+      // с правилами графика, а не вторым «Как считается» под карточкой.
+      if (opts.howNode) howBody.append(opts.howNode, h('p', 'how-sub', 'Как устроен график'));
       for (const p of howText(spec)) howBody.append(h('p', null, p));
       how.append(howBody);
       tableBox = h('details', 'fold tbl');
@@ -1030,7 +1052,7 @@
 
   const api = {
     mount, buildOption, initialState, fontsReady, table, howText, colorKeys,
-    fmt: { num, signed, plural, exact, exactSigned, short, shortUnit, scaledUnit, pctText, dayShort, dayLong, dayRange, dataAt, valueLabel },
+    fmt: { num, signed, plural, exact, exactSigned, short, shortUnit, scaledUnit, pctText, dayShort, dayLong, dayRange, dataAt, valueLabel, nb },
     calc: { pct, sum, ratingRows, groupTotal, ungrouped, periodRows, rowTotal, windowTotals },
     KINDS: Object.keys(KINDS),
   };

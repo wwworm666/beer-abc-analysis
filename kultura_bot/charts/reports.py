@@ -34,7 +34,9 @@
               how      «Как считается» раздела (Markdown), на странице — свёрнуто
     how       общее «Как считается» (Markdown), на странице — свёрнуто внизу
     source    источник данных: «iiko», «iiko · планы сайта»
-    data_at   время данных ISO 8601; без пояса — МСК; по умолчанию — время отправки
+    data_at   время данных ISO 8601; без пояса — МСК. Не передано — самое раннее время
+              из графиков отчёта, где оно указано; нет и его — время не пишется
+              (время сборки за время выгрузки не выдаём)
 
 Тексты хранятся Markdown-ом бота (источник истины) и переводятся в HTML при чтении
 (kultura_bot/engine/formatting.to_html — тот же перевод, что у сообщений бота: всё
@@ -190,6 +192,11 @@ def _data_at(value: Any, now: datetime) -> str:
         raise ReportError(str(exc)) from None
 
 
+def _earliest(times: List[str]) -> Optional[str]:
+    """Самое раннее из времён ISO 8601 (графики уже нормализованы: у всех есть пояс)."""
+    return min(times, key=datetime.fromisoformat) if times else None
+
+
 def normalize_report(raw: Any, *, text_filter: Optional[TextFilter] = None,
                      page_filter: Optional[TextFilter] = None, now: Optional[datetime] = None) -> Dict[str, Any]:
     """Проверить отчёт и привести к каноническому виду (его и храним). Ошибка — ReportError.
@@ -209,6 +216,7 @@ def normalize_report(raw: Any, *, text_filter: Optional[TextFilter] = None,
         raise ReportError(f'sections: список от 1 до {SECTIONS_MAX} разделов')
     sections: List[Dict[str, Any]] = []
     charts = 0
+    chart_times: List[str] = []
     for n, sec in enumerate(sections_raw):
         where = f'sections[{n}]'
         if not isinstance(sec, dict):
@@ -225,6 +233,8 @@ def normalize_report(raw: Any, *, text_filter: Optional[TextFilter] = None,
                 chart = chart_spec.normalize(sec['chart'], text_filter=page_filter, now=now)
             except chart_spec.ChartSpecError as exc:
                 raise ReportError(f'{where}.chart: {exc}') from None
+            if isinstance(sec['chart'], dict) and sec['chart'].get('data_at') not in (None, ''):
+                chart_times.append(chart['data_at'])     # без своего времени у графика — время отправки
         item = {
             'heading': _line(sec.get('heading'), where + '.heading', HEADING_MAX, required=True,
                              text_filter=page_filter),
@@ -243,7 +253,8 @@ def normalize_report(raw: Any, *, text_filter: Optional[TextFilter] = None,
         'sections': sections,
         'how': _markdown(raw.get('how'), 'how', HOW_MAX, text_filter=page_filter),
         'source': _line(raw.get('source'), 'source', SOURCE_MAX, required=True, text_filter=page_filter),
-        'data_at': _data_at(raw.get('data_at'), now),
+        'data_at': (_data_at(raw['data_at'], now) if raw.get('data_at') not in (None, '')
+                    else _earliest(chart_times)),
     }
     _check_size(body)
     return body
@@ -273,18 +284,23 @@ def _check_size(body: Dict[str, Any]) -> None:
 # ------------------------------------------------------------------ вид для страницы
 
 def view(record: Dict[str, Any]) -> Dict[str, Any]:
-    """Запись -> то, что рисует страница: Markdown переведён в HTML (только своя разметка)."""
+    """Запись -> то, что рисует страница: Markdown переведён в HTML (только своя разметка).
+
+    У записки «Как считается» времени данных в шапке нет: её время — время сборки ответа, а время
+    выгрузки написано в самом тексте. Заголовки — с неразрывными пробелами в числах (formatting.nbsp)."""
     from kultura_bot.engine import formatting
     body = record['body']
     html = formatting.to_html
-    out: Dict[str, Any] = {'id': record['id'], 'kind': body['kind'], 'title': body['title'],
-                           'data_at': body.get('data_at'), 'created_at': record['created_at']}
+    nb = formatting.nbsp
+    out: Dict[str, Any] = {'id': record['id'], 'kind': body['kind'], 'title': nb(body['title']),
+                           'data_at': body.get('data_at') if body['kind'] == 'report' else None,
+                           'created_at': record['created_at']}
     if body['kind'] == 'note':
         out['how_html'] = html(body['text'])
         return out
     out.update({
         'summary_html': html(body['summary']),
-        'sections': [{'heading': s['heading'], 'html': html(s['text']) if s['text'] else '',
+        'sections': [{'heading': nb(s['heading']), 'html': html(s['text']) if s['text'] else '',
                       'chart': s['chart'], 'table': s['table'],
                       'how_html': html(s['how']) if s['how'] else ''} for s in body['sections']],
         'how_html': html(body['how']) if body['how'] else '',
