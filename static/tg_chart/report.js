@@ -10,6 +10,10 @@
  *   mount(container, view, opts)  страница: заголовок, источник и время, выжимка, разделы
  *                                 (текст, график, таблица, свёрнутое «Как считается»),
  *                                 общее «Как считается». opts: toast, onSelect
+ *
+ * Раздел с графиком: заголовок графика не показывается (вывод уже в заголовке раздела, карточка
+ * начинается с подзаголовка), а «Как считается» раздела уходит в «Как считается» карточки —
+ * одно на раздел. Тексты — с неразрывными пробелами в числах (TgChart.fmt.nb).
  *   cellText(value)               ячейка таблицы: число по-русски (разряды, минус −), null — «—»
  */
 (function (root) {
@@ -17,10 +21,12 @@
 
   const NF = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 });
 
+  const nb = text => (root.TgChart && root.TgChart.fmt && root.TgChart.fmt.nb ? root.TgChart.fmt.nb(text) : text);
+
   function h(tag, cls, text) {
     const e = root.document.createElement(tag);
     if (cls) e.className = cls;
-    if (text != null) e.textContent = text;
+    if (text != null) e.textContent = nb(text);
     return e;
   }
   function markup(tag, cls, html) {
@@ -92,13 +98,15 @@
         sec.id = 's' + (i + 1);
         sec.append(h('h2', null, s.heading));
         if (s.html) sec.append(markup('div', 'rep-text', s.html));
+        const withCard = s.chart && root.TgChart;
         if (s.chart) {
           const box = h('div', 'rep-chart');
           sec.append(box);
-          charts.push({ box, spec: s.chart, n: i + 1 });
+          charts.push({ box, spec: s.chart, n: i + 1,
+                        howNode: withCard && s.how_html ? markup('div', 'rep-text', s.how_html) : null });
         }
         if (s.table) sec.append(table(s.table));
-        if (s.how_html) sec.append(how(s.how_html));
+        if (s.how_html && !withCard) sec.append(how(s.how_html));
         art.append(sec);
       });
       if (view.how_html) art.append(how(view.how_html, 'Как считается — весь отчёт'));
@@ -110,6 +118,7 @@
       for (const c of charts) {
         mounted.push(root.TgChart.mount(c.box, c.spec, {
           mode: 'app', id: 'chart-' + c.n, toast: opts.toast, onSelect: opts.onSelect,
+          hideTitle: true, howNode: c.howNode,
         }));
       }
     } else {

@@ -1051,6 +1051,22 @@ def test_quotes_become_blockquotes_and_survive_splitting():
         'цитата с отступом (модель копирует его из примеров) — тоже цитата'
 
 
+def test_numbers_keep_together_across_line_breaks():
+    """Решение 2026-10-25: перенос не отрывает «426 ₽» от «1» и «₽» от «24 тыс.» — пробелы внутри
+    числа и перед единицей неразрывные. Код, адреса и обычные слова не трогаются; длина та же."""
+    nb = '\u00a0'
+    html = formatting.to_html('**−24 тыс. ₽** к 1 931 тыс. ₽; 12 345 678 л, 16,4 %, 2 ч, 100 шт\n'
+                              '> Кременчугская · 503 · −16,4%\n- 2 часа, 5 литров, 2–13 сен 2026\n'
+                              '`1 426 ₽` [1 426 ₽](https://beerkultura.ru/r?n=1%20426)\n```\n1 426 ₽\n```')
+    assert f'<b>−24{nb}тыс.{nb}₽</b> к 1{nb}931{nb}тыс.{nb}₽; 12{nb}345{nb}678{nb}л, 16,4{nb}%, 2{nb}ч, 100{nb}шт' in html
+    assert '• 2 часа, 5 литров, 2–13 сен 2026' in html, 'слова и даты — как были'
+    assert '<code>1 426 ₽</code>' in html and '<pre>1 426 ₽</pre>' in html, 'код — как есть'
+    assert f'<a href="https://beerkultura.ru/r?n=1%20426">1{nb}426{nb}₽</a>' in html, 'адрес — как был'
+    assert formatting.visible_len(formatting.to_html('к 1 426 ₽')) == len('к 1 426 ₽')
+    assert formatting.plain('**Итог 1 426 ₽**') == f'Итог 1{nb}426{nb}₽'
+    assert formatting.nbsp('5 120 часов, 1 2345') == f'5{nb}120 часов, 1 2345', 'группа — ровно три цифры'
+
+
 def test_split_how_and_with_link():
     visible, how = formatting.split_how(HOW_ANSWER)
     assert visible.endswith('Могу разложить Кременчугскую по дням.') and '>>' not in visible

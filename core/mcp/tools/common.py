@@ -790,10 +790,14 @@ REPORT_SCHEMA = {
                 'heading': {'type': 'string', 'minLength': 1, 'maxLength': 120,
                             'description': 'Заголовок раздела — вывод раздела с числом.'},
                 'text': {'type': 'string', 'maxLength': 8000, 'description': 'Текст раздела. ' + _MARKDOWN_HINT},
-                'chart': CHART_SCHEMA,
+                'chart': dict(CHART_SCHEMA, description=(
+                    'График раздела — тот же формат, что у common_chart_send. На странице заголовок графика не '
+                    'показывается (вывод — в heading раздела), карточка начинается с подзаголовка: что измерено, '
+                    'период, бар; how раздела уходит в «Как считается» карточки. Первый график отчёта — обложка '
+                    'в чате, с заголовком.')),
                 'table': {'type': 'object', 'additionalProperties': False, 'required': ['columns', 'rows'],
                           'description': 'Таблица точных значений: на странице — настоящая таблица, '
-                                         'числа выравниваются вправо.',
+                                         'числа выравниваются вправо. До 4 колонок: шире на телефоне уходит за край.',
                           'properties': {
                               'columns': {'type': 'array', 'minItems': 1, 'maxItems': 12, 'items': {'anyOf': [
                                   {'type': 'string', 'minLength': 1, 'maxLength': 200},
@@ -814,7 +818,8 @@ REPORT_SCHEMA = {
                 'description': 'Общее «Как считается»: источники, окна, правила округления, время данных.'},
         'source': {'type': 'string', 'minLength': 1, 'maxLength': 60, 'description': 'Источник: «iiko · планы сайта».'},
         'data_at': {'type': 'string', 'maxLength': 40,
-                    'description': 'Время данных ISO 8601 (из ответа инструмента); без пояса — МСК.'},
+                    'description': 'Время данных ISO 8601 (из ответа инструмента); без пояса — МСК. Не передано — '
+                                   'самое раннее время графиков отчёта; нет и его — время не пишется.'},
     },
 }
 
