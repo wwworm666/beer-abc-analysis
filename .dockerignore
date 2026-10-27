@@ -86,7 +86,8 @@ LICENSE
 
 Dockerfile
 docker-compose.yml
-Caddyfile
+# Caddyfile в образе нужен: gunicorn.conf.py при старте отдаёт его в admin API Caddy
+# (docs/guides/deploy.md, «Как применяется Caddyfile»). Не исключать.
 
 Thumbs.db
 .DS_Store
