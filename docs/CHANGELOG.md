@@ -1,5 +1,11 @@
 ﻿# Changelog
 
+### 2026-10-27 (4) — Caddyfile попадает в образ приложения
+
+| Что | Почему | Где | Что сломается при неверной правке |
+|---|---|---|---|
+| `Caddyfile` убран из `.dockerignore`; тест: ни `Caddyfile`, ни `gunicorn.conf.py` не исключены из образа | Три деплоя подряд Caddy не менялся: даже аварийный адрес с `tls internal` отвечал `internal error`. Хук из `gunicorn.conf.py` читал `/app/Caddyfile`, а файла в образе не было — предупреждение в логе, конфиг Caddy прежний | `.dockerignore`, `tests/test_gunicorn_conf.py`, `docs/guides/deploy.md`, `docs/lessons.md` | Вернуть `Caddyfile` в `.dockerignore` — правки адресов снова не дойдут до Caddy без ручного перезапуска |
+
 ### 2026-10-27 (3) — Аварийный адрес с сертификатом Caddy
 
 | Что | Почему | Где | Что сломается при неверной правке |

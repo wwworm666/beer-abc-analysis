@@ -174,6 +174,9 @@ Let's Encrypt: sslip.io нет в Public Suffix List, поэтому недел�
   самый не перезагружает. Приложение стартует в любом случае; итог — строка `Caddy`
   в `docker logs beer-app` («передан» или причина отказа).
 - Откат на прежний образ отдаёт Caddy прежний `Caddyfile` из того же образа.
+- `Caddyfile` и `gunicorn.conf.py` должны попадать в образ: в `.dockerignore` их нет
+  (держит `tests/test_gunicorn_conf.py`). До 2026-10-27 `Caddyfile` там стоял, и хук
+  молча ничего не отдавал.
 - Если строка говорит, что Caddy недоступен, — перезапустить его вручную:
   `ssh root@139.100.200.92 "docker restart beer-caddy"` (именно перезапуск, а не
   `caddy reload`: см. про смонтированный файл выше).

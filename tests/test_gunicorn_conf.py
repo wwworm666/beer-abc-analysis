@@ -1,4 +1,5 @@
 """gunicorn.conf.py: при старте приложение отдаёт Caddyfile в admin API Caddy."""
+import fnmatch
 import importlib.util
 import io
 import urllib.error
@@ -83,6 +84,14 @@ def test_only_gunicorn_hook_is_exposed_as_setting():
     conf = load_conf()
     public = {name for name in vars(conf) if not name.startswith('_') and name.islower()}
     assert public - {'urllib', 'Path', 'apply_caddyfile'} == {'when_ready'}
+
+
+def test_dockerignore_keeps_hook_inputs_in_image():
+    """2026-10-27: Caddyfile стоял в .dockerignore, хуку нечего было отдать, Caddy не менялся."""
+    patterns = [line.strip() for line in (ROOT / '.dockerignore').read_text(encoding='utf-8').splitlines()
+                if line.strip() and not line.lstrip().startswith('#')]
+    for name in ('Caddyfile', 'gunicorn.conf.py'):
+        assert not any(fnmatch.fnmatch(name, p) for p in patterns), name
 
 
 def test_caddyfile_keeps_main_domain_for_deploy_check():
