@@ -95,7 +95,7 @@ Guests.registerView('ltv', function (pane) {
                 [{ label: 'LTV, ₽', data: series.map(function (r) { return r.ltv; }),
                    borderColor: pal.accent, backgroundColor: pal.accent, tension: 0.3,
                    pointRadius: 2 }],
-                {});
+                { beginAtZero: true });
         }
         if (byBar) return;
         GCharts.hbar('ltvVenueChart',

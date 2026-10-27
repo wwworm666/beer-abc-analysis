@@ -121,7 +121,7 @@ Guests.registerView('churn', function (pane) {
             { label: 'Не вернулись после первого визита, %',
               data: rows.map(function (r) { return r.newbie_no_return_pct; }),
               borderColor: pal.warning, backgroundColor: pal.warning, tension: 0.3, pointRadius: 2 }
-        ], {});
+        ], { beginAtZero: true });
         GCharts.bar('churnFlowChart', labels, [
             { label: 'Новые', data: rows.map(function (r) { return r.new; }),
               backgroundColor: pal.accent, stack: 'flow' },

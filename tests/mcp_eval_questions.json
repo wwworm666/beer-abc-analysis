@@ -190,6 +190,15 @@
       "unit": "гостей"
     },
     {
+      "id": "analytics-guests-churn",
+      "domain": "analytics",
+      "question": "Какой отток гостей с картой за прошлый месяц ({prev_month}) при пороге 30 дней без визита, в процентах?",
+      "expect_tools": ["analytics_guests_churn"],
+      "reference": {"tool": "analytics_guests_churn", "args": {"period_type": "month", "anchor": "{prev_month_start}", "dead_days": 30}, "path": "data.period.churn_pct"},
+      "tolerance": {"abs": 0.05},
+      "unit": "%"
+    },
+    {
       "id": "analytics-revenue-yesterday",
       "domain": "analytics",
       "question": "Какая выручка всей сети была вчера ({yesterday}), в рублях?",
