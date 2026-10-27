@@ -29,6 +29,17 @@ beerkultura.ru, 139-100-200-92.sslip.io {
 	}
 }
 
+# 139-100-200-92.nip.io — аварийный адрес с сертификатом собственного центра Caddy
+# (tls internal): выдаётся сразу, без Let's Encrypt и ZeroSSL, браузер предупреждает
+# о небезопасном подключении. Заодно показывает, что Caddy принял этот Caddyfile:
+# свой сертификат он выдаёт только по загруженному конфигу. Убрать, когда заработает
+# постоянный домен.
+139-100-200-92.nip.io {
+	tls internal
+	encode gzip
+	reverse_proxy localhost:10000
+}
+
 # www → apex редирект (Caddy сам выпустит второй LE-сертификат)
 www.beerkultura.ru {
 	redir https://beerkultura.ru{uri} permanent
