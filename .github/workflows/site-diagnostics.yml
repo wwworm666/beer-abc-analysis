@@ -1,0 +1,28 @@
+# Temporary: check the fallback address after deploy. Runs only on this branch.
+name: Site diagnostics
+on:
+  push:
+    branches: [claude/focused-thompson-vod2vw]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Fallback address
+        run: |
+          echo "DNS: $(dig +short 139-100-200-92.sslip.io @8.8.8.8 | tr '\n' ' ')"
+          for i in 1 2 3 4 5 6; do
+            code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 https://139-100-200-92.sslip.io/login 2>&1) || true
+            echo "attempt $i: $code"
+            [ "$code" = 200 ] && break
+            sleep 20
+          done
+          curl -sSv -o /dev/null --max-time 20 https://139-100-200-92.sslip.io/login 2>&1 | grep -Ei 'issuer|subject:|expire|HTTP/' || true
+          curl -sS -o /dev/null -w "http redirect: %{http_code} -> %{redirect_url}\n" --max-time 20 http://139-100-200-92.sslip.io/login || true
+      - name: Admin API not exposed
+        run: |
+          timeout 8 bash -c "</dev/tcp/139.100.200.92/2019" 2>/dev/null && echo "port 2019: OPEN (exposed!)" || echo "port 2019: closed (ok)"
