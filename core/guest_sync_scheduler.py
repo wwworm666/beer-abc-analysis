@@ -6,7 +6,12 @@
 месяцы пропускаются, фактически пересинкается только текущий месяц).
 
 Время из env GUESTS_SYNC_HOUR/MINUTE (default 05:10 — после пересчёта месячной
-витрины в 04:30, чтобы не наслаивать нагрузку на iiko).
+витрины в 04:30, чтобы не наслаивать нагрузку на iiko). Это ВРЕМЯ КОНТЕЙНЕРА:
+в прод-образе нет tzdata, наивный datetime.now() — UTC, поэтому 05:10 = 08:10 МСК.
+Так живёт вся ночная цепочка (ЧЗ 03:00, ЗП 04:00, месячный отчёт 04:30, гости
+05:10, снимок /me 05:40 — docs/me.md, «Ночной прогон»). Не «поправлять» на
+Москву: синк встанет раньше месячного отчёта и выпадет из цепочки. Чтобы лог не
+читался как «5 утра по Москве», рядом с временем контейнера пишется МСК.
 
 ЗАЩИТА ОТ ДВОЙНОГО ЗАПУСКА (gunicorn --workers 2): atomic lock-file
 (O_CREAT|O_EXCL) на дату — тот же паттерн, что monthly_report_scheduler.
@@ -19,7 +24,7 @@ import threading
 import time
 from datetime import datetime, timedelta
 
-from core import guest_sync
+from core import guest_sync, msk_time
 
 REFRESH_HOUR = int(os.environ.get("GUESTS_SYNC_HOUR", "5"))
 REFRESH_MINUTE = int(os.environ.get("GUESTS_SYNC_MINUTE", "10"))
@@ -39,6 +44,14 @@ def _iiko_configured():
         return bool(IIKO_LOGIN and IIKO_PASSWORD)
     except Exception:
         return False
+
+
+def _as_msk(moment):
+    """Время контейнера -> 'HH:MM' по Москве — вторая подпись в логах.
+
+    moment — наивное время контейнера (Python считает его местным) или aware.
+    """
+    return moment.astimezone(msk_time.MOSCOW_TZ).strftime('%H:%M')
 
 
 def _seconds_until_next_run(hour, minute):
@@ -87,7 +100,7 @@ def _nightly_loop():
             wait = _seconds_until_next_run(REFRESH_HOUR, REFRESH_MINUTE)
             next_at = datetime.now() + timedelta(seconds=wait)
             print(f"[GUEST-SYNC-SCHED] sleduyushchiy sink: {next_at.isoformat()} "
-                  f"(cherez {wait/3600:.1f}ch)")
+                  f"= {_as_msk(next_at)} MSK (cherez {wait/3600:.1f}ch)")
             time.sleep(wait)
             date_str = datetime.now().strftime('%Y-%m-%d')
             if _try_acquire_lock(LOCK_PREFIX, date_str):
@@ -126,5 +139,8 @@ def start_scheduler():
         threading.Thread(target=_startup_backfill, name="guest-sync-backfill",
                          daemon=True).start()
         _started = True
+        run_at = datetime.now().replace(hour=REFRESH_HOUR, minute=REFRESH_MINUTE,
+                                        second=0, microsecond=0)
         print(f"[GUEST-SYNC-SCHED] startoval, sink ezhednevno v "
-              f"{REFRESH_HOUR:02d}:{REFRESH_MINUTE:02d} + startovy bekfill")
+              f"{REFRESH_HOUR:02d}:{REFRESH_MINUTE:02d} vremeni konteynera "
+              f"({_as_msk(run_at)} MSK) + startovy bekfill")
