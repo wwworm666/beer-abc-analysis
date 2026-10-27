@@ -143,11 +143,16 @@ Remove-Variable beerKey -ErrorAction SilentlyContinue
 
 Пока основной домен не работает, сайт открывается по
 https://139-100-200-92.sslip.io: sslip.io отвечает IP из имени, DNS настраивать не нужно.
-Имя стоит в `Caddyfile` рядом с основным; сертификат на него Caddy выпускает сам
-в первые минуты после деплоя. Сессии входа привязаны к имени сайта: на запасном
-адресе входят заново. Ссылки в
-уведомлениях Telegram, бот @MCPkulturabot и коннекторы MCP по-прежнему ведут на
-`beerkultura.ru`.
+Имя стоит в `Caddyfile` рядом с основным. Сертификат на него даёт ZeroSSL, а не
+Let's Encrypt: sslip.io нет в Public Suffix List, поэтому недельный лимит Let's Encrypt
+считается на весь sslip.io и выбран другими (2026-10-27 Caddy получал отказ, HTTPS
+отвечал `tlsv1 alert internal error`). ZeroSSL Caddy подключает сам, когда в глобальном
+блоке `Caddyfile` есть `email`. Сессии входа привязаны к имени сайта: на запасном
+адресе входят заново. Ссылки в уведомлениях Telegram, бот @MCPkulturabot и
+коннекторы MCP по-прежнему ведут на `beerkultura.ru`.
+
+Для постоянного адреса нужен свой домен или поддомен в зоне из Public Suffix List
+(например, `duckdns.org`): там лимит Let's Encrypt считается на каждое имя отдельно.
 
 ## Как применяется Caddyfile
 

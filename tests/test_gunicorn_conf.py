@@ -87,8 +87,16 @@ def test_only_gunicorn_hook_is_exposed_as_setting():
 
 def test_caddyfile_keeps_main_domain_for_deploy_check():
     """beer-deploy проверяет https://beerkultura.ru/login через Caddy: без домена релиз откатится."""
-    first_site = next(line for line in (ROOT / 'Caddyfile').read_text(encoding='utf-8').splitlines()
-                      if line.strip() and not line.startswith('#'))
-    hosts = [h.strip() for h in first_site.rstrip('{ ').split(',')]
+    lines = (ROOT / 'Caddyfile').read_text(encoding='utf-8').splitlines()
+    site_lines = [line for line in lines if line.endswith('{') and not line[0].isspace()
+                  and not line.startswith(('#', '{'))]
+    hosts = {h.strip() for line in site_lines for h in line.rstrip('{ ').split(',')}
     assert 'beerkultura.ru' in hosts
     assert '139-100-200-92.sslip.io' in hosts
+
+
+def test_caddyfile_sets_acme_email_for_zerossl_fallback():
+    """Без email Caddy (v2.8+) не берёт ZeroSSL, а Let's Encrypt не выдаёт sslip.io."""
+    text = (ROOT / 'Caddyfile').read_text(encoding='utf-8')
+    global_block = text[text.index('\n{\n') + 3:text.index('\n}\n')]
+    assert [line.split() for line in global_block.splitlines()] == [['email', 'ssl@beerkultura.ru']]
