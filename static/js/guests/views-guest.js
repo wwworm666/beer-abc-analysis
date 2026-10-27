@@ -19,7 +19,7 @@ Guests.registerView('guest', function (pane) {
             'placeholder="Телефон, номер карты или имя (минимум 2 символа)"></div>' +
             '<div class="search-results" id="guestHits"></div>' +
             '<div id="guestCard"></div>' +
-            G.howBlock(['visit', 'order', 'revenue', 'ltv', 'rfm', 'activity_status',
+            G.howBlock(['visit', 'order', 'revenue', 'guest_ltv', 'rfm', 'activity_status',
                         'favorite_store']);
         var input = document.getElementById('guestQ');
         var t = null;
@@ -90,7 +90,7 @@ Guests.registerView('guest', function (pane) {
                     G.esc(g.first_order_store_name)) +
                 G.metricCard('visit', 'Последний визит', G.fmtDate(g.last_visit_date),
                     'телефон: ' + G.esc(g.phone)) +
-                G.metricCard('ltv', 'LTV', G.fmtMoney(d.ltv), 'выручка за всю историю') +
+                G.metricCard('guest_ltv', 'LTV', G.fmtMoney(d.ltv), 'выручка за всю историю') +
                 G.metricCard('favorite_store', 'Любимая точка',
                     G.esc(d.favorite_store_name) || '—', 'по числу визитов') +
                 (d.rfm ? G.metricCard('rfm', 'RFM (12 мес)',

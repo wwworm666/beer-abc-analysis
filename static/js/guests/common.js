@@ -48,6 +48,18 @@ window.Guests = (function () {
             .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;');
     }
+    // Короткая подпись периода по его первому дню — ось графика и строка таблицы
+    // рядов «Оттока» и LTV: «16.03» у недели, «мар 26», «I кв 26», «2026».
+    function periodShort(pStart, type) {
+        if (!pStart) return '—';
+        if (type === 'week') return fmtDate(pStart).slice(0, 5);
+        if (type === 'quarter') {
+            return ['I', 'II', 'III', 'IV'][Math.floor((parseInt(pStart.slice(5, 7), 10) - 1) / 3)] +
+                ' кв ' + pStart.slice(2, 4);
+        }
+        if (type === 'year') return pStart.slice(0, 4);
+        return fmtMonth(pStart.slice(0, 7));
+    }
 
     // ---------------- периоды ----------------
     function anchorISO() {
@@ -344,7 +356,7 @@ window.Guests = (function () {
         setBar: setBar,
         barName: barName,
         fmtNum: fmtNum, fmtMoney: fmtMoney, fmtPct: fmtPct,
-        fmtDate: fmtDate, fmtMonth: fmtMonth, esc: esc,
+        fmtDate: fmtDate, fmtMonth: fmtMonth, periodShort: periodShort, esc: esc,
         helpIcon: helpIcon, howBlock: howBlock, metricCard: metricCard,
         scopeNote: scopeNote
     };

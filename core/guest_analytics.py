@@ -320,6 +320,79 @@ def _pct(part, total, digits=1):
     return round(100.0 * part / total, digits) if total else 0.0
 
 
+def data_to(meta):
+    """Последний ПОЛНЫЙ учётный день витрины (ISO) или None, если чеков нет.
+
+    min(последний день с чеками, рабочий день бара - 1 день). Последний день с
+    чеками бывает неполным: дневной деплой пересинкает текущий месяц
+    (guest_sync_scheduler._startup_backfill), и в витрину попадает половина
+    сегодняшней смены — гость, который зайдёт вечером, уже числился бы ушедшим.
+    Рабочий день меняется в 06:00 МСК (msk_time.business_today). Срез общий для
+    сети и для бара: полнота данных — свойство синка (один запрос на все бары), а
+    не бара; по последнему чеку бара отток «замирал» бы как раз на его закрытии.
+    """
+    cov_to = meta.get('coverage_to')
+    if not cov_to:
+        return None
+    last_full = (msk_time.business_today() - timedelta(days=1)).isoformat()
+    return min(cov_to, last_full)
+
+
+def parse_dead_days(raw):
+    """?dead_days= -> порог из CHURN_DEAD_DAYS_CHOICES; иное — CHURN_DEAD_DAYS_DEFAULT.
+
+    Как basis/mode модуля: кривой параметр не роняет отчёт, а по какому порогу
+    посчитано на самом деле, ответ говорит сам (data.dead_days). В схеме MCP — enum.
+    """
+    try:
+        value = int(str(raw).strip())
+    except (TypeError, ValueError):
+        return CHURN_DEAD_DAYS_DEFAULT
+    return value if value in CHURN_DEAD_DAYS_CHOICES else CHURN_DEAD_DAYS_DEFAULT
+
+
+def parse_series_len(raw, period_type):
+    """?periods= -> длина ряда в CHURN_SERIES_MIN..MAX; пусто или мусор — по умолчанию.
+
+    Без int() на сыром вводе в маршруте: у прежнего ?months= мусор давал 500.
+    """
+    default = CHURN_SERIES_DEFAULT.get(period_type, CHURN_SERIES_DEFAULT['month'])
+    try:
+        value = int(str(raw).strip())
+    except (TypeError, ValueError):
+        return default
+    return min(max(value, CHURN_SERIES_MIN), CHURN_SERIES_MAX)
+
+
+def _rate(part, total, digits=1):
+    """Доля в процентах или None при нулевом знаменателе.
+
+    В отличие от _pct (там 0.0): отток при пустой базе на начало не определён, а
+    «0%» читался бы как «никто не ушёл».
+    """
+    return round(100.0 * part / total, digits) if total else None
+
+
+def _series_periods(period, n, scope_from):
+    """Выбранный период и до n-1 предыдущих того же типа — от старых к новым.
+
+    Шаг назад — resolve_period(type, prev_end): ISO-недели через границу года и
+    кварталы сходятся сами. Периоды, закончившиеся раньше scope_from (ISO-дата
+    начала данных: сети или первого чека бара), отбрасываются; без данных — [].
+    """
+    out = []
+    if not scope_from:
+        return out
+    p = period
+    for _ in range(n):
+        if p['p_end'].isoformat() < scope_from:
+            break
+        out.append(p)
+        p = resolve_period(p['type'], p['prev_end'].isoformat())
+    out.reverse()
+    return out
+
+
 # ---------------------------------------------------------------- §1 Рост базы
 
 def base_growth(store, period, meta, venue=None):
@@ -811,34 +884,92 @@ def rfm_filter_guests(guests, segments=None, q=None, limit=None):
 
 # ---------------------------------------------------------------- §8 LTV
 
-def ltv(store, period, meta, venue=None):
-    """LTV (ТЗ §8): средний Lifetime, YTD-вариант, по точкам (по когортам — §6).
+def _ltv_daily(conn, venue=None):
+    """Чеки и выручка по дням + даты первых визитов — всё для LTV на любую дату.
 
-    С баром (venue) — выручка и гости только этого бара: LTV гостя В ЭТОМ баре.
-    by_venue — сравнение баров между собой (гость закреплён за баром первого
-    заказа, выручка — по всей сети), поэтому считается только для всей сети;
-    с баром это пустой список, как профиль баров на /packaging и /kitchen.
+    -> (дни, накопленные чеки, накопленная выручка, отсортированные первые визиты);
+    дни — date.toordinal(). Первый визит — первый чек гостя (с баром — в этом баре),
+    из тех же чеков, что и выручка: гость без чека не попадёт в знаменатель.
     """
-    p_end = period['p_end'].isoformat()
-    ytd_start = meta['ytd_start']
+    store_sql, params = ("WHERE store = ? ", [venue]) if venue else ("", [])
+    days, cum_checks, cum_revenue = [], [], []
+    for r in conn.execute(
+            "SELECT open_date, COUNT(*) n, SUM(revenue) rev FROM receipts " + store_sql +
+            "GROUP BY open_date ORDER BY open_date", params):
+        days.append(date.fromisoformat(r['open_date'][:10]).toordinal())
+        cum_checks.append((cum_checks[-1] if cum_checks else 0) + r['n'])
+        cum_revenue.append((cum_revenue[-1] if cum_revenue else 0.0) + (r['rev'] or 0.0))
+    firsts = sorted(
+        date.fromisoformat(r['f'][:10]).toordinal() for r in conn.execute(
+            "SELECT MIN(open_date) f FROM receipts " + store_sql + "GROUP BY guest_id",
+            params))
+    return days, cum_checks, cum_revenue, firsts
+
+
+def _ltv_at(daily, d_o):
+    """(гостей, чеков, выручка) по чекам не позже дня d_o (порядковый номер)."""
+    days, cum_checks, cum_revenue, firsts = daily
+    i = bisect_right(days, d_o)
+    return (bisect_right(firsts, d_o), cum_checks[i - 1] if i else 0,
+            cum_revenue[i - 1] if i else 0.0)
+
+
+def _ltv_parts(guests, checks, revenue):
+    """LTV и сомножители без округления: (LTV, средний чек, чеков на гостя) или Nones."""
+    if not guests or not checks:
+        return None, None, None
+    return revenue / guests, revenue / checks, checks / guests
+
+
+def ltv(store, period, meta, venue=None, periods=None):
+    """LTV на дату (ТЗ §8): средний, из чего состоит, ряд по периодам; YTD; по точкам.
+
+    Дата среза D = min(конец периода, data_to) — та же, что у оттока (§17): последний
+    полный день данных. Все суммы — по чекам не позже D: прошлый период не видит
+    более поздней выручки, и его цифры не меняются со временем (до 2026-10-27
+    lifetime-суммы шли до сегодняшнего дня при любом периоде).
+
+    - LTV = выручка чеков <= D / гостей с первым визитом <= D;
+    - средний чек = выручка <= D / чеков <= D; чеков на гостя = чеков <= D / гостей;
+      LTV = средний чек × чеков на гостя (тождество; решение владельца 2026-10-27 —
+      «из чего состоит»). Частота здесь в ЧЕКАХ, §4 считает визиты-дни;
+    - series — те же величины на конец каждого периода ряда (длина — как у оттока,
+      parse_series_len) и изменение к предыдущей точке, разложенное симметрично (без
+      зависимости от порядка): вклад чека = (c1 - c0) × (f0 + f1) / 2, вклад частоты =
+      (f1 - f0) × (c0 + c1) / 2, сумма = ΔLTV точно;
+    - округления: всё считается из несокращённых сумм; delta = round(LTV1) - round(LTV0),
+      check_effect = round(своего), frequency_effect = delta - check_effect (впитывает
+      остаток до 1 ₽ — показанные числа складываются). Чек — до рубля, чеков на гостя —
+      2 знака (с одним знаком произведение расходилось бы с LTV на сотню рублей),
+      поэтому произведение показанных сомножителей может отличаться от LTV на рубли;
+    - накопленные «чеков на гостя» растут, когда база стареет, и падают, когда приходит
+      много новых: вклад частоты — не только «гости стали ходить чаще».
+
+    С баром (venue) — выручка, чеки и гости только этого бара: LTV гостя В ЭТОМ баре.
+    by_venue — сравнение баров между собой (гость закреплён за баром первого заказа в
+    сети, выручка — по всей сети до D), поэтому считается только для всей сети; с баром
+    это пустой список, как профиль баров на /packaging и /kitchen.
+    """
     venue = resolve_venue(venue)
+    n = periods or CHURN_SERIES_DEFAULT.get(period['type'], CHURN_SERIES_DEFAULT['month'])
+    last_full = data_to(meta)
+    asof = min(period['p_end'].isoformat(), last_full) if last_full else None
     store_sql, store_params = _venue_cond(venue)
     with store.conn() as conn:
-        life = conn.execute(
-            "SELECT COUNT(DISTINCT guest_id) n, SUM(revenue) rev FROM receipts"
-            + (" WHERE store = ?" if venue else ""), store_params).fetchone()
+        daily = _ltv_daily(conn, venue)
         ytd_row = conn.execute(
             "SELECT COUNT(DISTINCT guest_id) n, SUM(revenue) rev FROM receipts "
             "WHERE open_date >= ? AND open_date <= ?" + store_sql,
-            [ytd_start, p_end] + store_params).fetchone()
-        by_venue = [] if venue else conn.execute(
+            [meta['ytd_start'], asof or meta['ytd_start']] + store_params).fetchone()
+        by_venue = [] if venue or not asof else conn.execute(
             """
             SELECT g.first_order_store store, COUNT(*) guests, SUM(t.rev) revenue
             FROM guests g JOIN (
-                SELECT guest_id, SUM(revenue) rev FROM receipts GROUP BY guest_id
+                SELECT guest_id, SUM(revenue) rev FROM receipts WHERE open_date <= ?
+                GROUP BY guest_id
             ) t ON t.guest_id = g.guest_id
             GROUP BY g.first_order_store ORDER BY revenue DESC
-            """).fetchall()
+            """, (asof,)).fetchall()
     venues_out = []
     for r in by_venue:
         venues_out.append({
@@ -847,11 +978,57 @@ def ltv(store, period, meta, venue=None):
             'guests': r['guests'],
             'ltv': round((r['revenue'] or 0) / r['guests']) if r['guests'] else 0,
         })
+
+    guests, checks, revenue = (_ltv_at(daily, date.fromisoformat(asof).toordinal())
+                               if asof else (0, 0, 0.0))
+    _l, avg_check, per_guest = _ltv_parts(guests, checks, revenue)
+
+    first_day = daily[3][0] if daily[3] else None
+    scope_from = date.fromordinal(first_day).isoformat() if first_day and asof else None
+    dt_o = date.fromisoformat(last_full).toordinal() if last_full else None
+    series = []
+    prev = None
+    for p in _series_periods(period, n, scope_from):
+        row = {'p_start': p['p_start'].isoformat(), 'p_end': p['p_end'].isoformat(),
+               'label': p['label']}
+        s_o, e_o = p['p_start'].toordinal(), p['p_end'].toordinal()
+        if s_o > dt_o:
+            row.update({'asof': None, 'state': 'future', 'guests': None, 'checks': None,
+                        'revenue': None, 'ltv': None, 'avg_check': None,
+                        'checks_per_guest': None, 'delta': None, 'check_effect': None,
+                        'frequency_effect': None})
+            series.append(row)
+            prev = None
+            continue
+        row_o = min(e_o, dt_o)
+        g, k, rev = _ltv_at(daily, row_o)
+        cur = _ltv_parts(g, k, rev)
+        delta = check_effect = frequency_effect = None
+        if prev and prev[0] is not None and cur[0] is not None:
+            delta = round(cur[0]) - round(prev[0])
+            check_effect = round((cur[1] - prev[1]) * (prev[2] + cur[2]) / 2)
+            frequency_effect = delta - check_effect
+        row.update({
+            'asof': date.fromordinal(row_o).isoformat(),
+            'state': 'complete' if e_o <= dt_o else 'partial',
+            'guests': g, 'checks': k, 'revenue': round(rev),
+            'ltv': round(cur[0]) if cur[0] is not None else None,
+            'avg_check': round(cur[1]) if cur[1] is not None else None,
+            'checks_per_guest': round(cur[2], 2) if cur[2] is not None else None,
+            'delta': delta, 'check_effect': check_effect,
+            'frequency_effect': frequency_effect,
+        })
+        series.append(row)
+        prev = cur
     return {
+        'asof': asof,
         'lifetime': {
-            'guests': life['n'],
-            'revenue': round(life['rev'] or 0),
-            'avg_ltv': round((life['rev'] or 0) / life['n']) if life['n'] else 0,
+            'guests': guests,
+            'revenue': round(revenue),
+            'avg_ltv': round(revenue / guests) if guests else 0,
+            'checks': checks,
+            'avg_check': round(avg_check) if avg_check is not None else None,
+            'checks_per_guest': round(per_guest, 2) if per_guest is not None else None,
         },
         'ytd': {
             'guests': ytd_row['n'],
@@ -860,83 +1037,11 @@ def ltv(store, period, meta, venue=None):
                                       if ytd_row['n'] else 0),
         },
         'by_venue': venues_out,
+        'series': series,
     }
 
 
 # ---------------------------------------------------------------- §17 Отток
-
-def data_to(meta):
-    """Последний ПОЛНЫЙ учётный день витрины (ISO) или None, если чеков нет.
-
-    min(последний день с чеками, рабочий день бара - 1 день). Последний день с
-    чеками бывает неполным: дневной деплой пересинкает текущий месяц
-    (guest_sync_scheduler._startup_backfill), и в витрину попадает половина
-    сегодняшней смены — гость, который зайдёт вечером, уже числился бы ушедшим.
-    Рабочий день меняется в 06:00 МСК (msk_time.business_today). Срез общий для
-    сети и для бара: полнота данных — свойство синка (один запрос на все бары), а
-    не бара; по последнему чеку бара отток «замирал» бы как раз на его закрытии.
-    """
-    cov_to = meta.get('coverage_to')
-    if not cov_to:
-        return None
-    last_full = (msk_time.business_today() - timedelta(days=1)).isoformat()
-    return min(cov_to, last_full)
-
-
-def parse_dead_days(raw):
-    """?dead_days= -> порог из CHURN_DEAD_DAYS_CHOICES; иное — CHURN_DEAD_DAYS_DEFAULT.
-
-    Как basis/mode модуля: кривой параметр не роняет отчёт, а по какому порогу
-    посчитано на самом деле, ответ говорит сам (data.dead_days). В схеме MCP — enum.
-    """
-    try:
-        value = int(str(raw).strip())
-    except (TypeError, ValueError):
-        return CHURN_DEAD_DAYS_DEFAULT
-    return value if value in CHURN_DEAD_DAYS_CHOICES else CHURN_DEAD_DAYS_DEFAULT
-
-
-def parse_series_len(raw, period_type):
-    """?periods= -> длина ряда в CHURN_SERIES_MIN..MAX; пусто или мусор — по умолчанию.
-
-    Без int() на сыром вводе в маршруте: у прежнего ?months= мусор давал 500.
-    """
-    default = CHURN_SERIES_DEFAULT.get(period_type, CHURN_SERIES_DEFAULT['month'])
-    try:
-        value = int(str(raw).strip())
-    except (TypeError, ValueError):
-        return default
-    return min(max(value, CHURN_SERIES_MIN), CHURN_SERIES_MAX)
-
-
-def _rate(part, total, digits=1):
-    """Доля в процентах или None при нулевом знаменателе.
-
-    В отличие от _pct (там 0.0): отток при пустой базе на начало не определён, а
-    «0%» читался бы как «никто не ушёл».
-    """
-    return round(100.0 * part / total, digits) if total else None
-
-
-def _series_periods(period, n, scope_from):
-    """Выбранный период и до n-1 предыдущих того же типа — от старых к новым.
-
-    Шаг назад — resolve_period(type, prev_end): ISO-недели через границу года и
-    кварталы сходятся сами. Периоды, закончившиеся раньше scope_from (ISO-дата
-    начала данных: сети или первого чека бара), отбрасываются; без данных — [].
-    """
-    out = []
-    if not scope_from:
-        return out
-    p = period
-    for _ in range(n):
-        if p['p_end'].isoformat() < scope_from:
-            break
-        out.append(p)
-        p = resolve_period(p['type'], p['prev_end'].isoformat())
-    out.reverse()
-    return out
-
 
 def _load_visit_revenue(conn, venue=None):
     """{guest_id: (дни визитов, накопленная выручка)} — один SQL на весь отчёт.
@@ -1810,6 +1915,7 @@ def summary(store, period, meta, venue=None):
         'revenue_period': round(chk['rev'] or 0),
         'orders_period': chk['orders'],
         'avg_ltv': ltv_block['lifetime']['avg_ltv'],
+        'avg_ltv_asof': ltv_block['asof'],
         'registrations_by_store': [
             {'store': r['store'],
              'store_name': VENUES.get(r['store'], {}).get('name', r['store']),

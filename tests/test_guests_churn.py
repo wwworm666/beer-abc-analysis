@@ -269,6 +269,78 @@ class TestEmptyStore(ChurnBase):
         self.assertEqual(d['leavers']['total'], 0)
 
 
+class TestLtvOnDate(ChurnBase):
+    """LTV на дату (§8): суммы по чекам не позже среза, LTV = средний чек × чеков на гостя."""
+
+    def ltv(self, anchor='2026-03-15', period_type='month', venue=None, periods=None):
+        period, meta = self.ctx(period_type, anchor, venue)
+        return ga.ltv(self.store, period, meta, venue, periods)
+
+    def test_march_numbers_and_structure(self):
+        d = self.ltv()
+        self.assertEqual(d['asof'], '2026-03-31')
+        life = d['lifetime']
+        self.assertEqual((life['guests'], life['revenue'], life['avg_ltv']), (7, 15500, 2214),
+                         'A-G; H пришёл 20.05 — после среза')
+        self.assertEqual((life['checks'], life['avg_check'], life['checks_per_guest']),
+                         (13, 1192, 1.86))
+        # Произведение показанных сомножителей расходится с LTV на рубли — оговорка в UI.
+        self.assertEqual(round(life['avg_check'] * life['checks_per_guest']), 2217)
+
+    def test_series_and_decomposition(self):
+        rows = {r['p_start'][:7]: r for r in self.ltv()['series']}
+        feb, mar = rows['2026-02'], rows['2026-03']
+        self.assertEqual((feb['ltv'], feb['avg_check'], feb['checks_per_guest']), (1600, 1000, 1.6))
+        self.assertEqual((mar['delta'], mar['check_effect'], mar['frequency_effect']),
+                         (614, 332, 282), 'чек вырос с 1 000 до 1 192, частота — с 1,60 до 1,86')
+        self.assertEqual((feb['delta'], feb['check_effect'], feb['frequency_effect']),
+                         (-400, 0, -400), 'новые A и B разбавили частоту')
+        self.assertIsNone(rows['2025-12']['delta'], 'у первой точки ряда нет предыдущей')
+        for row in rows.values():
+            if row['delta'] is not None:
+                self.assertEqual(row['check_effect'] + row['frequency_effect'], row['delta'])
+
+    def test_past_period_ignores_later_receipts(self):
+        before = self.ltv()
+        with self.store.conn() as conn:
+            conn.execute("INSERT INTO receipts (open_date, store, order_num, guest_id, revenue, "
+                         "discount, full_sum) VALUES ('2026-04-10', 'bolshoy', '9', '79000', "
+                         "5000, 0, 5000)")
+            conn.commit()
+        after = self.ltv()
+        self.assertEqual(after['lifetime'], before['lifetime'],
+                         'чек 10.04 не должен менять LTV на 31.03')
+        self.assertEqual(after['by_venue'], before['by_venue'])
+
+    def test_partial_and_future_rows(self):
+        rows = {r['p_start'][:7]: r for r in self.ltv('2026-06-15')['series']}
+        self.assertEqual((rows['2026-05']['state'], rows['2026-05']['asof']),
+                         ('partial', '2026-05-20'))
+        self.assertEqual(rows['2026-06']['state'], 'future')
+        self.assertIsNone(rows['2026-06']['ltv'])
+        self.assertEqual(self.ltv('2026-06-15')['asof'], '2026-05-20',
+                         'будущий период: LTV на последний полный день данных')
+
+    def test_bar_and_summary(self):
+        net, bol = self.ltv(), self.ltv(venue='bolshoy')
+        self.assertEqual(bol['lifetime'], net['lifetime'], 'все чеки витрины — в Большом')
+        self.assertEqual(bol['by_venue'], [], 'сравнение баров — только для всей сети')
+        self.assertTrue(net['by_venue'])
+        period, meta = self.ctx()
+        summary = ga.summary(self.store, period, meta)
+        self.assertEqual((summary['avg_ltv'], summary['avg_ltv_asof']), (2214, '2026-03-31'))
+
+
+class TestLtvEmptyStore(ChurnBase):
+    GUESTS = {}
+
+    def test_empty_store(self):
+        period, meta = self.ctx()
+        d = ga.ltv(self.store, period, meta)
+        self.assertEqual((d['asof'], d['series'], d['lifetime']['guests']), (None, [], 0))
+        self.assertIsNone(d['lifetime']['avg_check'])
+
+
 class TestParams(unittest.TestCase):
     def test_dead_days(self):
         self.assertEqual(ga.parse_dead_days('90'), 90)
@@ -321,6 +393,14 @@ class TestChurnRoute(ChurnBase):
         d = self.get(dead_days='45', periods='много')
         self.assertEqual(d['dead_days'], 30)
         self.assertEqual(len(d['series']), 4, 'длина по умолчанию, обрезанная началом витрины')
+
+    def test_ltv_route_reads_periods(self):
+        response = self.client.get('/api/guests/ltv', query_string={
+            'period_type': 'month', 'anchor': '2026-03-15', 'periods': '3'})
+        self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
+        series = response.get_json()['data']['series']
+        self.assertEqual([r['p_start'] for r in series],
+                         ['2026-01-01', '2026-02-01', '2026-03-01'])
 
 
 if __name__ == '__main__':

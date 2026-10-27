@@ -12,22 +12,14 @@ Guests.registerView('churn', function (pane) {
         '4-8': '4–8 визитов',
         '9+': '9 визитов и больше'
     };
-    var ROMAN = ['I', 'II', 'III', 'IV'];
 
     function deadDays() {
         var v = parseInt(pane.dataset.deadDays || String(DEFAULT_DAYS), 10);
         return CHOICES.indexOf(v) >= 0 ? v : DEFAULT_DAYS;
     }
 
-    // Короткая подпись периода для оси графика и строки таблицы.
     function shortLabel(row, type) {
-        var s = row.p_start;
-        if (type === 'week') return G.fmtDate(s).slice(0, 5);
-        if (type === 'quarter') {
-            return ROMAN[Math.floor((parseInt(s.slice(5, 7), 10) - 1) / 3)] + ' кв ' + s.slice(2, 4);
-        }
-        if (type === 'year') return s.slice(0, 4);
-        return G.fmtMonth(s.slice(0, 7));
+        return G.periodShort(row.p_start, type);
     }
 
     function activeIf(on) {

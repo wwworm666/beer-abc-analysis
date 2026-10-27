@@ -522,13 +522,56 @@ test('«Отток»: будущий период — подпись вмест�
     });
 });
 
+// ---------------------------------------------------------------- вкладка «LTV»
+function ltvRow(over) {
+    return Object.assign({
+        p_start: '2026-08-01', p_end: '2026-08-31', label: 'Август 2026', asof: '2026-08-31',
+        state: 'complete', guests: 10, checks: 40, revenue: 50000, ltv: 5000, avg_check: 1250,
+        checks_per_guest: 4.0, delta: 614, check_effect: 332, frequency_effect: 282,
+    }, over || {});
+}
+function ltvData(byVenue) {
+    return {
+        asof: '2026-08-31',
+        lifetime: { guests: 10, revenue: 50000, avg_ltv: 5000, checks: 40, avg_check: 1250,
+                    checks_per_guest: 4.0 },
+        ytd: { guests: 5, revenue: 10000, avg_revenue_per_guest: 2000 },
+        by_venue: byVenue,
+        series: [ltvRow({ p_start: '2026-07-01', p_end: '2026-07-31', label: 'Июль 2026',
+                          ltv: 4386, delta: null, check_effect: null, frequency_effect: null }),
+                 ltvRow(),
+                 ltvRow({ p_start: '2026-09-01', p_end: '2026-09-30', state: 'partial',
+                          asof: '2026-09-12', delta: -400, check_effect: 0,
+                          frequency_effect: -400 })],
+    };
+}
+
+test('LTV: дата среза, из чего состоит и ряд с разложением изменения', () => {
+    const { sandbox, byId } = loadGuests({
+        views: ['static/js/guests/views-ltv.js'], init: true,
+        respond: () => ({ meta: Object.assign(metaOf(), { period_type: 'month' }),
+                          data: ltvData([{ store: 'bolshoy', store_name: 'Большой пр. В.О',
+                                           guests: 10, ltv: 5000 }]) }),
+    });
+    sandbox.Guests.activateTab('ltv');
+    return later(() => {
+        // fmtMoney ставит перед «₽» узкий пробел — сравниваем без оглядки на вид пробела.
+        const html = byId['pane-ltv'].innerHTML.replace(/[\u2009\u00a0]/g, ' ');
+        assert.ok(html.includes('LTV на 31.08.2026'), 'нет даты среза у LTV');
+        assert.ok(html.includes('Чеков на гостя') && html.includes('4,00'), 'нет частоты');
+        assert.ok(html.includes('+614 ₽') && html.includes('+332 ₽') && html.includes('+282 ₽'),
+            'нет разложения изменения');
+        assert.ok(html.includes('−400 ₽'), 'отрицательное изменение без знака');
+        assert.ok(html.includes('row-partial') && html.includes('по 12.09'),
+            'неполный период не помечен');
+        assert.ok(html.includes('LTV по точкам'), 'у сети есть сравнение баров');
+    });
+});
+
 test('LTV при выбранном баре не рисует сравнение баров', () => {
     const { sandbox, byId } = loadGuests({
         views: ['static/js/guests/views-ltv.js'], gh: makeGh('ligovskiy'), init: true,
-        respond: () => ({ meta: metaOf('ligovskiy', 'Лиговский'), data: {
-            lifetime: { guests: 10, revenue: 50000, avg_ltv: 5000 },
-            ytd: { guests: 5, revenue: 10000, avg_revenue_per_guest: 2000 },
-            by_venue: [] } }),
+        respond: () => ({ meta: metaOf('ligovskiy', 'Лиговский'), data: ltvData([]) }),
     });
     sandbox.Guests.activateTab('ltv');
     return later(() => {

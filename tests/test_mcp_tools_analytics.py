@@ -227,6 +227,7 @@ BAD_ARGS = [
      'порог — только 30/60/90/180: маршрут молча посчитал бы по 30'),
     ('analytics_guests_churn', {'dead_days': '30'}, 'порог — число, а не строка'),
     ('analytics_guests_churn', {'periods': 1}, 'ряд — от 3 периодов'),
+    ('analytics_guests_ltv', {'periods': 61}, 'ряд — до 60 периодов'),
     ('analytics_explorer_report', {'rows': ['Store.Name'], 'period': 'last_week'},
      'без показателей отчёт не строится'),
     ('analytics_explorer_report', {'report_type': 'OLAP', 'measures': ['DishDiscountSumInt']},
@@ -693,9 +694,10 @@ def test_constants_match_code():
         texts['analytics_guests_churn']
     assert 'по умолчанию ' + str(guest_analytics.CHURN_DEAD_DAYS_DEFAULT) in \
         texts['analytics_guests_churn']
-    periods = _prop('analytics_guests_churn', 'periods')
-    assert (periods['minimum'], periods['maximum']) == (guest_analytics.CHURN_SERIES_MIN,
-                                                        guest_analytics.CHURN_SERIES_MAX)
+    for tool in ('analytics_guests_churn', 'analytics_guests_ltv'):
+        periods = _prop(tool, 'periods')
+        assert (periods['minimum'], periods['maximum']) == (guest_analytics.CHURN_SERIES_MIN,
+                                                            guest_analytics.CHURN_SERIES_MAX)
     assert monthly_report.TOP_STYLES == 8 and 'топ-8' in texts['analytics_monthly_draft_liters']
     assert (day_weights.WEEKDAY_WEIGHT, day_weights.WEEKEND_WEIGHT) == (1.0, 2.0)
     assert 'пт/сб = 2' in analytics.INSTRUCTIONS

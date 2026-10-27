@@ -267,10 +267,15 @@ def api_rfm():
 
 @guests_bp.route('/api/guests/ltv')
 def api_ltv():
-    """LTV: средний, YTD, по точкам (ТЗ §8)."""
+    """LTV на дату (ТЗ §8): средний, из чего состоит, ряд по периодам, YTD, по точкам.
+
+    ?periods=N — длина ряда, как у оттока. Без кэша: ряд — один SQL по дням и
+    накопленные суммы.
+    """
     try:
         store, period, meta, venue = _ctx()
-        return jsonify({'meta': meta, 'data': ga.ltv(store, period, meta, venue)})
+        periods = ga.parse_series_len(request.args.get('periods'), period['type'])
+        return jsonify({'meta': meta, 'data': ga.ltv(store, period, meta, venue, periods)})
     except Exception as e:
         return jsonify({'error': f'{type(e).__name__}: {e}'}), 500
 

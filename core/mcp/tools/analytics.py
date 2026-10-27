@@ -1298,7 +1298,8 @@ _T_GUESTS = [
         'хоть раз купил с картой), active_guests (визит за 30 дней до даты среза), '
         'activity_segments, registrations и first_orders (за период и YTD), conversion_pct, '
         'avg_days_to_first_order, avg_frequency (визитов на гостя), avg_check (₽ = выручка / '
-        'чеки), revenue_period и orders_period (только чеки с картой), avg_ltv (₽), '
+        'чеки), revenue_period и orders_period (только чеки с картой), avg_ltv (₽, на дату '
+        'avg_ltv_asof — как analytics_guests_ltv), '
         'registrations_by_store, never — регистрации без покупок (Orderia) и честная конверсия. '
         'С store: never.available=false и reason=venue (карта без покупок к бару не привязана), '
         'registrations_by_store пуст (это сравнение баров). Формулы — guests.md, §14.',
@@ -1423,12 +1424,24 @@ _T_GUESTS = [
         # хватает сводки (analytics_guests_summary). Проверка безопасности 2026-09-28.
     ),
     _guests_tool(
-        'analytics_guests_ltv', 'Гости: LTV',
-        'LTV (§8): lifetime — guests, revenue и avg_ltv = вся выручка / все гости (₽); ytd — '
-        'выручка с 1 января по конец периода / гости с визитом в этом интервале; by_venue — LTV '
-        'по точке первого заказа гостя (store, store_name, guests, ltv). С store — выручка и '
-        'гости только этого бара, by_venue пуст (сравнение баров — только для всей сети).',
+        'analytics_guests_ltv', 'Гости: LTV на дату',
+        'LTV на дату (§8): asof = min(конец периода, последний полный день данных), все суммы '
+        '— по чекам не позже asof (прошлый период не видит более поздней выручки). lifetime — '
+        'guests (первый визит до asof), revenue, avg_ltv = revenue / guests (₽), checks, '
+        'avg_check (₽) и checks_per_guest (2 знака): avg_ltv = avg_check × checks_per_guest. '
+        'series — то же на конец каждого периода ряда (state complete / partial / future) и '
+        'изменение к предыдущей точке: delta (₽) = check_effect + frequency_effect '
+        '(симметричное разложение; накопленная частота падает, когда приходят новые гости). '
+        'ytd — выручка с 1 января по asof / гости с визитом в этом интервале; by_venue — LTV по '
+        'точке первого заказа гостя. С store — выручка и гости только этого бара, by_venue пуст '
+        '(сравнение баров — только для всей сети).',
         '/api/guests/ltv',
+        extra_props={
+            'periods': {'type': 'integer', 'minimum': 3, 'maximum': 60,
+                        'description': 'Сколько периодов в ряду, 3–60 (по умолчанию неделя 26, '
+                                       'месяц 24, квартал 12, год 8).'},
+        },
+        extra_query=('periods',),
     ),
     _guests_tool(
         'analytics_guests_products', 'Гости: что покупают',

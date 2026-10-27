@@ -165,9 +165,10 @@ test('классы вкладки RFM описаны в CSS', () => {
     assert.deepEqual(missing, [], `классы без стилей: ${missing.join(', ')}`);
 });
 
-test('классы вкладки «Отток» описаны в CSS', () => {
+test('классы вкладок «Отток» и LTV описаны в CSS', () => {
     const churn = read('static/js/guests/views-churn.js');
-    const used = classesUsedIn(churn);
+    const ltv = read('static/js/guests/views-ltv.js');
+    const used = new Set([...classesUsedIn(churn), ...classesUsedIn(ltv)]);
     assert.ok(used.has('sub-label') && used.has('row-partial'), 'не найдены классы вкладки');
     const missing = [...used].filter((c) => !allCss.includes('.' + c));
     assert.deepEqual(missing, [], `классы без стилей: ${missing.join(', ')}`);
