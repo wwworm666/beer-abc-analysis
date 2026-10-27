@@ -65,7 +65,8 @@ beer-abc-analysis/
 │
 ├── Dockerfile              # Production-сборка (Selectel VPS)
 ├── docker-compose.yml      # Сервис gunicorn (--workers 2) + Caddy
-├── Caddyfile               # Reverse proxy + TLS для beerkultura.ru
+├── Caddyfile               # Reverse proxy + TLS для beerkultura.ru (+ запасной 139-100-200-92.sslip.io)
+├── gunicorn.conf.py        # Хук старта: отдаёт Caddyfile в admin API Caddy (docs/guides/deploy.md)
 └── render.yaml             # (legacy) Render.com — rollback-страховка
 ```
 
