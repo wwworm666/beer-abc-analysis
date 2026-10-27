@@ -1,4 +1,4 @@
-# Temporary: check the fallback address after deploy. Runs only on this branch.
+# Temporary: why the fallback address has no certificate. Runs only on this branch.
 name: Site diagnostics
 on:
   push:
@@ -10,19 +10,19 @@ permissions:
 jobs:
   check:
     runs-on: ubuntu-24.04
-    timeout-minutes: 8
+    timeout-minutes: 5
     steps:
-      - name: Fallback address
+      - name: Public Suffix List
         run: |
-          echo "DNS: $(dig +short 139-100-200-92.sslip.io @8.8.8.8 | tr '\n' ' ')"
-          for i in 1 2 3 4 5 6; do
-            code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 https://139-100-200-92.sslip.io/login 2>&1) || true
-            echo "attempt $i: $code"
-            [ "$code" = 200 ] && break
-            sleep 20
-          done
-          curl -sSv -o /dev/null --max-time 20 https://139-100-200-92.sslip.io/login 2>&1 | grep -Ei 'issuer|subject:|expire|HTTP/' || true
-          curl -sS -o /dev/null -w "http redirect: %{http_code} -> %{redirect_url}\n" --max-time 20 http://139-100-200-92.sslip.io/login || true
-      - name: Admin API not exposed
+          curl -sS --max-time 30 https://publicsuffix.org/list/public_suffix_list.dat \
+            | grep -nE '^(sslip\.io|nip\.io|traefik\.me|nip\.direct|duckdns\.org|ddns\.net)$' || echo "none of them listed"
+      - name: Certificates already issued for the name (crt.sh)
         run: |
-          timeout 8 bash -c "</dev/tcp/139.100.200.92/2019" 2>/dev/null && echo "port 2019: OPEN (exposed!)" || echo "port 2019: closed (ok)"
+          curl -sS --max-time 60 'https://crt.sh/?q=139-100-200-92.sslip.io&output=json' | head -c 1500; echo
+      - name: Recent sslip.io issuance volume (crt.sh, last entries)
+        run: |
+          curl -sS --max-time 90 'https://crt.sh/?q=%25.sslip.io&exclude=expired&deduplicate=Y&output=json' \
+            | python3 -c 'import json,sys; d=json.load(sys.stdin); d.sort(key=lambda x:x["not_before"]); print(len(d), "unexpired certs; newest:", [(x["not_before"], x["issuer_name"][:40]) for x in d[-5:]])' || true
+      - name: Still failing?
+        run: |
+          curl -sS -o /dev/null -w '%{http_code}\n' --max-time 20 https://139-100-200-92.sslip.io/login 2>&1 || true
