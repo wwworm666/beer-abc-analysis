@@ -223,6 +223,10 @@ BAD_ARGS = [
     ('analytics_guests_rfm', {'limit': 0}, 'limit — от 1'),
     ('analytics_guests_rfm', {'limit': 5000}, 'больше 200 строк мост всё равно урежет'),
     ('analytics_guests_rfm', {'q': '7'}, 'поиск по одной цифре совпал бы с половиной базы'),
+    ('analytics_guests_churn', {'dead_days': 45},
+     'порог — только 30/60/90/180: маршрут молча посчитал бы по 30'),
+    ('analytics_guests_churn', {'dead_days': '30'}, 'порог — число, а не строка'),
+    ('analytics_guests_churn', {'periods': 1}, 'ряд — от 3 периодов'),
     ('analytics_explorer_report', {'rows': ['Store.Name'], 'period': 'last_week'},
      'без показателей отчёт не строится'),
     ('analytics_explorer_report', {'report_type': 'OLAP', 'measures': ['DishDiscountSumInt']},
@@ -682,6 +686,16 @@ def test_constants_match_code():
     assert 'active ≤ 30' in texts['analytics_guests_activity']
     windows = '/'.join(str(x) for x in guest_analytics.RETENTION_WINDOWS)
     assert windows in texts['analytics_guests_retention']
+    # Отток (§17): порог в схеме и тексте — те же, что в коде и на переключателе вкладки.
+    assert _prop('analytics_guests_churn', 'dead_days')['enum'] == \
+        list(guest_analytics.CHURN_DEAD_DAYS_CHOICES)
+    assert '/'.join(str(x) for x in guest_analytics.CHURN_DEAD_DAYS_CHOICES) in \
+        texts['analytics_guests_churn']
+    assert 'по умолчанию ' + str(guest_analytics.CHURN_DEAD_DAYS_DEFAULT) in \
+        texts['analytics_guests_churn']
+    periods = _prop('analytics_guests_churn', 'periods')
+    assert (periods['minimum'], periods['maximum']) == (guest_analytics.CHURN_SERIES_MIN,
+                                                        guest_analytics.CHURN_SERIES_MAX)
     assert monthly_report.TOP_STYLES == 8 and 'топ-8' in texts['analytics_monthly_draft_liters']
     assert (day_weights.WEEKDAY_WEIGHT, day_weights.WEEKEND_WEIGHT) == (1.0, 2.0)
     assert 'пт/сб = 2' in analytics.INSTRUCTIONS

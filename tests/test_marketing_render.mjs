@@ -46,7 +46,7 @@ const rfm = read('static/js/guests/views-rfm.js');
 const charts = read('static/js/guests/charts.js');
 
 // ---------------------------------------------------------------- вкладки
-const TABS = ['summary', 'growth', 'activity', 'cohorts', 'rfm', 'ltv',
+const TABS = ['summary', 'growth', 'churn', 'activity', 'cohorts', 'rfm', 'ltv',
               'promo', 'products', 'venues', 'never', 'guest'];
 
 test('каждая вкладка объявлена кнопкой, пейном и подключённым скриптом', () => {
@@ -165,6 +165,34 @@ test('классы вкладки RFM описаны в CSS', () => {
     assert.deepEqual(missing, [], `классы без стилей: ${missing.join(', ')}`);
 });
 
+test('классы вкладки «Отток» описаны в CSS', () => {
+    const churn = read('static/js/guests/views-churn.js');
+    const used = classesUsedIn(churn);
+    assert.ok(used.has('sub-label') && used.has('row-partial'), 'не найдены классы вкладки');
+    const missing = [...used].filter((c) => !allCss.includes('.' + c));
+    assert.deepEqual(missing, [], `классы без стилей: ${missing.join(', ')}`);
+});
+
+test('«Отток»: порог по умолчанию и выбор — те же, что в коде, без localStorage', () => {
+    const churn = read('static/js/guests/views-churn.js');
+    const py = read('core/guest_analytics.py');
+    assert.ok(py.includes('CHURN_DEAD_DAYS_CHOICES = (30, 60, 90, 180)'), 'пороги в коде сменились');
+    assert.ok(py.includes('CHURN_DEAD_DAYS_DEFAULT = 30'), 'порог по умолчанию в коде сменился');
+    assert.ok(churn.includes('var CHOICES = [30, 60, 90, 180];'), 'пороги вкладки разошлись с кодом');
+    assert.ok(churn.includes('var DEFAULT_DAYS = 30;'), 'порог по умолчанию разошёлся с кодом');
+    // Запомненный порог 90 читался бы на следующий день как привычные 30.
+    assert.ok(!churn.includes('localStorage'), 'порог не должен запоминаться между визитами');
+});
+
+test('«Рост базы» без динамики: два разных «Ушедших» на странице недопустимы', () => {
+    const growth = read('static/js/guests/views-growth.js');
+    assert.ok(!growth.includes('base-dynamics') && !growth.includes('dynChart'),
+        'динамика базы осталась на вкладке «Рост базы»');
+    assert.ok(!formulas.includes('base_dynamics:'), 'формула старой динамики осталась');
+    assert.ok(html.includes('data-tab="churn">Отток<'), 'нет кнопки «Отток»');
+    assert.ok(html.includes('data-tab="growth">Рост базы<'), 'вкладка роста не переименована');
+});
+
 test('скрытие глобального периода описано в CSS и включается из JS', () => {
     assert.ok(css.includes('.guests-controls.own-period'),
         'нет правила скрытия панели периода');
@@ -237,7 +265,8 @@ test('классы кнопки бара и подписи охвата опис
 test('отчёты витрины передают meta в howBlock — правило бара в «Как считается»', () => {
     // Виды, которые считаются по бару «только его чеки». «Точки» (своё правило
     // venue_guests), «Не купившие» и «Гость» (по всей сети) — отдельно.
-    for (const tab of ['summary', 'growth', 'activity', 'cohorts', 'rfm', 'ltv', 'products']) {
+    for (const tab of ['summary', 'growth', 'churn', 'activity', 'cohorts', 'rfm', 'ltv',
+                       'products']) {
         const src = read(`static/js/guests/views-${tab}.js`);
         const calls = [];
         let at = src.indexOf('howBlock(');

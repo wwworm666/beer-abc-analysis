@@ -119,6 +119,8 @@
 .gtable tr:hover td { background: var(--bg-tertiary); }
 .gtable .num { text-align: right; }
 .gtable .dim { color: var(--text-tertiary); }
+/* Неполный период (идёт или синк отстал): числа ещё дорастут — строка приглушена */
+.gtable tr.row-partial td { color: var(--text-tertiary); }
 .heat { text-align: right; }
 
 /* --- Бейджи статусов и сегментов --- */
@@ -139,6 +141,9 @@
     cursor: pointer; padding: 7px 14px; border-radius: 999px; font-family: inherit;
     font-size: 0.8rem; color: var(--text-secondary); transition: all .15s ease; }
 .sub-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+/* Подпись перед кнопками переключателя («Ушёл, если нет визита:» на «Оттоке») */
+.sub-switch .sub-label { align-self: center; margin-right: 4px; font-size: 0.8rem;
+    color: var(--text-tertiary); }
 
 /* --- Блок «Как считается» --- */
 .how-block { margin-top: 8px; border: 1px dashed var(--border-color);

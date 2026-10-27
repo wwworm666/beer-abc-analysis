@@ -1316,16 +1316,31 @@ _T_GUESTS = [
         '/api/guests/base-growth',
     ),
     _guests_tool(
-        'analytics_guests_base_dynamics', 'Гости: динамика базы по месяцам',
-        'Помесячная динамика базы (§13) за months месяцев до конца периода: active_start (визит '
-        'за 30 дней до начала месяца), new (первый заказ в месяце), reactivated (визит после '
-        'паузы больше 30 дней), active_end (визит за последние 30 дней месяца), churned = '
-        'active_start + new + reactivated − active_end.',
-        '/api/guests/base-dynamics',
-        extra_props={'months': {'type': 'integer', 'minimum': 3, 'maximum': 60,
-                                'description': 'Сколько месяцев показать, 3–60 (по умолчанию 24).'}},
-        extra_query=('months',),
-        examples=({'period_type': 'month', 'anchor': '2026-08-15', 'months': 12},),
+        'analytics_guests_churn', 'Гости: отток и баланс базы',
+        'Вкладка «Отток» (§17): гость жив, если с последнего визита прошло не больше dead_days '
+        'дней, мёртв — если больше (30/60/90/180, по умолчанию 30). series — выбранный период и '
+        'предыдущие того же типа (от старых к новым), period — выбранный: start_alive (жив '
+        'накануне периода), died (был жив, к срезу мёртв), reactivated (был мёртв, стал жив), '
+        'new (первый визит в периоде), new_died (новые, мёртвые к срезу), bounced (вернулись и '
+        'снова ушли, в баланс не входят), end_alive; баланс end_alive = start_alive + new + '
+        'reactivated − (died + new_died). churn_pct = died / start_alive, %; '
+        'newbie_no_return_pct — новые без второго визита за dead_days + 1 дней (null, пока '
+        'период не созрел, дата — newbie_matures_on). Своя дата среза: asof = min(конец '
+        'периода, data_to), data_to — последний ПОЛНЫЙ день данных, а не сегодня; state — '
+        'complete / partial / future (у future все числа null). leavers — ушедшие выбранного '
+        'периода по числу визитов за жизнь (1 / 2-3 / 4-8 / 9+): count, share_pct, avg_ltv (₽). '
+        'Формулы — guests.md, §17.',
+        '/api/guests/churn',
+        extra_props={
+            'dead_days': {'type': 'integer', 'enum': [30, 60, 90, 180],
+                          'description': 'Порог «мёртвого» в днях без визита: 30, 60, 90 или '
+                                         '180 (по умолчанию 30).'},
+            'periods': {'type': 'integer', 'minimum': 3, 'maximum': 60,
+                        'description': 'Сколько периодов в ряду, 3–60 (по умолчанию неделя 26, '
+                                       'месяц 24, квартал 12, год 8).'},
+        },
+        extra_query=('dead_days', 'periods'),
+        examples=({'period_type': 'month', 'anchor': '2026-09-15', 'dead_days': 30},),
     ),
     _guests_tool(
         'analytics_guests_activity', 'Гости: активность базы',
@@ -1584,6 +1599,7 @@ INSTRUCTIONS = """\
   а план — за весь период: сравнивайте с analytics_revenue_metrics или с планом тех же дат.
 - «Маркетинг»: period_type + anchor; дата среза = min(конец периода, сегодня); RFM — окно
   365 дней на дату среза, список гостей — всегда с limit (и segment / q по задаче).
+  Отток и LTV — по последний полный день данных (data_to / asof в ответе), не по сегодня.
 - Месячный отчёт — только закрытые месяцы (пересчёт ночью 1-го числа); текущий месяц там
   нули, берите analytics_dashboard.
 

@@ -74,7 +74,8 @@
         <!-- Вкладки разделов -->
         <div class="guests-tabs" id="guestsTabs">
             <button class="gtab-btn active" data-tab="summary">Сводка</button>
-            <button class="gtab-btn" data-tab="growth">Рост и динамика</button>
+            <button class="gtab-btn" data-tab="growth">Рост базы</button>
+            <button class="gtab-btn" data-tab="churn">Отток</button>
             <button class="gtab-btn" data-tab="activity">Активность и частота</button>
             <button class="gtab-btn" data-tab="cohorts">Когорты</button>
             <button class="gtab-btn" data-tab="rfm">RFM</button>
@@ -89,6 +90,7 @@
         <div class="tab-panes">
             <div class="gtab-pane active" id="pane-summary"><div class="pane-loading">Загрузка…</div></div>
             <div class="gtab-pane" id="pane-growth"></div>
+            <div class="gtab-pane" id="pane-churn"></div>
             <div class="gtab-pane" id="pane-activity"></div>
             <div class="gtab-pane" id="pane-cohorts"></div>
             <div class="gtab-pane" id="pane-rfm"></div>
@@ -113,6 +115,7 @@
     <script src="/static/js/guests/charts.js?v={{ app_version }}"></script>
     <script src="/static/js/guests/views-summary.js?v={{ app_version }}"></script>
     <script src="/static/js/guests/views-growth.js?v={{ app_version }}"></script>
+    <script src="/static/js/guests/views-churn.js?v={{ app_version }}"></script>
     <script src="/static/js/guests/views-activity.js?v={{ app_version }}"></script>
     <script src="/static/js/guests/views-cohorts.js?v={{ app_version }}"></script>
     <script src="/static/js/guests/views-rfm.js?v={{ app_version }}"></script>

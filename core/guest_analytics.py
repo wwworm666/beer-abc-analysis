@@ -17,6 +17,13 @@
 - статусы активности — по последнему визиту на дату окончания периода:
   Active <= 30 дн, Sleeping 31-90, At Risk 91-180, Lost > 180.
 
+Отток (§17, решение владельца 2026-10-27; заменил §13 «Динамику базы»): гость
+«жив» на дату, если с последнего визита прошло не больше X дней, и «мёртв», если
+больше (X — переключатель вкладки 30/60/90/180, по умолчанию 30). За период
+каждый гость попадает ровно в одну графу по состояниям накануне периода и на
+дату среза: остался, ушёл, вернулся, новый; баланс сходится точно. Дата среза —
+последний ПОЛНЫЙ день данных (data_to), а не «сегодня». Подробности — churn_all.
+
 Определения (те же, что в /discounts и месячной витрине):
 - заказ (чек) = строка receipts (ключ дата+бар+номер чека+гость);
 - визит = уникальная пара (гость, дата) — OpenDate.Typed времени не содержит;
@@ -75,9 +82,23 @@ RFM_R_THRESHOLDS = (7, 14, 30, 60)          # R5 <=7, R4 <=14, R3 <=30, R2 <=60,
 # (52) и «раз в месяц» (12).
 RFM_F_THRESHOLDS = (260, 104, 52, 12)       # F5 >=260, F4 >=104, F3 >=52, F2 >=12, F1 <12
 
-# Порог «реактивированного» гостя в динамике базы (ТЗ §13): визит после паузы
-# больше порога Active (симметрия с §3).
-REACTIVATION_GAP_DAYS = 30
+# Отток (§17): гость «мёртв», если с последнего визита прошло больше X дней.
+# Переключатель вкладки — эти четыре порога; по умолчанию 30 (решение владельца
+# 2026-10-27) — это и порог Active в §3, поэтому при X = 30 «живые» = Active, а при
+# X = 180 «мёртвые» = Lost. Схема MCP перечисляет те же значения (enum).
+CHURN_DEAD_DAYS_CHOICES = (30, 60, 90, 180)
+CHURN_DEAD_DAYS_DEFAULT = 30
+# Длина ряда по умолчанию — сколько периодов выбранного типа видно на графике:
+# полгода недель, два года месяцев, три года кварталов, восемь лет (витрина с 2017-12).
+CHURN_SERIES_DEFAULT = {'week': 26, 'month': 24, 'quarter': 12, 'year': 8}
+# Границы параметра periods (как у прежнего months динамики базы): меньше трёх точек —
+# не ряд, больше 60 — ответ перестаёт помещаться в предел моста MCP (60 тыс. знаков).
+CHURN_SERIES_MIN = 3
+CHURN_SERIES_MAX = 60
+# «Кто уходит»: ушедшие по числу визитов за всю жизнь до даты среза. Границы те же, что
+# у сегментов частоты §4, но смысл другой (там визиты за период) — поэтому своя константа:
+# правка сегментов частоты не должна молча менять эту разбивку.
+CHURN_LEAVER_BUCKETS = [('1', 1, 1), ('2-3', 2, 3), ('4-8', 4, 8), ('9+', 9, None)]
 
 # Витрина считает «регистрацию» по дате создания клиента в iiko; если она
 # недоступна у большинства гостей — модуль переходит в fallback-режим ТЗ
@@ -842,71 +863,275 @@ def ltv(store, period, meta, venue=None):
     }
 
 
-# ---------------------------------------------------------------- §13 Динамика
+# ---------------------------------------------------------------- §17 Отток
 
-def base_dynamics(store, period, meta, months=24, venue=None):
-    """Динамика базы по месяцам (ТЗ §13).
+def data_to(meta):
+    """Последний ПОЛНЫЙ учётный день витрины (ISO) или None, если чеков нет.
 
-    active_start(M) = визит в [начало M - 30 дн, начало M);
-    new(M) = первая покупка в M;
-    reactivated(M) = визит в M при первой покупке до M и паузе > 30 дней
-    на начало месяца; active_end(M) = визит в [конец M - 30 дн, конец M];
-    churned(M) = active_start + new + reactivated - active_end (остаточный член
-    баланса — прямые определения см. docs/guests.md).
+    min(последний день с чеками, рабочий день бара - 1 день). Последний день с
+    чеками бывает неполным: дневной деплой пересинкает текущий месяц
+    (guest_sync_scheduler._startup_backfill), и в витрину попадает половина
+    сегодняшней смены — гость, который зайдёт вечером, уже числился бы ушедшим.
+    Рабочий день меняется в 06:00 МСК (msk_time.business_today). Срез общий для
+    сети и для бара: полнота данных — свойство синка (один запрос на все бары), а
+    не бара; по последнему чеку бара отток «замирал» бы как раз на его закрытии.
+    """
+    cov_to = meta.get('coverage_to')
+    if not cov_to:
+        return None
+    last_full = (msk_time.business_today() - timedelta(days=1)).isoformat()
+    return min(cov_to, last_full)
 
-    С баром (venue) — визиты и первая покупка только в этом баре: «новый» —
-    первый визит именно сюда. Баланс сходится так же, потому что все четыре
-    величины считаются по одним и тем же визитам.
+
+def parse_dead_days(raw):
+    """?dead_days= -> порог из CHURN_DEAD_DAYS_CHOICES; иное — CHURN_DEAD_DAYS_DEFAULT.
+
+    Как basis/mode модуля: кривой параметр не роняет отчёт, а по какому порогу
+    посчитано на самом деле, ответ говорит сам (data.dead_days). В схеме MCP — enum.
+    """
+    try:
+        value = int(str(raw).strip())
+    except (TypeError, ValueError):
+        return CHURN_DEAD_DAYS_DEFAULT
+    return value if value in CHURN_DEAD_DAYS_CHOICES else CHURN_DEAD_DAYS_DEFAULT
+
+
+def parse_series_len(raw, period_type):
+    """?periods= -> длина ряда в CHURN_SERIES_MIN..MAX; пусто или мусор — по умолчанию.
+
+    Без int() на сыром вводе в маршруте: у прежнего ?months= мусор давал 500.
+    """
+    default = CHURN_SERIES_DEFAULT.get(period_type, CHURN_SERIES_DEFAULT['month'])
+    try:
+        value = int(str(raw).strip())
+    except (TypeError, ValueError):
+        return default
+    return min(max(value, CHURN_SERIES_MIN), CHURN_SERIES_MAX)
+
+
+def _rate(part, total, digits=1):
+    """Доля в процентах или None при нулевом знаменателе.
+
+    В отличие от _pct (там 0.0): отток при пустой базе на начало не определён, а
+    «0%» читался бы как «никто не ушёл».
+    """
+    return round(100.0 * part / total, digits) if total else None
+
+
+def _series_periods(period, n, scope_from):
+    """Выбранный период и до n-1 предыдущих того же типа — от старых к новым.
+
+    Шаг назад — resolve_period(type, prev_end): ISO-недели через границу года и
+    кварталы сходятся сами. Периоды, закончившиеся раньше scope_from (ISO-дата
+    начала данных: сети или первого чека бара), отбрасываются; без данных — [].
+    """
+    out = []
+    if not scope_from:
+        return out
+    p = period
+    for _ in range(n):
+        if p['p_end'].isoformat() < scope_from:
+            break
+        out.append(p)
+        p = resolve_period(p['type'], p['prev_end'].isoformat())
+    out.reverse()
+    return out
+
+
+def _load_visit_revenue(conn, venue=None):
+    """{guest_id: (дни визитов, накопленная выручка)} — один SQL на весь отчёт.
+
+    Визит = пара (гость, учётный день), выручка визита — сумма его чеков за день.
+    Дни — date.toordinal(): дальше только целые и bisect. cum[i] — выручка гостя
+    за визиты 0..i включительно (LTV ушедшего на дату среза). С баром — его чеки.
+    """
+    store_sql, params = ("WHERE store = ? ", [venue]) if venue else ("", [])
+    out = {}
+    for r in conn.execute(
+            "SELECT guest_id, open_date, SUM(revenue) rev FROM receipts " + store_sql +
+            "GROUP BY guest_id, open_date ORDER BY guest_id, open_date", params):
+        days, cum = out.setdefault(r['guest_id'], ([], []))
+        days.append(date.fromisoformat(r['open_date'][:10]).toordinal())
+        cum.append((cum[-1] if cum else 0.0) + (r['rev'] or 0.0))
+    return out
+
+
+def _leaver_buckets(items):
+    """[(визитов за жизнь до среза, выручка до среза)] -> «Кто уходит» по CHURN_LEAVER_BUCKETS."""
+    total = len(items)
+    buckets = []
+    for label, lo, hi in CHURN_LEAVER_BUCKETS:
+        revenues = [rev for visits, rev in items if visits >= lo and (hi is None or visits <= hi)]
+        buckets.append({
+            'segment': label, 'visits_from': lo, 'visits_to': hi,
+            'count': len(revenues),
+            'share_pct': _rate(len(revenues), total),
+            'avg_ltv': round(sum(revenues) / len(revenues)) if revenues else None,
+        })
+    return {'total': total, 'buckets': buckets}
+
+
+_CHURN_COUNTS = ('start_alive', 'died', 'reactivated', 'bounced', 'new', 'new_died',
+                 'end_alive')
+
+
+def churn_all(store, period, meta, periods=None, venue=None):
+    """Отток (§17) сразу для всех порогов CHURN_DEAD_DAYS_CHOICES — один проход.
+
+    Определения (зеркало — formulas.js и docs/guests.md, §17):
+    - жив на дату D: с последнего визита (не позже D) прошло <= X дней; мёртв — > X;
+    - data_to — последний полный день данных (см. data_to); дата среза периода
+      asof = min(конец периода, data_to); строка ряда: complete (весь период в
+      данных), partial (идёт или синк отстал), future (начался позже data_to —
+      все числа None, а не нули и не ложные смерти);
+    - начало периода — состояние на конец дня накануне его первого дня, поэтому
+      живые на конец закрытого периода = живые на начало следующего;
+    - графы (каждый гость — ровно в одной; сравниваются только два состояния, и
+      гость, умерший 10-го и вернувшийся 12-го, — «остался»): died — жив накануне,
+      мёртв на asof; reactivated — был гостем до периода, мёртв накануне, жив на
+      asof; bounced — мёртв накануне, заходил в периоде, снова мёртв на asof (в
+      балансе не участвует); new — первый визит в периоде, из них new_died — мёртвы
+      на asof (бывает, только если X короче периода);
+    - баланс: end_alive = start_alive + new + reactivated - (died + new_died);
+    - churn_pct = died / start_alive (ушедшие за период / база на начало), 1 знак;
+    - newbie_no_return — новые без второго визита в (первый, первый + X + 1]: окно
+      на день длиннее «через N дней» §5, день в день с правилом «мёртв» (при X = 30
+      вернувшийся на 31-й день ни дня не был мёртвым). Доля зрелая, только если
+      конец периода + X + 1 <= data_to, иначе None (дата — newbie_matures_on);
+    - leavers (только выбранный период): died + new_died по числу визитов за жизнь
+      до asof (CHURN_LEAVER_BUCKETS), средний LTV — выручка до asof.
+
+    Первый визит — первый элемент того же списка визитов, что и статусы (а не
+    денормализованная guests.first_order_date): один источник, баланс не может
+    разойтись. С баром — правило раздела: только его чеки, первый визит — первый
+    чек в нём, «ушёл из бара» не значит «ушёл из сети»; data_to — общий для сети.
+
+    periods — длина ряда (None — CHURN_SERIES_DEFAULT для типа периода).
+    -> {'data_to', 'scope_from', 'by_days': {X: {'series': [...], 'leavers': {...}}}}
     """
     venue = resolve_venue(venue)
+    choices = CHURN_DEAD_DAYS_CHOICES
+    n = periods or CHURN_SERIES_DEFAULT.get(period['type'], CHURN_SERIES_DEFAULT['month'])
+    last_full = data_to(meta)
     with store.conn() as conn:
-        guests = _load_guests(conn, venue)
-        visits = _load_visits(conn, venue)
-    end_anchor = min(period['p_end'], msk_time.today())
-    ym_list = []
-    y, m = end_anchor.year, end_anchor.month
-    for _ in range(months):
-        ym_list.append(f"{y}-{m:02d}")
-        m -= 1
-        if m == 0:
-            y, m = y - 1, 12
-    ym_list.reverse()
+        visits = _load_visit_revenue(conn, venue)
+    scope_from = None
+    if last_full and visits:
+        scope_from = date.fromordinal(min(d[0] for d, _c in visits.values())).isoformat()
+    plist = _series_periods(period, n, scope_from)
+    by_days = {x: {'series': [], 'leavers': _leaver_buckets([])} for x in choices}
+    if not plist:
+        return {'data_to': last_full, 'scope_from': scope_from, 'by_days': by_days}
 
-    rows = []
-    gap = timedelta(days=REACTIVATION_GAP_DAYS)
-    for ym in ym_list:
-        m_start = _parse_date(f"{ym}-01")
-        m_end = _parse_date(_month_end_iso(ym))
-        ws_from = (m_start - gap).isoformat()
-        ws_to_excl = m_start.isoformat()
-        we_from = (m_end - gap).isoformat()
-        we_to = m_end.isoformat()
-        n_start = n_new = n_react = n_end = 0
-        for g in guests:
-            vd = visits.get(g['guest_id'], [])
-            if not vd:
+    dt_o = date.fromisoformat(last_full).toordinal()
+    guests = list(visits.values())
+    k = len(choices)
+    for idx, p in enumerate(plist):
+        s_o, e_o = p['p_start'].toordinal(), p['p_end'].toordinal()
+        base = {'p_start': p['p_start'].isoformat(), 'p_end': p['p_end'].isoformat(),
+                'label': p['label']}
+        if s_o > dt_o:
+            for x in choices:
+                row = dict(base, asof=None, state='future', churn_pct=None,
+                           newbie_no_return=None, newbie_no_return_pct=None,
+                           newbie_matures_on=None)
+                row.update({name: None for name in _CHURN_COUNTS})
+                by_days[x]['series'].append(row)
+            continue
+        asof_o = min(e_o, dt_o)
+        prev_o = s_o - 1
+        start = [0] * k
+        died = [0] * k
+        react = [0] * k
+        bounced = [0] * k
+        new_died = [0] * k
+        end = [0] * k
+        no_return = [0] * k
+        n_new = 0
+        selected = idx == len(plist) - 1
+        leavers = [[] for _ in choices] if selected else None
+        for days, cum in guests:
+            first = days[0]
+            if first > asof_o:
                 continue
-            if _visits_between(vd, ws_from, ws_to_excl) - _visits_between(vd, ws_to_excl, ws_to_excl) > 0:
-                n_start += 1
-            fo = g['first_order_date'] or ''
-            if m_start.isoformat() <= fo <= we_to:
+            i1 = bisect_right(days, asof_o)
+            gap1 = asof_o - days[i1 - 1]
+            i0 = bisect_right(days, prev_o, 0, i1)
+            if i0:
+                # Был гостем до периода: живой или мёртвый накануне.
+                gap0 = prev_o - days[i0 - 1]
+                visited = i1 > i0
+                for j, x in enumerate(choices):
+                    alive_end = gap1 <= x
+                    if alive_end:
+                        end[j] += 1
+                    if gap0 <= x:
+                        start[j] += 1
+                        if not alive_end:
+                            died[j] += 1
+                            if selected:
+                                leavers[j].append((i1, cum[i1 - 1]))
+                    elif alive_end:
+                        react[j] += 1
+                    elif visited:
+                        bounced[j] += 1
+            else:
+                # Первый визит в периоде (не позже среза — проверено выше).
                 n_new += 1
-            elif fo and fo < m_start.isoformat():
-                if _visits_between(vd, m_start.isoformat(), we_to) > 0:
-                    lv_before = _last_visit_at(vd, (m_start - timedelta(days=1)).isoformat())
-                    if lv_before and _parse_date(lv_before) < m_start - gap:
-                        n_react += 1
-            if _visits_between(vd, we_from, we_to) > 0:
-                n_end += 1
-        rows.append({
-            'month': ym,
-            'active_start': n_start,
-            'new': n_new,
-            'reactivated': n_react,
-            'active_end': n_end,
-            'churned': n_start + n_new + n_react - n_end,
-        })
-    return {'months': rows, 'gap_days': REACTIVATION_GAP_DAYS}
+                second_gap = days[1] - first if len(days) > 1 else None
+                for j, x in enumerate(choices):
+                    if gap1 <= x:
+                        end[j] += 1
+                    else:
+                        new_died[j] += 1
+                        if selected:
+                            leavers[j].append((i1, cum[i1 - 1]))
+                    if second_gap is None or second_gap > x + 1:
+                        no_return[j] += 1
+        for j, x in enumerate(choices):
+            matures_o = e_o + x + 1
+            mature = matures_o <= dt_o
+            row = dict(base)
+            row.update({
+                'asof': date.fromordinal(asof_o).isoformat(),
+                'state': 'complete' if e_o <= dt_o else 'partial',
+                'start_alive': start[j], 'died': died[j], 'reactivated': react[j],
+                'bounced': bounced[j], 'new': n_new, 'new_died': new_died[j],
+                'end_alive': end[j],
+                'churn_pct': _rate(died[j], start[j]),
+                'newbie_no_return': no_return[j] if mature else None,
+                'newbie_no_return_pct': _rate(no_return[j], n_new) if mature else None,
+                'newbie_matures_on': date.fromordinal(matures_o).isoformat(),
+            })
+            by_days[x]['series'].append(row)
+            if selected:
+                by_days[x]['leavers'] = _leaver_buckets(leavers[j])
+    return {'data_to': last_full, 'scope_from': scope_from, 'by_days': by_days}
+
+
+def churn_view(full, dead_days):
+    """Один порог из ответа churn_all — то, что отдаёт маршрут и видит агент.
+
+    Все четыре порога сразу — около 96 тыс. знаков на 60 периодов, мост MCP урезал
+    бы ответ (предел 60 тыс.); один порог — около 24 тыс.
+    """
+    part = full['by_days'][dead_days]
+    series = part['series']
+    return {
+        'dead_days': dead_days,
+        'choices': list(CHURN_DEAD_DAYS_CHOICES),
+        'data_to': full['data_to'],
+        'series': series,
+        'period': series[-1] if series else None,
+        'leavers': part['leavers'],
+    }
+
+
+def churn(store, period, meta, dead_days=CHURN_DEAD_DAYS_DEFAULT, periods=None,
+          venue=None):
+    """Отток по одному порогу (§17): churn_all + churn_view; порог — parse_dead_days."""
+    return churn_view(churn_all(store, period, meta, periods, venue),
+                      parse_dead_days(dead_days))
 
 
 # ---------------------------------------------------------------- §9 Товары
