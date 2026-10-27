@@ -104,17 +104,13 @@ def test_caddyfile_keeps_main_domain_for_deploy_check():
     assert '139-100-200-92.sslip.io' in hosts
 
 
-def test_internal_tls_only_on_emergency_address():
-    """tls internal в общем блоке сменил бы публичный сертификат beerkultura.ru самоподписанным."""
-    blocks = (ROOT / 'Caddyfile').read_text(encoding='utf-8').split('\n}\n')
-    internal = [b for b in blocks if 'tls internal' in b]
-    assert len(internal) == 1
-    site_line = [line for line in internal[0].splitlines() if line.endswith('{')][0]
-    assert site_line == '139-100-200-92.nip.io {'
+def test_no_self_signed_sites():
+    """tls internal — сертификат, на который браузер предупреждает: на рабочих адресах его нет."""
+    assert 'tls internal' not in (ROOT / 'Caddyfile').read_text(encoding='utf-8')
 
 
 def test_caddyfile_sets_acme_email_for_zerossl_fallback():
-    """Без email Caddy (v2.8+) не берёт ZeroSSL, а Let's Encrypt не выдаёт sslip.io."""
+    """Без email Caddy (v2.8+) не берёт ZeroSSL — запас, если Let's Encrypt откажет sslip.io."""
     text = (ROOT / 'Caddyfile').read_text(encoding='utf-8')
     global_block = text[text.index('\n{\n') + 3:text.index('\n}\n')]
     assert [line.split() for line in global_block.splitlines()] == [['email', 'ssl@beerkultura.ru']]
