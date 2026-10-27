@@ -331,6 +331,34 @@ class TestLtvOnDate(ChurnBase):
         self.assertEqual((summary['avg_ltv'], summary['avg_ltv_asof']), (2214, '2026-03-31'))
 
 
+class TestCohortTotalsOnDate(ChurnBase):
+    """§2 и §6 по дату среза (2026-10-27): чек после среза не меняет прошлый период."""
+
+    def snapshot(self, anchor='2026-03-15'):
+        period, meta = self.ctx('month', anchor)
+        life = {c['cohort']: c
+                for c in ga.lifecycle_cohorts(self.store, period, meta)['cohorts']}
+        rev = {c['cohort']: c
+               for c in ga.cohort_revenue(self.store, period, meta)['cohorts']}
+        return life, rev
+
+    def test_later_receipt_does_not_change_past_cohorts(self):
+        life, rev = self.snapshot()
+        self.assertEqual(life['2026-02']['order2_pct'], 50.0, 'к 31.03 два чека у A, один у B')
+        self.assertEqual((rev['2026-02']['revenue'], rev['2026-02']['ltv']), (3500, 1750))
+        with self.store.conn() as conn:   # B возвращается 10.04 — после среза марта
+            conn.execute("INSERT INTO receipts (open_date, store, order_num, guest_id, revenue, "
+                         "discount, full_sum) VALUES ('2026-04-10', 'bolshoy', '9', '79001', "
+                         "5000, 0, 5000)")
+            conn.commit()
+        life, rev = self.snapshot()
+        self.assertEqual(life['2026-02']['order2_pct'], 50.0)
+        self.assertEqual(rev['2026-02']['revenue'], 3500)
+        life_may, rev_may = self.snapshot('2026-05-15')
+        self.assertEqual(life_may['2026-02']['order2_pct'], 100.0, 'срез мая чек 10.04 видит')
+        self.assertEqual(rev_may['2026-02']['revenue'], 8500)
+
+
 class TestLtvEmptyStore(ChurnBase):
     GUESTS = {}
 

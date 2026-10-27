@@ -268,13 +268,25 @@ def _load_visits(conn, venue=None):
     return visits
 
 
-def _load_guest_totals(conn, venue=None):
-    """{guest_id: {'orders': n, 'revenue': x}} за всю историю; с баром — его чеки."""
-    store_sql, params = ("WHERE store = ? ", [venue]) if venue else ("", [])
+def _load_guest_totals(conn, venue=None, upto=None):
+    """{guest_id: {'orders': n, 'revenue': x}} по чекам не позже upto; с баром — его чеки.
+
+    upto — дата среза отчёта (ISO). Без неё суммы шли бы до сегодняшнего дня, и прошлый
+    период видел бы будущую выручку и чеки (так считали §2 и §6 до 2026-10-27): доля
+    «2+ чека» марта росла от апрельских визитов, а цифры прошлого менялись со временем.
+    """
+    conds, params = [], []
+    if venue:
+        conds.append("store = ?")
+        params.append(venue)
+    if upto:
+        conds.append("open_date <= ?")
+        params.append(upto)
+    where = ("WHERE " + " AND ".join(conds) + " ") if conds else ""
     return {r['guest_id']: {'orders': r['orders'], 'revenue': r['revenue'] or 0.0}
             for r in conn.execute(
                 "SELECT guest_id, COUNT(*) orders, SUM(revenue) revenue "
-                "FROM receipts " + store_sql + "GROUP BY guest_id", params)}
+                "FROM receipts " + where + "GROUP BY guest_id", params)}
 
 
 def _visits_between(dates_list, d_from, d_to):
@@ -555,11 +567,12 @@ def frequency(store, period, meta, venue=None):
 def lifecycle_cohorts(store, period, meta, months_limit=24, venue=None):
     """Когорты жизненного цикла (ТЗ §2): когорта = месяц регистрации.
 
-    Воронка внутри когорты — Lifetime: доля гостей с >= 2 и >= 5 чеками за всю
-    жизнь. Колонки «>= 1 чек» здесь НЕТ намеренно: гость попадает в витрину
-    только вместе с первой покупкой, а оставшиеся без чеков удаляются
-    (guest_store.replace_month), поэтому такая доля тождественно равна 100% и
-    не несёт информации. Сколько людей зарегистрировалось и не купило —
+    Воронка внутри когорты — Lifetime по дату среза: доля гостей с >= 2 и >= 5
+    чеками от первой покупки до asof (не до сегодня: иначе прошлый период видел бы
+    будущие чеки, 2026-10-27). Колонки «>= 1 чек» здесь НЕТ намеренно: гость
+    попадает в витрину только вместе с первой покупкой, а оставшиеся без чеков
+    удаляются (guest_store.replace_month), поэтому такая доля тождественно равна
+    100% и не несёт информации. Сколько людей зарегистрировалось и не купило —
     отдельный отчёт never_buyers() по данным Orderia.
 
     «% активных» — НА ДАТУ СРЕЗА: последний визит не позже asof и не раньше
@@ -580,7 +593,7 @@ def lifecycle_cohorts(store, period, meta, months_limit=24, venue=None):
     venue = resolve_venue(venue)
     with store.conn() as conn:
         guests = _load_guests(conn, venue)
-        totals = _load_guest_totals(conn, venue)
+        totals = _load_guest_totals(conn, venue, upto=asof)
         visits = _load_visits(conn, venue)
     cohorts = {}
     for g in guests:
@@ -664,6 +677,9 @@ def cohort_revenue(store, period, meta, basis='registration', months_limit=24,
                    venue=None):
     """Когортные доходы (ТЗ §6): накопительные выручка/заказы/LTV по когортам.
 
+    Накопительно по дату среза (asof), а не до сегодня: прошлый период не видит
+    более поздней выручки, как LTV на дату (§8, 2026-10-27).
+
     С баром (venue) — выручка и чеки только этого бара; когорта по регистрации —
     гости, чья регистрация закреплена за баром, по первой покупке — первый чек
     в нём.
@@ -676,7 +692,7 @@ def cohort_revenue(store, period, meta, basis='registration', months_limit=24,
     venue = resolve_venue(venue)
     with store.conn() as conn:
         guests = _load_guests(conn, venue)
-        totals = _load_guest_totals(conn, venue)
+        totals = _load_guest_totals(conn, venue, upto=asof)
     cohorts = {}
     for g in guests:
         anchor = (_reg_date(g, eff_basis) if eff_basis != 'first_order'
