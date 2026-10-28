@@ -1276,6 +1276,47 @@ def test_report_page_failure_falls_back_to_text_with_reason(bot):
     assert '**Итог: 5 тыс. ₽.**' in sent, 'ответ всё равно дошёл — сообщением'
 
 
+def test_report_runs_at_normal_speed_answers_fast(bot):
+    """2026-10-28: отчёт упирался в $5 за ~20 шагов быстрого режима (вдвое дороже). Отчёт и его агенты —
+    на обычной скорости (REPORT_FAST_MODE), обычные ответы — быстро, как решил владелец."""
+    bot.client.script += [resp(text('Коротко.'))]
+    bot.svc.handle_update(message('выручка вчера'))
+    assert bot.client.calls[-1]['speed'] == 'fast'
+    bot.client.script += [
+        resp(use(tools.ASK_AGENT, {'agent': 'payroll', 'task': 'Проверь ЗП за сентябрь 2026 по всем барам'}),
+             stop='tool_use'),
+        resp(text('Отчёт агента.')),
+        resp(use(tools.REPORT_TOOL, report_args(), 'r1'), stop='tool_use'), resp(text(''))]
+    bot.svc.handle_update(message('/report зарплата за сентябрь'))
+    assert all('speed' not in c for c in bot.client.calls[1:]), 'отчёт и агент отчёта — обычная скорость'
+    bot.env.monkeypatch.setattr(settings, 'REPORT_FAST_MODE', True)
+    bot.client.script += [resp(use(tools.REPORT_TOOL, report_args(), 'r2'), stop='tool_use'), resp(text(''))]
+    bot.svc.handle_update(message('/report ещё раз'))
+    assert bot.client.calls[-1]['speed'] == 'fast'
+
+
+def test_question_limit_never_crosses_the_daily_stop(bot):
+    """Остаток дня меньше предела отчёта: предел отчёта — остаток минус DAILY_RESERVE_USD, поэтому отчёт
+    доходит до своего предела и уходит страницей, а не обрывается «Дневной предел исчерпан»."""
+    mp = bot.env.monkeypatch
+    step = claude.cost_usd('claude-opus-5-5', {'input_tokens': 1000, 'output_tokens': 200})
+    mp.setattr(settings, 'DAILY_RESERVE_USD', 5 * step)
+    mp.setattr(settings, 'DAILY_BUDGET_USD', 6.5 * step)
+    mp.setattr(settings, 'REPORT_BUDGET_USD', 100 * step)
+    assert bot.svc.question_limit(True) == pytest.approx(1.5 * step)
+    assert bot.svc.question_limit(False) == pytest.approx(1.5 * step), 'и обычный вопрос'
+    bot.client.script += [resp(use('common_whoami', {}, 't1'), stop='tool_use'),
+                          resp(use('common_whoami', {}, 't2'), stop='tool_use'),
+                          resp(use(tools.REPORT_TOOL, report_args(), 't3'), stop='tool_use'), resp(text(''))]
+    bot.svc.handle_update(message('/report сентябрь'))
+    assert f'предел ${1.5 * step:.2f}' in bot.client.calls[0]['messages'][-1]['content'][0]['text']
+    assert bot.env.site.calls[-1][0] == tools.REPORT_TOOL
+    assert len(bot.tg.sent) == 1 and 'остановился на пределе' in bot.tg.sent[0][1] and \
+        'Дневной предел' not in bot.tg.sent[0][1]
+    mp.setattr(settings, 'DAILY_BUDGET_USD', 0)
+    assert bot.svc.question_limit(True) == settings.REPORT_BUDGET_USD, 'без дневного предела — как в настройках'
+
+
 def test_report_text_limits_match_site_and_shapes():
     from kultura_bot.charts import reports
     for name in ('TITLE_MAX', 'HEADING_MAX', 'TEXT_MAX', 'HOW_MAX', 'SECTIONS_MAX'):
