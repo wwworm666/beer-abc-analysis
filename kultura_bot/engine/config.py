@@ -30,7 +30,7 @@ import os
 import re
 from dataclasses import dataclass
 from functools import lru_cache
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 BOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))      # kultura_bot/
 PROMPTS_DIR = os.path.join(BOT_DIR, 'prompts')
@@ -153,3 +153,43 @@ def fingerprint(system_text: str, tools: List[Dict[str, Any]]) -> str:
     """
     raw = json.dumps({'system': system_text, 'tools': tools}, ensure_ascii=False, sort_keys=True)
     return hashlib.sha256(raw.encode('utf-8')).hexdigest()[:16]
+
+
+DEPLOYED_FILE = '/opt/kultura-bot/deployed'     # коммит main, с которым сервер бота в согласии (пишет update.sh)
+
+
+def _sha(value: str) -> str:
+    value = (value or '').strip().lower()
+    return value[:12] if len(value) >= 7 and all(c in '0123456789abcdef' for c in value) else ''
+
+
+def code_version(repo_dir: str = '', deployed_file: Optional[str] = None) -> str:
+    """Коммит, на котором работает сервер бота (первые 12 знаков), или '' — не узнать.
+
+    Сначала — файл DEPLOYED_FILE: update.sh пишет в него коммит main после успешного перезапуска,
+    а когда в kultura_bot/ ничего не менялось — сразу (работающий код тот же). Так версия идёт за
+    main и после правок только сайта; упал посреди обновления — файл старый, и это видно. Нет
+    файла (разработка, тесты) — то, на что указывает .git/HEAD клона, откуда запущен бот; git не
+    вызывается: служба работает от своего пользователя, а клон принадлежит root. Читается при
+    каждом отчёте сайту (service.report) — страница «Доступ агентов» показывает свежую версию."""
+    path = DEPLOYED_FILE if deployed_file is None else deployed_file
+    if path:
+        try:
+            sha = _sha(_read(path))
+        except (OSError, UnicodeDecodeError):
+            sha = ''
+        if sha:
+            return sha
+    git = os.path.join(repo_dir or os.path.dirname(BOT_DIR), '.git')
+    try:
+        head = _read(os.path.join(git, 'HEAD')).strip()
+        if not head.startswith('ref: '):
+            return _sha(head)
+        ref = head[5:].strip()
+        path = os.path.join(git, *ref.split('/'))
+        if os.path.exists(path):
+            return _sha(_read(path))
+        return _sha(next((line.split()[0] for line in _read(os.path.join(git, 'packed-refs')).splitlines()
+                          if line.endswith(' ' + ref)), ''))
+    except (OSError, UnicodeDecodeError):
+        return ''

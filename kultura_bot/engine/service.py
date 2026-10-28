@@ -69,6 +69,7 @@ Claude) и расход с прошлого отчёта уходят сайту
 трёх минут. Отчёт не дошёл — расход копится до следующего.
 """
 import base64
+import dataclasses
 import logging
 import re
 import threading
@@ -79,7 +80,7 @@ from datetime import timedelta
 from typing import Any, Dict, List, Optional
 
 from kultura_bot import links, settings
-from kultura_bot.engine import agent, claude, formatting, tools
+from kultura_bot.engine import agent, claude, config, formatting, report_text, tools
 from kultura_bot.engine.site import SiteError
 from kultura_bot.engine.store import msk_day, msk_now
 from kultura_bot.engine.telegram_io import TelegramIO
@@ -108,6 +109,13 @@ HELP_TEXT = ('Я помощник сети «Культура»: отвечаю 
              'странице (графики, таблицы), в чат пришлю выжимку с кнопкой «Открыть отчёт».\n\n'
              '/new — начать новый диалог')
 REPORT_EMPTY_TEXT = 'Напишите вопрос для отчёта: «/report как прошёл сентябрь по барам».'
+# Режим отчёта, а модель ответила текстом (2026-10-28): одна просьба оформить ответ страницей.
+REPORT_NUDGE = ('Это режим отчёта: ответ должен уйти страницей, а не сообщением. Отправь его сейчас инструментом '
+                'common_report_send (title, summary, sections, how) с тем, что уже есть; данные заново не '
+                'запрашивай. После отправки ничего не пиши.')
+# Как кончился режим отчёта без страницы с первого раза — в журнал вопросов (jobs.error).
+REPORT_PATHS = {'nudge': 'страница после просьбы', 'auto': 'страница собрана из текста',
+                'unknown': 'статус отправки неизвестен', 'empty': 'нет текста для страницы'}
 WEEKDAYS = ('пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс')
 MONTHS = ('янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек')
 UNSUPPORTED_TEXT = 'Пока понимаю текст, фото и PDF. Напишите вопрос словами.'
@@ -243,7 +251,8 @@ class Service:
         with self.usage_lock:
             pending, self.usage_pending = self.usage_pending, {}
         with self.status_lock:
-            status = dict(self.status, bot=self.username)
+            # version — коммит кода (config.code_version, читается каждый раз): страница видит, обновился ли бот
+            status = dict(self.status, bot=self.username, version=config.code_version())
         try:
             self.site.report({'status': status, 'usage': list(pending.values())})
             self.reported_at = now
@@ -620,6 +629,11 @@ class Service:
         График или отчёт уже ушли подписью-ответом, а текста нет — второго сообщения нет
         (кроме уведомления и строки цены, пока она включена)."""
         visible, how = formatting.split_how(answer or '')
+        if ctx.report_mode and ctx.reports_sent:
+            # Режим отчёта: ответ — страница; текст модели после неё («Отчёт отправлен») не нужен.
+            if visible.strip():
+                log.info('[BOT] отчёт ушёл страницей, текст после него не отправлен: %s', visible[:200])
+            visible, how = '', ''
         markup = None
         if how:
             visible, markup = self.how_link(chat_id, visible, how)
@@ -632,6 +646,62 @@ class Service:
             text = f'{text}\n\n{cost_line(spend)}' if text else cost_line(spend)
         if text or markup:
             self.tg.send_markdown(chat_id, text or links.HOW_TEXT, reply_to=reply_to, reply_markup=markup)
+
+    def finish_report(self, client, persona, ctx: tools.ToolContext, result: agent.TurnResult,
+                      question: str):
+        """Режим отчёта, а страница не ушла (модель ответила текстом сама или упёршись в предел).
+
+        Сначала одна просьба оформить ответ страницей (REPORT_NUDGE: REPORT_FINISH_ROUNDS шагов, можно
+        только common_report_send — данные уже собраны). Не помогло — страницу из текста ответа
+        собирает сам бот (report_text.build) тем же инструментом: ни одного запроса к Claude, поэтому
+        и при исчерпанном дневном пределе. Вернуть (итог хода, как кончилось):
+            'nudge'    страницу отправила модель после просьбы
+            'auto'     страницу собрал бот из текста
+            'unknown'  отправка «статус неизвестен» (Telegram не ответил, страница могла дойти) —
+                       повторять нельзя, текст модели уходит как есть
+            'empty'    текста нет (отказ модели) — собирать не из чего
+            иначе      причина, почему страница не собралась (текст уходит сообщением)"""
+        if ctx.report_unknown:
+            return result, 'unknown'
+        if not ctx.report_only and 'refusal' not in result.notes and self._daily_budget_left():
+            ctx.report_only = True
+            log.warning('[BOT] отчёт: модель ответила текстом — прошу оформить его страницей')
+            try:
+                retry = agent.run_turn(client, system_text=persona.system, tool_list=persona.toolset.defs,
+                                       history=result.messages, user_content=[{'type': 'text', 'text': REPORT_NUDGE}],
+                                       ctx=ctx, store=self.store, max_rounds=settings.REPORT_FINISH_ROUNDS,
+                                       on_usage=self.add_usage)
+            except Exception as exc:  # noqa: BLE001 — и дневной предел: готовый ответ не теряем, страница — из текста
+                log.warning('[BOT] отчёт: просьба оформить страницей не удалась: %s', exc)
+            else:
+                text = retry.text if ctx.reports_sent else max(result.text, retry.text, key=len)
+                result = dataclasses.replace(retry, text=text, notes=result.notes + retry.notes,
+                                             cost_usd=result.cost_usd + retry.cost_usd)
+            if ctx.reports_sent:
+                return result, 'nudge'
+            if ctx.report_unknown:
+                return result, 'unknown'
+        if 'refusal' in result.notes or not result.text.strip():
+            return result, 'empty'
+        log.warning('[BOT] отчёт: модель не отправила страницу — собираю её из текста ответа')
+        block = {'id': 'auto_report', 'name': tools.REPORT_TOOL,
+                 'input': {'report': report_text.build(result.text, question)}}
+        outcome = tools.execute(block, ctx)
+        if ctx.report_unknown:
+            return result, 'unknown'
+        if outcome.get('is_error'):
+            reason = ' '.join(str(b.get('text') or '') for b in outcome.get('content') or [] if isinstance(b, dict))
+            log.warning('[BOT] отчёт: страница из текста не собралась: %s', reason)
+            return result, reason.strip()[:300] or 'сайт не ответил'
+        return dataclasses.replace(result, text=''), 'auto'
+
+    def _daily_budget_left(self) -> bool:
+        """Дневной предел ещё не исчерпан (просьба — это запрос к Claude)."""
+        try:
+            agent.check_budget(self.store)
+        except agent.BudgetExceeded:
+            return False
+        return True
 
     def answer(self, chat_id: str, job: Dict[str, Any]) -> None:
         message = job['message']
@@ -685,7 +755,8 @@ class Service:
 
             client = self.client_factory(self.key)
             spend = agent.Spend(limit=settings.REPORT_BUDGET_USD if report_mode else None)
-            ctx = tools.ToolContext(site=self.site, chat_id=chat_id, allowed=persona.toolset.names, spend=spend)
+            ctx = tools.ToolContext(site=self.site, chat_id=chat_id, allowed=persona.toolset.names, spend=spend,
+                                    report_mode=report_mode)
             agent_header = self.header(actor)          # агенту — без «режим: отчёт»: страницу собирает бот
             ctx.run_agent = lambda name, task: agent.run_agent(client, catalog.agents[name], task, parent=ctx,
                                                                store=self.store, header=agent_header,
@@ -694,6 +765,12 @@ class Service:
                                     history=history, user_content=user_content, ctx=ctx, store=self.store,
                                     max_rounds=settings.REPORT_MAX_TOOL_ROUNDS if report_mode else None,
                                     on_usage=self.add_usage)
+            if report_mode and not ctx.reports_sent:
+                result, path = self.finish_report(client, persona, ctx, result, job['text'])
+                error = 'report: ' + REPORT_PATHS.get(path, path)
+                if path not in REPORT_PATHS:
+                    notice = f'{notice} ' if notice else ''
+                    notice += f'Страницу отчёта собрать не удалось ({path}) — ответ ниже сообщением.'
             self.store.save_dialog(chat_id, persona.fingerprint, started_at, result.messages, turns + 1)
             self.deliver(chat_id, result.text, ctx=ctx, spend=spend, notice=notice, reply_to=reply_to)
             if self.status['claude_error']:             # Claude снова отвечает — ошибку со страницы убрать

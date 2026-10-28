@@ -12,7 +12,9 @@
 - **common_chart_send** — график картинкой с кнопкой «Открыть интерактивно» (рисует и
   отправляет сайт); chat_id подставляет бот — чат разговора, что бы ни прислала модель.
 - **common_report_send** — отчёт: страница с разделами на сайте и выжимка в чат с кнопкой
-  «Открыть отчёт»; chat_id — так же, только чат разговора.
+  «Открыть отчёт»; chat_id — так же, только чат разговора. В режиме отчёта (ToolContext.report_mode)
+  отдельные графики в чат не уходят — они внутри отчёта; предел исчерпан (report_only) — можно
+  только отправить отчёт.
 - **ask_agent** (только у бота) — поручить задачу агенту раздела (kultura_bot/agents/*.md):
   агент работает со своими инструкциями и инструментами своих разделов (коннекторы
   /mcp/<раздел>) и возвращает отчёт.
@@ -44,6 +46,14 @@ SENDING_TOOLS = (CHART_TOOL, REPORT_TOOL)        # шлют в Telegram: чат 
 INSTRUCTIONS_TOOL = 'common_instructions'
 ASK_AGENT = 'ask_agent'
 FULL_CONNECTOR = '/mcp'
+
+# Режим отчёта (2026-10-28): ответ — только страницей.
+REPORT_ONLY_TEXT = ('Данные больше не запрашивай: предел этого отчёта исчерпан. Сразу отправь отчёт инструментом '
+                    'common_report_send с тем, что уже есть; чего не успел проверить — скажи в выжимке.')
+REPORT_CHART_TEXT = ('Режим отчёта: график — внутри отчёта (sections[].chart в common_report_send), отдельной '
+                     'картинкой в чат его не отправляй.')
+AGENT_CHART_TEXT = ('Бот собирает отчёт: график в чат не отправляй — верни цифры в отчёте, бот сам вставит график '
+                    'в страницу.')
 
 
 # ------------------------------------------------------------------ каталог
@@ -154,6 +164,9 @@ class ToolContext:
     charts_sent: List[Dict[str, Any]] = field(default_factory=list)
     reports_sent: List[Dict[str, Any]] = field(default_factory=list)
     spend: Any = None                                        # расход вопроса (agent.Spend): общий у бота и агентов
+    report_mode: bool = False                                # /report: ответ — страницей, графики — внутри неё
+    report_only: bool = False                                # предел отчёта исчерпан: можно только отправить отчёт
+    report_unknown: bool = False                             # отправка отчёта «статус неизвестен»: могла дойти
 
 
 def tool_result(tool_use_id: str, content: Any, is_error: bool = False) -> Dict[str, Any]:
@@ -191,6 +204,10 @@ def execute(block: Dict[str, Any], ctx: ToolContext) -> Dict[str, Any]:
     args = block.get('input')
     if not isinstance(args, dict):
         return tool_result(tool_use_id, 'Аргументы инструмента должны быть объектом JSON.', is_error=True)
+    if ctx.report_only and name != REPORT_TOOL:
+        return tool_result(tool_use_id, REPORT_ONLY_TEXT, is_error=True)
+    if ctx.report_mode and name == CHART_TOOL:
+        return tool_result(tool_use_id, AGENT_CHART_TEXT if ctx.is_agent else REPORT_CHART_TEXT, is_error=True)
     if name == ASK_AGENT:
         return _run_ask_agent(tool_use_id, args, ctx)
     if name not in ctx.allowed:
@@ -203,6 +220,8 @@ def execute(block: Dict[str, Any], ctx: ToolContext) -> Dict[str, Any]:
     except SiteError as exc:
         return tool_result(tool_use_id, f'Сайт не выполнил вызов: {exc.text}', is_error=True)
     is_error = bool(result.get('isError'))
+    if name == REPORT_TOOL and is_error and 'Статус неизвестен' in _text(result):
+        ctx.report_unknown = True        # Telegram не ответил, страница могла дойти — повторять нельзя
     if name in SENDING_TOOLS and not is_error:
         try:
             sent = json.loads(_text(result))

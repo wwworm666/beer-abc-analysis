@@ -30,7 +30,7 @@ ENGINE_TOKEN_NAME) и API бота (/api/bot/*, routes/bot_api.py) — толь�
 
 ## Отчёт сервера бота (POST /api/bot/report)
 
-    {"status": {"state": …, "detail": …, "claude_error": …, "bot": …},
+    {"status": {"state": …, "detail": …, "claude_error": …, "bot": …, "version": коммит кода бота},
      "usage": [{"day", "model", "requests", "input_tokens", "output_tokens",
                 "cache_read", "cache_write", "cost_usd"}, …]}
 
@@ -52,6 +52,7 @@ MAX_TOKENS_FIELD = 10 ** 10
 MAX_COST_ITEM_USD = 1000.0
 DAY_RE = re.compile(r'\d{4}-\d{2}-\d{2}')
 MODEL_RE = re.compile(r'[a-z0-9][a-z0-9.\-]{0,63}')
+VERSION_RE = re.compile(r'[0-9a-f]{7,40}')   # коммит, на котором работает сервер бота
 
 
 def _settings():
@@ -148,8 +149,9 @@ def accept_report(payload: Any) -> None:
         items.append((day, model, counts, float(cost)))
     for day, model, counts, cost in items:
         store.add_usage(day, model, counts, cost)
+    version = str(status.get('version') or '')
     store.set_status(status['state'], _short(status.get('detail')), claude_error=_short(status.get('claude_error')),
-                     bot=_short(status.get('bot'), 64))
+                     bot=_short(status.get('bot'), 64), version=version if VERSION_RE.fullmatch(version) else '')
 
 
 # ------------------------------------------------------------------ страница
