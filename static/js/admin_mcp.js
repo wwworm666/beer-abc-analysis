@@ -399,7 +399,9 @@
         botLast = data;
         var status = botStatusText(data);
         var node = byId('mcpBotState');
-        node.textContent = status.text;
+        // Версия кода сервера бота (коммит): видно, подтянул ли он последнюю версию с GitHub.
+        var version = (data.status || {}).version;
+        node.textContent = status.text + (version ? ' Версия кода: ' + version.slice(0, 7) + '.' : '');
         node.className = 'mcp-note ' + (status.bad ? 'mcp-state-bad' : 'mcp-state-good');
 
         var tg = data.telegram || {};

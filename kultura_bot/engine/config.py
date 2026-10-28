@@ -153,3 +153,28 @@ def fingerprint(system_text: str, tools: List[Dict[str, Any]]) -> str:
     """
     raw = json.dumps({'system': system_text, 'tools': tools}, ensure_ascii=False, sort_keys=True)
     return hashlib.sha256(raw.encode('utf-8')).hexdigest()[:16]
+
+
+def code_version(repo_dir: str = '') -> str:
+    """Коммит кода, который сейчас работает (первые 12 знаков), или '' — не узнать.
+
+    Сервер бота запущен из клона репозитория (/opt/kultura-bot/repo, update.sh делает в нём
+    reset --hard на новый коммит до перезапуска), поэтому версия — то, на что указывает .git/HEAD.
+    git не вызывается: служба работает от своего пользователя, а клон принадлежит root. Версия
+    уходит сайту в отчёте о состоянии — страница «Доступ агентов» показывает, обновился ли бот."""
+    git = os.path.join(repo_dir or os.path.dirname(BOT_DIR), '.git')
+    try:
+        head = _read(os.path.join(git, 'HEAD')).strip()
+        if not head.startswith('ref: '):
+            sha = head
+        else:
+            ref = head[5:].strip()
+            path = os.path.join(git, *ref.split('/'))
+            if os.path.exists(path):
+                sha = _read(path).strip()
+            else:
+                sha = next((line.split()[0] for line in _read(os.path.join(git, 'packed-refs')).splitlines()
+                            if line.endswith(' ' + ref)), '')
+    except (OSError, UnicodeDecodeError):
+        return ''
+    return sha[:12] if len(sha) >= 7 and all(c in '0123456789abcdef' for c in sha.lower()) else ''

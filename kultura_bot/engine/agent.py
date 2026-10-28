@@ -85,6 +85,8 @@ BETA_FAST = 'fast-mode-2026-02-01'
 MAX_PAUSE_RESUMES = 5            # подряд pause_turn без нового содержания — хватит
 QUESTION_BUDGET_NOTE = ('Предел расхода на этот вопрос (${limit:.2f}) исчерпан: больше не вызывай инструменты — '
                         'ответь тем, что уже знаешь, и коротко скажи, что не успел проверить.')
+REPORT_FINISH_OVER = ('Шаги на отправку отчёта кончились: ответь текстом в виде отчёта (заголовок-вывод, выжимка, '
+                      'разделы) — бот сам соберёт из него страницу.')
 FAST_WORDS = ('speed', 'fast mode', 'fast-mode', 'fast_mode')     # отказ именно в быстром режиме
 
 # Необязательные возможности: имя -> слова в тексте ошибки 400, по которым её узнать.
@@ -133,7 +135,7 @@ class TurnResult:
     rounds: int = 0
     cost_usd: float = 0.0
     notes: List[str] = field(default_factory=list)   # max_rounds | max_tokens | max_tokens_tool | refusal |
-    #                                                  question_budget
+    #                                                  question_budget | report_finish
 
 
 def request_params(*, model: str, effort: str, system_text: str, tool_list: List[Dict[str, Any]],
@@ -278,6 +280,12 @@ def check_budget(store) -> None:
 UsageHook = Callable[[str, Dict[str, int], float], None]
 
 
+def _finishing_report(ctx: tools.ToolContext) -> bool:
+    """Режим отчёта у бота, страница ещё не ушла и шаги «только отчёт» не начаты: предел
+    исчерпан — не «ответь текстом», а «отправь отчёт с тем, что есть»."""
+    return ctx.report_mode and not ctx.is_agent and not ctx.report_only and not ctx.reports_sent
+
+
 def run_turn(client: Any, *, system_text: str, tool_list: List[Dict[str, Any]], history: List[Dict[str, Any]],
              user_content: List[Dict[str, Any]], ctx: tools.ToolContext, store, model: Optional[str] = None,
              effort: Optional[str] = None, max_rounds: Optional[int] = None,
@@ -295,6 +303,7 @@ def run_turn(client: Any, *, system_text: str, tool_list: List[Dict[str, Any]], 
     final_texts: List[str] = []
     pauses = 0
     final = False
+    finish_left = -1          # режим отчёта, предел исчерпан: сколько ещё шагов «только отчёт» (-1 — не начаты)
     while True:
         check_budget(store)
         response = create_message(client, lambda: request_params(
@@ -350,14 +359,30 @@ def run_turn(client: Any, *, system_text: str, tool_list: List[Dict[str, Any]], 
         if not tool_uses:
             break
         result.rounds += 1
-        if result.rounds > max_rounds:
-            # Шаги кончились: на каждый вызов — отказ, затем последний запрос без инструментов.
-            result.notes.append('max_rounds')
+        if finish_left == 0:
+            # Режим отчёта: и шаги на отправку отчёта кончились — последний запрос без инструментов,
+            # из текста страницу соберёт сервер бота (service.finish_report).
+            result.notes.append('report_finish')
             messages.append({'role': 'user', 'content': [
-                tools.tool_result(b['id'], 'Лимит шагов на этот вопрос исчерпан: ответь тем, что уже знаешь, и '
-                                            'скажи, чего не успел проверить.', is_error=True) for b in tool_uses]})
+                tools.tool_result(b['id'], REPORT_FINISH_OVER, is_error=True) for b in tool_uses]})
             final = True
             continue
+        if finish_left > 0:
+            finish_left -= 1
+        elif result.rounds > max_rounds:
+            result.notes.append('max_rounds')
+            if _finishing_report(ctx):
+                # Режим отчёта: не «ответь текстом», а ещё REPORT_FINISH_ROUNDS шагов (этот — первый),
+                # где можно только отправить отчёт (tools.execute отказывает остальным).
+                ctx.report_only = True
+                finish_left = settings.REPORT_FINISH_ROUNDS - 1
+            else:
+                # Шаги кончились: на каждый вызов — отказ, затем последний запрос без инструментов.
+                messages.append({'role': 'user', 'content': [
+                    tools.tool_result(b['id'], 'Лимит шагов на этот вопрос исчерпан: ответь тем, что уже знаешь, и '
+                                                'скажи, чего не успел проверить.', is_error=True) for b in tool_uses]})
+                final = True
+                continue
         sent_before = len(ctx.charts_sent) + len(ctx.reports_sent)
         results = [tools.execute(b, ctx) for b in tool_uses]
         if not ctx.is_agent and len(ctx.charts_sent) + len(ctx.reports_sent) > sent_before:
@@ -365,12 +390,19 @@ def run_turn(client: Any, *, system_text: str, tool_list: List[Dict[str, Any]], 
             # («Посмотрю выручку…») вторым сообщением не отправляется. Текст после неё — да.
             final_texts = []
         limit = spend.budget()
-        if limit and spend.usd >= limit and not final:
-            # Вопрос разросся: следующий запрос — без инструментов, ответ тем, что уже есть.
-            # Текст — в том же сообщении после результатов (история только дописывается).
+        if limit and spend.usd >= limit and not final and finish_left < 0:
             result.notes.append('question_budget')
-            results.append({'type': 'text', 'text': QUESTION_BUDGET_NOTE.format(limit=limit)})
-            final = True
+            if _finishing_report(ctx):
+                # Режим отчёта: данные больше не запрашиваются, но отчёт отправить можно —
+                # REPORT_FINISH_ROUNDS шагов «только отчёт».
+                ctx.report_only = True
+                finish_left = settings.REPORT_FINISH_ROUNDS
+                results.append({'type': 'text', 'text': tools.REPORT_ONLY_TEXT})
+            else:
+                # Вопрос разросся: следующий запрос — без инструментов, ответ тем, что уже есть.
+                # Текст — в том же сообщении после результатов (история только дописывается).
+                results.append({'type': 'text', 'text': QUESTION_BUDGET_NOTE.format(limit=limit)})
+                final = True
         messages.append({'role': 'user', 'content': results})
 
     result.text = '\n\n'.join(final_texts).strip()
@@ -386,7 +418,7 @@ def run_agent(client: Any, persona: tools.Persona, task: str, *, parent: tools.T
     """Поручение агенту: отдельный разговор с его инструкциями и инструментами. Вернуть отчёт."""
     ctx = tools.ToolContext(site=parent.site, chat_id=parent.chat_id, allowed=persona.toolset.names,
                             is_agent=True, charts_sent=parent.charts_sent, reports_sent=parent.reports_sent,
-                            spend=parent.spend)
+                            spend=parent.spend, report_mode=parent.report_mode)
     text = (header + '\n' if header else '') + task
     result = run_turn(client, system_text=persona.system, tool_list=persona.toolset.defs, history=[],
                       user_content=[{'type': 'text', 'text': text}], ctx=ctx, store=store,
