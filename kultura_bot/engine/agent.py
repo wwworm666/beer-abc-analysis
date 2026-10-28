@@ -139,7 +139,7 @@ class TurnResult:
 
 
 def request_params(*, model: str, effort: str, system_text: str, tool_list: List[Dict[str, Any]],
-                   messages: List[Dict[str, Any]], final: bool = False) -> Dict[str, Any]:
+                   messages: List[Dict[str, Any]], final: bool = False, fast: bool = True) -> Dict[str, Any]:
     """Параметры client.beta.messages.stream (отдельно — для тестов и отладки)."""
     betas = []
     params: Dict[str, Any] = {
@@ -167,7 +167,7 @@ def request_params(*, model: str, effort: str, system_text: str, tool_list: List
     if settings.REFUSAL_FALLBACK and 'fallbacks' not in _disabled:
         params['fallbacks'] = 'default'
         betas.append(BETA_FALLBACK)
-    if fast_mode_on():
+    if fast and fast_mode_on():                # fast=False — отчёт (settings.REPORT_FAST_MODE)
         params['speed'] = 'fast'
         betas.append(BETA_FAST)
     if final:
@@ -289,7 +289,8 @@ def _finishing_report(ctx: tools.ToolContext) -> bool:
 def run_turn(client: Any, *, system_text: str, tool_list: List[Dict[str, Any]], history: List[Dict[str, Any]],
              user_content: List[Dict[str, Any]], ctx: tools.ToolContext, store, model: Optional[str] = None,
              effort: Optional[str] = None, max_rounds: Optional[int] = None,
-             on_step: Optional[Callable[[], None]] = None, on_usage: Optional[UsageHook] = None) -> TurnResult:
+             on_step: Optional[Callable[[], None]] = None, on_usage: Optional[UsageHook] = None,
+             fast: bool = True) -> TurnResult:
     """Ответить на один вопрос. Ошибки API (anthropic.*Error) и BudgetExceeded — наверх.
 
     store — своя база сервера бота (engine/store.py): дневной предел и расход; on_usage —
@@ -308,7 +309,7 @@ def run_turn(client: Any, *, system_text: str, tool_list: List[Dict[str, Any]], 
         check_budget(store)
         response = create_message(client, lambda: request_params(
             model=model, effort=effort, system_text=system_text, tool_list=tool_list, messages=messages,
-            final=final))
+            final=final, fast=fast))
         usage = _usage_dict(response.usage)
         served_by = getattr(response, 'model', None) or model
         cost = claude.cost_usd(served_by, usage, speed=getattr(response.usage, 'speed', None))
@@ -422,5 +423,6 @@ def run_agent(client: Any, persona: tools.Persona, task: str, *, parent: tools.T
     text = (header + '\n' if header else '') + task
     result = run_turn(client, system_text=persona.system, tool_list=persona.toolset.defs, history=[],
                       user_content=[{'type': 'text', 'text': text}], ctx=ctx, store=store,
-                      effort=settings.AGENT_EFFORT, max_rounds=settings.AGENT_MAX_TOOL_ROUNDS, on_usage=on_usage)
+                      effort=settings.AGENT_EFFORT, max_rounds=settings.AGENT_MAX_TOOL_ROUNDS, on_usage=on_usage,
+                      fast=settings.REPORT_FAST_MODE or not parent.report_mode)
     return result.text

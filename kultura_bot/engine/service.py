@@ -584,10 +584,10 @@ class Service:
         return blocks
 
     @staticmethod
-    def header(actor: Dict[str, Any], mode: str = 'answer') -> str:
+    def header(actor: Dict[str, Any], mode: str = 'answer', limit: Optional[float] = None) -> str:
         now = msk_now()
-        report = (f' · режим: отчёт — страница common_report_send, предел ${settings.REPORT_BUDGET_USD:.2f}'
-                  if mode == 'report' else '')
+        limit = settings.REPORT_BUDGET_USD if limit is None else limit
+        report = f' · режим: отчёт — страница common_report_send, предел ${limit:.2f}' if mode == 'report' else ''
         return (f'[{WEEKDAYS[now.weekday()]} {now.strftime("%d.%m.%Y %H:%M")} МСК · {calendar_text(now)}{report} · '
                 f'пишет {actor["display_name"]} ({actor["login"]})]')
 
@@ -670,7 +670,7 @@ class Service:
                 retry = agent.run_turn(client, system_text=persona.system, tool_list=persona.toolset.defs,
                                        history=result.messages, user_content=[{'type': 'text', 'text': REPORT_NUDGE}],
                                        ctx=ctx, store=self.store, max_rounds=settings.REPORT_FINISH_ROUNDS,
-                                       on_usage=self.add_usage)
+                                       on_usage=self.add_usage, fast=settings.REPORT_FAST_MODE)
             except Exception as exc:  # noqa: BLE001 — и дневной предел: готовый ответ не теряем, страница — из текста
                 log.warning('[BOT] отчёт: просьба оформить страницей не удалась: %s', exc)
             else:
@@ -694,6 +694,16 @@ class Service:
             log.warning('[BOT] отчёт: страница из текста не собралась: %s', reason)
             return result, reason.strip()[:300] or 'сайт не ответил'
         return dataclasses.replace(result, text=''), 'auto'
+
+    def question_limit(self, report_mode: bool) -> float:
+        """Предел расхода на этот вопрос: обычный или отчёта, но не больше остатка дня минус
+        DAILY_RESERVE_USD — вопрос завершается ответом (страницей) раньше дневной остановки."""
+        limit = settings.REPORT_BUDGET_USD if report_mode else settings.QUESTION_BUDGET_USD
+        if settings.DAILY_BUDGET_USD:
+            # Остаток дня не меньше цента: 0 значил бы «без предела».
+            left = max(settings.DAILY_BUDGET_USD - self.store.spent_on() - settings.DAILY_RESERVE_USD, 0.01)
+            limit = min(limit, left) if limit else left
+        return limit
 
     def _daily_budget_left(self) -> bool:
         """Дневной предел ещё не исчерпан (просьба — это запрос к Claude)."""
@@ -725,7 +735,8 @@ class Service:
         status, error = 'done', ''
         report_mode = job.get('mode') == 'report'
         try:
-            header = self.header(actor, 'report' if report_mode else 'answer')
+            limit = self.question_limit(report_mode)
+            header = self.header(actor, 'report' if report_mode else 'answer', limit)
             user_content = [{'type': 'text', 'text': f'{header}\n{job["text"] or "(без текста)"}'}]
             files = self._files(message)
             document = message.get('document') or {}
@@ -754,7 +765,7 @@ class Service:
             turns = dialog['turns'] if dialog else 0
 
             client = self.client_factory(self.key)
-            spend = agent.Spend(limit=settings.REPORT_BUDGET_USD if report_mode else None)
+            spend = agent.Spend(limit=limit)
             ctx = tools.ToolContext(site=self.site, chat_id=chat_id, allowed=persona.toolset.names, spend=spend,
                                     report_mode=report_mode)
             agent_header = self.header(actor)          # агенту — без «режим: отчёт»: страницу собирает бот
@@ -764,7 +775,8 @@ class Service:
             result = agent.run_turn(client, system_text=persona.system, tool_list=persona.toolset.defs,
                                     history=history, user_content=user_content, ctx=ctx, store=self.store,
                                     max_rounds=settings.REPORT_MAX_TOOL_ROUNDS if report_mode else None,
-                                    on_usage=self.add_usage)
+                                    on_usage=self.add_usage,
+                                    fast=settings.REPORT_FAST_MODE if report_mode else True)
             if report_mode and not ctx.reports_sent:
                 result, path = self.finish_report(client, persona, ctx, result, job['text'])
                 error = 'report: ' + REPORT_PATHS.get(path, path)
