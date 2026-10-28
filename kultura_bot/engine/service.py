@@ -113,6 +113,9 @@ REPORT_EMPTY_TEXT = 'Напишите вопрос для отчёта: «/repor
 REPORT_NUDGE = ('Это режим отчёта: ответ должен уйти страницей, а не сообщением. Отправь его сейчас инструментом '
                 'common_report_send (title, summary, sections, how) с тем, что уже есть; данные заново не '
                 'запрашивай. После отправки ничего не пиши.')
+# Как кончился режим отчёта без страницы с первого раза — в журнал вопросов (jobs.error).
+REPORT_PATHS = {'nudge': 'страница после просьбы', 'auto': 'страница собрана из текста',
+                'unknown': 'статус отправки неизвестен', 'empty': 'нет текста для страницы'}
 WEEKDAYS = ('пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс')
 MONTHS = ('янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек')
 UNSUPPORTED_TEXT = 'Пока понимаю текст, фото и PDF. Напишите вопрос словами.'
@@ -198,8 +201,7 @@ class Service:
         self.busy: set = set()
         self.lock = threading.Lock()
         self.stopping = threading.Event()
-        self.status: Dict[str, str] = {'state': 'starting', 'detail': 'сервер бота запускается', 'claude_error': '',
-                                       'version': config.code_version()}     # коммит кода — сайту, видно, обновился ли
+        self.status: Dict[str, str] = {'state': 'starting', 'detail': 'сервер бота запускается', 'claude_error': ''}
         self.status_lock = threading.Lock()
         self.reported_at = 0.0
         self.usage_pending: Dict[tuple, Dict[str, Any]] = {}
@@ -249,7 +251,8 @@ class Service:
         with self.usage_lock:
             pending, self.usage_pending = self.usage_pending, {}
         with self.status_lock:
-            status = dict(self.status, bot=self.username)
+            # version — коммит кода (config.code_version, читается каждый раз): страница видит, обновился ли бот
+            status = dict(self.status, bot=self.username, version=config.code_version())
         try:
             self.site.report({'status': status, 'usage': list(pending.values())})
             self.reported_at = now
@@ -650,9 +653,17 @@ class Service:
 
         Сначала одна просьба оформить ответ страницей (REPORT_NUDGE: REPORT_FINISH_ROUNDS шагов, можно
         только common_report_send — данные уже собраны). Не помогло — страницу из текста ответа
-        собирает сам бот (report_text.build) тем же инструментом. Вернуть (итог хода, причину,
-        если страницу собрать не удалось — тогда ответ уходит сообщением)."""
-        if not ctx.report_only and 'refusal' not in result.notes:
+        собирает сам бот (report_text.build) тем же инструментом: ни одного запроса к Claude, поэтому
+        и при исчерпанном дневном пределе. Вернуть (итог хода, как кончилось):
+            'nudge'    страницу отправила модель после просьбы
+            'auto'     страницу собрал бот из текста
+            'unknown'  отправка «статус неизвестен» (Telegram не ответил, страница могла дойти) —
+                       повторять нельзя, текст модели уходит как есть
+            'empty'    текста нет (отказ модели) — собирать не из чего
+            иначе      причина, почему страница не собралась (текст уходит сообщением)"""
+        if ctx.report_unknown:
+            return result, 'unknown'
+        if not ctx.report_only and 'refusal' not in result.notes and self._daily_budget_left():
             ctx.report_only = True
             log.warning('[BOT] отчёт: модель ответила текстом — прошу оформить его страницей')
             try:
@@ -660,25 +671,37 @@ class Service:
                                        history=result.messages, user_content=[{'type': 'text', 'text': REPORT_NUDGE}],
                                        ctx=ctx, store=self.store, max_rounds=settings.REPORT_FINISH_ROUNDS,
                                        on_usage=self.add_usage)
-            except agent.BudgetExceeded:
-                raise
-            except Exception as exc:  # noqa: BLE001 — просьба не удалась: страница — из того, что уже есть
+            except Exception as exc:  # noqa: BLE001 — и дневной предел: готовый ответ не теряем, страница — из текста
                 log.warning('[BOT] отчёт: просьба оформить страницей не удалась: %s', exc)
             else:
                 text = retry.text if ctx.reports_sent else max(result.text, retry.text, key=len)
                 result = dataclasses.replace(retry, text=text, notes=result.notes + retry.notes,
                                              cost_usd=result.cost_usd + retry.cost_usd)
-        if ctx.reports_sent or 'refusal' in result.notes or not result.text.strip():
-            return result, ''
+            if ctx.reports_sent:
+                return result, 'nudge'
+            if ctx.report_unknown:
+                return result, 'unknown'
+        if 'refusal' in result.notes or not result.text.strip():
+            return result, 'empty'
         log.warning('[BOT] отчёт: модель не отправила страницу — собираю её из текста ответа')
         block = {'id': 'auto_report', 'name': tools.REPORT_TOOL,
                  'input': {'report': report_text.build(result.text, question)}}
         outcome = tools.execute(block, ctx)
+        if ctx.report_unknown:
+            return result, 'unknown'
         if outcome.get('is_error'):
             reason = ' '.join(str(b.get('text') or '') for b in outcome.get('content') or [] if isinstance(b, dict))
             log.warning('[BOT] отчёт: страница из текста не собралась: %s', reason)
             return result, reason.strip()[:300] or 'сайт не ответил'
-        return dataclasses.replace(result, text=''), ''
+        return dataclasses.replace(result, text=''), 'auto'
+
+    def _daily_budget_left(self) -> bool:
+        """Дневной предел ещё не исчерпан (просьба — это запрос к Claude)."""
+        try:
+            agent.check_budget(self.store)
+        except agent.BudgetExceeded:
+            return False
+        return True
 
     def answer(self, chat_id: str, job: Dict[str, Any]) -> None:
         message = job['message']
@@ -743,11 +766,11 @@ class Service:
                                     max_rounds=settings.REPORT_MAX_TOOL_ROUNDS if report_mode else None,
                                     on_usage=self.add_usage)
             if report_mode and not ctx.reports_sent:
-                result, failed = self.finish_report(client, persona, ctx, result, job['text'])
-                error = 'report: страница собрана из текста' if ctx.reports_sent else f'report: {failed or "нет страницы"}'
-                if failed:
+                result, path = self.finish_report(client, persona, ctx, result, job['text'])
+                error = 'report: ' + REPORT_PATHS.get(path, path)
+                if path not in REPORT_PATHS:
                     notice = f'{notice} ' if notice else ''
-                    notice += f'Страницу отчёта собрать не удалось ({failed}) — ответ ниже сообщением.'
+                    notice += f'Страницу отчёта собрать не удалось ({path}) — ответ ниже сообщением.'
             self.store.save_dialog(chat_id, persona.fingerprint, started_at, result.messages, turns + 1)
             self.deliver(chat_id, result.text, ctx=ctx, spend=spend, notice=notice, reply_to=reply_to)
             if self.status['claude_error']:             # Claude снова отвечает — ошибку со страницы убрать

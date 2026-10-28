@@ -1188,6 +1188,8 @@ def test_report_answered_with_text_is_asked_for_a_page(bot):
     assert bot.tg.sent == [], 'ответ — страница, текст после неё («Отчёт отправлен.») не уходит'
     dialog = bot.env.store.get_dialog(OWNER_TG)
     assert any(m['role'] == 'user' and m['content'][0].get('text') == service.REPORT_NUDGE for m in dialog['messages'])
+    assert bot.env.store._conn.execute('SELECT error FROM jobs ORDER BY id DESC LIMIT 1').fetchone()[0] == \
+        'report: страница после просьбы'
 
 
 def test_report_page_is_built_from_text_when_model_refuses(bot):
@@ -1205,6 +1207,10 @@ def test_report_page_is_built_from_text_when_model_refuses(bot):
     assert bot.tg.sent == [], 'текст ответа — на странице, не сообщением'
     assert bot.env.store._conn.execute('SELECT error FROM jobs ORDER BY id DESC LIMIT 1').fetchone()[0] == \
         'report: страница собрана из текста'
+    bold_tail = report_text.build('**Итог: 97% плана.**\n\n## По барам\nЛиговский 104%.\n\n'
+                                  '**Дальше: проверить Кременчугскую — 89% плана.**')
+    assert bold_tail['sections'][-1]['text'].endswith('**Дальше: проверить Кременчугскую — 89% плана.**'), \
+        'строка жирным без текста под ней — вывод, не пропадает'
 
 
 def test_report_budget_leaves_steps_only_for_the_page(bot):
@@ -1290,19 +1296,55 @@ def test_code_version_reads_git_without_git(tmp_path):
     (git / 'refs' / 'heads').mkdir(parents=True)
     (git / 'HEAD').write_text('ref: refs/heads/main\n')
     (git / 'refs' / 'heads' / 'main').write_text('a1a666dfc35489fd98976df17b2891717795f5ff\n')
-    assert config.code_version(str(tmp_path)) == 'a1a666dfc354'
+    version = lambda: config.code_version(str(tmp_path), deployed_file='')      # noqa: E731 — без файла update.sh
+    assert version() == 'a1a666dfc354'
     (git / 'refs' / 'heads' / 'main').unlink()
     (git / 'packed-refs').write_text('# pack-refs\ncc6849a99999aaaabbbbccccddddeeeeffff0000 refs/heads/main\n')
-    assert config.code_version(str(tmp_path)) == 'cc6849a99999'
+    assert version() == 'cc6849a99999'
     (git / 'HEAD').write_text('0123456789abcdef0123456789abcdef01234567\n')
-    assert config.code_version(str(tmp_path)) == '0123456789ab', 'отделённый HEAD'
+    assert version() == '0123456789ab', 'отделённый HEAD'
     (git / 'HEAD').write_text('мусор')
-    assert config.code_version(str(tmp_path)) == '' and config.code_version(str(tmp_path / 'нет')) == ''
+    assert version() == '' and config.code_version(str(tmp_path / 'нет'), deployed_file='') == ''
+    deployed = tmp_path / 'deployed'
+    deployed.write_text('f1f01478901f40bcff0458a1b17694c78c68ffb2\n')
+    assert config.code_version(str(tmp_path), deployed_file=str(deployed)) == 'f1f01478901f', \
+        'файл update.sh — первым: версия идёт за main и после правок только сайта'
+    deployed.write_text('мусор')
+    assert config.code_version(str(tmp_path), deployed_file=str(deployed)) == '', 'мусор в файле — к .git'
 
 
-def test_status_report_carries_code_version(bot):
+def test_status_report_carries_code_version(bot, tmp_path):
     bot.svc.report(force=True)
     assert bot.env.site.reports[-1]['status']['version'] == config.code_version()
+    deployed = tmp_path / 'deployed'
+    deployed.write_text('a1a666dfc35489fd98976df17b2891717795f5ff')
+    bot.env.monkeypatch.setattr(config, 'DEPLOYED_FILE', str(deployed))
+    bot.svc.report(force=True)
+    assert bot.env.site.reports[-1]['status']['version'] == 'a1a666dfc354', 'читается при каждом отчёте'
+
+
+def test_report_daily_budget_keeps_the_answer(bot):
+    """Дневной предел исчерпан последним шагом ответа: просьбы (запрос к Claude) нет, но страница из
+    текста собирается — готовый ответ не теряется, диалог сохраняется."""
+    step = claude.cost_usd('claude-opus-5-5', {'input_tokens': 1000, 'output_tokens': 200})
+    bot.env.monkeypatch.setattr(settings, 'DAILY_BUDGET_USD', 0.5 * step)
+    bot.client.script += [resp(text(LONG_ANSWER))]
+    bot.svc.handle_update(message('/report сентябрь'))
+    assert len(bot.client.calls) == 1 and bot.env.site.calls[-1][0] == tools.REPORT_TOOL
+    assert bot.env.store.get_dialog(OWNER_TG) is not None and bot.tg.sent == []
+    assert tuple(bot.env.store._conn.execute('SELECT status, error FROM jobs ORDER BY id DESC LIMIT 1').fetchone()) == \
+        ('done', 'report: страница собрана из текста')
+
+
+def test_report_unknown_send_status_is_not_repeated(bot):
+    """Отправка «статус неизвестен» (Telegram не ответил, страница могла дойти): ни просьбы, ни страницы
+    из текста — второй отчёт в чате не нужен; текст модели уходит как есть."""
+    bot.env.site.report_error = 'Статус неизвестен: Telegram не ответил, сообщение могло дойти. Не повторяйте.'
+    bot.client.script += [resp(use(tools.REPORT_TOOL, report_args(), 'r1'), stop='tool_use'),
+                          resp(text('Отчёт мог уже прийти — проверьте чат.'))]
+    bot.svc.handle_update(message('/report сентябрь'))
+    assert [n for n, _ in bot.env.site.calls if n == tools.REPORT_TOOL] == [tools.REPORT_TOOL]
+    assert len(bot.client.calls) == 2 and [m[1] for m in bot.tg.sent] == ['Отчёт мог уже прийти — проверьте чат.']
 
 
 def test_header_has_weekdays_and_windows():

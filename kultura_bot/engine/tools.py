@@ -166,6 +166,7 @@ class ToolContext:
     spend: Any = None                                        # расход вопроса (agent.Spend): общий у бота и агентов
     report_mode: bool = False                                # /report: ответ — страницей, графики — внутри неё
     report_only: bool = False                                # предел отчёта исчерпан: можно только отправить отчёт
+    report_unknown: bool = False                             # отправка отчёта «статус неизвестен»: могла дойти
 
 
 def tool_result(tool_use_id: str, content: Any, is_error: bool = False) -> Dict[str, Any]:
@@ -219,6 +220,8 @@ def execute(block: Dict[str, Any], ctx: ToolContext) -> Dict[str, Any]:
     except SiteError as exc:
         return tool_result(tool_use_id, f'Сайт не выполнил вызов: {exc.text}', is_error=True)
     is_error = bool(result.get('isError'))
+    if name == REPORT_TOOL and is_error and 'Статус неизвестен' in _text(result):
+        ctx.report_unknown = True        # Telegram не ответил, страница могла дойти — повторять нельзя
     if name in SENDING_TOOLS and not is_error:
         try:
             sent = json.loads(_text(result))
