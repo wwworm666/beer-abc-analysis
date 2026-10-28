@@ -12,8 +12,10 @@
                                    и для компьютера); без входа — страница входа
     POST|DELETE /api/tg/reports/<report_id>/link
                                    ссылка для браузера (2026-10-28): сделать (та же, если
-                                   уже есть) или закрыть. Кто: вошедший в сайт или участник
-                                   чата записи (initData, как у отчёта)
+                                   уже есть) или закрыть. Кто: администратор сайта (вход
+                                   сайта) или участник чата записи, подключённый к боту
+                                   (initData + kultura_bot/access.actor_for) — тот, кому бот
+                                   отвечает; остальные участники группы — 403 not_owner
     GET /r/<token>                 запись по ссылке для браузера — без входа, тот же дизайн,
                                    что у страницы сайта; закрыли или истёк срок — 404
     GET /tg/chart/dev              только при debug: графики-фикстуры прототипа
@@ -34,8 +36,9 @@
 Страница мини-приложения, оба API и dev-страницы — в PUBLIC_ENDPOINTS (core/auth_guard.py):
 у Telegram нет cookie сайта, API проверяет initData сам. /tg/report/<id> — не публичная:
 её открывает только вошедший в сайт. /r/<token> открыт всем, у кого есть ссылка (код —
-128 бит, отдельный от id; ссылку владелец делает сам и может закрыть). initData и коды
-ссылок в журнал не пишутся. Токен бота —
+128 бит, отдельный от id; ссылку делает и закрывает только администратор). initData и коды
+ссылок этот модуль в журнал не пишет; путь /r/<код> видят журналы доступа gunicorn и Caddy
+на сервере сайта (как любой адрес запроса). Токен бота —
 на странице «Доступ агентов» (kultura_bot/credentials.py, API /api/admin/mcp/bot в
 routes/mcp.py, только администратор); кнопка и прочее — kultura_bot/settings.py.
 """
@@ -62,6 +65,8 @@ PAGE_CSP = ("default-src 'self'; script-src 'self' https://telegram.org; style-s
             "form-action 'none'")
 
 _INIT_DATA_CODES = {'missing': 'init_data_missing', 'expired': 'init_data_expired'}
+NOT_OWNER_TEXT = ('Ссылку для браузера делает и закрывает администратор: тот, кто подключён к боту на странице '
+                  '«Доступ агентов»')
 
 
 def _page(html: str):
@@ -152,7 +157,16 @@ def report_api(report_id):
     error = _member_error(record['chat_id'], viewer, token, 'Отчёт')
     if error is not None:
         return error
-    return _json({'report': reports.view(record), 'expires_at': _expires(record), 'link': _link(record)})
+    can_share = _bot_user(viewer)
+    return _json({'report': reports.view(record), 'expires_at': _expires(record),
+                  'link': _link(record) if can_share else '', 'can_share': can_share})
+
+
+def _bot_user(viewer) -> bool:
+    """Человек из Telegram подключён к боту (администратор сайта, kultura_bot/access.py): только он
+    делает и закрывает ссылку для браузера — участник группы, вышедший из неё, не унесёт доступ."""
+    from kultura_bot import access as bot_access
+    return bot_access.actor_for(str(viewer['user_id'])) is not None
 
 
 def _link(record) -> str:
@@ -168,6 +182,8 @@ def _link_access(report_id: str):
     from core.auth_guard import current_user
     user = current_user()
     if user:
+        if not user.get('is_admin'):
+            return None, None, _api_error(403, 'not_owner', NOT_OWNER_TEXT)
         record = reports.get(report_id)
         if record is None:
             return None, None, _api_error(404, 'report_not_found', 'Отчёт не найден или срок хранения (90 дней) истёк')
@@ -181,6 +197,8 @@ def _link_access(report_id: str):
     error = _member_error(record['chat_id'], viewer, token, 'Отчёт')
     if error is not None:
         return None, None, error
+    if not _bot_user(viewer):
+        return None, None, _api_error(403, 'not_owner', NOT_OWNER_TEXT)
     return record, f'tg:{viewer["user_id"]}', None
 
 
@@ -225,7 +243,10 @@ def report_page(report_id):
     record = reports.get(report_id)
     if record is None:
         abort(404)
-    payload = {'report': reports.view(record), 'expires_at': _expires(record), 'link': _link(record)}
+    from core.auth_guard import current_user
+    can_share = bool((current_user() or {}).get('is_admin'))
+    payload = {'report': reports.view(record), 'expires_at': _expires(record),
+               'link': _link(record) if can_share else '', 'can_share': can_share}
     resp = _page(render_template('tg_chart.html', mode='site', payload=payload,
                                  title=record['body'].get('title') or 'Отчёт'))
     resp.headers['Cache-Control'] = 'private, no-store'      # цифры владельца: браузер не хранит

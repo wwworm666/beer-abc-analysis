@@ -30,7 +30,7 @@
   if (!payload.report) return;
   root.classList.add('is-report');
 
-  // Ссылка для браузера — у страницы сайта (вход сайта); на странице по ссылке её нет.
+  // Ссылка для браузера — у страницы сайта для администратора; на странице по ссылке её нет.
   function call(method) {
     return fetch('/api/tg/reports/' + encodeURIComponent(payload.report.id) + '/link', {
       method, cache: 'no-store', credentials: 'same-origin',
@@ -43,7 +43,7 @@
   const opts = { toast };
   if (payload.shared) {
     opts.sharedUntil = payload.expires_at;
-  } else if (payload.report.id) {
+  } else if (payload.report.id && payload.can_share) {   // ссылку делает только администратор
     opts.share = {
       link: payload.link || '', expiresAt: payload.expires_at || '',
       create: () => call('POST').then(body => body.link),

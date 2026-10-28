@@ -169,7 +169,8 @@
       await TgChart.fontsReady();
       stateEl.hidden = true;
       root.classList.add('is-report');
-      card = TgReport.mount(cardsEl, body.report, { onSelect: haptic, toast, share: shareApi(body) });
+      card = TgReport.mount(cardsEl, body.report, { onSelect: haptic, toast,
+                                                     share: body.can_share ? shareApi(body) : null });
       return;
     }
     if (resp.status === 403) {
