@@ -341,10 +341,20 @@ def link_call(client, method, report_id, data=None):
     return client.open(f'/api/tg/reports/{report_id}/link', method=method, headers=headers)
 
 
+def bot_users(monkeypatch, *tg_ids):
+    """Кто подключён к боту (kultura_bot/access.actor_for): только они делают ссылку для браузера."""
+    from kultura_bot import access as bot_access
+    allowed = {str(t) for t in tg_ids}
+    monkeypatch.setattr(bot_access, 'actor_for', lambda tg_user_id: (
+        {'tg_user_id': str(tg_user_id), 'login': 'owner'} if str(tg_user_id) in allowed else None))
+
+
 def test_browser_link_made_by_chat_member_opens_without_login(setup, monkeypatch):
     """2026-10-28, решение владельца: «полный отчёт доступен по ссылке в браузере, ровно в таком же
-    дизайне». Ссылку делает участник чата отчёта (initData) — та же при повторе; открывает её любой без
-    входа: тот же шаблон и site.js, без id записи, не кэшируется и не индексируется; закрыли — 404."""
+    дизайне». Ссылку делает участник чата отчёта, подключённый к боту (initData) — та же при повторе;
+    открывает её любой без входа: тот же шаблон и site.js, без id записи, не кэшируется и не
+    индексируется; закрыли — 404."""
+    bot_users(monkeypatch, OWNER)
     rid = reports.create(reports.normalize_report(REPORT, page_filter=page_filter), chat_id=CHAT)['id']
     client = make_app().test_client()
     assert link_call(client, 'POST', rid).status_code == 401, 'без initData и без входа — нельзя'
@@ -358,7 +368,8 @@ def test_browser_link_made_by_chat_member_opens_without_login(setup, monkeypatch
     token = link.rsplit('/', 1)[1]
     assert reports.LINK_TOKEN_RE.fullmatch(token) and token not in rid
     assert link_call(client, 'POST', rid, init_data()).get_json()['link'] == link, 'повтор — та же ссылка'
-    assert get_report(client, rid, init_data()).get_json()['link'] == link, 'страница видит, что ссылка открыта'
+    answer = get_report(client, rid, init_data()).get_json()
+    assert answer['link'] == link and answer['can_share'] is True, 'страница видит, что ссылка открыта'
 
     page = client.get(f'/r/{token}')
     html = page.get_data(as_text=True)
@@ -377,6 +388,24 @@ def test_browser_link_made_by_chat_member_opens_without_login(setup, monkeypatch
     assert client.get('/r/' + 'x' * 22).status_code == 404 and client.get('/r/короткий').status_code == 404
 
 
+def test_browser_link_only_for_bot_users(setup, monkeypatch):
+    """Замечание проверки 2026-10-28: ссылку делает и закрывает только тот, кому бот отвечает (подключён
+    к боту на «Доступ агентов»). Участник группы без подключения кнопки не видит и получает 403 — иначе,
+    выйдя из группы, он унёс бы доступ к отчёту по ссылке."""
+    bot_users(monkeypatch, OWNER)
+    monkeypatch.setattr(tg_chart_access, '_get_chat_member', FakeMembers({(GROUP, OWNER): 'member',
+                                                                          (GROUP, STRANGER): 'member'}))
+    rid = reports.create(reports.normalize_report(REPORT), chat_id=GROUP)['id']
+    client = make_app().test_client()
+    resp = link_call(client, 'POST', rid, init_data(user_id=STRANGER))
+    assert resp.status_code == 403 and resp.get_json()['code'] == 'not_owner'
+    link = link_call(client, 'POST', rid, init_data()).get_json()['link']
+    seen = get_report(client, rid, init_data(user_id=STRANGER)).get_json()
+    assert seen['can_share'] is False and seen['link'] == '', 'участник группы отчёт видит, ссылку — нет'
+    assert link_call(client, 'DELETE', rid, init_data(user_id=STRANGER)).status_code == 403
+    assert reports.link_token(rid) == link.rsplit('/', 1)[1], 'чужой не закрыл ссылку владельца'
+
+
 def test_browser_link_dies_with_the_report_and_site_login_can_make_it(setup, monkeypatch):
     from core import auth_manager as am
     fd, path = tempfile.mkstemp(suffix='.db')
@@ -385,10 +414,16 @@ def test_browser_link_dies_with_the_report_and_site_login_can_make_it(setup, mon
     mgr = am.AuthManager(db_path=path)
     am._auth_manager = mgr
     mgr.create_user('owner', 'Владелец', 'ownerpass', is_admin=True)
+    mgr.create_user('barman', 'Бармен', 'barmanpass', is_admin=False)
     from routes.auth import auth_bp
     app = make_app()
     app.register_blueprint(auth_bp)
     rid = reports.create(reports.normalize_report(REPORT), chat_id=CHAT)['id']
+    staff = app.test_client()
+    staff.post('/login', data={'login': 'barman', 'password': 'barmanpass'})
+    resp = link_call(staff, 'POST', rid)
+    assert resp.status_code == 403 and resp.get_json()['code'] == 'not_owner', 'сотрудник ссылку не делает'
+    assert '"can_share": false' in staff.get(f'/tg/report/{rid}').get_data(as_text=True)
     client = app.test_client()
     client.post('/login', data={'login': 'owner', 'password': 'ownerpass'})
     resp = link_call(client, 'POST', rid)

@@ -255,12 +255,13 @@ def test_report_and_how_note_open_in_mini_app(server, browser):
     assert not errors, errors
 
 
-def test_browser_link_from_mini_app_opens_same_page_without_login(server, browser):
+def test_browser_link_from_mini_app_opens_same_page_without_login(server, browser, monkeypatch):
     """«Ссылка для браузера» в мини-приложении: ссылка появляется в поле, «Закрыть ссылку» её закрывает;
     по ссылке — та же страница отчёта без Telegram и без входа (заголовок, выжимка, графики, таблица),
     в шапке — до какого дня ссылка работает; закрытая — «Ссылка не работает»."""
     from kultura_bot.charts import reports
-    from test_tg_report import REPORT
+    from test_tg_report import REPORT, bot_users
+    bot_users(monkeypatch, OWNER)
     rid = reports.create(reports.normalize_report(REPORT), chat_id=str(OWNER))['id']
     page, errors = _page(browser, TG_STUB % {'init': json.dumps(init_data()), 'start': json.dumps(rid)})
     page.goto(f'{server["base"]}/tg/chart')
