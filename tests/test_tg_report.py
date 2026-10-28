@@ -336,6 +336,73 @@ def test_site_page_needs_site_login(setup):
     assert client.get('/tg/report/rep_' + '0' * 22).status_code == 404
 
 
+def link_call(client, method, report_id, data=None):
+    headers = {} if data is None else {'Authorization': f'tma {data}'}
+    return client.open(f'/api/tg/reports/{report_id}/link', method=method, headers=headers)
+
+
+def test_browser_link_made_by_chat_member_opens_without_login(setup, monkeypatch):
+    """2026-10-28, решение владельца: «полный отчёт доступен по ссылке в браузере, ровно в таком же
+    дизайне». Ссылку делает участник чата отчёта (initData) — та же при повторе; открывает её любой без
+    входа: тот же шаблон и site.js, без id записи, не кэшируется и не индексируется; закрыли — 404."""
+    rid = reports.create(reports.normalize_report(REPORT, page_filter=page_filter), chat_id=CHAT)['id']
+    client = make_app().test_client()
+    assert link_call(client, 'POST', rid).status_code == 401, 'без initData и без входа — нельзя'
+    assert link_call(client, 'POST', 'rep_' + '0' * 22).status_code == 401, 'без входа не узнать, есть ли запись'
+    resp = link_call(client, 'POST', rid, init_data(user_id=STRANGER))
+    assert resp.status_code == 403 and resp.get_json()['code'] == 'not_allowed'
+    assert reports.link_token(rid) is None, 'чужой ссылку не сделал'
+    resp = link_call(client, 'POST', rid, init_data())
+    link = resp.get_json()['link']
+    assert resp.status_code == 200 and link.startswith('https://beerkultura.ru/r/') and resp.headers['Cache-Control'] == 'no-store'
+    token = link.rsplit('/', 1)[1]
+    assert reports.LINK_TOKEN_RE.fullmatch(token) and token not in rid
+    assert link_call(client, 'POST', rid, init_data()).get_json()['link'] == link, 'повтор — та же ссылка'
+    assert get_report(client, rid, init_data()).get_json()['link'] == link, 'страница видит, что ссылка открыта'
+
+    page = client.get(f'/r/{token}')
+    html = page.get_data(as_text=True)
+    assert page.status_code == 200 and 'data-mode="site"' in html and '/static/tg_chart/site.js' in html
+    assert '<title>Бельгия в ивент: +58,0% к августу · Культура</title>' in html
+    assert page.headers['Cache-Control'] == 'private, no-store' and page.headers['X-Robots-Tag'] == 'noindex, nofollow'
+    assert page.headers['Referrer-Policy'] == 'no-referrer' and 'Content-Security-Policy' in page.headers
+    assert rid not in html and '"shared": true' in html and 'telegram-web-app.js' not in html
+
+    assert link_call(client, 'DELETE', rid, init_data(user_id=STRANGER)).status_code == 403
+    assert link_call(client, 'DELETE', rid, init_data()).get_json() == {'link': ''}
+    gone = client.get(f'/r/{token}')
+    assert gone.status_code == 404 and '"gone": true' in gone.get_data(as_text=True), 'закрыли — не открывается'
+    new = link_call(client, 'POST', rid, init_data()).get_json()['link']
+    assert new != link, 'после закрытия — новая ссылка'
+    assert client.get('/r/' + 'x' * 22).status_code == 404 and client.get('/r/короткий').status_code == 404
+
+
+def test_browser_link_dies_with_the_report_and_site_login_can_make_it(setup, monkeypatch):
+    from core import auth_manager as am
+    fd, path = tempfile.mkstemp(suffix='.db')
+    os.close(fd)
+    os.unlink(path)
+    mgr = am.AuthManager(db_path=path)
+    am._auth_manager = mgr
+    mgr.create_user('owner', 'Владелец', 'ownerpass', is_admin=True)
+    from routes.auth import auth_bp
+    app = make_app()
+    app.register_blueprint(auth_bp)
+    rid = reports.create(reports.normalize_report(REPORT), chat_id=CHAT)['id']
+    client = app.test_client()
+    client.post('/login', data={'login': 'owner', 'password': 'ownerpass'})
+    resp = link_call(client, 'POST', rid)
+    assert resp.status_code == 200, 'вошедший в сайт делает ссылку со страницы /tg/report/<id>'
+    page = client.get(f'/tg/report/{rid}').get_data(as_text=True)
+    assert resp.get_json()['link'] in page, 'страница сайта видит открытую ссылку'
+    token = resp.get_json()['link'].rsplit('/', 1)[1]
+    with db.read() as conn:
+        assert conn.execute('SELECT created_by FROM tg_report_links WHERE token=?', (token,)).fetchone()[0] == 'site:owner'
+    assert reports.by_link(token, now_ts=time.time() + reports.TTL_DAYS * 86400 + 60) is None, 'срок отчёта — срок ссылки'
+    reports.delete(rid)
+    assert client.get(f'/r/{token}').status_code == 404 and reports.link_token(rid) is None
+
+
 def test_bot_note_api_only_for_engine_key(setup, monkeypatch):
     from flask import Flask
     from routes.bot_api import bot_api_bp

@@ -42,6 +42,16 @@
 (kultura_bot/engine/formatting.to_html — тот же перевод, что у сообщений бота: всё
 экранируется, разметка только своя).
 
+## Ссылка для браузера (2026-10-28)
+
+Решение владельца: «полный отчёт доступен по ссылке в браузере, ровно в таком же дизайне» —
+чтобы переслать его человеку без Telegram-чата и без входа на сайт. Ссылку делает кнопка
+«Ссылка для браузера» на странице отчёта (мини-приложение или страница сайта):
+https://beerkultura.ru/r/<код>, код — secrets.token_urlsafe(16) (128 бит, перебором не
+открыть), отдельный от id записи. Открывает её любой, у кого она есть, без входа — до конца
+срока записи (90 дней) или пока её не закрыли той же кнопкой. Одна ссылка на запись: повторное
+нажатие отдаёт ту же; закрыли — следующая будет новой. Таблица tg_report_links.
+
 ## Хранилище
 
 id — «rep_» и 22 шестнадцатеричных знака (secrets.token_hex(11): 88 бит; вместе с
@@ -50,6 +60,7 @@ id — «rep_» и 22 шестнадцатеричных знака (secrets.tok
 как у графиков; просроченные удаляются при каждой новой записи и не отдаются.
 """
 import json
+import re
 import secrets
 import time
 from datetime import datetime, timedelta
@@ -283,16 +294,17 @@ def _check_size(body: Dict[str, Any]) -> None:
 
 # ------------------------------------------------------------------ вид для страницы
 
-def view(record: Dict[str, Any]) -> Dict[str, Any]:
+def view(record: Dict[str, Any], *, shared: bool = False) -> Dict[str, Any]:
     """Запись -> то, что рисует страница: Markdown переведён в HTML (только своя разметка).
 
     У записки «Как считается» времени данных в шапке нет: её время — время сборки ответа, а время
-    выгрузки написано в самом тексте. Заголовки — с неразрывными пробелами в числах (formatting.nbsp)."""
+    выгрузки написано в самом тексте. Заголовки — с неразрывными пробелами в числах (formatting.nbsp).
+    shared — страница по ссылке для браузера (/r/<код>): без id записи."""
     from kultura_bot.engine import formatting
     body = record['body']
     html = formatting.to_html
     nb = formatting.nbsp
-    out: Dict[str, Any] = {'id': record['id'], 'kind': body['kind'], 'title': nb(body['title']),
+    out: Dict[str, Any] = {'id': '' if shared else record['id'], 'kind': body['kind'], 'title': nb(body['title']),
                            'data_at': body.get('data_at') if body['kind'] == 'report' else None,
                            'created_at': record['created_at']}
     if body['kind'] == 'note':
@@ -335,7 +347,16 @@ SCHEMA = (
     )''',
     'CREATE INDEX IF NOT EXISTS idx_tg_reports_expires ON tg_reports(expires_ts)',
     'CREATE INDEX IF NOT EXISTS idx_tg_reports_day ON tg_reports(day)',
+    '''CREATE TABLE IF NOT EXISTS tg_report_links (
+        token       TEXT PRIMARY KEY,           -- secrets.token_urlsafe(16): /r/<token>
+        report_id   TEXT NOT NULL UNIQUE,       -- одна действующая ссылка на запись
+        created_at  TEXT NOT NULL,              -- МСК ISO
+        created_by  TEXT NOT NULL DEFAULT ''    -- tg:<id пользователя Telegram> или site:<логин сайта>
+    )''',
 )
+LINK_TOKEN_BYTES = 16                           # token_urlsafe(16) — 22 знака, 128 бит
+LINK_TOKEN_RE = re.compile(r'[A-Za-z0-9_-]{22}')
+LINK_PATH = '/r/'                               # https://beerkultura.ru/r/<token> (routes/tg_miniapp.py)
 
 
 def _ensure() -> None:
@@ -363,6 +384,7 @@ def create(body: Dict[str, Any], *, chat_id: str = '', token_id: str = '', now: 
     report_id = new_id()
     with db.write() as conn:
         conn.execute('DELETE FROM tg_reports WHERE expires_ts <= ?', (now_ts,))
+        conn.execute('DELETE FROM tg_report_links WHERE report_id NOT IN (SELECT id FROM tg_reports)')
         used = conn.execute('SELECT COUNT(*) AS n FROM tg_reports WHERE day=?', (day,)).fetchone()['n']
         if daily_limit is not None and used >= daily_limit:
             raise ReportLimitError(used)
@@ -399,3 +421,55 @@ def delete(report_id: str) -> None:
     _ensure()
     with db.write() as conn:
         conn.execute('DELETE FROM tg_reports WHERE id=?', (report_id,))
+        conn.execute('DELETE FROM tg_report_links WHERE report_id=?', (report_id,))
+
+
+# ------------------------------------------------------------------ ссылка для браузера
+
+def link_url(token: str) -> str:
+    from kultura_bot import settings
+    return f'{settings.SITE_URL}{LINK_PATH}{token}'
+
+
+def link_token(report_id: str) -> Optional[str]:
+    """Код действующей ссылки записи или None (ссылку не делали или закрыли)."""
+    if not valid_id(report_id):
+        return None
+    _ensure()
+    with db.read() as conn:
+        row = conn.execute('SELECT token FROM tg_report_links WHERE report_id=?', (report_id,)).fetchone()
+    return row['token'] if row else None
+
+
+def make_link(report_id: str, *, by: str = '', now: Optional[datetime] = None) -> str:
+    """Ссылка для браузера: есть — та же, нет — новая. Вернуть код. Записи нет — ReportError."""
+    if get(report_id) is None:
+        raise ReportError('отчёт не найден или срок хранения (90 дней) истёк')
+    now = now or msk_time.now()
+    with db.write() as conn:
+        row = conn.execute('SELECT token FROM tg_report_links WHERE report_id=?', (report_id,)).fetchone()
+        if row:
+            return row['token']
+        token = secrets.token_urlsafe(LINK_TOKEN_BYTES)
+        conn.execute('INSERT INTO tg_report_links (token, report_id, created_at, created_by) VALUES (?, ?, ?, ?)',
+                     (token, report_id, now.isoformat(timespec='seconds'), str(by or '')[:80]))
+    return token
+
+
+def drop_link(report_id: str) -> bool:
+    """Закрыть ссылку записи: по старому коду страница больше не откроется. True — была."""
+    if not valid_id(report_id):
+        return False
+    _ensure()
+    with db.write() as conn:
+        return conn.execute('DELETE FROM tg_report_links WHERE report_id=?', (report_id,)).rowcount > 0
+
+
+def by_link(token: Any, now_ts: Optional[float] = None) -> Optional[Dict[str, Any]]:
+    """Запись по коду ссылки или None (неверный код, ссылку закрыли, срок записи истёк)."""
+    if not isinstance(token, str) or not LINK_TOKEN_RE.fullmatch(token):
+        return None
+    _ensure()
+    with db.read() as conn:
+        row = conn.execute('SELECT report_id FROM tg_report_links WHERE token=?', (token,)).fetchone()
+    return get(row['report_id'], now_ts) if row else None

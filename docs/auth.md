@@ -109,7 +109,7 @@ employee_iiko_id, password_hash, is_admin, active, created_at, last_login_at)`.
 | `mcp.mcp_all`, `mcp.mcp_domain` | MCP-коннекторы `/mcp`, `/mcp/<раздел>` и адреса с режимом `/mcp[/<раздел>]/read`, `/mcp[/<раздел>]/draft` (с 2026-09-27, режимы — с 2026-09-28): у ИИ-клиента Claude нет cookie сайта. Коннектор **сам** проверяет `Authorization: Bearer` (`core/mcp/auth.py`): нет токена — 401 с `WWW-Authenticate`, по которому приложение Claude находит сервер авторизации; токен действует, только пока его владелец — активный администратор. Более глубокий путь под `/mcp` — 404 JSON, а не перенаправление на вход |
 | `mcp_oauth.protected_resource_metadata`, `mcp_oauth.authorization_server_metadata`, `mcp_oauth.register_client`, `mcp_oauth.token`, `mcp_oauth.revoke` | OAuth 2.1 для приложения Claude: метаданные, регистрация клиента, выдача и отзыв токена по спецификации открыты без входа (секреты — код с PKCE и токены, а не сессия) |
 | `bot_api.config`, `bot_api.link`, `bot_api.actor`, `bot_api.report`, `bot_api.note` | API сервера бота @MCPkulturabot в Амстердаме (`/api/bot/*`, с 2026-10-19, [kultura-bot.md](kultura-bot.md)): у сервера бота нет cookie сайта. Каждый эндпоинт **сам** проверяет `Authorization: Bearer` и пускает только ключ сервера бота (`kultura_bot/site_api.verify_engine`: статический MCP-токен, выпущенный кнопкой «Команда установки», владелец — активный администратор); иначе 401. Другие MCP-токены не проходят: `/api/bot/config` отдаёт секреты бота |
-| `tg_miniapp.chart_page`, `tg_miniapp.chart_api`, `tg_miniapp.report_api`, `tg_miniapp.chart_dev`, `tg_miniapp.chart_dev_png` | мини-приложение бота @MCPkulturabot (`/tg/chart`, `/api/tg/charts/<id>`, `/api/tg/reports/<id>`, [tg-miniapp.md](tg-miniapp.md)): у Telegram нет cookie сайта. Страница данных не содержит, API пускает только по initData, подписанной токеном бота, и только участников чата, куда отправлена запись; dev-страницы без debug — 404. Страница отчёта на сайте `/tg/report/<id>` — **не** публичная |
+| `tg_miniapp.chart_page`, `tg_miniapp.chart_api`, `tg_miniapp.report_api`, `tg_miniapp.report_link`, `tg_miniapp.shared_report`, `tg_miniapp.chart_dev`, `tg_miniapp.chart_dev_png` | мини-приложение бота @MCPkulturabot (`/tg/chart`, `/api/tg/charts/<id>`, `/api/tg/reports/<id>`, [tg-miniapp.md](tg-miniapp.md)): у Telegram нет cookie сайта. Страница данных не содержит, API пускает только по initData, подписанной токеном бота, и только участников чата, куда отправлена запись; dev-страницы без debug — 404. Страница отчёта на сайте `/tg/report/<id>` — **не** публичная; ссылка для браузера: `…/link` сам пускает вошедшего в сайт или участника чата по initData, `/r/<код>` открыт всем, у кого есть ссылка (с 2026-10-28) |
 
 Сознательно **не** публичны: страница согласия OAuth `mcp_oauth.authorize` (гейт отправит
 анонима на `/login?next=…`; согласие даёт только активный администратор) и страница
@@ -288,6 +288,16 @@ MCP-токены (`core.mcp.tokens.revoke_all_for_user`), все OAuth-подк�
   `/kultura/secret_key` один раз. **Не ротировать** без причины — разлогинит всех.
 
 ## Changelog
+
+### 2026-10-28 — Ссылка для браузера на отчёт бота
+- В `PUBLIC_ENDPOINTS` — `tg_miniapp.report_link` (`POST`/`DELETE /api/tg/reports/<id>/link`:
+  маршрут сам пускает вошедшего в сайт или участника чата отчёта по initData; без того и другого —
+  401, не узнать даже, есть ли запись) и `tg_miniapp.shared_report` (`GET /r/<код>`: отчёт по
+  ссылке для браузера без входа — решение владельца; код 128 бит, отдельно от id записи, владелец
+  делает и закрывает ссылку сам; страница не кэшируется и не индексируется). Защита от подделки
+  запроса — та же `SameSite=Lax`: чужой сайт не пошлёт cookie в POST/DELETE. Файлы:
+  `core/auth_guard.py`, `routes/tg_miniapp.py`, `kultura_bot/charts/reports.py`,
+  `tests/test_tg_report.py`; [tg-miniapp.md](tg-miniapp.md), раздел 13.
 
 ### 2026-10-24 — Отчёты и «Как считается» бота
 - В `PUBLIC_ENDPOINTS` — `tg_miniapp.report_api` (`/api/tg/reports/<id>`: отчёт или записка в

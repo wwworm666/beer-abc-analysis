@@ -55,6 +55,9 @@ PUBLIC_ENDPOINTS = {
     'tg_miniapp.chart_page',
     'tg_miniapp.chart_api',
     'tg_miniapp.report_api',           # отчёты и «Как считается» — те же проверки, что у графиков
+    'tg_miniapp.report_link',          # ссылка для браузера: сам пускает вошедшего в сайт или по initData
+    'tg_miniapp.shared_report',        # /r/<код>: отчёт по ссылке для браузера, без входа (решение владельца
+                                       # 2026-10-28); код 128 бит, владелец делает и закрывает ссылку сам
     'tg_miniapp.chart_dev',
     'tg_miniapp.chart_dev_png',
     # Сервер бота @MCPkulturabot в Амстердаме (routes/bot_api.py): у него нет cookie сайта.

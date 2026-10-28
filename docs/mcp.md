@@ -902,10 +902,11 @@ common 1.
 | `POST /telegram/openbot/webhook`, `GET`/`POST /telegram/openbot/setup-webhook`, `GET /telegram/openbot/webhook-info`, `POST /telegram/openbot/delete-webhook` | staff | инфраструктура бота проверки открытия баров |
 | `GET /api/tg/charts/<chart_id>` | common | мини-приложение Telegram «Графики»: вход по initData бота, а не по токену MCP; описание графика агент присылает сам (`common_chart_send`) и в ответе получает его `chart_id` (с 2026-10-18, [tg-miniapp.md](tg-miniapp.md)) |
 | `GET /api/tg/reports/<report_id>` | common | мини-приложение Telegram: отчёт или «Как считается» по initData бота, а не по токену MCP; отчёт агент присылает сам (`common_report_send`) и получает `report_id` (с 2026-10-24, [tg-miniapp.md](tg-miniapp.md)) |
+| `POST`/`DELETE /api/tg/reports/<report_id>/link` | common | ссылка для браузера на отчёт: кнопка страницы отчёта — вход сайта или initData бота, а не токен MCP; делает и закрывает её владелец сам — открыть отчёт всем по ссылке агент не должен (с 2026-10-28, [tg-miniapp.md](tg-miniapp.md)) |
 | `POST /api/bot/note` | common | API сервера бота: записка «Как считается» из ответа бота, вход только по ключу сервера бота; агенту — поле `how` у `common_chart_send` и `common_report_send` (с 2026-10-24, [kultura-bot.md](kultura-bot.md)) |
 | `GET /api/bot/config`, `POST /api/bot/link`, `GET /api/bot/actor/<tg_user_id>`, `POST /api/bot/report` | common | служебный API сервера бота @MCPkulturabot (Амстердам): вход только по ключу сервера бота, отдаёт его настройки с секретами и принимает отчёт — агенту закрыт (с 2026-10-19, [kultura-bot.md](kultura-bot.md)) |
 
-Всего 39 записей. Маршруты `/telegram/*` не входят в обязательный охват (он только `/api/*` и
+Всего 41 запись. Маршруты `/telegram/*` не входят в обязательный охват (он только `/api/*` и
 данные вне `/api/`), но записаны явно, чтобы решение было видно. Открыты агенту: список аккаунтов
 (`staff_auth_users`) и имя и сокращение аккаунта (`staff_auth_user_profile`) — это данные, а не
 доступ.
@@ -935,11 +936,11 @@ blueprint'ами сервиса (`routes.register_blueprints` + mcp + mcp_oauth)
 `/api/bot/`, `/mcp` или `/oauth`; в `PUBLIC_ENDPOINTS` есть 7 MCP-эндпоинтов, а
 `mcp_oauth.authorize` — нет.
 
-На 2026-10-24 (`py -3 -m core.mcp.coverage`): 264 пары — 235 инструментами и 29 исключениями;
+На 2026-10-28 (`py -3 -m core.mcp.coverage`): 266 пар — 235 инструментами и 31 исключением;
 инструментов всего 252 (9 служебных без маршрута — среди них `common_chart_send` и
 `common_report_send` — и инструменты редактора меню на `/menu/api/*`, которые описаны
-добровольно: этот префикс в обязательный охват не входит). Из 39 записей `EXCLUDED` в охват
-попадают 29, остальные 10 — маршруты `/telegram/*` (см. «Исключения»).
+добровольно: этот префикс в обязательный охват не входит). Из 41 записи `EXCLUDED` в охват
+попадают 31, остальные 10 — маршруты `/telegram/*` (см. «Исключения»).
 
 **Как добавить маршрут правильно:**
 
@@ -1332,6 +1333,7 @@ py -3 scripts/mcp_eval.py          # сухой план эталонного п
 
 ## Changelog
 
+- **2026-10-28** — ссылка для браузера на отчёт: `POST`/`DELETE /api/tg/reports/<report_id>/link` исключены с причиной (делает и закрывает её владелец сам, вход сайта или initData бота). Охват — 266 пар: 235 инструментами и 31 исключением; `EXCLUDED` — 41 запись.
 - **2026-10-27 (отток гостей, LTV на дату)** — `analytics_guests_base_dynamics` заменён на
   `analytics_guests_churn` (маршрут `/api/guests/churn` вместо `/api/guests/base-dynamics`,
   [guests.md](guests.md), §17): порог `dead_days` — целочисленный enum 30/60/90/180 (маршрут
