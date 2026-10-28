@@ -71,7 +71,14 @@ window.GCharts = (function () {
     }
     function line(canvasId, labels, datasets, extraOpts) {
         var opts = baseOptions();
-        Object.assign(opts, extraOpts || {});
+        extraOpts = extraOpts || {};
+        // beginAtZero — ось Y от нуля: у долей и денег масштаб «от минимума» раздувает
+        // колебания (отток 35-45% выглядел бы обвалом и взлётом).
+        if (extraOpts.beginAtZero) {
+            opts.scales.y.beginAtZero = true;
+            delete extraOpts.beginAtZero;
+        }
+        Object.assign(opts, extraOpts);
         return make(canvasId, { type: 'line', data: { labels: labels, datasets: datasets }, options: opts });
     }
     // Точечная диаграмма. Нужна RFM: X — частота визитов, Y — давность,

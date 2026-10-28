@@ -149,15 +149,20 @@ class TestGrowthAndActivity(VenueBase):
         bol = ga.frequency(self.store, period, meta, 'bolshoy')['period']
         self.assertEqual((bol['guests_with_visits'], bol['total_visits']), (1, 1))
 
-    def test_dynamics_balance_holds_per_bar(self):
+    def test_churn_balance_holds_per_bar(self):
+        """Отток (§17) по каждому бару: баланс сходится, «новый» — первый визит в бар."""
         period, meta = self.ctx()
         for venue in (None,) + tuple(PHYSICAL_VENUES):
-            rows = ga.base_dynamics(self.store, period, meta, 3, venue)['months']
-            for row in rows:
-                self.assertEqual(row['active_end'], row['active_start'] + row['new']
-                                 + row['reactivated'] - row['churned'], (venue, row))
-        lig = {r['month']: r for r in ga.base_dynamics(self.store, period, meta, 3, 'ligovskiy')['months']}
+            for dead_days in ga.CHURN_DEAD_DAYS_CHOICES:
+                rows = ga.churn(self.store, period, meta, dead_days, 3, venue)['series']
+                for row in rows:
+                    self.assertEqual(row['end_alive'], row['start_alive'] + row['new']
+                                     + row['reactivated'] - row['died'] - row['new_died'],
+                                     (venue, dead_days, row))
+        lig = {r['p_start'][:7]: r
+               for r in ga.churn(self.store, period, meta, 30, 3, 'ligovskiy')['series']}
         self.assertEqual(lig['2026-01']['new'], 1, 'A — новый гость Лиговского в январе')
+        self.assertEqual(lig['2026-02']['died'], 1, 'A не был в Лиговском с 20.01 — к 28.02 ушёл')
         self.assertEqual(lig['2026-03']['new'], 1, 'B')
         self.assertEqual(lig['2026-03']['reactivated'], 1, 'A вернулся после паузы > 30 дней')
 
@@ -292,7 +297,7 @@ class TestRoutes(VenueBase):
         return response.get_json()
 
     def test_store_reaches_every_report_and_meta(self):
-        for path in ('/api/guests/summary', '/api/guests/base-growth', '/api/guests/base-dynamics',
+        for path in ('/api/guests/summary', '/api/guests/base-growth', '/api/guests/churn',
                      '/api/guests/activity', '/api/guests/frequency',
                      '/api/guests/cohorts/lifecycle', '/api/guests/retention',
                      '/api/guests/cohorts/revenue', '/api/guests/rfm', '/api/guests/ltv',

@@ -1,14 +1,11 @@
-/* Вкладка «Рост и динамика» (ТЗ §1 + §13): рост базы и помесячная динамика. */
+/* Вкладка «Рост базы» (ТЗ §1): регистрации, первые заказы, конверсия — приток гостей.
+   Баланс базы (новые, вернувшиеся, ушедшие) с 2026-10-27 — на вкладке «Отток» (§17). */
 
 Guests.registerView('growth', function (pane) {
     var G = Guests;
-    return Promise.all([
-        G.api('/api/guests/base-growth'),
-        G.api('/api/guests/base-dynamics', { months: 24 })
-    ]).then(function (results) {
-        var growth = results[0].data;
-        var dyn = results[1].data;
-        var meta = results[0].meta;
+    return G.api('/api/guests/base-growth').then(function (resp) {
+        var growth = resp.data;
+        var meta = resp.meta;
         var p = growth.period, y = growth.ytd;
         // Посчитано по бару: подписи говорят, к чему привязаны регистрации и
         // первые заказы — иначе число бара читается как «сетевое».
@@ -33,40 +30,11 @@ Guests.registerView('growth', function (pane) {
                 byBar ? 'все, у кого был чек в баре' : 'все зарегистрированные с чеком') +
             '</div>';
 
-        html += '<div class="gcard"><h3>Динамика базы по месяцам' +
-            G.helpIcon('base_dynamics') +
-            '</h3><div class="chart-box tall"><canvas id="dynChart"></canvas></div></div>';
-
-        html += '<div class="gcard"><h3>Таблица динамики</h3><div class="gtable-wrap">' +
-            '<table class="gtable"><thead><tr><th>Месяц</th>' +
-            '<th class="num">Активные на начало</th><th class="num">Новые</th>' +
-            '<th class="num">Реактивированные</th><th class="num">Ушедшие</th>' +
-            '<th class="num">Активные на конец</th></tr></thead><tbody>';
-        dyn.months.slice().reverse().forEach(function (m) {
-            html += '<tr><td>' + G.fmtMonth(m.month) + '</td>' +
-                '<td class="num">' + G.fmtNum(m.active_start) + '</td>' +
-                '<td class="num delta-up">+' + G.fmtNum(m.new) + '</td>' +
-                '<td class="num">+' + G.fmtNum(m.reactivated) + '</td>' +
-                '<td class="num delta-down">-' + G.fmtNum(m.churned) + '</td>' +
-                '<td class="num"><b>' + G.fmtNum(m.active_end) + '</b></td></tr>';
-        });
-        html += '</tbody></table></div></div>';
+        html += '<div class="note-line">Сколько гостей база теряет и сколько возвращается — ' +
+            'на вкладке «Отток».</div>';
 
         html += G.howBlock(['registrations', 'first_orders', 'conversion',
-                            'avg_days_to_first', 'base_dynamics'], meta);
+                            'avg_days_to_first'], meta);
         pane.innerHTML = html;
-
-        var pal = GCharts.palette();
-        var labels = dyn.months.map(function (m) { return G.fmtMonth(m.month); });
-        GCharts.bar('dynChart', labels, [
-            { label: 'Новые', data: dyn.months.map(function (m) { return m.new; }),
-              backgroundColor: pal.accent, stack: 'flow' },
-            { label: 'Реактивированные', data: dyn.months.map(function (m) { return m.reactivated; }),
-              backgroundColor: pal.success, stack: 'flow' },
-            { label: 'Ушедшие', data: dyn.months.map(function (m) { return -m.churned; }),
-              backgroundColor: pal.danger, stack: 'flow' },
-            { label: 'Активные на конец', type: 'line', data: dyn.months.map(function (m) { return m.active_end; }),
-              borderColor: pal.text, backgroundColor: pal.text, tension: 0.3, pointRadius: 2, stack: 'line' }
-        ], { stacked: true });
     });
 });

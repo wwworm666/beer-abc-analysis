@@ -111,15 +111,22 @@ def api_base_growth():
         return jsonify({'error': f'{type(e).__name__}: {e}'}), 500
 
 
-@guests_bp.route('/api/guests/base-dynamics')
-def api_base_dynamics():
-    """Динамика базы помесячно (ТЗ §13). ?months=24"""
+@guests_bp.route('/api/guests/churn')
+def api_churn():
+    """Отток (§17, заменил §13 «Динамику базы»). ?dead_days=30|60|90|180&periods=N
+
+    Расчёт идёт сразу для всех четырёх порогов и кэшируется одной записью (кэш общий с
+    дорогими ответами дашборда — 64 ключа), а отдаётся только запрошенный порог: все
+    четыре не поместились бы в предел моста MCP. В ключе — последний полный день данных:
+    он сдвигается в 06:00 МСК и без нового синка.
+    """
     try:
-        months = min(max(int(request.args.get('months', 24)), 3), 60)
         store, period, meta, venue = _ctx()
-        data = cached_olap(_cache_key('dynamics', meta, months),
-                           lambda: ga.base_dynamics(store, period, meta, months, venue))
-        return jsonify({'meta': meta, 'data': data})
+        dead_days = ga.parse_dead_days(request.args.get('dead_days'))
+        periods = ga.parse_series_len(request.args.get('periods'), period['type'])
+        full = cached_olap(_cache_key('churn', meta, periods, ga.data_to(meta)),
+                           lambda: ga.churn_all(store, period, meta, periods, venue))
+        return jsonify({'meta': meta, 'data': ga.churn_view(full, dead_days)})
     except Exception as e:
         return jsonify({'error': f'{type(e).__name__}: {e}'}), 500
 
@@ -260,10 +267,15 @@ def api_rfm():
 
 @guests_bp.route('/api/guests/ltv')
 def api_ltv():
-    """LTV: средний, YTD, по точкам (ТЗ §8)."""
+    """LTV на дату (ТЗ §8): средний, из чего состоит, ряд по периодам, YTD, по точкам.
+
+    ?periods=N — длина ряда, как у оттока. Без кэша: ряд — один SQL по дням и
+    накопленные суммы.
+    """
     try:
         store, period, meta, venue = _ctx()
-        return jsonify({'meta': meta, 'data': ga.ltv(store, period, meta, venue)})
+        periods = ga.parse_series_len(request.args.get('periods'), period['type'])
+        return jsonify({'meta': meta, 'data': ga.ltv(store, period, meta, venue, periods)})
     except Exception as e:
         return jsonify({'error': f'{type(e).__name__}: {e}'}), 500
 

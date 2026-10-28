@@ -1332,6 +1332,17 @@ py -3 scripts/mcp_eval.py          # сухой план эталонного п
 
 ## Changelog
 
+- **2026-10-27 (отток гостей, LTV на дату)** — `analytics_guests_base_dynamics` заменён на
+  `analytics_guests_churn` (маршрут `/api/guests/churn` вместо `/api/guests/base-dynamics`,
+  [guests.md](guests.md), §17): порог `dead_days` — целочисленный enum 30/60/90/180 (маршрут
+  молча подставил бы 30), `periods` 3–60; ответ — один порог (все четыре не поместились бы в
+  предел моста), своя дата среза `data_to` / `asof` — последний полный день данных, строки ряда
+  `complete` / `partial` / `future`. `analytics_guests_ltv` — на дату, поле `periods`, в ответе
+  `series` с разложением изменения; описания `analytics_guests_summary` (`avg_ltv_asof`),
+  `analytics_guests_cohorts_lifecycle` и `analytics_guests_cohorts_revenue` — «по дату среза». В
+  `INSTRUCTIONS` раздела — строка: отток и LTV — по последний полный день данных. Эталонный вопрос
+  `analytics-guests-churn` (в домене 7). Числа не меняются: 252 инструмента, охват 264 пары — 235
+  инструментами и 29 исключениями; `routes/guests.py` — 18, analytics — 57.
 - **2026-10-23 (сорт в посте, другие бары, перенос)** — четыре инструмента контент-плана на новые
   маршруты ([content-plan.md](content-plan.md), разделы «Сорт в посте», «Один пост — один раз в
   канале», «Перенос по календарю»): `content_beer_options` (чтение: краны бара и строка, что

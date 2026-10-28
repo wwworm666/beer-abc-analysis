@@ -54,7 +54,8 @@ Guests.registerView('summary', function (pane) {
                 'визитов на гостя за период') +
             G.metricCard('avg_check', 'Средний чек', G.fmtMoney(d.avg_check),
                 'YTD: ' + G.fmtMoney(d.avg_check_ytd)) +
-            G.metricCard('ltv', 'Средний LTV', G.fmtMoney(d.avg_ltv), 'на гостя за всю историю') +
+            G.metricCard('ltv', 'Средний LTV', G.fmtMoney(d.avg_ltv),
+                'на гостя на ' + G.fmtDate(d.avg_ltv_asof)) +
             G.metricCard('revenue', 'Выручка по картам', G.fmtMoney(d.revenue_period),
                 G.fmtNum(d.orders_period) + ' чеков за период') +
             '</div>';
