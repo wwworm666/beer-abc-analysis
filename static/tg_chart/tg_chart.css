@@ -379,6 +379,18 @@ html.is-report .app { max-width: 720px; }
 details.rep-how summary { font-size: 12.5px; color: var(--ink-2); cursor: pointer; width: max-content; max-width: 100%; padding-block: 2px; }
 details.rep-how[open] summary { margin-bottom: 8px; }
 details.rep-how .rep-text { font-size: 13px; color: var(--ink-2); }
+/* Ссылка для браузера (report.js shareBar): кнопка под шапкой отчёта, по ней — ссылка и действия */
+.rep-share { display: grid; gap: 10px; margin-top: 12px; min-width: 0; }
+.rep-share button { border: 1px solid var(--line); border-radius: 999px; background: var(--card); padding: 7px 13px;
+  font-size: 12.5px; font-weight: 500; color: var(--ink); cursor: pointer; }
+.rep-share-btn { justify-self: start; }
+.rep-share-panel { display: grid; gap: 10px; min-width: 0; padding: 12px; border: 1px solid var(--line);
+  border-radius: 14px; background: var(--card); }
+.rep-share-url { width: 100%; min-width: 0; box-sizing: border-box; padding: 9px 10px; border: 1px solid var(--line);
+  border-radius: 10px; background: var(--page); color: var(--ink); font: 12.5px/1.3 var(--font-mono); }
+.rep-share-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.rep-share-actions .rep-share-close { color: var(--down); }
+.rep-share-note { margin: 0; font-size: 12px; line-height: 1.45; color: var(--muted); }
 .how .rep-text { font-size: 13px; color: var(--ink-2); margin-bottom: 10px; }   /* «Как считается» раздела в карточке */
 .how .how-sub { font-weight: 600; color: var(--ink-2); }
 

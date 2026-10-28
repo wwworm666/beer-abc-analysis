@@ -131,6 +131,28 @@
     }
   }
 
+  // Ссылка для браузера (report.js): те же initData и участие в чате, что у самого отчёта.
+  function shareApi(body) {
+    function call(method) {
+      return fetch('/api/tg/reports/' + encodeURIComponent(chartId) + '/link', {
+        method, headers: { Authorization: 'tma ' + initData }, cache: 'no-store', credentials: 'omit',
+      }).then(async resp => {
+        const answer = await resp.json().catch(() => ({}));
+        if (!resp.ok) throw new Error(answer.error || ('Ошибка сервера ' + resp.status));
+        return answer;
+      });
+    }
+    const canSend = !!(tg && tg.openTelegramLink);
+    return {
+      link: body.link || '', expiresAt: body.expires_at || '',
+      create: () => call('POST').then(answer => answer.link),
+      revoke: () => call('DELETE'),
+      send: canSend ? (url, title) => tg.openTelegramLink('https://t.me/share/url?url=' + encodeURIComponent(url) +
+                                                          '&text=' + encodeURIComponent(title)) : null,
+      sendLabel: 'Отправить в Telegram',
+    };
+  }
+
   async function loadReport() {
     show('Загружаю…', '');
     let resp, body = {};
@@ -147,7 +169,7 @@
       await TgChart.fontsReady();
       stateEl.hidden = true;
       root.classList.add('is-report');
-      card = TgReport.mount(cardsEl, body.report, { onSelect: haptic, toast });
+      card = TgReport.mount(cardsEl, body.report, { onSelect: haptic, toast, share: shareApi(body) });
       return;
     }
     if (resp.status === 403) {

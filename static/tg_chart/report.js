@@ -9,7 +9,14 @@
  * window.TgReport:
  *   mount(container, view, opts)  страница: заголовок, источник и время, выжимка, разделы
  *                                 (текст, график, таблица, свёрнутое «Как считается»),
- *                                 общее «Как считается». opts: toast, onSelect
+ *                                 общее «Как считается». opts: toast, onSelect,
+ *                                 share — кнопка «Ссылка для браузера» (app.js, site.js):
+ *                                   {link, expiresAt, create() -> url, revoke(), send(url, title)|null,
+ *                                    sendLabel}; sharedUntil — страница открыта по ссылке (/r/<код>):
+ *                                   кнопки нет, в шапке — до какого дня ссылка работает
+ *
+ * Ссылка для браузера (2026-10-28): https://beerkultura.ru/r/<код> — та же страница без входа,
+ * для человека без чата с ботом и без входа на сайт. Её делает и закрывает владелец здесь же.
  *
  * Раздел с графиком: заголовок графика не показывается (вывод уже в заголовке раздела, карточка
  * начинается с подзаголовка), а «Как считается» раздела уходит в «Как считается» карточки —
@@ -79,13 +86,100 @@
     return d;
   }
 
+  function day(iso) {
+    try {
+      return new Date(iso).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric',
+                                                         timeZone: 'Europe/Moscow' }).replace(' г.', '');
+    } catch (e) { return ''; }
+  }
+
+  async function copyText(text, input) {
+    try {
+      await root.navigator.clipboard.writeText(text);
+      return true;
+    } catch (e) { /* в WebView Telegram буфер бывает закрыт — запасной путь ниже */ }
+    try {
+      input.focus();
+      input.select();
+      input.setSelectionRange(0, text.length);
+      return root.document.execCommand('copy');
+    } catch (e) { return false; }
+  }
+
+  // «Ссылка для браузера»: сделать (та же, если есть), скопировать, отправить, закрыть.
+  function shareBar(share, title, toast) {
+    const box = h('div', 'rep-share');
+    const main = h('button', 'rep-share-btn');
+    main.type = 'button';
+    const panel = h('div', 'rep-share-panel');
+    panel.hidden = true;
+    const input = h('input', 'rep-share-url');
+    input.readOnly = true;
+    input.setAttribute('aria-label', 'Ссылка для браузера');
+    const actions = h('div', 'rep-share-actions');
+    const copyBtn = h('button', null, 'Скопировать');
+    const sendBtn = share.send ? h('button', null, share.sendLabel || 'Отправить') : null;
+    const closeBtn = h('button', 'rep-share-close', 'Закрыть ссылку');
+    [copyBtn, sendBtn, closeBtn].filter(Boolean).forEach(b => { b.type = 'button'; actions.append(b); });
+    const until = share.expiresAt ? day(share.expiresAt) : '';
+    const note = h('p', 'rep-share-note', 'Откроет любой, у кого есть ссылка, без входа' +
+      (until ? ' — до ' + until : '') + '. Закрыть её можно здесь же.');
+    panel.append(input, actions, note);
+    box.append(main, panel);
+    let link = share.link || '';
+    let busy = false;
+
+    function sync() {
+      main.textContent = link ? 'Ссылка для браузера · открыта' : 'Ссылка для браузера';
+      main.setAttribute('aria-expanded', String(!panel.hidden));
+      input.value = link;
+    }
+    const say = msg => { if (toast) toast(msg); };
+    main.addEventListener('click', async () => {
+      if (busy) return;
+      if (link) { panel.hidden = !panel.hidden; sync(); return; }
+      busy = true;
+      main.textContent = 'Делаю ссылку…';
+      try {
+        link = await share.create();
+        panel.hidden = false;
+      } catch (e) {
+        say(e && e.message ? e.message : 'Ссылку сделать не удалось');
+      }
+      busy = false;
+      sync();
+    });
+    copyBtn.addEventListener('click', async () => {
+      say(await copyText(link, input) ? 'Ссылка скопирована' : 'Выделите ссылку и скопируйте');
+    });
+    if (sendBtn) sendBtn.addEventListener('click', () => share.send(link, title));
+    closeBtn.addEventListener('click', async () => {
+      if (busy) return;
+      busy = true;
+      try {
+        await share.revoke();
+        link = '';
+        panel.hidden = true;
+        say('Ссылка закрыта: по ней отчёт больше не откроется');
+      } catch (e) {
+        say(e && e.message ? e.message : 'Закрыть ссылку не удалось');
+      }
+      busy = false;
+      sync();
+    });
+    sync();
+    return box;
+  }
+
   function mount(container, view, opts) {
     opts = opts || {};
     const art = h('article', 'rep');
     const head = h('header', 'rep-head');
     head.append(h('h1', null, view.title));
-    const meta = [view.source, view.data_at ? 'данные на ' + dataAt(view.data_at) : ''].filter(Boolean).join(' · ');
+    const meta = [view.source, view.data_at ? 'данные на ' + dataAt(view.data_at) : '',
+                  opts.sharedUntil ? 'ссылка работает до ' + day(opts.sharedUntil) : ''].filter(Boolean).join(' · ');
     if (meta) head.append(h('p', 'rep-meta', meta));
+    if (opts.share) head.append(shareBar(opts.share, view.title, opts.toast));
     art.append(head);
 
     const charts = [];

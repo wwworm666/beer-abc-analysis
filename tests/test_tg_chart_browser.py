@@ -253,3 +253,41 @@ def test_report_and_how_note_open_in_mini_app(server, browser):
     assert page.inner_text('.rep-head h1') == 'Как считается'
     assert page.inner_html('.rep-note blockquote') == '% плана = <b>98%</b>'
     assert not errors, errors
+
+
+def test_browser_link_from_mini_app_opens_same_page_without_login(server, browser):
+    """«Ссылка для браузера» в мини-приложении: ссылка появляется в поле, «Закрыть ссылку» её закрывает;
+    по ссылке — та же страница отчёта без Telegram и без входа (заголовок, выжимка, графики, таблица),
+    в шапке — до какого дня ссылка работает; закрытая — «Ссылка не работает»."""
+    from kultura_bot.charts import reports
+    from test_tg_report import REPORT
+    rid = reports.create(reports.normalize_report(REPORT), chat_id=str(OWNER))['id']
+    page, errors = _page(browser, TG_STUB % {'init': json.dumps(init_data()), 'start': json.dumps(rid)})
+    page.goto(f'{server["base"]}/tg/chart')
+    page.wait_for_selector('.rep .rep-chart svg', timeout=15000)
+    button = page.locator('.rep-share-btn')
+    assert button.inner_text() == 'Ссылка для браузера'
+    button.click()
+    page.wait_for_selector('.rep-share-panel:not([hidden])', timeout=5000)
+    link = page.input_value('.rep-share-url')
+    assert link.startswith('https://beerkultura.ru/r/') and button.inner_text() == 'Ссылка для браузера · открыта'
+    assert 'Откроет любой, у кого есть ссылка, без входа' in page.inner_text('.rep-share-note')
+    token = link.rsplit('/', 1)[1]
+
+    shared, shared_errors = _page(browser, None)              # обычный браузер: ни Telegram, ни cookie сайта
+    shared.goto(f'{server["base"]}/r/{token}')
+    shared.wait_for_selector('.rep .rep-chart svg', timeout=15000)
+    assert shared.inner_text('.rep-head h1') == page.inner_text('.rep-head h1'), 'тот же отчёт'
+    assert shared.locator('.rep-sec').count() == page.locator('.rep-sec').count()
+    assert shared.inner_text('.rep-summary blockquote') == page.inner_text('.rep-summary blockquote')
+    assert 'ссылка работает до ' in shared.inner_text('.rep-meta') and shared.locator('.rep-share').count() == 0
+    assert not shared_errors, shared_errors
+
+    page.click('.rep-share-close')
+    page.wait_for_selector('.rep-share-panel[hidden]', state='attached', timeout=5000)
+    assert button.inner_text() == 'Ссылка для браузера'
+    shared.goto(f'{server["base"]}/r/{token}')
+    shared.wait_for_selector('.state', timeout=5000)
+    assert shared.inner_text('.state b') == 'Ссылка не работает'
+    assert not errors, errors
+

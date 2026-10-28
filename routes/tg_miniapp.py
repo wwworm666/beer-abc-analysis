@@ -10,6 +10,12 @@
     GET /tg/report/<report_id>     та же запись страницей сайта — обычный вход сайта
                                    (запас для групп без короткого имени мини-приложения
                                    и для компьютера); без входа — страница входа
+    POST|DELETE /api/tg/reports/<report_id>/link
+                                   ссылка для браузера (2026-10-28): сделать (та же, если
+                                   уже есть) или закрыть. Кто: вошедший в сайт или участник
+                                   чата записи (initData, как у отчёта)
+    GET /r/<token>                 запись по ссылке для браузера — без входа, тот же дизайн,
+                                   что у страницы сайта; закрыли или истёк срок — 404
     GET /tg/chart/dev              только при debug: графики-фикстуры прототипа
                                    (kultura_bot/charts/fixtures.py) в обеих темах
     GET /tg/chart/dev/<name>.png   только при debug: PNG фикстуры тем же рендером,
@@ -27,7 +33,9 @@
 
 Страница мини-приложения, оба API и dev-страницы — в PUBLIC_ENDPOINTS (core/auth_guard.py):
 у Telegram нет cookie сайта, API проверяет initData сам. /tg/report/<id> — не публичная:
-её открывает только вошедший в сайт. initData в журнал не пишется. Токен бота —
+её открывает только вошедший в сайт. /r/<token> открыт всем, у кого есть ссылка (код —
+128 бит, отдельный от id; ссылку владелец делает сам и может закрыть). initData и коды
+ссылок в журнал не пишутся. Токен бота —
 на странице «Доступ агентов» (kultura_bot/credentials.py, API /api/admin/mcp/bot в
 routes/mcp.py, только администратор); кнопка и прочее — kultura_bot/settings.py.
 """
@@ -144,7 +152,71 @@ def report_api(report_id):
     error = _member_error(record['chat_id'], viewer, token, 'Отчёт')
     if error is not None:
         return error
-    return _json({'report': reports.view(record), 'expires_at': _expires(record)})
+    return _json({'report': reports.view(record), 'expires_at': _expires(record), 'link': _link(record)})
+
+
+def _link(record) -> str:
+    """Действующая ссылка для браузера записи или ''."""
+    token = reports.link_token(record['id'])
+    return reports.link_url(token) if token else ''
+
+
+def _link_access(report_id: str):
+    """Кто просит ссылку для браузера: вошедший в сайт (страница /tg/report/<id>) или участник чата
+    записи (мини-приложение, initData). -> (запись, кто, None) или (None, None, ответ-ошибка).
+    Без входа сначала проверяется initData: не войдя, нельзя узнать даже, есть ли такая запись."""
+    from core.auth_guard import current_user
+    user = current_user()
+    if user:
+        record = reports.get(report_id)
+        if record is None:
+            return None, None, _api_error(404, 'report_not_found', 'Отчёт не найден или срок хранения (90 дней) истёк')
+        return record, 'site:' + str(user.get('login') or user.get('id') or ''), None
+    viewer, token, error = _auth('отчёт')
+    if error is not None:
+        return None, None, error
+    record = reports.get(report_id)
+    if record is None:
+        return None, None, _api_error(404, 'report_not_found', 'Отчёт не найден или срок хранения (90 дней) истёк')
+    error = _member_error(record['chat_id'], viewer, token, 'Отчёт')
+    if error is not None:
+        return None, None, error
+    return record, f'tg:{viewer["user_id"]}', None
+
+
+@tg_miniapp_bp.route('/api/tg/reports/<report_id>/link', methods=['POST', 'DELETE'])
+def report_link(report_id):
+    """Ссылка для браузера: POST — сделать (есть — та же), DELETE — закрыть."""
+    record, who, error = _link_access(report_id)
+    if error is not None:
+        return error
+    if request.method == 'DELETE':
+        reports.drop_link(record['id'])
+        log.info('[TG-REPORT] ссылка для браузера закрыта: %s (%s)', record['id'], who)
+        return _json({'link': ''})
+    try:
+        token = reports.make_link(record['id'], by=who)
+    except reports.ReportError as exc:          # запись истекла между проверкой и записью
+        return _api_error(404, 'report_not_found', str(exc))
+    log.info('[TG-REPORT] ссылка для браузера: %s (%s)', record['id'], who)
+    return _json({'link': reports.link_url(token), 'expires_at': _expires(record)})
+
+
+@tg_miniapp_bp.route('/r/<token>')
+def shared_report(token):
+    """Запись по ссылке для браузера: без входа, тот же шаблон и site.js, что у /tg/report/<id>."""
+    record = reports.by_link(token)
+    if record is None:
+        resp = _page(render_template('tg_chart.html', mode='site', payload={'gone': True},
+                                     title='Ссылка не работает'))
+        resp.status_code = 404
+    else:
+        payload = {'report': reports.view(record, shared=True), 'expires_at': _expires(record), 'shared': True}
+        resp = _page(render_template('tg_chart.html', mode='site', payload=payload,
+                                     title=record['body'].get('title') or 'Отчёт'))
+    resp.headers['Cache-Control'] = 'private, no-store'      # цифры владельца: ни браузер, ни прокси не хранят
+    resp.headers['X-Robots-Tag'] = 'noindex, nofollow'      # ссылку не индексируют, даже если она где-то всплыла
+    return resp
 
 
 @tg_miniapp_bp.route('/tg/report/<report_id>')
@@ -153,7 +225,7 @@ def report_page(report_id):
     record = reports.get(report_id)
     if record is None:
         abort(404)
-    payload = {'report': reports.view(record), 'expires_at': _expires(record)}
+    payload = {'report': reports.view(record), 'expires_at': _expires(record), 'link': _link(record)}
     resp = _page(render_template('tg_chart.html', mode='site', payload=payload,
                                  title=record['body'].get('title') or 'Отчёт'))
     resp.headers['Cache-Control'] = 'private, no-store'      # цифры владельца: браузер не хранит
