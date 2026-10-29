@@ -307,6 +307,8 @@ def run_turn(client: Any, *, system_text: str, tool_list: List[Dict[str, Any]], 
     finish_left = -1          # режим отчёта, предел исчерпан: сколько ещё шагов «только отчёт» (-1 — не начаты)
     while True:
         check_budget(store)
+        if ctx.progress is not None:
+            ctx.progress.model_start()
         response = create_message(client, lambda: request_params(
             model=model, effort=effort, system_text=system_text, tool_list=tool_list, messages=messages,
             final=final, fast=fast))
@@ -419,7 +421,7 @@ def run_agent(client: Any, persona: tools.Persona, task: str, *, parent: tools.T
     """Поручение агенту: отдельный разговор с его инструкциями и инструментами. Вернуть отчёт."""
     ctx = tools.ToolContext(site=parent.site, chat_id=parent.chat_id, allowed=persona.toolset.names,
                             is_agent=True, charts_sent=parent.charts_sent, reports_sent=parent.reports_sent,
-                            spend=parent.spend, report_mode=parent.report_mode)
+                            spend=parent.spend, report_mode=parent.report_mode, progress=parent.progress)
     text = (header + '\n' if header else '') + task
     result = run_turn(client, system_text=persona.system, tool_list=persona.toolset.defs, history=[],
                       user_content=[{'type': 'text', 'text': text}], ctx=ctx, store=store,

@@ -80,7 +80,7 @@ from datetime import timedelta
 from typing import Any, Dict, List, Optional
 
 from kultura_bot import links, settings
-from kultura_bot.engine import agent, claude, config, formatting, report_text, tools
+from kultura_bot.engine import agent, claude, config, formatting, progress, report_text, tools
 from kultura_bot.engine.site import SiteError
 from kultura_bot.engine.store import msk_day, msk_now
 from kultura_bot.engine.telegram_io import TelegramIO
@@ -94,7 +94,6 @@ HEARTBEAT_S = 60                 # отчёт сайту не реже раза 
 ACTOR_CACHE_S = 60               # ответ сайта «кто пишет» помнится минуту
 REFUSAL_EVERY_S = 3600           # незнакомцу «закрытый бот» — не чаще раза в час
 INTERRUPTED_MAX_AGE_S = 1800     # сообщить об оборванном ответе, если вопрос моложе 30 минут
-TYPING_EVERY_S = 4.5             # «печатает…» у Telegram гаснет через ~5 с
 PHOTO_MIME = 'image/jpeg'        # Telegram пережимает фото в JPEG
 IMAGE_MAX_BYTES = 3_750_000      # Claude API: картинка до 5 МБ в base64 = 3,75 МБ файла
 DOCUMENT_MIMES = {'application/pdf': 'document', 'image/jpeg': 'image', 'image/png': 'image',
@@ -129,8 +128,12 @@ NEW_DIALOG_TEXT = 'Начинаю новый диалог.'
 INTERRUPTED_TEXT = 'Ответ на прошлый вопрос прервался: сервер перезапускался. Повторите вопрос, пожалуйста.'
 RESTARTING_TEXT = 'Сервер перезапускается — повторите вопрос через минуту.'
 SITE_DOWN_TEXT = 'Сайт сейчас не отвечает, без него я не вижу данных. Повторите вопрос через пару минут.'
-FINGERPRINT_NOTICE = 'Обновились инструкции бота — начинаю новый диалог.'
-LONG_DIALOG_NOTICE = 'Диалог стал слишком длинным — начинаю новый.'
+# Пометки над ответом, когда бот начал разговор заново посреди переписки (2026-10-29: говорят, что
+# это значит для человека и как продолжить; пауза дольше DIALOG_IDLE_MINUTES — без пометки).
+FINGERPRINT_NOTICE = ('Бот обновился и не помнит переписку до этого вопроса. Продолжить прошлую работу — '
+                      'ответьте на её сообщение.')
+LONG_DIALOG_NOTICE = ('Переписка стала слишком длинной: бот начал её заново и не помнит сообщения до этого '
+                      'вопроса. Продолжить прошлую работу — ответьте на её сообщение.')
 
 
 def cost_line(spend: agent.Spend) -> str:
@@ -256,7 +259,8 @@ class Service:
             pending, self.usage_pending = self.usage_pending, {}
         with self.status_lock:
             # version — коммит кода (config.code_version, читается каждый раз): страница видит, обновился ли бот
-            status = dict(self.status, bot=self.username, version=config.code_version())
+            status = dict(self.status, bot=self.username, version=config.code_version(),
+                          eta=self.store.eta_accuracy('report'))      # точность «осталось» у отчётов
         try:
             self.site.report({'status': status, 'usage': list(pending.values())})
             self.reported_at = now
@@ -589,13 +593,26 @@ class Service:
 
     # ---------------------------------------------------------------- ответ
 
-    def _typing(self, chat_id: str, stop: threading.Event) -> None:
-        while not stop.is_set():
-            try:
-                self.tg.typing(chat_id)
-            except Exception:  # noqa: BLE001
-                pass
-            stop.wait(TYPING_EVERY_S)
+    def _tool_typical(self) -> Dict[str, float]:
+        """«Обычно до N с» для каждого инструмента с историей (progress.typical_seconds)."""
+        out: Dict[str, float] = {}
+        try:
+            for name, samples in self.store.tool_durations().items():
+                typical = progress.typical_seconds(samples)
+                if typical is not None:
+                    out[name] = typical
+        except Exception:  # noqa: BLE001 — без истории прогресс просто без «обычно до»
+            log.exception('[BOT] не прочёл длительности инструментов')
+        return out
+
+    def _save_stats(self, job_id: int, tracker: 'progress.Tracker') -> None:
+        """Удачная работа — в историю оценки «сколько осталось» (job_stats, tool_stats)."""
+        try:
+            self.store.add_job_stats(job_id, tracker.mode, tracker.elapsed(), steps=int(tracker.spend.steps),
+                                     tool_calls=tracker.tool_calls, cost_usd=float(tracker.spend.usd),
+                                     shown_eta=tracker.shown_eta, shown_at=tracker.shown_at, tools=tracker.tool_times)
+        except Exception:  # noqa: BLE001 — учёт не роняет ответ
+            log.exception('[BOT] не записал время работы')
 
     @staticmethod
     def _limit(kind: str) -> int:
@@ -677,8 +694,10 @@ class Service:
             visible, markup = self.how_link(chat_id, visible, how)
         sent_card = bool(ctx.charts_sent or ctx.reports_sent)
         text = visible or ('' if sent_card or markup else 'Готово.')
-        if notice:
-            text = f'*{notice}*\n\n{text}' if text else f'*{notice}*'
+        if notice and text:
+            # Пометка — над ответом; у ответа-карточки (отчёт, график) текста нет: под картинкой, рядом
+            # со строкой цены, она только путала (2026-10-29) — её нет.
+            text = f'*{notice}*\n\n{text}'
         limit = spend.budget()
         if settings.SHOW_COST or (limit and spend.usd >= limit):
             text = f'{text}\n\n{cost_line(spend)}' if text else cost_line(spend)
@@ -768,13 +787,24 @@ class Service:
         if actor is None:
             self.store.finish_job(job_id, 'error', 'no access')
             return
-        stop = threading.Event()
-        threading.Thread(target=self._typing, args=(chat_id, stop), daemon=True).start()
         status, error = 'done', ''
         report_mode = job.get('mode') == 'report'
+        mode = 'report' if report_mode else 'answer'
+        limit = self.question_limit(report_mode)
+        spend = agent.Spend(limit=limit)
+        ctx = tools.ToolContext(site=self.site, chat_id=chat_id, allowed=catalog.bot.toolset.names, spend=spend,
+                                report_mode=report_mode)
+        # Прогресс в чате (engine/progress.py): «печатает…», а дольше PROGRESS_AFTER_S — сообщение
+        # «что делаю, сколько осталось»; убирается, когда ушёл ответ (finally).
+        tracker = progress.Tracker(mode, spend, limit=limit, durations=self.store.recent_durations(mode),
+                                   tool_typical=self._tool_typical(), titles=catalog.titles,
+                                   is_finishing=lambda: ctx.report_only)
+        ctx.progress = tracker
+        reporter = progress.Reporter(self.tg, chat_id, tracker, after_s=settings.PROGRESS_AFTER_S.get(mode, 10),
+                                     every_s=settings.PROGRESS_EDIT_EVERY_S, reply_to=reply_to,
+                                     enabled=settings.PROGRESS).start()
         try:
-            limit = self.question_limit(report_mode)
-            header = self.header(actor, 'report' if report_mode else 'answer', limit)
+            header = self.header(actor, mode, limit)
             reply = self.reply_block(chat_id, message)
             user_content = [{'type': 'text', 'text': f'{header}\n{reply}{job["text"] or "(без текста)"}'}]
             files = self._files(message)
@@ -794,23 +824,28 @@ class Service:
             if dialog is not None:
                 idle = time.time() - dialog['last_ts'] > settings.DIALOG_IDLE_MINUTES * 60
                 if idle:
-                    notice, dialog = settings.NEW_DIALOG_NOTICE, None
+                    dialog = None                      # молча: прошлую работу продолжают ответом на неё
                 elif dialog['fingerprint'] != persona.fingerprint:
                     notice, dialog = FINGERPRINT_NOTICE, None
                 elif len(str(dialog['messages'])) > settings.DIALOG_MAX_CHARS:
                     notice, dialog = LONG_DIALOG_NOTICE, None
+            if reply:
+                notice = ''                            # ответ на сообщение бота — та работа и так перед вопросом
             history = dialog['messages'] if dialog else []
             started_at = dialog['started_at'] if dialog else msk_now().isoformat(timespec='seconds')
             turns = dialog['turns'] if dialog else 0
 
             client = self.client_factory(self.key)
-            spend = agent.Spend(limit=limit)
-            ctx = tools.ToolContext(site=self.site, chat_id=chat_id, allowed=persona.toolset.names, spend=spend,
-                                    report_mode=report_mode)
             agent_header = self.header(actor)          # агенту — без «режим: отчёт»: страницу собирает бот
-            ctx.run_agent = lambda name, task: agent.run_agent(client, catalog.agents[name], task, parent=ctx,
-                                                               store=self.store, header=agent_header,
-                                                               on_usage=self.add_usage)
+
+            def run_agent(name: str, task: str) -> str:
+                tracker.agent_start(config.load_agents()[name].title)
+                try:
+                    return agent.run_agent(client, catalog.agents[name], task, parent=ctx, store=self.store,
+                                           header=agent_header, on_usage=self.add_usage)
+                finally:
+                    tracker.agent_done()
+            ctx.run_agent = run_agent
             result = agent.run_turn(client, system_text=persona.system, tool_list=persona.toolset.defs,
                                     history=history, user_content=user_content, ctx=ctx, store=self.store,
                                     max_rounds=settings.REPORT_MAX_TOOL_ROUNDS if report_mode else None,
@@ -845,5 +880,7 @@ class Service:
                 # пока следующий ответ не получится.
                 self.set_status(self.status['state'], self.status['detail'], claude_error=text)
         finally:
-            stop.set()
+            reporter.stop()                            # ответ уже в чате — сообщение о прогрессе убрать
+            if status == 'done':
+                self._save_stats(job_id, tracker)
             self.store.finish_job(job_id, status, error)

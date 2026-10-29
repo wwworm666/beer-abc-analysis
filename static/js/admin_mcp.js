@@ -401,7 +401,10 @@
         var node = byId('mcpBotState');
         // Версия кода сервера бота (коммит): видно, подтянул ли он последнюю версию с GitHub.
         var version = (data.status || {}).version;
-        node.textContent = status.text + (version ? ' Версия кода: ' + version.slice(0, 7) + '.' : '');
+        // Точность прогресса «≈ осталось» у последних отчётов: насколько ему можно верить.
+        var eta = (data.status || {}).eta || {};
+        node.textContent = status.text + (version ? ' Версия кода: ' + version.slice(0, 7) + '.' : '') +
+            (eta.n ? ' Оценка «осталось» у отчётов точнее минуты в ' + eta.ok + ' из ' + eta.n + ' последних.' : '');
         node.className = 'mcp-note ' + (status.bad ? 'mcp-state-bad' : 'mcp-state-good');
 
         var tg = data.telegram || {};
