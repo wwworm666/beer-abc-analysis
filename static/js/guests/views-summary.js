@@ -41,11 +41,12 @@ Guests.registerView('summary', function (pane) {
         }
 
         var html = '<div class="metric-grid">' +
-            G.metricCard('base_size', 'База гостей', G.fmtNum(d.base_size), 'за всю историю') +
+            G.metricCard('base_size', 'Размер базы', G.fmtNum(d.base_size),
+                'купили хоть раз — на ' + G.fmtDate(meta.asof)) +
             G.metricCard('active_guests', 'Активные', G.fmtNum(d.active_guests),
                 'визит за 30 дней на ' + G.fmtDate(meta.asof)) +
             G.metricCard('registrations', 'Новые регистрации', regsValue, regsSub) +
-            G.metricCard('first_orders', 'Первые заказы', G.fmtNum(d.first_orders),
+            G.metricCard('first_orders', 'Новые гости', G.fmtNum(d.first_orders),
                 (byBar ? 'первый чек в баре · ' : '') + 'YTD: ' + G.fmtNum(d.first_orders_ytd)) +
             G.metricCard('never_buyers', 'Не купили ни разу', neverValue, neverSub) +
             G.metricCard(nv.available ? 'never_conversion' : 'conversion',
@@ -88,8 +89,8 @@ Guests.registerView('summary', function (pane) {
         pane.innerHTML = html;
 
         var p = GCharts.palette();
-        var segNames = { active: 'Active (до 30 дн)', sleeping: 'Sleeping (31-90)',
-                         at_risk: 'At Risk (91-180)', lost: 'Lost (180+)' };
+        var segNames = { active: 'Активные (до 30 дн)', sleeping: 'Засыпают (31-90)',
+                         at_risk: 'Под угрозой (91-180)', lost: 'Потеряны (180+)' };
         GCharts.doughnut('sumActivityChart',
             d.activity_segments.map(function (s) { return segNames[s.segment] || s.segment; }),
             d.activity_segments.map(function (s) { return s.count; }),

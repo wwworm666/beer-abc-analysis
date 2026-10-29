@@ -124,8 +124,9 @@ class TestRfmListFilter(RfmVenueBase):
 
     Полный ответ /api/guests/rfm — 500+ тыс. знаков (2 214 гостей), агент получал
     обрезку. Фильтр меняет только список guests; segments и total_guests — по всем.
-    Гости (дата среза 2026-08-31): NEW — один визит 30.08 (500 ₽); LOYAL — два визита,
-    последний 25.08 (700 ₽); POTENTIAL — один визит 15.06 (1000 ₽).
+    Гости (дата среза 2026-08-30 — последний чек витрины): NEW — один визит 30.08 (500 ₽);
+    LOYAL — два визита, последний 25.08 (700 ₽); RARE_LOST — один визит 15.06 (1000 ₽):
+    реже раза в неделю и больше 60 дней без визита («Редкие, пропали», 2026-10-29).
     """
 
     ANCHOR = '2026-08-12'
@@ -156,7 +157,14 @@ class TestRfmListFilter(RfmVenueBase):
     def test_segments_of_fixture(self):
         segments = {g['guest_id']: g['segment'] for g in self.rfm()['guests']}
         self.assertEqual({'79001112233': 'NEW', '79005556677': 'LOYAL',
-                          '79009990000': 'POTENTIAL'}, segments)
+                          '79009990000': 'RARE_LOST'}, segments)
+
+    def test_rare_guests_split_by_recency(self):
+        """Реже раза в неделю: 15–60 дней — «Потенциальные», больше 60 — «Редкие, пропали»."""
+        self.add_guest('79004440000', '2004', [('2026-08-01', 'bolshoy', 200.0)])   # 29 дней
+        segments = {g['guest_id']: g['segment'] for g in self.rfm()['guests']}
+        self.assertEqual(segments['79004440000'], 'POTENTIAL')
+        self.assertEqual(segments['79009990000'], 'RARE_LOST', '76 дней без визита')
 
     def test_parse_segments(self):
         self.assertIsNone(ga.parse_rfm_segments(''))
@@ -207,11 +215,11 @@ class TestRfmListFilter(RfmVenueBase):
             self.assertIn('error', response.get_json(), params)
 
     def test_csv_respects_filter(self):
-        response = self.api(segment='POTENTIAL', export='csv')
+        response = self.api(segment='RARE_LOST', export='csv')
         self.assertEqual(200, response.status_code)
         lines = response.data.decode('utf-8-sig').strip().splitlines()
         self.assertEqual(2, len(lines), 'заголовок + один гость')
-        self.assertIn('POTENTIAL', lines[1])
+        self.assertIn('RARE_LOST', lines[1])
 
 
 class TestDiscountAnalyzeFixes(unittest.TestCase):

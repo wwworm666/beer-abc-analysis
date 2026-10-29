@@ -4,9 +4,11 @@ Guests.registerView('guest', function (pane) {
     var G = Guests;
     var segTitles = {
         CHAMPIONS: 'Чемпион', LOYAL: 'Лояльный', NEW: 'Новичок',
-        AT_RISK: 'Под риском', CHURNED: 'Уходящий', POTENTIAL: 'Потенциальный'
+        AT_RISK: 'Частый, пропадает', CHURNED: 'Частый, пропал', POTENTIAL: 'Потенциальный',
+        RARE_LOST: 'Редкий, пропал'
     };
-    var statusTitles = { active: 'Active', sleeping: 'Sleeping', at_risk: 'At Risk', lost: 'Lost' };
+    var statusTitles = { active: 'Активный', sleeping: 'Засыпает', at_risk: 'Под угрозой',
+                         lost: 'Потерян' };
 
     function shell() {
         // Карточка — весь гость: при выбранном баре она не сужается (чеки в

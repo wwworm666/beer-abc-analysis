@@ -105,7 +105,7 @@ class TestMainNumbers(ChurnBase):
         self.assertEqual(p['churn_pct'], 66.7)
         self.assertEqual((p['newbie_no_return'], p['newbie_no_return_pct']), (1, 50.0),
                          'G не вернулся, D вернулся через 15 дней')
-        self.assertEqual(p['newbie_matures_on'], '2026-05-01', '31.03 + 30 + 1')
+        self.assertEqual(p['newbie_matures_on'], '2026-04-30', '31.03 + 30')
 
     def test_march_leavers(self):
         buckets = {b['segment']: b for b in self.churn(30)['leavers']['buckets']}
@@ -120,8 +120,8 @@ class TestMainNumbers(ChurnBase):
         self.assertEqual((p['start_alive'], p['died'], p['end_alive']), (5, 2, 5),
                          'при 60 днях живы на начало ещё C и E, ушли E и F')
         self.assertEqual(p['churn_pct'], 40.0)
-        self.assertIsNone(p['newbie_no_return_pct'], '31.03 + 61 = 31.05 — позже 20.05')
-        self.assertEqual(p['newbie_matures_on'], '2026-05-31')
+        self.assertIsNone(p['newbie_no_return_pct'], '31.03 + 60 = 30.05 — позже 20.05')
+        self.assertEqual(p['newbie_matures_on'], '2026-05-30')
 
     def test_quarter_new_guests_can_leave_in_the_same_period(self):
         p = self.churn(30, 'quarter', '2026-02-01')['period']
@@ -136,7 +136,7 @@ class TestMainNumbers(ChurnBase):
         may = self.churn(30, 'month', '2026-05-15')['period']
         self.assertEqual((may['state'], may['asof']), ('partial', '2026-05-20'))
         self.assertIsNone(may['newbie_no_return_pct'])
-        self.assertEqual(may['newbie_matures_on'], '2026-07-01')
+        self.assertEqual(may['newbie_matures_on'], '2026-06-30')
         june = self.churn(30, 'month', '2026-06-15')['period']
         self.assertEqual(june['state'], 'future')
         for key in ('start_alive', 'died', 'new', 'end_alive', 'churn_pct', 'asof'):
@@ -179,13 +179,50 @@ class TestInvariants(ChurnBase):
                                          (dead_days, period_type, venue, nxt['p_start']))
 
     def test_x30_alive_is_active_and_new_is_first_orders(self):
+        # И для закрытого месяца, и для неполного (май, срез 20.05): дата среза одна на все
+        # вкладки — последний полный день данных (2026-10-29).
+        for anchor in ('2026-03-15', '2026-05-15'):
+            period, meta = self.ctx('month', anchor)
+            active = {s['segment']: s['count']
+                      for s in ga.activity(self.store, period, meta)['segments']}['active']
+            p = self.churn(30, 'month', anchor)['period']
+            self.assertEqual(p['asof'], meta['asof'], anchor)
+            self.assertEqual(p['end_alive'], active, anchor + ': при X = 30 живые = Активные')
+            growth = ga.base_growth(self.store, period, meta)
+            self.assertEqual(p['new'], growth['period']['first_orders'],
+                             anchor + ': «Новые гости» на «Оттоке» и «Росте базы» — одно число')
+
+    def test_base_size_and_ltv_guests_are_on_the_cut_off_date(self):
         period, meta = self.ctx()
-        active = {s['segment']: s['count']
-                  for s in ga.activity(self.store, period, meta)['segments']}['active']
-        p = self.churn(30)['period']
-        self.assertEqual(p['end_alive'], active, 'при X = 30 живые = Active (закрытый месяц)')
-        first_orders = ga.base_growth(self.store, period, meta)['period']['first_orders']
-        self.assertEqual(p['new'], first_orders)
+        base = ga.base_growth(self.store, period, meta)['lifetime']['base_size']
+        self.assertEqual(base, 7, 'H пришёл 20.05 — после среза марта')
+        self.assertEqual(base, ga.ltv(self.store, period, meta)['lifetime']['guests'])
+
+
+class TestRetentionComplement(ChurnBase):
+    """«Не вернулись после первого визита» = 100% − «Возвраты через X дней» (2026-10-29).
+
+    Одно окно и одно правило созревания: где «Возвраты» показывают прочерк, там его
+    показывает и «Отток», а там, где обе доли есть, в сумме они дают 100%.
+    """
+
+    def test_both_tabs_agree_for_every_window(self):
+        for anchor in ('2026-03-15', '2026-05-15'):
+            period, meta = self.ctx('month', anchor)
+            cohorts = {c['cohort']: c
+                       for c in ga.cohort_retention(self.store, period, meta)['cohorts']}
+            for x in ga.CHURN_DEAD_DAYS_CHOICES:
+                for row in self.churn(x, 'month', anchor)['series']:
+                    cohort = cohorts.get(row['p_start'][:7])
+                    if cohort is None:
+                        self.assertFalse(row['new'], (anchor, x, row['p_start']))
+                        continue
+                    back = cohort['returned_pct'][str(x)]
+                    gone = row['newbie_no_return_pct']
+                    self.assertEqual(back is None, gone is None, (anchor, x, row['p_start']))
+                    if back is not None:
+                        self.assertAlmostEqual(back + gone, 100.0, delta=0.1,
+                                               msg=(anchor, x, row['p_start']))
 
 
 class TestLostEquivalence(ChurnBase):
@@ -203,17 +240,21 @@ class TestLostEquivalence(ChurnBase):
 
 class TestBoundaries(ChurnBase):
     GUESTS = {
-        'R31': _visits(['2026-03-01', '2026-04-01']),   # возврат на 31-й день
-        'R32': _visits(['2026-03-01', '2026-04-02']),   # возврат на 32-й день
+        'R30': _visits(['2026-03-01', '2026-03-31']),   # возврат через 30 дней
+        'R31': _visits(['2026-03-01', '2026-04-01']),   # возврат через 31 день
         'S30': _visits(['2026-01-29']),                 # на 28.02 пауза 30
         'S31': _visits(['2026-01-28']),                 # на 28.02 пауза 31
         'Z': _visits(['2026-06-30']),
     }
 
-    def test_newbie_window_matches_the_dead_rule(self):
-        p = self.churn(30)['period']
+    def test_newbie_window_equals_retention_window(self):
+        """Окно «не вернулись» — X дней, как «Возвраты через X дней» (решение 2026-10-29)."""
+        p = self.churn(30, anchor='2026-03-15')['period']
         self.assertEqual((p['new'], p['newbie_no_return']), (2, 1),
-                         'вернувшийся на 31-й день ни дня не был мёртвым, на 32-й — был')
+                         'через 30 дней — вернулся, через 31 — уже нет')
+        period, meta = self.ctx()
+        march = {c['cohort']: c for c in ga.cohort_retention(self.store, period, meta)['cohorts']}
+        self.assertEqual(march['2026-03']['returned_pct']['30'] + p['newbie_no_return_pct'], 100.0)
 
     def test_start_gap_x_is_alive_x_plus_one_is_dead(self):
         p = self.churn(30)['period']

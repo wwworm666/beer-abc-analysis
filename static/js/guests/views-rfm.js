@@ -24,22 +24,26 @@ Guests.registerView('rfm', function (pane) {
     function render() {
         return G.api('/api/guests/rfm').then(function (resp) {
             var d = resp.data;
+            // Названия по частоте и давности (2026-10-29): «Частые, пропадают / пропали» и
+            // «Редкие, пропали» — чтобы не путать с «Ушли» оттока и статусами «Активности».
             var segTitles = {
                 CHAMPIONS: 'Чемпионы', LOYAL: 'Лояльные', NEW: 'Новички',
-                AT_RISK: 'Под риском', CHURNED: 'Уходящие', POTENTIAL: 'Потенциальные'
+                AT_RISK: 'Частые, пропадают', CHURNED: 'Частые, пропали',
+                POTENTIAL: 'Потенциальные', RARE_LOST: 'Редкие, пропали'
             };
             var pal = GCharts.palette();
-            // Шесть РАЗЛИЧИМЫХ цветов: на точечной диаграмме сегменты кодируются
+            // Семь РАЗЛИЧИМЫХ цветов: на точечной диаграмме сегменты кодируются
             // только цветом (размер занят выручкой), и одинаковый цвет у двух
             // содержательно противоположных сегментов делает легенду бесполезной.
-            // «Новички» и «Под риском» раньше были оба --warning.
+            // «Новички» и «Частые, пропадают» (бывшие «Под риском») раньше были оба --warning.
             var segColors = {
                 CHAMPIONS: pal.success,
                 LOYAL: pal.accent,
                 NEW: '#2563EB',        // синий: свежий первый визит
                 AT_RISK: pal.warning,  // янтарный: тревога
                 CHURNED: pal.danger,
-                POTENTIAL: pal.text
+                POTENTIAL: pal.text,
+                RARE_LOST: '#8B5CF6'   // фиолетовый: пропали, но ходили редко
             };
             // Пояснение к каждому сегменту: раньше все шесть карточек открывали
             // один и тот же тултип про окно и пороги, а правило отнесения к
@@ -47,7 +51,8 @@ Guests.registerView('rfm', function (pane) {
             var segFormula = {
                 CHAMPIONS: 'rfm_seg_champions', LOYAL: 'rfm_seg_loyal',
                 NEW: 'rfm_seg_new', AT_RISK: 'rfm_seg_at_risk',
-                CHURNED: 'rfm_seg_churned', POTENTIAL: 'rfm_seg_potential'
+                CHURNED: 'rfm_seg_churned', POTENTIAL: 'rfm_seg_potential',
+                RARE_LOST: 'rfm_seg_rare_lost'
             };
 
             // Карточки сегментов кликабельны: клик подставляет сегмент в фильтр

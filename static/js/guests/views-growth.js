@@ -15,7 +15,7 @@ Guests.registerView('growth', function (pane) {
             G.metricCard('registrations', 'Регистрации за период',
                 G.fmtNum(p.registrations),
                 (byBar ? 'за баром первой покупки · ' : '') + 'YTD: ' + G.fmtNum(y.registrations)) +
-            G.metricCard('first_orders', 'Первые заказы за период',
+            G.metricCard('first_orders', 'Новые гости за период',
                 G.fmtNum(p.first_orders),
                 (byBar ? 'первый чек в баре · ' : '') + 'YTD: ' + G.fmtNum(y.first_orders)) +
             G.metricCard('conversion', 'Конверсия в заказ',
@@ -27,7 +27,8 @@ Guests.registerView('growth', function (pane) {
                 'YTD: ' + (y.avg_days_to_first_order === null ? '—'
                     : String(y.avg_days_to_first_order).replace('.', ','))) +
             G.metricCard('base_size', 'Размер базы', G.fmtNum(growth.lifetime.base_size),
-                byBar ? 'все, у кого был чек в баре' : 'все зарегистрированные с чеком') +
+                (byBar ? 'все, у кого был чек в баре' : 'купили хоть раз') + ' — на ' +
+                G.fmtDate(meta.asof)) +
             '</div>';
 
         html += '<div class="note-line">Сколько гостей база теряет и сколько возвращается — ' +

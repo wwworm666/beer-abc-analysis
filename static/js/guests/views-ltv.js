@@ -19,7 +19,7 @@ Guests.registerView('ltv', function (pane) {
     function seriesTable(rows, type) {
         var html = '<div class="gtable-wrap"><table class="gtable"><thead><tr>' +
             '<th>На конец периода</th><th class="num">LTV</th><th class="num">Изменение</th>' +
-            '<th class="num">от чека</th><th class="num">от частоты</th>' +
+            '<th class="num">от чека</th><th class="num">от чеков на гостя</th>' +
             '<th class="num">Средний чек</th><th class="num">Чеков на гостя</th>' +
             '<th class="num">Гостей</th></tr></thead><tbody>';
         rows.slice().reverse().forEach(function (r) {
