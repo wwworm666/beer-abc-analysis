@@ -75,6 +75,7 @@ class Persona:
 class Catalog:
     bot: Persona
     agents: Dict[str, Persona]
+    titles: Dict[str, str] = field(default_factory=dict)    # имя инструмента -> русское название (прогресс)
 
 
 def claude_tool(tool: Dict[str, Any], deferred: bool) -> Dict[str, Any]:
@@ -133,7 +134,8 @@ def load_catalog(site) -> Catalog:
     """Правила и инструменты с сайта -> системные промпты и наборы инструментов бота и агентов."""
     service_rules = site.instructions(FULL_CONNECTOR)
     bot_system = config.bot_system_text(service_rules)
-    bot_tools = build_toolset(site.tools(FULL_CONNECTOR), with_agents=True)
+    site_tools = site.tools(FULL_CONNECTOR)
+    bot_tools = build_toolset(site_tools, with_agents=True)
     bot = Persona(bot_system, bot_tools, config.fingerprint(bot_system, bot_tools.defs))
     agents: Dict[str, Persona] = {}
     for name, agent in config.load_agents().items():
@@ -148,7 +150,9 @@ def load_catalog(site) -> Catalog:
         system = config.agent_system_text(agent, rules, service_rules)
         toolset = build_toolset(list(merged.values()), with_agents=False)
         agents[name] = Persona(system, toolset, config.fingerprint(system, toolset.defs))
-    return Catalog(bot=bot, agents=agents)
+    titles = {t['name']: str((t.get('annotations') or {}).get('title') or t.get('title') or '')
+              for t in site_tools}
+    return Catalog(bot=bot, agents=agents, titles={k: v for k, v in titles.items() if v})
 
 
 # ------------------------------------------------------------------ исполнение
@@ -167,6 +171,7 @@ class ToolContext:
     report_mode: bool = False                                # /report: ответ — страницей, графики — внутри неё
     report_only: bool = False                                # предел отчёта исчерпан: можно только отправить отчёт
     report_unknown: bool = False                             # отправка отчёта «статус неизвестен»: могла дойти
+    progress: Any = None                                     # engine/progress.Tracker: что идёт сейчас (прогресс в чате)
 
 
 def tool_result(tool_use_id: str, content: Any, is_error: bool = False) -> Dict[str, Any]:
@@ -198,7 +203,19 @@ def _result_blocks(content: List[Any]) -> List[Dict[str, Any]]:
 
 
 def execute(block: Dict[str, Any], ctx: ToolContext) -> Dict[str, Any]:
-    """Исполнить tool_use (dict из ответа Claude) -> tool_result. Никогда не бросает."""
+    """Исполнить tool_use (dict из ответа Claude) -> tool_result. Никогда не бросает.
+    Прогресс (ctx.progress) видит начало и конец вызова: «Сейчас: …» и «обычно до N с»."""
+    name = block.get('name') or ''
+    if ctx.progress is not None:
+        ctx.progress.tool_start(name)
+    try:
+        return _execute(block, ctx)
+    finally:
+        if ctx.progress is not None:
+            ctx.progress.tool_done(name)
+
+
+def _execute(block: Dict[str, Any], ctx: ToolContext) -> Dict[str, Any]:
     name = block.get('name') or ''
     tool_use_id = block.get('id') or ''
     args = block.get('input')

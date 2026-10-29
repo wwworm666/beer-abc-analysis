@@ -151,7 +151,18 @@ def accept_report(payload: Any) -> None:
         store.add_usage(day, model, counts, cost)
     version = str(status.get('version') or '')
     store.set_status(status['state'], _short(status.get('detail')), claude_error=_short(status.get('claude_error')),
-                     bot=_short(status.get('bot'), 64), version=version if VERSION_RE.fullmatch(version) else '')
+                     bot=_short(status.get('bot'), 64), version=version if VERSION_RE.fullmatch(version) else '',
+                     eta=_eta(status.get('eta')))
+
+
+def _eta(value: Any) -> Dict[str, int]:
+    """Точность оценки «осталось» у последних отчётов (engine/progress.py): {n, ok}, иначе пусто."""
+    if not isinstance(value, dict):
+        return {}
+    n, ok = value.get('n'), value.get('ok')
+    if not all(isinstance(v, int) and not isinstance(v, bool) for v in (n, ok)) or not 0 <= ok <= n <= 1000:
+        return {}
+    return {'n': n, 'ok': ok}
 
 
 # ------------------------------------------------------------------ страница

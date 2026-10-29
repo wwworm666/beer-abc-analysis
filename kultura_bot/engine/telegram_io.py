@@ -144,6 +144,23 @@ class TelegramIO:
         import html
         return self.send_html(chat_id, html.escape(text, quote=False), fallback_text=text, reply_to=reply_to)
 
+    # ---------------------------------------------------------------- прогресс (engine/progress.py)
+
+    def send_status(self, chat_id: str, text_html: str, *, reply_to: Optional[int] = None) -> Optional[int]:
+        """Сообщение о прогрессе (HTML). message_id или None."""
+        return self.send_html(chat_id, text_html, reply_to=reply_to)
+
+    def edit_status(self, chat_id: str, message_id: int, text_html: str) -> bool:
+        """Поправить сообщение о прогрессе. Telegram отказал (в том числе «не изменилось») — False."""
+        data = self.call('editMessageText', {'chat_id': chat_id, 'message_id': message_id, 'text': text_html,
+                                             'parse_mode': 'HTML', 'link_preview_options': {'is_disabled': True}},
+                         timeout=8)
+        return bool(data and data.get('ok'))
+
+    def delete_message(self, chat_id: str, message_id: int) -> bool:
+        data = self.call('deleteMessage', {'chat_id': chat_id, 'message_id': message_id}, timeout=8)
+        return bool(data and data.get('ok'))
+
     # ---------------------------------------------------------------- файлы
 
     def download(self, file_id: str, max_bytes: int) -> Optional[bytes]:

@@ -14,6 +14,12 @@
              error; хранятся JOBS_KEEP_DAYS дней
     usage    расход по дням (МСК) и моделям: day + model (PK), requests, input_tokens,
              output_tokens, cache_read, cache_write, cost_usd — для дневного предела
+    job_stats  удачные работы для оценки «сколько осталось» (engine/progress.py, 2026-10-29):
+             вид (answer | report), сколько шла работа, шагов модели, вызовов инструментов,
+             расход; что обещал прогресс при первом показе (shown_eta, shown_at) — для точности;
+             хранятся STATS_KEEP_DAYS дней
+    tool_stats длительность каждого вызова инструмента — «обычно до N с» в прогрессе;
+             STATS_KEEP_DAYS дней
 
 Потоки: опрос Telegram и ответы в чатах пишут из разных потоков — одно соединение под
 замком (WAL, автокоммит).
@@ -28,6 +34,8 @@ from typing import Any, Dict, List, Optional
 
 MSK = timezone(timedelta(hours=3), 'МСК')     # в Москве нет перехода на летнее время с 2014 года
 JOBS_KEEP_DAYS = 30
+STATS_KEEP_DAYS = 90                # история для оценки времени: старая — уже не про нынешнюю скорость
+STATS_RECENT = 50                   # столько последних работ вида берёт оценка
 
 SCHEMA = (
     '''CREATE TABLE IF NOT EXISTS dialogs (
@@ -59,6 +67,25 @@ SCHEMA = (
         cost_usd      REAL NOT NULL DEFAULT 0,
         PRIMARY KEY (day, model)
     )''',
+    '''CREATE TABLE IF NOT EXISTS job_stats (
+        job_id      INTEGER PRIMARY KEY,
+        mode        TEXT NOT NULL,
+        finished_ts REAL NOT NULL,
+        seconds     REAL NOT NULL,
+        steps       INTEGER NOT NULL DEFAULT 0,
+        tool_calls  INTEGER NOT NULL DEFAULT 0,
+        cost_usd    REAL NOT NULL DEFAULT 0,
+        shown_eta   REAL,
+        shown_at    REAL
+    )''',
+    'CREATE INDEX IF NOT EXISTS idx_job_stats_mode ON job_stats(mode, finished_ts)',
+    '''CREATE TABLE IF NOT EXISTS tool_stats (
+        id      INTEGER PRIMARY KEY AUTOINCREMENT,
+        name    TEXT NOT NULL,
+        seconds REAL NOT NULL,
+        ts      REAL NOT NULL
+    )''',
+    'CREATE INDEX IF NOT EXISTS idx_tool_stats_name ON tool_stats(name, ts)',
 )
 
 
@@ -151,6 +178,47 @@ class Store:
 
     def recent_jobs(self, limit: int = 20) -> List[Dict[str, Any]]:
         return self._rows('SELECT * FROM jobs ORDER BY id DESC LIMIT ?', (limit,))
+
+    # ---------------------------------------------------------------- время работ (прогресс)
+
+    def add_job_stats(self, job_id: int, mode: str, seconds: float, *, steps: int, tool_calls: int,
+                      cost_usd: float, shown_eta: Optional[float] = None, shown_at: Optional[float] = None,
+                      tools: Optional[List[Any]] = None, now: Optional[float] = None) -> None:
+        """Удачная работа (и длительности её вызовов инструментов) — в историю для оценки времени."""
+        now = time.time() if now is None else now
+        with self._lock:
+            old = now - STATS_KEEP_DAYS * 86400
+            self._conn.execute('DELETE FROM job_stats WHERE finished_ts < ?', (old,))
+            self._conn.execute('DELETE FROM tool_stats WHERE ts < ?', (old,))
+            self._conn.execute('INSERT OR REPLACE INTO job_stats (job_id, mode, finished_ts, seconds, steps, tool_calls, '
+                               'cost_usd, shown_eta, shown_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                               (job_id, mode, now, float(seconds), int(steps), int(tool_calls), float(cost_usd),
+                                shown_eta, shown_at))
+            for name, secs in tools or []:
+                self._conn.execute('INSERT INTO tool_stats (name, seconds, ts) VALUES (?, ?, ?)',
+                                   (str(name), float(secs), now))
+
+    def recent_durations(self, mode: str, limit: int = STATS_RECENT) -> List[float]:
+        """Сколько шли последние удачные работы этого вида (секунды)."""
+        return [r['seconds'] for r in self._rows('SELECT seconds FROM job_stats WHERE mode = ? '
+                                                 'ORDER BY finished_ts DESC LIMIT ?', (mode, limit))]
+
+    def tool_durations(self, per_tool: int = 200) -> Dict[str, List[float]]:
+        """Длительности последних вызовов каждого инструмента (не больше per_tool на инструмент)."""
+        out: Dict[str, List[float]] = {}
+        for r in self._rows('SELECT name, seconds FROM tool_stats ORDER BY ts DESC'):
+            bucket = out.setdefault(r['name'], [])
+            if len(bucket) < per_tool:
+                bucket.append(r['seconds'])
+        return out
+
+    def eta_accuracy(self, mode: str = 'report', last: int = 20, within_s: float = 60) -> Dict[str, int]:
+        """У скольких из последних работ (где прогресс показывал «осталось») оценка ошиблась не больше
+        чем на within_s секунд: {'n': всего, 'ok': точных}."""
+        rows = self._rows('SELECT seconds, shown_eta, shown_at FROM job_stats WHERE mode = ? AND shown_eta IS NOT '
+                          'NULL AND shown_at IS NOT NULL ORDER BY finished_ts DESC LIMIT ?', (mode, last))
+        ok = sum(1 for r in rows if abs((r['seconds'] - r['shown_at']) - r['shown_eta']) <= within_s)
+        return {'n': len(rows), 'ok': ok}
 
     # ---------------------------------------------------------------- расход
 

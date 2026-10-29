@@ -30,6 +30,7 @@ tests/test_kultura_bot_site.py.
 """
 import copy
 import json
+import statistics
 import os
 import subprocess
 import sys
@@ -44,7 +45,7 @@ sys.path.insert(0, ROOT)
 sys.path.insert(0, HERE)
 
 from kultura_bot import settings  # noqa: E402
-from kultura_bot.engine import agent, claude, config, formatting, report_text, service, tools  # noqa: E402
+from kultura_bot.engine import agent, claude, config, formatting, progress, report_text, service, tools  # noqa: E402
 from kultura_bot.engine.site import SiteError  # noqa: E402
 from kultura_bot.engine.store import Store  # noqa: E402
 
@@ -238,6 +239,9 @@ class FakeTelegram:
         self.updates = []
         self.webhook_deleted = 0
         self.typing_count = 0
+        self.status_sent = []   # сообщения о прогрессе (engine/progress.py)
+        self.status_edits = []
+        self.deleted = []
         self.files = {}
 
     def get_me(self):
@@ -255,6 +259,18 @@ class FakeTelegram:
 
     def typing(self, chat_id):
         self.typing_count += 1
+
+    def send_status(self, chat_id, text_value, reply_to=None):
+        self.status_sent.append((str(chat_id), text_value, reply_to))
+        return 900 + len(self.status_sent)
+
+    def edit_status(self, chat_id, message_id, text_value):
+        self.status_edits.append((message_id, text_value))
+        return True
+
+    def delete_message(self, chat_id, message_id):
+        self.deleted.append(message_id)
+        return True
 
     def send_plain(self, chat_id, text_value, reply_to=None):
         self.sent.append((str(chat_id), text_value, reply_to))
@@ -287,6 +303,7 @@ def env(tmp_path, monkeypatch):
     monkeypatch.setattr(settings, 'DAILY_BUDGET_USD', 15.0)
     monkeypatch.setattr(settings, 'FAST_MODE', True)
     monkeypatch.setattr(settings, 'SHOW_COST', False)          # строку цены проверяет свой тест
+    monkeypatch.setattr(settings, 'PROGRESS_AFTER_S', {'answer': 3600, 'report': 3600})   # прогресс — в своих тестах
     monkeypatch.setattr(settings, 'QUESTION_BUDGET_USD', 2.0)
     monkeypatch.setattr(agent, '_disabled', set())
     monkeypatch.setattr(agent, '_fast_paused_until', 0.0)
@@ -849,7 +866,7 @@ def test_new_dialog_after_pause_and_after_catalog_change(bot):
                               dialog['turns'], now=time.time() - settings.DIALOG_IDLE_MINUTES * 60 - 5)
     bot.client.script += [resp(text('Ответ после паузы'))]
     bot.svc.handle_update(message('вопрос через три часа'))
-    assert bot.tg.sent[-1][1].startswith('*' + settings.NEW_DIALOG_NOTICE + '*')
+    assert bot.tg.sent[-1][1] == 'Ответ после паузы', '2026-10-29: после паузы — без пометки «Прошло много времени»'
     assert len(bot.client.calls[-1]['messages']) == 1
     bot.env.site.extra_tools = [site_tool('stocks_new_tool')]
     bot.svc.catalog_at = 0                     # каталог устарел — сайт выложил новый инструмент
@@ -1439,6 +1456,139 @@ def test_reply_to_chart_or_plain_bot_message_and_site_down(bot):
                                                                'text': 'мой вопрос'}))
     assert '<<<' not in bot.client.calls[-1]['messages'][-1]['content'][0]['text'], 'ответ не боту — без блока'
     assert (OWNER_TG, 63) not in bot.env.site.replied_calls
+
+
+# ------------------------------------------------------------------ прогресс (2026-10-29)
+
+class Clock:
+    def __init__(self, now=1000.0):
+        self.now = now
+
+    def __call__(self):
+        return self.now
+
+
+def test_progress_estimate_is_from_history_and_budget():
+    """«≈ осталось» — медиана (длительность − прошло) среди прошлых работ, шедших дольше; без истории —
+    типичные значения; «не дольше» — остаток предела при нынешнем темпе трат плюс шаги на завершение."""
+    history = [100, 200, 300, 400, 500, 600]
+    assert progress.remaining_estimate(history, 0, 'report') == 350
+    assert progress.remaining_estimate(history, 250, 'report') == 200, 'медиана (50, 150, 250, 350): прошедшее учтено'
+    assert progress.remaining_estimate(history, 700, 'report') is None, 'дольше всех прошлых'
+    assert progress.remaining_estimate([100, 200], 0, 'report') == \
+        statistics.median(progress.DEFAULT_SECONDS['report']), 'мало истории — типичные значения'
+    assert progress.upper_bound(elapsed=10, spent=0.5, limit=5, steps=3, finish_steps=3) is None, 'темп ещё не ясен'
+    bound = progress.upper_bound(elapsed=60, spent=1.0, limit=5.0, steps=6, finish_steps=3)
+    assert bound == pytest.approx(4.0 / (1.0 / 60) + 3 * 10)
+    assert progress.left_text(30) == 'меньше минуты' and progress.left_text(150) == '≈ 2 мин'
+    assert progress.bar(0.4) == '▰▰▰▰▱▱▱▱▱▱' and progress.plural(4, ('шаг', 'шага', 'шагов')) == 'шага'
+    assert progress.typical_seconds([1, 2, 3]) is None and progress.typical_seconds([10, 20, 30, 40, 50]) == 40
+
+
+def test_progress_text_shows_what_happens_now(monkeypatch):
+    monkeypatch.setattr(settings, 'SHOW_COST', True)
+    clock = Clock()
+    spend = agent.Spend(limit=5.0)
+    finishing = {'on': False}
+    tracker = progress.Tracker('report', spend, limit=5.0, durations=[200, 300, 400, 500, 600],
+                               tool_typical={'analytics_compare_periods': 40.0},
+                               titles={'analytics_compare_periods': 'Сравнение периодов'},
+                               is_finishing=lambda: finishing['on'], clock=clock)
+    clock.now += 100
+    spend.usd, spend.steps = 1.10, 8
+    tracker.tool_start('analytics_compare_periods')
+    clock.now += 12
+    lines = tracker.render().split('\n')
+    assert lines[0] == '<b>Собираю отчёт · 1:52</b>'
+    assert lines[1] == '▰▰▰▱▱▱▱▱▱▱ ≈ 5 мин осталось, не дольше 8 мин', \
+        'медиана (200…600 − 112) = 288 с; граница: $3.90 при $1.10 за 112 с + 3 шага по 14 с = 439 с'
+    assert lines[2] == 'Сейчас: «Сравнение периодов» — 12 с, обычно до 40 с'
+    assert lines[3] == 'Сделано: 8 шагов, 0 запросов данных · $1.10 из $5.00'
+    tracker.tool_done('analytics_compare_periods')
+    assert tracker.tool_times == [('analytics_compare_periods', 12)] and tracker.tool_calls == 1
+    tracker.agent_start('Зарплата')
+    tracker.tool_start('staff_salary')
+    assert 'Сейчас: агент «Зарплата»: «staff_salary» — 0 с' in tracker.render()
+    tracker.tool_done('staff_salary')
+    tracker.agent_done()
+    clock.now += 900                                       # дольше всех прошлых отчётов
+    spend.usd, spend.steps = 4.0, 30
+    second = tracker.render().split('\n')[1]
+    assert second.startswith('▰▰▰') and 'дольше обычного, не дольше' in second, 'шкала назад не ходит'
+    finishing['on'] = True
+    assert 'заканчиваю: собираю ответ из того, что уже есть' in tracker.render()
+    monkeypatch.setattr(settings, 'SHOW_COST', False)
+    assert '$' not in tracker.render()
+
+
+def test_progress_message_appears_updates_and_goes_away():
+    clock = Clock()
+    tg = FakeTelegram()
+    tracker = progress.Tracker('answer', agent.Spend(), limit=2.0, durations=[], tool_typical={}, titles={},
+                               clock=clock)
+    reporter = progress.Reporter(tg, '555', tracker, after_s=10, every_s=6, reply_to=7)
+    reporter.tick()
+    assert tg.typing_count == 1 and tg.status_sent == [], 'короткий ответ — только «печатает…»'
+    clock.now += 10
+    reporter.tick()
+    assert len(tg.status_sent) == 1 and tg.status_sent[0][2] == 7 and tracker.shown_at == 10
+    assert tg.status_sent[0][1].startswith('<b>Отвечаю · 0:10</b>')
+    clock.now += 3
+    reporter.tick()
+    assert tg.status_edits == [], 'правка не чаще раза в every_s'
+    clock.now += 3
+    reporter.tick()
+    assert len(tg.status_edits) == 1 and tg.status_edits[0][1].startswith('<b>Отвечаю · 0:16</b>')
+    reporter.stop()
+    assert tg.deleted == [901], 'ответ ушёл — сообщение о прогрессе убрано'
+
+    down = FakeTelegram()
+    down.send_status = lambda *a, **k: None                # Telegram не принял сообщение
+    tracker = progress.Tracker('report', agent.Spend(), limit=5.0, durations=[], tool_typical={}, titles={},
+                               clock=clock)
+    reporter = progress.Reporter(down, '555', tracker, after_s=3, every_s=6)
+    attempts = []
+    down.send_status = lambda *a, **k: attempts.append(clock.now)
+    for _ in range(10):
+        clock.now += 1
+        reporter.tick()
+    assert len(attempts) == 2 and tracker.shown_eta is None, 'повтор не чаще раза в 6 с; не показано — не в точность'
+
+
+def test_answer_records_history_and_cleans_progress(bot):
+    """Удачная работа — в историю оценки (job_stats, tool_stats); сообщение о прогрессе убирается после ответа;
+    точность «осталось» уходит сайту."""
+    bot.env.monkeypatch.setattr(settings, 'PROGRESS_AFTER_S', {'answer': 0, 'report': 0})
+    bot.client.script += [resp(use('common_whoami', {}, 't1'), stop='tool_use'), resp(text('Готово.'))]
+    bot.svc.handle_update(message('кто я'))
+    assert len(bot.tg.status_sent) == 1 and bot.tg.deleted == [901]
+    assert bot.tg.sent[-1][1] == 'Готово.'
+    row = bot.env.store._conn.execute('SELECT mode, steps, tool_calls, shown_eta FROM job_stats').fetchone()
+    assert (row['mode'], row['steps'], row['tool_calls']) == ('answer', 2, 1)
+    assert row['shown_eta'] == pytest.approx(statistics.median(progress.DEFAULT_SECONDS['answer']), abs=2)
+    assert bot.env.store.tool_durations()['common_whoami'][0] >= 0
+    bot.svc.report(force=True)
+    assert bot.env.site.reports[-1]['status']['eta'] == {'n': 0, 'ok': 0}
+    bot.env.store.add_job_stats(99, 'report', 300, steps=20, tool_calls=8, cost_usd=3, shown_eta=200, shown_at=60)
+    bot.env.store.add_job_stats(98, 'report', 300, steps=20, tool_calls=8, cost_usd=3, shown_eta=100, shown_at=60)
+    assert bot.env.store.eta_accuracy('report') == {'n': 2, 'ok': 1}, 'обещали 200, вышло 240 — точно; 100 — нет'
+
+
+def test_no_dialog_notice_on_reply_or_under_a_card(bot):
+    """Пометка «бот начал заново» — только над текстовым ответом и не при ответе на сообщение бота."""
+    bot.client.script += [resp(text('Первый'))]
+    bot.svc.handle_update(message('вопрос'))
+    bot.env.site.extra_tools = [site_tool('stocks_new_tool')]
+    bot.svc.catalog_at = 0
+    bot.client.script += [resp(use(tools.CHART_TOOL, {'chart': {}, 'caption': 'Ответ'}, 'c1'), stop='tool_use'),
+                          resp(text(''))]
+    bot.svc.handle_update(message('график'))
+    assert bot.tg.sent[-1][1] == 'Первый', 'под картинкой пометки нет'
+    bot.env.site.extra_tools = [site_tool('stocks_new_tool'), site_tool('stocks_newer_tool')]
+    bot.svc.catalog_at = 0
+    bot.client.script += [resp(text('С опорой на отчёт'))]
+    bot.svc.handle_update(message('а почему?', reply_to_message={'message_id': 70, 'from': BOT_AUTHOR, 'text': 'Итог'}))
+    assert bot.tg.sent[-1][1] == 'С опорой на отчёт', 'ответ на сообщение бота — без пометки'
 
 
 def test_header_has_weekdays_and_windows():

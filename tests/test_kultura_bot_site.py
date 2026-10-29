@@ -355,6 +355,11 @@ def test_report_checked_summed_and_shown(site_env):
     assert site_api.page_view()['status']['version'] == 'a1a666dfc354', 'версия кода бота — на странице'
     call(env, 'POST', '/api/bot/report', key, json={'status': dict(running, version='<script>')})
     assert site_api.page_view()['status']['version'] == '', 'не коммит — не показываем'
+    call(env, 'POST', '/api/bot/report', key, json={'status': dict(running, eta={'n': 12, 'ok': 10})})
+    assert site_api.page_view()['status']['eta'] == {'n': 12, 'ok': 10}, 'точность «осталось» — на странице'
+    for bad in ({'n': 2, 'ok': 5}, {'n': '12', 'ok': 1}, {'n': True, 'ok': 0}, 'много'):
+        call(env, 'POST', '/api/bot/report', key, json={'status': dict(running, eta=bad)})
+        assert site_api.page_view()['status']['eta'] == {}, bad
 
     denied = 'Anthropic отказал (403): проверьте ключ в консоли Anthropic'
     call(env, 'POST', '/api/bot/report', key, json={'status': dict(running, claude_error=denied)})
