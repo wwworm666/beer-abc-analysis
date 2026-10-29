@@ -15,6 +15,11 @@ core/mcp/tools/common.py).
                                         записка «Как считается» к ответу (kultura_bot/charts/
                                         reports.py): сервер бота вырезает её из ответа модели и
                                         ставит в сообщении ссылку (kultura_bot/links.py)
+    GET  /api/bot/replied?chat_id=&message_id=
+                                        {found: {kind: report|chart, id, title, text} | null} —
+                                        что было в сообщении бота, на которое человек ответил в
+                                        Telegram (продолжение работы, 2026-10-29): отчёт или
+                                        график этого чата текстом для модели (reports.reply_context)
 
 401 — нет ключа или не тот; 400 — ошибка ввода. Ответы не кэшируются (Cache-Control:
 no-store): в config — секреты.
@@ -101,6 +106,21 @@ def report():
     except ValueError as exc:
         return _error(400, str(exc))
     return _no_store(jsonify({'ok': True}))
+
+
+@bot_api_bp.route('/api/bot/replied')
+def replied():
+    """Отчёт или график, который бот отправил сообщением message_id в чат chat_id, — текстом для модели."""
+    if _engine() is None:
+        return _denied()
+    from kultura_bot.charts import reports
+    chat_id = str(request.args.get('chat_id') or '').strip()
+    message_id = str(request.args.get('message_id') or '').strip()
+    if not chat_id.lstrip('-').isdigit() or len(chat_id) > 21:
+        return _error(400, 'chat_id — число (у групп со знаком минус)')
+    if not message_id.isdigit() or len(message_id) > 12:
+        return _error(400, 'message_id — число')
+    return _no_store(jsonify({'found': reports.reply_context(chat_id, int(message_id))}))
 
 
 @bot_api_bp.route('/api/bot/note', methods=['POST'])

@@ -280,6 +280,16 @@ def test_bot_api_only_for_engine_key(site_env):
     assert call(env, 'GET', '/api/bot/config', key1).status_code == 401, 'новая команда — прежний ключ отозван'
     assert call(env, 'GET', '/api/bot/config', key2).status_code == 200
 
+    # Через настоящий гейт входа сайта: каждый маршрут /api/bot/* в PUBLIC_ENDPOINTS (у сервера бота нет
+    # cookie), а пускает его только ключ сервера бота. 2026-10-29: /api/bot/replied чуть не ушёл без этого —
+    # сервер бота получил бы «Требуется вход», и продолжение работы молча не работало бы.
+    from core.auth_guard import PUBLIC_ENDPOINTS
+    bot_endpoints = {r.endpoint for r in env.client.application.url_map.iter_rules() if r.endpoint.startswith('bot_api.')}
+    assert bot_endpoints and bot_endpoints <= PUBLIC_ENDPOINTS, bot_endpoints - PUBLIC_ENDPOINTS
+    r = call(env, 'GET', '/api/bot/replied?chat_id=555&message_id=1', key2)
+    assert r.status_code == 200 and r.get_json() == {'found': None}
+    assert call(env, 'GET', '/api/bot/replied?chat_id=555&message_id=1', other).status_code == 401
+
     key3 = engine_key(site_api.issue_install(env.anna)['command'])
     env.mgr.set_admin(env.anna['id'], False)
     assert call(env, 'GET', '/api/bot/config', key3).status_code == 401, 'владелец ключа больше не админ'
