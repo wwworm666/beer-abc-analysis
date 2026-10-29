@@ -61,7 +61,7 @@ Guests.registerView('churn', function (pane) {
             G.metricCard('churn_rate', 'Отток за период', G.fmtPct(p.churn_pct), churnSub) +
             G.metricCard('churn_balance', 'Ушли', G.fmtNum(leftCount(p)),
                 'из них после одного визита: ' + G.fmtNum(one)) +
-            G.metricCard('churn_balance', 'Новые', G.fmtNum(p.new),
+            G.metricCard('churn_balance', 'Новые гости', G.fmtNum(p.new),
                 'вернулись после паузы: ' + G.fmtNum(p.reactivated)) +
             G.metricCard('churn_balance', 'Живые на конец', G.fmtNum(p.end_alive),
                 'на начало: ' + G.fmtNum(p.start_alive)) +
@@ -72,8 +72,8 @@ Guests.registerView('churn', function (pane) {
 
     function balanceTable(rows, type) {
         var html = '<div class="gtable-wrap"><table class="gtable"><thead><tr>' +
-            '<th>Период</th><th class="num">Живые на начало</th><th class="num">Новые</th>' +
-            '<th class="num">Вернулись</th><th class="num">Ушли</th>' +
+            '<th>Период</th><th class="num">Живые на начало</th><th class="num">Новые гости</th>' +
+            '<th class="num">Вернулись после паузы</th><th class="num">Ушли</th>' +
             '<th class="num">Живые на конец</th><th class="num">Отток</th>' +
             '<th class="num">Не вернулись после 1-го визита</th></tr></thead><tbody>';
         rows.slice().reverse().forEach(function (r) {
@@ -123,9 +123,9 @@ Guests.registerView('churn', function (pane) {
               borderColor: pal.warning, backgroundColor: pal.warning, tension: 0.3, pointRadius: 2 }
         ], { beginAtZero: true });
         GCharts.bar('churnFlowChart', labels, [
-            { label: 'Новые', data: rows.map(function (r) { return r.new; }),
+            { label: 'Новые гости', data: rows.map(function (r) { return r.new; }),
               backgroundColor: pal.accent, stack: 'flow' },
-            { label: 'Вернулись', data: rows.map(function (r) { return r.reactivated; }),
+            { label: 'Вернулись после паузы', data: rows.map(function (r) { return r.reactivated; }),
               backgroundColor: pal.success, stack: 'flow' },
             { label: 'Ушли',
               data: rows.map(function (r) { return r.state === 'future' ? null : -leftCount(r); }),

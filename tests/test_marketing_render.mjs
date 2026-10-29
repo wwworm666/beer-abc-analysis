@@ -185,6 +185,34 @@ test('«Отток»: порог по умолчанию и выбор — те 
     assert.ok(!churn.includes('localStorage'), 'порог не должен запоминаться между визитами');
 });
 
+test('единый словарь раздела: одно слово — один смысл (2026-10-29)', () => {
+    const views = TABS.map((t) => read(`static/js/guests/views-${t}.js`)).join('\n');
+    // Статусы «Активности» — по-русски, как «живые / ушли» на «Оттоке».
+    for (const en of ["'Active'", "'Sleeping'", "'At Risk'", "'Lost'", 'Active (до', 'Lost (180']) {
+        assert.ok(!views.includes(en), `английский статус в видах: ${en}`);
+    }
+    const activity = read('static/js/guests/views-activity.js');
+    for (const ru of ['Активные', 'Засыпают', 'Под угрозой', 'Потеряны']) {
+        assert.ok(activity.includes(ru), `нет статуса «${ru}»`);
+    }
+    assert.ok(activity.includes("s.segment !== 'active'"),
+        'рост «Засыпают», «Под угрозой», «Потеряны» должен быть красным, а не зелёным');
+    // RFM: «Уходящие» и «Под риском» путались с «Ушли» оттока и «Под угрозой».
+    const rfm = read('static/js/guests/views-rfm.js');
+    assert.ok(!/AT_RISK: 'Под риском'|CHURNED: 'Уходящие'/.test(rfm), 'старые названия RFM');
+    assert.ok(rfm.includes("RARE_LOST: 'Редкие, пропали'") && rfm.includes("'rfm_seg_rare_lost'"),
+        'нет сегмента «Редкие, пропали»');
+    assert.ok(formulas.includes('rfm_seg_rare_lost:'), 'нет формулы сегмента «Редкие, пропали»');
+    // Одно число — одно название.
+    assert.ok(!views.includes("'База гостей'") && !views.includes("'Первые заказы"),
+        '«База гостей» / «Первые заказы» вместо «Размер базы» / «Новые гости»');
+    assert.ok(!/label: 'Вернулись'|>Вернулись</.test(views), '«Вернулись» без «после паузы» на «Оттоке»');
+    assert.ok(!views.includes('от частоты'), 'в LTV «от частоты» вместо «от чеков на гостя»');
+    // Время обновления витрины — по Москве.
+    assert.ok(!formulas.includes('ночью в 05:10') && formulas.includes('08:10 МСК'),
+        'время обновления витрины в «Как считается»');
+});
+
 test('«Рост базы» без динамики: два разных «Ушедших» на странице недопустимы', () => {
     const growth = read('static/js/guests/views-growth.js');
     assert.ok(!growth.includes('base-dynamics') && !growth.includes('dynChart'),
