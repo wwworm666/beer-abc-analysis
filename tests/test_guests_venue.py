@@ -169,6 +169,13 @@ class TestGrowthAndActivity(VenueBase):
 
 class TestCohorts(VenueBase):
     def test_retention_counts_returns_to_this_bar(self):
+        # Возврат созревает по последнему полному дню данных (2026-10-29), а чеки фикстуры
+        # кончаются 20.03: гость из другого бара продлевает данные до 30.06.
+        with self.store.conn() as conn:
+            conn.execute("INSERT INTO receipts (open_date, store, order_num, guest_id, revenue, "
+                         "discount, full_sum) VALUES ('2026-06-30', 'varshavskaya', '0', "
+                         "'79009', 100, 0, 100)")
+            conn.commit()
         period, meta = self.ctx('month', '2026-06-15')      # срез 30.06
         net = {c['cohort']: c for c in ga.cohort_retention(self.store, period, meta)['cohorts']}
         bol = {c['cohort']: c for c in

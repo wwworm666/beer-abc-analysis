@@ -236,6 +236,9 @@ class TestNeverBuyersReport(NeverCardsBase):
         """Знаменатель конверсии = купившие + подтверждённые некупившие."""
         # Трое зарегистрировались в мае: один купил, двое нет.
         self.add_buyer('79001110011', '2005001', '2026-05-10', '2026-05-10')
+        # Данные витрины идут дальше мая: дата среза мая — 31.05, а не последний чек
+        # мая (с 2026-10-29 все отчёты режутся по последнему полному дню данных).
+        self.add_buyer('79009990001', '2009991', '2026-06-05', '2026-06-05')
         self.store.replace_never_cards(guest_sync.transform_never_cards([
             orderia_row('1', '2005002', '79001110022', '2026-05-11'),
             orderia_row('2', '2005003', '79001110033', '2026-05-12'),
@@ -334,6 +337,7 @@ class TestSummaryIntegration(NeverCardsBase):
 
     def test_summary_uses_full_denominator_when_available(self):
         self.add_buyer('79001110011', '2005001', '2026-05-10', '2026-05-10')
+        self.add_buyer('79009990001', '2009991', '2026-06-05', '2026-06-05')   # данные до июня
         self.store.replace_never_cards(guest_sync.transform_never_cards([
             orderia_row('1', '2005002', '79001110022', '2026-05-11'),
             orderia_row('2', '2005003', '79001110033', '2026-05-12'),

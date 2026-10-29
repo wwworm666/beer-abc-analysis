@@ -120,7 +120,8 @@ EXPLORER_REPORT_ID_PATTERN = r'^[0-9a-f]{12}$'
 GUEST_PERIOD_TYPES: Tuple[str, ...] = ('week', 'month', 'quarter', 'year')
 
 # Сегменты RFM (core/guest_analytics.RFM_SEGMENTS) — фильтр segment= через запятую.
-RFM_SEGMENTS: Tuple[str, ...] = ('CHAMPIONS', 'LOYAL', 'POTENTIAL', 'NEW', 'AT_RISK', 'CHURNED')
+RFM_SEGMENTS: Tuple[str, ...] = ('CHAMPIONS', 'LOYAL', 'POTENTIAL', 'NEW', 'AT_RISK', 'CHURNED',
+                                  'RARE_LOST')
 RFM_SEGMENT_PATTERN = ('^(' + '|'.join(RFM_SEGMENTS) + ')(,(' + '|'.join(RFM_SEGMENTS) + '))*$')
 # Потолок limit у агента. Строка гостя RFM — около 255 знаков JSON (замер 2026-09-28:
 # 2 214 гостей, 568 тыс. знаков), 200 строк — около 51 тыс.: ответ целиком помещается в
@@ -212,13 +213,15 @@ def _guest_period_props() -> dict:
         },
         'anchor': _date('Любая дата внутри нужного периода, YYYY-MM-DD; по умолчанию сегодня '
                         '(МСК). Пример: period_type=month, anchor=2026-08-15 — август 2026. '
-                        'Дата среза отчётов = min(конец периода, сегодня).'),
+                        'Дата среза отчётов = min(конец периода, последний полный день данных); '
+                        'период считается с первого дня по дату среза.'),
     }
 
 
 _GUEST_META_NOTE = ('Считается по локальной витрине чеков гостей с картой лояльности (ночная '
                     'синхронизация), в iiko не ходит; meta ответа — границы периода, дата среза '
-                    'asof, бар (venue; null — вся сеть), покрытие витрины и last_synced_at.')
+                    'asof, последний полный день данных data_to, бар (venue; null — вся сеть), '
+                    'покрытие витрины и last_synced_at.')
 
 # Бар отчётов «Маркетинга» (routes/guests.py::_ctx, core/guest_analytics.py, докстринг).
 _GUEST_VENUE_NOTE = ('store — бар: отчёт считается так, будто в сети один этот бар (только '
@@ -1294,9 +1297,11 @@ def _guests_tool(name, title, description, path, extra_props=None, extra_query=(
 _T_GUESTS = [
     _guests_tool(
         'analytics_guests_summary', 'Гости: сводка маркетолога',
-        'Вкладка «Сводка» страницы «Маркетинг» (/guests): base_size (гостей в базе — все, кто '
-        'хоть раз купил с картой), active_guests (визит за 30 дней до даты среза), '
-        'activity_segments, registrations и first_orders (за период и YTD), conversion_pct, '
+        'Вкладка «Сводка» страницы «Маркетинг» (/guests): base_size («Размер базы» — гости с '
+        'первым чеком с картой не позже даты среза), active_guests (визит за 30 дней до даты '
+        'среза), '
+        'activity_segments, registrations и first_orders («Новые гости», за период и YTD), '
+        'conversion_pct, '
         'avg_days_to_first_order, avg_frequency (визитов на гостя), avg_check (₽ = выручка / '
         'чеки), revenue_period и orders_period (только чеки с картой), avg_ltv (₽, на дату '
         'avg_ltv_asof — как analytics_guests_ltv), '
@@ -1310,7 +1315,9 @@ _T_GUESTS = [
         'Рост клиентской базы (§1), за период и YTD: registrations (гости с датой регистрации '
         'карты в периоде), first_orders (гости с первым чеком в периоде), conversion_pct '
         '(зарегистрированные в периоде с заказом до конца периода / регистрации; справочно — '
-        'видны только купившие), avg_days_to_first_order; lifetime.base_size — размер базы. '
+        'видны только купившие), avg_days_to_first_order; lifetime.base_size — размер базы на '
+        'дату среза; first_orders на странице — «Новые гости» (то же число, что new у '
+        'analytics_guests_churn). '
         'С store: first_orders — первый чек гостя именно в этом баре (новые гости бара); '
         'registrations и conversion_pct — гости, чья первая покупка в сети была в этом баре; '
         'base_size — гости с хотя бы одним чеком в баре.',
@@ -1325,9 +1332,10 @@ _T_GUESTS = [
         'new (первый визит в периоде), new_died (новые, мёртвые к срезу), bounced (вернулись и '
         'снова ушли, в баланс не входят), end_alive; баланс end_alive = start_alive + new + '
         'reactivated − (died + new_died). churn_pct = died / start_alive, %; '
-        'newbie_no_return_pct — новые без второго визита за dead_days + 1 дней (null, пока '
-        'период не созрел, дата — newbie_matures_on). Своя дата среза: asof = min(конец '
-        'периода, data_to), data_to — последний ПОЛНЫЙ день данных, а не сегодня; state — '
+        'newbie_no_return_pct — новые без второго визита за dead_days дней: то же окно и '
+        'созревание, что у analytics_guests_retention, для месяца это 100 − returned_pct того '
+        'же окна (null, пока период не созрел, дата — newbie_matures_on). Дата среза строки: '
+        'asof = min(конец периода, data_to), data_to — последний ПОЛНЫЙ день данных; state — '
         'complete / partial / future (у future все числа null). leavers — ушедшие выбранного '
         'периода по числу визитов за жизнь (1 / 2-3 / 4-8 / 9+): count, share_pct, avg_ltv (₽). '
         'Формулы — guests.md, §17.',
@@ -1346,7 +1354,8 @@ _T_GUESTS = [
     _guests_tool(
         'analytics_guests_activity', 'Гости: активность базы',
         'Статусы базы на дату среза (§3) по дням с последнего визита: active ≤ 30, sleeping '
-        '31–90, at_risk 91–180, lost > 180; count, share_pct, а prev_count и delta — то же на '
+        '31–90, at_risk 91–180, lost > 180 (на странице: «Активные», «Засыпают», «Под угрозой», '
+        '«Потеряны»); count, share_pct, а prev_count и delta — то же на '
         'конец предыдущего периода; население — гости с первым заказом не позже среза '
         '(total_with_orders).',
         '/api/guests/activity',
@@ -1371,7 +1380,7 @@ _T_GUESTS = [
         "Retention (§5): когорта — месяц первой покупки (basis='first_order', по умолчанию) или "
         "регистрации (basis='registration'); returned_pct — доля гостей с визитом в окнах "
         '30/60/90/180/365 дней после первой покупки. Недозревшая ячейка (конец месяца когорты '
-        '+ окно позже даты среза) — null, а не ноль; до 24 последних когорт.',
+        '+ окно позже последнего полного дня данных) — null, а не ноль; до 24 последних когорт.',
         '/api/guests/retention',
         extra_props={'basis': {'type': 'string', 'enum': ['first_order', 'registration'],
                                'description': 'Базис когорты, по умолчанию first_order.'}},
@@ -1393,8 +1402,12 @@ _T_GUESTS = [
         'Единственная RFM-сегментация проекта (§7) на дату среза, окно 365 дней: R — дни с '
         'последнего визита (пороги 7/14/30/60), F — визиты за окно (260/104/52/12: 5+ в неделю, '
         '2+ в неделю, раз в неделю, раз в месяц), M — выручка окна. Ответ: total_guests, '
-        'segments (CHAMPIONS, LOYAL, POTENTIAL, NEW, AT_RISK, CHURNED — count, share_pct, '
-        'revenue ₽) и guests — гости окна с телефоном, картой, именем, recency_days, '
+        'segments (count, share_pct, revenue ₽; на странице: CHAMPIONS «Чемпионы», LOYAL '
+        '«Лояльные» — визит до 14 дней, NEW «Новички» — один визит за окно и он до 7 дней, '
+        'POTENTIAL «Потенциальные» — реже раза в неделю и визит 15–60 дней назад, AT_RISK «Частые, '
+        'пропадают» — раз в неделю и чаще, 15–60 дней, CHURNED «Частые, пропали» — раз в неделю и '
+        'чаще, больше 60 дней, RARE_LOST «Редкие, пропали» — реже раза в неделю, больше 60 дней) и '
+        'guests — гости окна с телефоном, картой, именем, recency_days, '
         'frequency, orders, avg_check, monetary и сегментом, по убыванию выручки окна. Без '
         'фильтров guests — ВСЕ гости (тысячи строк, 500+ тыс. знаков: мост урежет), поэтому '
         'всегда передавайте limit (например 50) и при нужде segment и q; segments и '
@@ -1405,8 +1418,8 @@ _T_GUESTS = [
         extra_props={
             'segment': {'type': 'string', 'pattern': RFM_SEGMENT_PATTERN,
                         'description': ('Только эти сегменты, через запятую: CHAMPIONS, LOYAL, '
-                                        'POTENTIAL, NEW, AT_RISK, CHURNED (например '
-                                        "'AT_RISK,CHURNED').")},
+                                        'POTENTIAL, NEW, AT_RISK, CHURNED, RARE_LOST (например '
+                                        "'CHURNED,RARE_LOST' — все пропавшие).")},
             'q': {'type': 'string', 'minLength': 2,
                   'description': ('Поиск в списке: подстрока имени, номера карты или guest_id; '
                                   'телефон сравнивается по цифрам (ищите по последним цифрам).')},
@@ -1610,9 +1623,9 @@ INSTRUCTIONS = """\
   эксклюзивный) добавляет сервер. День = учётный день iiko, «сегодня» — по Москве.
 - Неделя пн–вс; месяц, квартал, год — календарные. У идущего периода факт только по сегодня,
   а план — за весь период: сравнивайте с analytics_revenue_metrics или с планом тех же дат.
-- «Маркетинг»: period_type + anchor; дата среза = min(конец периода, сегодня); RFM — окно
-  365 дней на дату среза, список гостей — всегда с limit (и segment / q по задаче).
-  Отток и LTV — по последний полный день данных (data_to / asof в ответе), не по сегодня.
+- «Маркетинг»: period_type + anchor; дата среза = min(конец периода, последний полный день
+  данных — meta.data_to), не «сегодня»; RFM — окно 365 дней на дату среза, список гостей —
+  всегда с limit (и segment / q по задаче).
 - Месячный отчёт — только закрытые месяцы (пересчёт ночью 1-го числа); текущий месяц там
   нули, берите analytics_dashboard.
 

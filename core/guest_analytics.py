@@ -7,15 +7,20 @@
 
 Временная логика ТЗ (обязательная для всех разделов):
 - Primary Period: неделя (ISO пн-вс) / календарный месяц / квартал / год;
-- YTD: с 1 января года даты окончания периода по конец периода;
+- YTD: с 1 января года даты окончания периода по дату среза;
 - Lifetime: вся загруженная история (покрытие витрины — в meta каждого ответа).
+
+Дата среза (meta['asof']) одна на все отчёты раздела: min(конец периода, последний
+ПОЛНЫЙ день данных) — решение владельца 2026-10-29. Период считается с первого дня по
+дату среза. «Сегодня» не годится: витрина обновляется ночью, и паузы, измеренные до
+дня, которого в ней ещё нет, разводили «Активных» и «Живых» оттока.
 
 Зафиксированные ТЗ правила:
 - когорты жизненного цикла — от месяца РЕГИСТРАЦИИ, Lifetime-логика;
 - retention — от месяца ПЕРВОЙ ПОКУПКИ, окна 30/60/90/180/365 дней;
 - RFM — скользящее окно 12 месяцев (365 дней) на дату среза, НЕ Lifetime;
-- статусы активности — по последнему визиту на дату окончания периода:
-  Active <= 30 дн, Sleeping 31-90, At Risk 91-180, Lost > 180.
+- статусы активности — по последнему визиту на дату среза: Активные (active) <= 30 дн,
+  Засыпают (sleeping) 31-90, Под угрозой (at_risk) 91-180, Потеряны (lost) > 180.
 
 Отток (§17, решение владельца 2026-10-27; заменил §13 «Динамику базы»): гость
 «жив» на дату, если с последнего визита прошло не больше X дней, и «мёртв», если
@@ -84,8 +89,8 @@ RFM_F_THRESHOLDS = (260, 104, 52, 12)       # F5 >=260, F4 >=104, F3 >=52, F2 >=
 
 # Отток (§17): гость «мёртв», если с последнего визита прошло больше X дней.
 # Переключатель вкладки — эти четыре порога; по умолчанию 30 (решение владельца
-# 2026-10-27) — это и порог Active в §3, поэтому при X = 30 «живые» = Active, а при
-# X = 180 «мёртвые» = Lost. Схема MCP перечисляет те же значения (enum).
+# 2026-10-27) — это и порог «Активных» в §3, поэтому при X = 30 «живые» = Активные, а
+# при X = 180 «мёртвые» = Потерянные. Схема MCP перечисляет те же значения (enum).
 CHURN_DEAD_DAYS_CHOICES = (30, 60, 90, 180)
 CHURN_DEAD_DAYS_DEFAULT = 30
 # Длина ряда по умолчанию — сколько периодов выбранного типа видно на графике:
@@ -180,9 +185,13 @@ def build_meta(store, period, venue=None):
     """
     venue = resolve_venue(venue)
     cov = store.coverage()
-    today = msk_time.today()
     p_end = period['p_end']
-    asof = min(p_end, today)
+    # Дата среза — последний ПОЛНЫЙ день данных, одна на все отчёты раздела (решение
+    # владельца 2026-10-29): «сегодня» мерило паузы до дня, которого в витрине ещё нет,
+    # и «Активные» расходились с «Живыми» оттока. Без чеков — вчерашний рабочий день.
+    last_full = _last_full_day(cov['date_to'])
+    cut = last_full or (msk_time.business_today() - timedelta(days=1)).isoformat()
+    asof = min(p_end.isoformat(), cut)
     with store.conn() as conn:
         total = conn.execute("SELECT COUNT(*) n FROM guests").fetchone()['n']
         fb = conn.execute("SELECT COUNT(*) n FROM guests "
@@ -193,7 +202,8 @@ def build_meta(store, period, venue=None):
         'period_label': period['label'],
         'p_start': period['p_start'].isoformat(),
         'p_end': p_end.isoformat(),
-        'asof': asof.isoformat(),
+        'asof': asof,
+        'data_to': last_full,
         'ytd_start': date(p_end.year, 1, 1).isoformat(),
         'venue': venue,
         'venue_name': VENUES.get(venue, {}).get('name') if venue else None,
@@ -332,7 +342,7 @@ def _pct(part, total, digits=1):
     return round(100.0 * part / total, digits) if total else 0.0
 
 
-def data_to(meta):
+def _last_full_day(coverage_to):
     """Последний ПОЛНЫЙ учётный день витрины (ISO) или None, если чеков нет.
 
     min(последний день с чеками, рабочий день бара - 1 день). Последний день с
@@ -343,11 +353,20 @@ def data_to(meta):
     сети и для бара: полнота данных — свойство синка (один запрос на все бары), а
     не бара; по последнему чеку бара отток «замирал» бы как раз на его закрытии.
     """
-    cov_to = meta.get('coverage_to')
-    if not cov_to:
+    if not coverage_to:
         return None
     last_full = (msk_time.business_today() - timedelta(days=1)).isoformat()
-    return min(cov_to, last_full)
+    return min(coverage_to, last_full)
+
+
+def data_to(meta):
+    """Последний полный день данных из meta отчёта (см. _last_full_day) или None."""
+    return _last_full_day(meta.get('coverage_to'))
+
+
+def _cut_day(meta):
+    """Последний полный день для дат среза, как в build_meta: без чеков — вчерашний рабочий."""
+    return meta.get('data_to') or (msk_time.business_today() - timedelta(days=1)).isoformat()
 
 
 def parse_dead_days(raw):
@@ -420,8 +439,12 @@ def base_growth(store, period, meta, venue=None):
     регистрации, конверсия и дни до заказа — по гостям, чья первая покупка в сети
     была в этом баре (за ним закреплена регистрация); размер базы — гости с хотя
     бы одним чеком в баре.
+
+    Период и размер базы — по дату среза (meta['asof'], последний полный день данных):
+    «новые гости» те же, что у оттока, а размер базы прошлого периода не растёт от
+    гостей, пришедших позже (2026-10-29).
     """
-    p_start, p_end = period['p_start'].isoformat(), period['p_end'].isoformat()
+    p_start, p_end = period['p_start'].isoformat(), meta['asof']
     ytd_start = meta['ytd_start']
     fallback = meta['fallback_mode']
     venue = resolve_venue(venue)
@@ -461,10 +484,12 @@ def base_growth(store, period, meta, venue=None):
     with store.conn() as conn:
         if venue:
             base_size = conn.execute(
-                "SELECT COUNT(DISTINCT guest_id) n FROM receipts WHERE store = ?",
-                (venue,)).fetchone()['n']
+                "SELECT COUNT(DISTINCT guest_id) n FROM receipts "
+                "WHERE store = ? AND open_date <= ?", (venue, p_end)).fetchone()['n']
         else:
-            base_size = conn.execute("SELECT COUNT(*) n FROM guests").fetchone()['n']
+            base_size = conn.execute(
+                "SELECT COUNT(*) n FROM guests WHERE first_order_date <= ?",
+                (p_end,)).fetchone()['n']
         out = {
             'period': slice_metrics(conn, p_start, p_end),
             'ytd': slice_metrics(conn, ytd_start, p_end),
@@ -498,9 +523,8 @@ def activity(store, period, meta, venue=None):
     С баром (venue) — гости бара и их визиты только в него: статус считается от
     последнего визита В ЭТОТ бар.
     """
-    today = msk_time.today()
-    asof = min(period['p_end'], today).isoformat()
-    prev_asof = min(period['prev_end'], today).isoformat()
+    asof = meta['asof']
+    prev_asof = min(period['prev_end'].isoformat(), _cut_day(meta))
     venue = resolve_venue(venue)
     with store.conn() as conn:
         guests = _load_guests(conn, venue)
@@ -527,9 +551,9 @@ def activity(store, period, meta, venue=None):
 def frequency(store, period, meta, venue=None):
     """Частота визитов за Primary Period (ТЗ §4): сегменты и средняя частота.
 
-    С баром (venue) — визиты только в этот бар.
+    С баром (venue) — визиты только в этот бар. Период — по дату среза (meta['asof']).
     """
-    p_start, p_end = period['p_start'].isoformat(), period['p_end'].isoformat()
+    p_start, p_end = period['p_start'].isoformat(), meta['asof']
     ytd_start = meta['ytd_start']
     store_sql, store_params = _venue_cond(resolve_venue(venue))
 
@@ -630,8 +654,12 @@ def cohort_retention(store, period, meta, basis='first_order', months_limit=24,
 
     Когорта = месяц первой покупки (или регистрации). Возврат = визит в окне
     (первая покупка, первая покупка + N дней], N из RETENTION_WINDOWS.
-    Ячейка зрелая, только если конец месяца когорты + N <= дата среза; иначе
-    None (в UI прочерк) — недозревшие когорты не занижают проценты.
+    Ячейка зрелая, только если конец месяца когорты + N <= последнего полного дня
+    данных; иначе None (в UI прочерк) — недозревшие когорты не занижают проценты.
+    Зрелость — по данным, а не по концу выбранного периода (2026-10-29): возврат за
+    окно — свойство когорты, после созревания оно не меняется, а «Не вернулись после
+    первого визита» на «Оттоке» созревает по тому же правилу и с тем же окном, поэтому
+    вместе с «Возвратами через X дней» даёт 100% и прочерки стоят в тех же местах.
 
     С баром (venue) первая покупка и возвраты — только в этом баре: вернулся ли
     гость именно сюда.
@@ -659,13 +687,14 @@ def cohort_retention(store, period, meta, basis='first_order', months_limit=24,
             # визит СТРОГО после первой покупки и не позже first + w
             if _visits_between(vd, first, win_end) - _visits_between(vd, first, first) > 0:
                 c['returned'][w] += 1
+    known = _cut_day(meta)
     rows = []
     for ym in sorted(cohorts.keys(), reverse=True)[:months_limit]:
         c = cohorts[ym]
         month_end = _parse_date(_month_end_iso(ym))
         cells = {}
         for w in RETENTION_WINDOWS:
-            matured = (month_end + timedelta(days=w)).isoformat() <= asof
+            matured = (month_end + timedelta(days=w)).isoformat() <= known
             cells[str(w)] = _pct(c['returned'][w], c['n']) if matured else None
         rows.append({'cohort': ym, 'guests': c['n'], 'returned_pct': cells})
     return {'basis': basis, 'windows': RETENTION_WINDOWS, 'cohorts': rows}
@@ -746,7 +775,13 @@ def _rfm_f_code(visits_in_window):
 
 
 def _rfm_segment(r_code, f_code, visits_in_window):
-    """Именованный сегмент — та же модель, что /discounts (get_rfm_segment)."""
+    """Именованный сегмент — модель /discounts (get_rfm_segment) плюс RARE_LOST.
+
+    RARE_LOST (2026-10-29, решение владельца): ходили реже раза в неделю (F1/F2, меньше
+    52 визитов за окно) и не были больше 60 дней (R1). Раньше они падали в POTENTIAL с
+    описанием «визит свежий» — так в «Потенциальных» оказывались почти все пропавшие
+    редкие гости, а «Уходящие» (CHURNED) брали только частых.
+    """
     if r_code == 5 and f_code >= 4:
         return 'CHAMPIONS'
     if r_code == 1 and f_code >= 3:
@@ -757,6 +792,8 @@ def _rfm_segment(r_code, f_code, visits_in_window):
         return 'NEW'
     if r_code in (4, 5):
         return 'LOYAL'
+    if r_code == 1:
+        return 'RARE_LOST'
     if f_code in (1, 2):
         return 'POTENTIAL'
     return 'LOYAL'
@@ -835,7 +872,7 @@ def rfm(store, period, meta, include_guests=True, venue=None):
 
 
 # Имена сегментов RFM (результат _rfm_segment) — допустимые значения фильтра segment=.
-RFM_SEGMENTS = ('CHAMPIONS', 'LOYAL', 'POTENTIAL', 'NEW', 'AT_RISK', 'CHURNED')
+RFM_SEGMENTS = ('CHAMPIONS', 'LOYAL', 'POTENTIAL', 'NEW', 'AT_RISK', 'CHURNED', 'RARE_LOST')
 # Минимальная длина подстроки q= в списке гостей RFM — как у поиска гостя (§12,
 # /api/guests/search): одна цифра совпала бы с половиной базы.
 RFM_QUERY_MIN_LEN = 2
@@ -1115,10 +1152,12 @@ def churn_all(store, period, meta, periods=None, venue=None):
       на asof (бывает, только если X короче периода);
     - баланс: end_alive = start_alive + new + reactivated - (died + new_died);
     - churn_pct = died / start_alive (ушедшие за период / база на начало), 1 знак;
-    - newbie_no_return — новые без второго визита в (первый, первый + X + 1]: окно
-      на день длиннее «через N дней» §5, день в день с правилом «мёртв» (при X = 30
-      вернувшийся на 31-й день ни дня не был мёртвым). Доля зрелая, только если
-      конец периода + X + 1 <= data_to, иначе None (дата — newbie_matures_on);
+    - newbie_no_return — новые без второго визита в (первый, первый + X]: то же окно
+      и то же правило зрелости, что у «Возвратов через N дней» §5 (решение владельца
+      2026-10-29), поэтому для месяца это ровно 100% минус «Возвраты через X дней».
+      Доля зрелая, только если конец периода + X <= data_to, иначе None (дата —
+      newbie_matures_on). Гость, вернувшийся на (X + 1)-й день, здесь «не вернулся»,
+      хотя мёртвым ни дня не был: согласованность с «Возвратами» важнее;
     - leavers (только выбранный период): died + new_died по числу визитов за жизнь
       до asof (CHURN_LEAVER_BUCKETS), средний LTV — выручка до asof.
 
@@ -1207,10 +1246,10 @@ def churn_all(store, period, meta, periods=None, venue=None):
                         new_died[j] += 1
                         if selected:
                             leavers[j].append((i1, cum[i1 - 1]))
-                    if second_gap is None or second_gap > x + 1:
+                    if second_gap is None or second_gap > x:
                         no_return[j] += 1
         for j, x in enumerate(choices):
-            matures_o = e_o + x + 1
+            matures_o = e_o + x
             mature = matures_o <= dt_o
             row = dict(base)
             row.update({
@@ -1263,9 +1302,10 @@ def products(store, period, meta, mode='top', limit=30, venue=None):
     С баром (venue) — только позиции чеков этого бара; «первые покупки» — что
     гость взял в день первого визита именно в этот бар, «повторные» — позиции
     после него. При равенстве главного показателя порядок — по названию:
-    иначе порядок равных зависел бы от плана запроса SQLite.
+    иначе порядок равных зависел бы от плана запроса SQLite. Период — по дату среза
+    (meta['asof']).
     """
-    p_start, p_end = period['p_start'].isoformat(), period['p_end'].isoformat()
+    p_start, p_end = period['p_start'].isoformat(), meta['asof']
     venue = resolve_venue(venue)
     items_sql, items_params = _venue_cond(venue)
     i_sql, i_params = _venue_cond(venue, 'i.store')
@@ -1349,12 +1389,13 @@ def product_pairs(store, period, meta, scope='lifetime', limit=30, venue=None):
     Поддержка = чеки с парой / чеки с >= 2 разными позициями;
     уверенность A->B = чеки с парой / чеки с товаром A (в том же охвате).
     С баром (venue) — только чеки этого бара (чек и так всегда в одном баре).
+    Оба охвата — по дату среза (meta['asof']): «за всю историю» значит «до даты среза».
     """
     if scope == 'period':
-        d_from, d_to = period['p_start'].isoformat(), period['p_end'].isoformat()
+        d_from, d_to = period['p_start'].isoformat(), meta['asof']
     else:
         scope = 'lifetime'
-        d_from, d_to = '0000-01-01', '9999-12-31'
+        d_from, d_to = '0000-01-01', meta['asof']
     venue = resolve_venue(venue)
     store_sql, store_params = _venue_cond(venue)
     a_sql, a_params = _venue_cond(venue, 'a.store')
@@ -1406,9 +1447,10 @@ def venues_analytics(store, period, meta, venue=None):
     природе межбарный. Поэтому население сужается до гостей бара (хоть один чек
     в нём), а их визиты берутся по ВСЕМ барам сети: откуда они пришли (первая
     точка), какой бар любимый, где ещё бывают и какую долю визитов отдают этому
-    бару. guests_total — размер этого населения.
+    бару. guests_total — размер этого населения. Визиты за период — по дату среза
+    (meta['asof']); первая и любимая точка и визиты «за всю историю» — по всей истории.
     """
-    p_start, p_end = period['p_start'].isoformat(), period['p_end'].isoformat()
+    p_start, p_end = period['p_start'].isoformat(), meta['asof']
     venue = resolve_venue(venue)
     # Фильтр «гости бара» — по guest_id, а не по store: визиты в другие бары нужны.
     pop_cond = "guest_id IN (SELECT guest_id FROM receipts WHERE store = ?)"
@@ -1509,10 +1551,14 @@ def search_guests(store, q, limit=20):
 
 
 def guest_card(store, guest_id, period, meta):
-    """Карточка гостя (ТЗ §12): все три среза + RFM и статус на дату среза."""
-    p_start, p_end = period['p_start'].isoformat(), period['p_end'].isoformat()
-    ytd_start = meta['ytd_start']
+    """Карточка гостя (ТЗ §12): все три среза + RFM и статус на дату среза.
+
+    Период и YTD — по дату среза (meta['asof']); «за всю историю» и LTV гостя — по
+    сегодняшний день: карточка показывает человека целиком.
+    """
     asof = meta['asof']
+    p_start, p_end = period['p_start'].isoformat(), asof
+    ytd_start = meta['ytd_start']
     with store.conn() as conn:
         g = conn.execute("SELECT * FROM guests WHERE guest_id = ?",
                          (guest_id,)).fetchone()
@@ -1711,9 +1757,10 @@ def never_buyers(store, period, meta, months=24, include_list=False):
     зарегистрировались(P) = купившие с датой регистрации в P + подтверждённые
     некупившие с датой регистрации в P. Считается только если период целиком
     внутри покрытия Orderia — на более ранних периодах некупивших в источнике
-    нет, и конверсия ложно вышла бы 100%.
+    нет, и конверсия ложно вышла бы 100%. Период — по дату среза (meta['asof']),
+    как регистрации на «Росте базы».
     """
-    p_start, p_end = period['p_start'].isoformat(), period['p_end'].isoformat()
+    p_start, p_end = period['p_start'].isoformat(), meta['asof']
     src = store.never_sync_state()
 
     with store.conn() as conn:
@@ -1887,7 +1934,7 @@ def summary(store, period, meta, venue=None):
     частей). На бар не делятся: §15 (never.available=False, reason='venue') и
     «Регистраций на точку» — сравнение баров, с баром пустой список.
     """
-    p_start, p_end = period['p_start'].isoformat(), period['p_end'].isoformat()
+    p_start, p_end = period['p_start'].isoformat(), meta['asof']
     venue = resolve_venue(venue)
     growth = base_growth(store, period, meta, venue)
     act = activity(store, period, meta, venue)

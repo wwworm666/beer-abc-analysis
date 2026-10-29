@@ -471,7 +471,7 @@ Guests.registerView('promo', function (pane) {
         return '<div class="metric-grid promo-profile">' +
             G.metricCard('promo_recency', 'Средняя давность',
                 G.fmtNum(Math.round(avgRec)) + ' дн', 'с последнего визита до конца периода') +
-            G.metricCard('promo_churn', 'Давно не были',
+            G.metricCard('promo_churn', 'Давно не были (60+ дн)',
                 G.fmtPct(churn / withRec.length * 100), 'более 60 дней, ' +
                 G.fmtNum(churn) + ' из ' + G.fmtNum(withRec.length)) +
             G.metricCard('promo_freq', 'Средняя частота',

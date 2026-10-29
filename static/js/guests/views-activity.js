@@ -8,7 +8,8 @@ Guests.registerView('activity', function (pane) {
     ]).then(function (results) {
         var act = results[0].data;
         var freq = results[1].data;
-        var segNames = { active: 'Active', sleeping: 'Sleeping', at_risk: 'At Risk', lost: 'Lost' };
+        var segNames = { active: 'Активные', sleeping: 'Засыпают', at_risk: 'Под угрозой',
+                         lost: 'Потеряны' };
         var segDesc = { active: 'визит за 30 дней', sleeping: '31-90 дней',
                         at_risk: '91-180 дней', lost: 'более 180 дней' };
 
@@ -18,8 +19,10 @@ Guests.registerView('activity', function (pane) {
             '<th class="num">Гостей</th><th class="num">Доля</th>' +
             '<th class="num">Прошлый период</th><th class="num">Изменение</th></tr></thead><tbody>';
         act.segments.forEach(function (s) {
+            // Рост хорош только у «Активных»: в остальные статусы попадают те, кто перестал
+            // ходить, поэтому их рост красный (раньше «Засыпают +7» горело зелёным).
             var deltaCls = s.delta > 0 ? 'delta-up' : (s.delta < 0 ? 'delta-down' : 'dim');
-            if (s.segment === 'lost' || s.segment === 'at_risk') {
+            if (s.segment !== 'active') {
                 deltaCls = s.delta > 0 ? 'delta-down' : (s.delta < 0 ? 'delta-up' : 'dim');
             }
             html += '<tr><td><span class="gbadge ' + s.segment + '">' +
