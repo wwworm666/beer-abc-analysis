@@ -68,6 +68,7 @@ PUBLIC_ENDPOINTS = {
     'bot_api.actor',
     'bot_api.report',
     'bot_api.note',
+    'bot_api.replied',                 # что было в сообщении бота, на которое ответили (продолжение работы)
 }
 
 

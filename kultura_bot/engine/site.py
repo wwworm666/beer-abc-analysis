@@ -21,6 +21,7 @@ import itertools
 import logging
 import threading
 from typing import Any, Callable, Dict, List, Optional
+from urllib.parse import urlencode
 
 import requests
 
@@ -105,6 +106,13 @@ class Site:
         if not isinstance(note_id, str) or not note_id:
             raise SiteError('protocol', 'Сайт не вернул id записки «Как считается»')
         return note_id
+
+    def replied(self, chat_id: str, message_id: int) -> Optional[Dict[str, Any]]:
+        """Что было в сообщении бота, на которое человек ответил в Telegram: отчёт или график этого
+        чата текстом для модели {kind, id, title, text}; None — не отчёт и не график (или срок вышел)."""
+        query = urlencode({'chat_id': str(chat_id), 'message_id': int(message_id)})
+        found = self._request('GET', f'/api/bot/replied?{query}').get('found')
+        return found if isinstance(found, dict) and found.get('text') else None
 
     # ---------------------------------------------------------------- MCP
 

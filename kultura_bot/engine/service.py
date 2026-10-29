@@ -107,8 +107,12 @@ HELP_TEXT = ('Я помощник сети «Культура»: отвечаю 
              'расчёта — по ссылке «Как считается».\n\n'
              'Большой вопрос — отчётом: «/report вопрос» или «Отчёт: вопрос». Соберу полный разбор на '
              'странице (графики, таблицы), в чат пришлю выжимку с кнопкой «Открыть отчёт».\n\n'
+             'Вернуться к прошлой работе — ответьте на моё сообщение с отчётом или графиком («Ответить»): '
+             'вопрос — отвечу с опорой на неё, «/report …» — соберу новую версию отчёта.\n\n'
              '/new — начать новый диалог')
 REPORT_EMPTY_TEXT = 'Напишите вопрос для отчёта: «/report как прошёл сентябрь по барам».'
+# Ответ на сообщение бота (2026-10-29, продолжение работы): текст обычного сообщения — не длиннее.
+REPLY_QUOTE_MAX = 4000
 # Режим отчёта, а модель ответила текстом (2026-10-28): одна просьба оформить ответ страницей.
 REPORT_NUDGE = ('Это режим отчёта: ответ должен уйти страницей, а не сообщением. Отправь его сейчас инструментом '
                 'common_report_send (title, summary, sections, how) с тем, что уже есть; данные заново не '
@@ -411,12 +415,46 @@ class Service:
         name = '@' + (self.username or '').lower()
         if name != '@' and name in text.lower():
             return True
-        reply = message.get('reply_to_message') or {}
-        author = reply.get('from') or {}
+        return self._from_bot(message.get('reply_to_message'))
+
+    def _from_bot(self, msg: Optional[Dict[str, Any]]) -> bool:
+        """Сообщение написал этот бот."""
+        author = (msg or {}).get('from') or {}
         if self.bot_id:
             return author.get('id') == self.bot_id
         # getMe при запуске не ответил — узнаём бота по имени
+        name = '@' + (self.username or '').lower()
         return bool(author.get('is_bot') and name != '@' and '@' + (author.get('username') or '').lower() == name)
+
+    def reply_block(self, chat_id: str, message: Dict[str, Any]) -> str:
+        """Ответ на сообщение бота (Reply в Telegram) — продолжение той работы (2026-10-29).
+
+        Отчёт или график этого чата сайт отдаёт целиком текстом (GET /api/bot/replied: выводы,
+        разделы, таблицы и описания графиков); иначе — текст самого сообщения. Блок идёт перед
+        вопросом, между строками «<<<» и «>>>» (prompts/bot.md, «Продолжение работы»)."""
+        replied = message.get('reply_to_message') or {}
+        if not replied or not self._from_bot(replied):
+            return ''
+        quoted = str(replied.get('text') or replied.get('caption') or '').strip()
+        found = None
+        if replied.get('message_id'):
+            try:
+                found = self.site.replied(chat_id, replied['message_id'])
+            except SiteError as exc:
+                log.warning('[BOT] не узнал, на что ответили: %s', exc.text)
+        if found and found.get('kind') == 'report':
+            log.info('[BOT] ответ на отчёт %s', found.get('id'))
+            return (f'[Ответ на отчёт «{found.get("title") or ""}» — продолжение той работы. Отчёт целиком — '
+                    f'между строками <<< и >>>.]\n<<<\n{found["text"]}\n>>>\n')
+        if found and found.get('kind') == 'chart':
+            log.info('[BOT] ответ на график %s', found.get('id'))
+            caption = f'Подпись к графику (ответ бота):\n{quoted[:REPLY_QUOTE_MAX]}\n\n' if quoted else ''
+            return (f'[Ответ на график «{found.get("title") or ""}» — продолжение той работы. Подпись и описание '
+                    f'графика — между строками <<< и >>>.]\n<<<\n{caption}{found["text"]}\n>>>\n')
+        if quoted:
+            return (f'[Ответ на сообщение бота — его текст между строками <<< и >>>.]\n<<<\n'
+                    f'{quoted[:REPLY_QUOTE_MAX]}\n>>>\n')
+        return ''
 
     def _strip_mention(self, text: str) -> str:
         """Убрать @имя бота и знаки, которые остаются после обращения: «@бот, отчёт: …» -> «отчёт: …»."""
@@ -737,7 +775,8 @@ class Service:
         try:
             limit = self.question_limit(report_mode)
             header = self.header(actor, 'report' if report_mode else 'answer', limit)
-            user_content = [{'type': 'text', 'text': f'{header}\n{job["text"] or "(без текста)"}'}]
+            reply = self.reply_block(chat_id, message)
+            user_content = [{'type': 'text', 'text': f'{header}\n{reply}{job["text"] or "(без текста)"}'}]
             files = self._files(message)
             document = message.get('document') or {}
             if document and document.get('mime_type') not in DOCUMENT_MIMES:

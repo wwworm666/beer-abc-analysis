@@ -476,6 +476,45 @@ def get(chart_id: str, now_ts: Optional[float] = None) -> Optional[Dict[str, Any
     return record
 
 
+def find_by_message(chat_id: str, message_id: int, now_ts: Optional[float] = None) -> Optional[Dict[str, Any]]:
+    """График, который бот отправил сообщением message_id в чат chat_id, или None — по нему
+    сервер бота узнаёт, на что человек ответил в Telegram (reports.reply_context)."""
+    _ensure()
+    now_ts = int(now_ts if now_ts is not None else time.time())
+    with db.read() as conn:
+        row = conn.execute('SELECT * FROM tg_charts WHERE chat_id=? AND message_id=? AND expires_ts > ? '
+                           'ORDER BY created_ts DESC LIMIT 1', (str(chat_id), int(message_id), now_ts)).fetchone()
+    if row is None:
+        return None
+    record = dict(row)
+    record['spec'] = json.loads(record['spec'])
+    return record
+
+
+def to_input(spec: Dict[str, Any]) -> Dict[str, Any]:
+    """Сохранённое описание (после normalize) -> снова вход common_chart_send: без служебных полей
+    (v, key серий и групп), base_category — подписью. Нужно, чтобы модель могла перенести график из
+    прошлого отчёта в новый как есть (reports.reply_context); normalize(to_input(x)) == x."""
+    out: Dict[str, Any] = {'kind': spec['kind'], 'title': spec['title']}
+    for key in ('subtitle', 'note'):
+        if spec.get(key):
+            out[key] = spec[key]
+    out['unit'] = spec['unit']
+    if spec.get('unit_forms'):
+        out['unit_forms'] = list(spec['unit_forms'])
+    out['scale'], out['decimals'], out['additive'] = spec['scale'], spec['decimals'], spec['additive']
+    out['categories'] = [dict(c) for c in spec['categories']]
+    out['series'] = [{k: v for k, v in s.items() if k != 'key'} for s in spec['series']]
+    if spec.get('groups'):
+        out['groups'] = [{'label': g['label'], 'tags': list(g['tags'])} for g in spec['groups']]
+    if spec.get('base_category') is not None:
+        out['base_category'] = spec['categories'][spec['base_category']]['label']
+    out['source'] = spec['source']
+    if spec.get('data_at'):
+        out['data_at'] = spec['data_at']
+    return out
+
+
 def mark_sent(chart_id: str, message_id: Optional[int]) -> None:
     _ensure()
     with db.write() as conn:

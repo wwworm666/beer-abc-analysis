@@ -52,6 +52,16 @@ https://beerkultura.ru/r/<код>, код — secrets.token_urlsafe(16) (128 б�
 срока записи (90 дней) или пока её не закрыли той же кнопкой. Одна ссылка на запись: повторное
 нажатие отдаёт ту же; закрыли — следующая будет новой. Таблица tg_report_links.
 
+## Продолжение работы (2026-10-29)
+
+Решение владельца: «вернуться к уже проделанной работе, чтобы использовать её как костяк для
+нового анализа — через ответ на сообщение». Человек отвечает в Telegram на сообщение бота с
+отчётом (или с графиком); сервер бота спрашивает сайт GET /api/bot/replied (routes/bot_api.py),
+что было в этом сообщении, — reply_context находит запись по чату и номеру сообщения
+(message_id пишет отправка) и отдаёт её текстом для модели: выводы, разделы, таблицы и описания
+графиков в формате входа (их можно перенести в новый отчёт как есть). Длиннее REPLY_CONTEXT_MAX
+— таблицы укорачиваются, затем текст обрезается с пометкой.
+
 ## Хранилище
 
 id — «rep_» и 22 шестнадцатеричных знака (secrets.token_hex(11): 88 бит; вместе с
@@ -422,6 +432,102 @@ def delete(report_id: str) -> None:
     with db.write() as conn:
         conn.execute('DELETE FROM tg_reports WHERE id=?', (report_id,))
         conn.execute('DELETE FROM tg_report_links WHERE report_id=?', (report_id,))
+
+
+# ------------------------------------------------------------------ продолжение работы (ответ в Telegram)
+
+REPLY_CONTEXT_MAX = 60_000          # знаков текста записи для модели (~20 тыс. токенов)
+REPLY_TABLE_ROWS = 30               # столько строк таблицы остаётся, если отчёт не влез целиком
+
+
+def find_by_message(chat_id: str, message_id: int, now_ts: Optional[float] = None) -> Optional[Dict[str, Any]]:
+    """Отчёт, который бот отправил сообщением message_id в чат chat_id, или None."""
+    _ensure()
+    now_ts = int(now_ts if now_ts is not None else time.time())
+    with db.read() as conn:
+        row = conn.execute("SELECT * FROM tg_reports WHERE chat_id=? AND message_id=? AND kind='report' "
+                           'AND expires_ts > ? ORDER BY created_ts DESC LIMIT 1',
+                           (str(chat_id), int(message_id), now_ts)).fetchone()
+    if row is None:
+        return None
+    record = dict(row)
+    record['body'] = json.loads(record['body'])
+    return record
+
+
+def _when(iso: Any) -> str:
+    """ISO 8601 -> «28 окт 2026, 14:05 МСК» (то же, что в шапке страницы)."""
+    try:
+        moment = datetime.fromisoformat(str(iso))
+    except ValueError:
+        return str(iso or '')
+    if moment.tzinfo is not None:
+        moment = moment.astimezone(msk_time.MOSCOW_TZ)
+    months = ('янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек')
+    return f'{moment.day} {months[moment.month - 1]} {moment.year}, {moment:%H:%M} МСК'
+
+
+def _compact(value: Any) -> str:
+    return json.dumps(value, ensure_ascii=False, separators=(',', ':'))
+
+
+def report_context(record: Dict[str, Any], table_rows: Optional[int] = None) -> str:
+    """Отчёт текстом для модели: выжимка, разделы, таблицы и графики — в формате входа
+    common_report_send (их можно передать в новый отчёт как есть), «Как считается»."""
+    body = record['body']
+    head = f'Отчёт «{body["title"]}» (id {record["id"]}), собран {_when(record["created_at"])}'
+    if body.get('data_at'):
+        head += f', данные на {_when(body["data_at"])}'
+    lines = [head + '.', '', 'Выжимка (сообщение в чате):', body['summary']]
+    for n, sec in enumerate(body['sections'], 1):
+        lines += ['', f'## Раздел {n}. {sec["heading"]}']
+        if sec.get('text'):
+            lines.append(sec['text'])
+        if sec.get('chart'):
+            lines.append('График раздела (sections[].chart): ' + _compact(chart_spec.to_input(sec['chart'])))
+        table = sec.get('table')
+        if table:
+            rows = table['rows']
+            shown = rows if table_rows is None else rows[:table_rows]
+            data = {'columns': table['columns'], 'rows': shown}
+            if table.get('note'):
+                data['note'] = table['note']
+            lines.append('Таблица раздела (sections[].table): ' + _compact(data))
+            if len(shown) < len(rows):
+                lines.append(f'(в таблице {len(rows)} строк, здесь первые {len(shown)})')
+        if sec.get('how'):
+            lines += ['Как считается (раздел):', sec['how']]
+    if body.get('how'):
+        lines += ['', 'Как считается (весь отчёт):', body['how']]
+    lines += ['', f'Источник: {body["source"]}.']
+    return '\n'.join(lines)
+
+
+def chart_context(record: Dict[str, Any]) -> str:
+    """График текстом для модели: когда отправлен и его описание в формате входа common_chart_send."""
+    spec = record['spec']
+    return (f'График «{spec["title"]}» (id {record["id"]}), отправлен {_when(record["created_at"])}, '
+            f'данные на {_when(spec.get("data_at"))}.\nОписание (common_chart_send): {_compact(chart_spec.to_input(spec))}')
+
+
+def _fit(text: str) -> str:
+    if len(text) <= REPLY_CONTEXT_MAX:
+        return text
+    return text[:REPLY_CONTEXT_MAX] + f'\n[…обрезано: показано {REPLY_CONTEXT_MAX} из {len(text)} знаков]'
+
+
+def reply_context(chat_id: str, message_id: int) -> Optional[Dict[str, Any]]:
+    """Что было в сообщении бота, на которое ответили: отчёт или график -> {kind, id, title, text}; None."""
+    record = find_by_message(chat_id, message_id)
+    if record is not None:
+        text = report_context(record)
+        if len(text) > REPLY_CONTEXT_MAX:
+            text = report_context(record, table_rows=REPLY_TABLE_ROWS)
+        return {'kind': 'report', 'id': record['id'], 'title': record['body']['title'], 'text': _fit(text)}
+    chart = chart_spec.find_by_message(chat_id, message_id)
+    if chart is not None:
+        return {'kind': 'chart', 'id': chart['id'], 'title': chart['spec']['title'], 'text': _fit(chart_context(chart))}
+    return None
 
 
 # ------------------------------------------------------------------ ссылка для браузера

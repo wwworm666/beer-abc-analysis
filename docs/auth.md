@@ -108,7 +108,7 @@ employee_iiko_id, password_hash, is_admin, active, created_at, last_login_at)`.
 | `taps.taplist_yml`, `taps.kitchen_yml`, `yml_feeds.kitchen_yml` | Яндекс забирает YML-фиды без cookie |
 | `mcp.mcp_all`, `mcp.mcp_domain` | MCP-коннекторы `/mcp`, `/mcp/<раздел>` и адреса с режимом `/mcp[/<раздел>]/read`, `/mcp[/<раздел>]/draft` (с 2026-09-27, режимы — с 2026-09-28): у ИИ-клиента Claude нет cookie сайта. Коннектор **сам** проверяет `Authorization: Bearer` (`core/mcp/auth.py`): нет токена — 401 с `WWW-Authenticate`, по которому приложение Claude находит сервер авторизации; токен действует, только пока его владелец — активный администратор. Более глубокий путь под `/mcp` — 404 JSON, а не перенаправление на вход |
 | `mcp_oauth.protected_resource_metadata`, `mcp_oauth.authorization_server_metadata`, `mcp_oauth.register_client`, `mcp_oauth.token`, `mcp_oauth.revoke` | OAuth 2.1 для приложения Claude: метаданные, регистрация клиента, выдача и отзыв токена по спецификации открыты без входа (секреты — код с PKCE и токены, а не сессия) |
-| `bot_api.config`, `bot_api.link`, `bot_api.actor`, `bot_api.report`, `bot_api.note` | API сервера бота @MCPkulturabot в Амстердаме (`/api/bot/*`, с 2026-10-19, [kultura-bot.md](kultura-bot.md)): у сервера бота нет cookie сайта. Каждый эндпоинт **сам** проверяет `Authorization: Bearer` и пускает только ключ сервера бота (`kultura_bot/site_api.verify_engine`: статический MCP-токен, выпущенный кнопкой «Команда установки», владелец — активный администратор); иначе 401. Другие MCP-токены не проходят: `/api/bot/config` отдаёт секреты бота |
+| `bot_api.config`, `bot_api.link`, `bot_api.actor`, `bot_api.report`, `bot_api.note`, `bot_api.replied` | API сервера бота @MCPkulturabot в Амстердаме (`/api/bot/*`, с 2026-10-19, [kultura-bot.md](kultura-bot.md)): у сервера бота нет cookie сайта. Каждый эндпоинт **сам** проверяет `Authorization: Bearer` и пускает только ключ сервера бота (`kultura_bot/site_api.verify_engine`: статический MCP-токен, выпущенный кнопкой «Команда установки», владелец — активный администратор); иначе 401. Другие MCP-токены не проходят: `/api/bot/config` отдаёт секреты бота |
 | `tg_miniapp.chart_page`, `tg_miniapp.chart_api`, `tg_miniapp.report_api`, `tg_miniapp.report_link`, `tg_miniapp.shared_report`, `tg_miniapp.chart_dev`, `tg_miniapp.chart_dev_png` | мини-приложение бота @MCPkulturabot (`/tg/chart`, `/api/tg/charts/<id>`, `/api/tg/reports/<id>`, [tg-miniapp.md](tg-miniapp.md)): у Telegram нет cookie сайта. Страница данных не содержит, API пускает только по initData, подписанной токеном бота, и только участников чата, куда отправлена запись; dev-страницы без debug — 404. Страница отчёта на сайте `/tg/report/<id>` — **не** публичная; ссылка для браузера: `…/link` сам пускает администратора сайта или подключённого к боту участника чата по initData, `/r/<код>` открыт всем, у кого есть ссылка (с 2026-10-28) |
 
 Сознательно **не** публичны: страница согласия OAuth `mcp_oauth.authorize` (гейт отправит
@@ -288,6 +288,13 @@ MCP-токены (`core.mcp.tokens.revoke_all_for_user`), все OAuth-подк�
   `/kultura/secret_key` один раз. **Не ротировать** без причины — разлогинит всех.
 
 ## Changelog
+
+### 2026-10-29 — Продолжение работы бота
+- В `PUBLIC_ENDPOINTS` — `bot_api.replied` (`GET /api/bot/replied`: что было в сообщении бота, на
+  которое ответили в Telegram; только ключ сервера бота, как остальные `/api/bot/*`). Тест
+  `tests/test_kultura_bot_site.py` проверяет через настоящий гейт, что все эндпоинты `bot_api.*` в
+  списке: без этого сервер бота получил бы «Требуется вход». Файлы: `core/auth_guard.py`,
+  `routes/bot_api.py`; [kultura-bot.md](kultura-bot.md), раздел 7а.
 
 ### 2026-10-28 — Ссылка для браузера на отчёт бота
 - В `PUBLIC_ENDPOINTS` — `tg_miniapp.report_link` (`POST`/`DELETE /api/tg/reports/<id>/link`:

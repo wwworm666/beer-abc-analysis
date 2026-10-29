@@ -111,6 +111,9 @@ class FakeSite:
         self.notes = []                     # (chat_id, text) — записки «Как считается»
         self.note_error = None
         self.report_error = None            # текст — common_report_send отвечает ошибкой
+        self.replied_found = {}             # (chat_id, message_id) -> {kind, id, title, text}
+        self.replied_error = None
+        self.replied_calls = []
 
     def _check(self):
         if self.down:
@@ -145,6 +148,13 @@ class FakeSite:
             raise self.note_error
         self.notes.append((str(chat_id), text_value))
         return 'rep_' + f'{len(self.notes):022x}'
+
+    def replied(self, chat_id, message_id):
+        self._check()
+        self.replied_calls.append((str(chat_id), int(message_id)))
+        if self.replied_error is not None:
+            raise self.replied_error
+        return copy.deepcopy(self.replied_found.get((str(chat_id), int(message_id))))
 
     def instructions(self, connector='/mcp'):
         self._check()
@@ -1386,6 +1396,49 @@ def test_report_unknown_send_status_is_not_repeated(bot):
     bot.svc.handle_update(message('/report сентябрь'))
     assert [n for n, _ in bot.env.site.calls if n == tools.REPORT_TOOL] == [tools.REPORT_TOOL]
     assert len(bot.client.calls) == 2 and [m[1] for m in bot.tg.sent] == ['Отчёт мог уже прийти — проверьте чат.']
+
+
+BOT_AUTHOR = {'id': 999, 'is_bot': True, 'username': 'MCPkulturabot', 'first_name': 'Культура'}
+
+
+def test_reply_to_report_continues_that_work(bot):
+    """2026-10-29: ответ в Telegram на сообщение бота с отчётом — продолжение той работы: отчёт целиком
+    (с сайта) идёт перед вопросом; обычный вопрос — пузырь, «/report …» — новая версия отчёта."""
+    report_text = 'Отчёт «Бельгия +58,0%» (id rep_1), собран 28 окт.\n\n## Раздел 1. Весь рост дал Квак'
+    bot.env.site.replied_found[(OWNER_TG, 50)] = {'kind': 'report', 'id': 'rep_1', 'title': 'Бельгия +58,0%',
+                                                  'text': report_text}
+    reply = {'message_id': 50, 'from': BOT_AUTHOR, 'caption': 'Бельгия в ивент…'}
+    bot.client.script += [resp(text('Квак дал 42% выручки Бельгии.'))]
+    bot.svc.handle_update(message('а какая доля у Квака?', reply_to_message=reply))
+    asked = bot.client.calls[-1]['messages'][-1]['content'][0]['text']
+    assert '[Ответ на отчёт «Бельгия +58,0%» — продолжение той работы.' in asked
+    assert f'<<<\n{report_text}\n>>>\nа какая доля у Квака?' in asked and 'режим: отчёт' not in asked
+    assert bot.env.site.replied_calls == [(OWNER_TG, 50)]
+    bot.client.script += [resp(use(tools.REPORT_TOOL, report_args(), 'r1'), stop='tool_use'), resp(text(''))]
+    bot.svc.handle_update(message('/report добавь октябрь', reply_to_message=reply))
+    asked = bot.client.calls[-2]['messages'][-1]['content'][0]['text']
+    assert 'режим: отчёт' in asked and f'<<<\n{report_text}\n>>>\nдобавь октябрь' in asked, 'новая версия отчёта'
+
+
+def test_reply_to_chart_or_plain_bot_message_and_site_down(bot):
+    bot.env.site.replied_found[(OWNER_TG, 60)] = {'kind': 'chart', 'id': 'X' * 22, 'title': 'Средний чек',
+                                                  'text': 'График «Средний чек». Описание: {"kind":"stack"}'}
+    bot.client.script += [resp(text('Ок')), resp(text('Ок')), resp(text('Ок')), resp(text('Ок'))]
+    bot.svc.handle_update(message('почему вырос?', reply_to_message={'message_id': 60, 'from': BOT_AUTHOR,
+                                                                    'caption': 'Чек +83 ₽ в ивент.'}))
+    asked = bot.client.calls[-1]['messages'][-1]['content'][0]['text']
+    assert '[Ответ на график «Средний чек»' in asked and 'Подпись к графику (ответ бота):\nЧек +83 ₽ в ивент.' in asked
+    bot.svc.handle_update(message('подробнее', reply_to_message={'message_id': 61, 'from': BOT_AUTHOR,
+                                                                'text': 'Вчера 4 412 тыс. ₽.'}))
+    asked = bot.client.calls[-1]['messages'][-1]['content'][0]['text']
+    assert '[Ответ на сообщение бота — его текст между строками <<< и >>>.]\n<<<\nВчера 4 412 тыс. ₽.\n>>>' in asked
+    bot.env.site.replied_error = SiteError('offline', 'Сайт не отвечает')
+    bot.svc.handle_update(message('ещё', reply_to_message={'message_id': 62, 'from': BOT_AUTHOR, 'text': 'Итог 5.'}))
+    assert '<<<\nИтог 5.\n>>>' in bot.client.calls[-1]['messages'][-1]['content'][0]['text'], 'сайт молчит — хотя бы текст'
+    bot.svc.handle_update(message('сам себе', reply_to_message={'message_id': 63, 'from': {'id': int(OWNER_TG)},
+                                                               'text': 'мой вопрос'}))
+    assert '<<<' not in bot.client.calls[-1]['messages'][-1]['content'][0]['text'], 'ответ не боту — без блока'
+    assert (OWNER_TG, 63) not in bot.env.site.replied_calls
 
 
 def test_header_has_weekdays_and_windows():
