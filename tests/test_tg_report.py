@@ -459,6 +459,70 @@ def test_bot_note_api_only_for_engine_key(setup, monkeypatch):
     assert note['body']['text'] == 'доля = 42%; metrics.avg_rating; [ссылка удалена]'
 
 
+def test_reply_context_finds_report_or_chart_by_message(setup):
+    """2026-10-29, продолжение работы: человек ответил в Telegram на сообщение бота — сайт по чату и
+    номеру сообщения находит отчёт (или график) и отдаёт его текстом для модели: выжимка, разделы,
+    таблицы и графики в формате входа (их можно перенести в новый отчёт как есть)."""
+    from core.mcp.schema_check import validate_arguments
+    from core.mcp.tools.common import CHART_SCHEMA
+    rid = reports.create(reports.normalize_report(REPORT), chat_id=CHAT)['id']
+    reports.mark_sent(rid, 501)
+    found = reports.reply_context(CHAT, 501)
+    assert (found['kind'], found['id'], found['title']) == ('report', rid, 'Бельгия в ивент: +58,0% к августу')
+    text = found['text']
+    assert text.startswith('Отчёт «Бельгия в ивент: +58,0% к августу»') and 'данные на 14 сен 2026, 00:58 МСК' in text
+    assert '## Раздел 1. Весь рост дал Квак' in text and 'Подробности — в отчёте.' in text
+    chart = json.loads(text.split('График раздела (sections[].chart): ', 1)[1].split('\n', 1)[0])
+    assert validate_arguments(CHART_SCHEMA, chart, 'chart') is None, 'график можно передать в новый отчёт как есть'
+    assert tg_charts.normalize(chart) == reports.get(rid)['body']['sections'][0]['chart']
+    table = json.loads(text.split('Таблица раздела (sections[].table): ', 1)[1].split('\n', 1)[0])
+    assert table['rows'][0] == ['Квак', 136000, 0] and table['note'] == 'Выручка со скидкой'
+    assert reports.reply_context(GROUP, 501) is None, 'чужой чат — не найти'
+    assert reports.reply_context(CHAT, 502) is None
+    chart_id = tg_charts.create(tg_charts.normalize(dict(FIXTURES)['check']), chat_id=CHAT)['id']
+    tg_charts.mark_sent(chart_id, 777)
+    found = reports.reply_context(CHAT, 777)
+    assert found['kind'] == 'chart' and found['id'] == chart_id and '"kind":"stack"' in found['text']
+
+
+def test_reply_context_long_report_is_cut_to_the_limit(setup, monkeypatch):
+    rows = [[f'Позиция {i}', i * 1000, i * 900] for i in range(300)]
+    raw = dict(REPORT, sections=[{'heading': 'Большая таблица', 'table': {'columns': ['Сорт', 'Ивент', 'База'],
+                                                                         'rows': rows}}])
+    rid = reports.create(reports.normalize_report(raw), chat_id=CHAT)['id']
+    reports.mark_sent(rid, 9)
+    monkeypatch.setattr(reports, 'REPLY_CONTEXT_MAX', 3000)
+    text = reports.reply_context(CHAT, 9)['text']
+    assert '(в таблице 300 строк, здесь первые 30)' in text or text.endswith('знаков]')
+    assert len(text) <= 3000 + 60
+    monkeypatch.setattr(reports, 'REPLY_CONTEXT_MAX', 8_000)
+    assert len(reports.report_context(reports.get(rid))) > 8_000
+    text = reports.reply_context(CHAT, 9)['text']
+    assert '(в таблице 300 строк, здесь первые 30)' in text and 'обрезано' not in text, 'сначала укорачиваются таблицы'
+
+
+def test_bot_replied_api_only_for_engine_key(setup, monkeypatch):
+    from flask import Flask
+    from routes.bot_api import bot_api_bp
+    from kultura_bot import site_api
+    app = Flask('bot_api_replied_test')
+    app.register_blueprint(bot_api_bp)
+    principal = type('P', (), {'token_id': 'st_engine'})()
+    monkeypatch.setattr(site_api, 'verify_engine', lambda raw: principal if raw == 'kmcp_engine' else None)
+    rid = reports.create(reports.normalize_report(REPORT), chat_id=GROUP)['id']
+    reports.mark_sent(rid, 42)
+    client = app.test_client()
+    url = f'/api/bot/replied?chat_id={GROUP}&message_id=42'
+    assert client.get(url).status_code == 401, 'только ключ сервера бота'
+    auth = {'Authorization': 'Bearer kmcp_engine'}
+    assert client.get('/api/bot/replied?chat_id=abc&message_id=42', headers=auth).status_code == 400
+    assert client.get(f'/api/bot/replied?chat_id={GROUP}&message_id=x', headers=auth).status_code == 400
+    resp = client.get(url, headers=auth)
+    assert resp.status_code == 200 and resp.headers['Cache-Control'] == 'no-store'
+    assert resp.get_json()['found']['id'] == rid
+    assert client.get(f'/api/bot/replied?chat_id={GROUP}&message_id=43', headers=auth).get_json() == {'found': None}
+
+
 def test_report_tool_in_full_mode_only_and_errors_are_text(setup):
     from core.mcp import registry
     from core.mcp.spec import allowed_in_mode
