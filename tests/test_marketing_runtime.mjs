@@ -495,7 +495,7 @@ function guestList(group, bucket) {
           first_visit: '2025-02-01', last_visit: '2026-07-20', recency_days: 42, visits_total: 31,
           ltv: 64000, visits_period: 0, revenue_period: 0, revenue_12m: 52000, pause_days: null,
           visits_prev: 6, visits_recent: 3, damage_month: 4300 },
-        { guest_id: 'g2', name: 'Борис', phone: '79110000002', card_number: '1002',
+        { guest_id: 'g2', name: '', phone: '79110000002', card_number: '1002',
           first_visit: '2026-03-01', last_visit: '2026-07-02', recency_days: 60, visits_total: 5,
           ltv: 9000, visits_period: 0, revenue_period: 0, revenue_12m: 9000, pause_days: null,
           visits_prev: 3, visits_recent: 1, damage_month: 750 },
@@ -577,6 +577,8 @@ test('«Отток»: ущерб, подсказка к порогу и клик
         assert.equal((html.match(/class="churn-bucket-pick/g) || []).length, 4,
             'строки «Кто уходит» не кликаются');
         assert.ok(html.includes('data-bucket="9+"'), 'нет строки «9 визитов и больше»');
+        assert.ok(html.includes('<td><span class="dim">без имени</span></td>') && !html.includes('<td>g2</td>'),
+            'гость без имени показан номером, а не «без имени», как в RFM');
         assert.ok(html.includes('Ушли · 4') && html.includes('Анна') && html.includes('4 300 ₽') &&
             html.includes('показаны 2 из 4') && html.includes('Другая группа'), 'нет списка «Ушли»');
         assert.ok(html.includes('/api/guests/churn-guests?period_type=month&anchor=2026-08-31' +

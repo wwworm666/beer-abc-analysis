@@ -226,7 +226,8 @@ Guests.registerView('churn', function (pane) {
                     return '<th' + (COLS[c][1] ? ' class="num"' : '') + '>' + COLS[c][0] + '</th>';
                 }).join('') + '</tr></thead><tbody>';
             list.guests.forEach(function (g) {
-                html += '<tr><td>' + G.esc(g.name || g.guest_id) + '</td>' +
+                // Без имени в карте — как в RFM: номер уже стоит в колонке «Телефон».
+                html += '<tr><td>' + (G.esc(g.name) || '<span class="dim">без имени</span>') + '</td>' +
                     '<td>' + G.esc(g.phone || '—') + '</td>' +
                     spec.cols.map(function (c) {
                         return '<td' + (COLS[c][1] ? ' class="num"' : '') + '>' + COLS[c][2](g) + '</td>';
