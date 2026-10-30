@@ -27,7 +27,9 @@
 больше (X — переключатель вкладки 30/60/90/180, по умолчанию 30). За период
 каждый гость попадает ровно в одну графу по состояниям накануне периода и на
 дату среза: остался, ушёл, вернулся, новый; баланс сходится точно. Дата среза —
-последний ПОЛНЫЙ день данных (data_to), а не «сегодня». Подробности — churn_all.
+последний ПОЛНЫЙ день данных (data_to), а не «сегодня». С 2026-10-30 там же ущерб от
+оттока в рублях, «Стали ходить реже» (скрытый отток; поимённо — churn_slowing) и
+подсказка к порогу — через сколько дней гости возвращаются. Подробности — churn_all.
 
 Определения (те же, что в /discounts и месячной витрине):
 - заказ (чек) = строка receipts (ключ дата+бар+номер чека+гость);
@@ -104,6 +106,29 @@ CHURN_SERIES_MAX = 60
 # у сегментов частоты §4, но смысл другой (там визиты за период) — поэтому своя константа:
 # правка сегментов частоты не должна молча менять эту разбивку.
 CHURN_LEAVER_BUCKETS = [('1', 1, 1), ('2-3', 2, 3), ('4-8', 4, 8), ('9+', 9, None)]
+# Ущерб от оттока (решение владельца 2026-10-30, по статье Unisender о churn rate): формула
+# статьи «потерянные × средний чек × платежей за интервал» для бара — средний чек ушедшего ×
+# его чеков в месяц, то есть его выручка за год до последнего визита / 12. Год — полный
+# сезонный цикл бара: за окно короче ущерб зависел бы от того, в какой сезон гость ушёл.
+CHURN_DAMAGE_WINDOW_DAYS = 365
+CHURN_DAMAGE_MONTHS = 12        # месяцев в окне ущерба: месячный ущерб = выручка окна / 12
+# «Стали ходить реже» — скрытый отток статьи: гость ещё ходит, но заметно реже, чем раньше.
+# Сравниваются два соседних окна по 90 дней (последний квартал против предыдущего): за
+# 90 дней у гостя, который ходит раз в месяц, набирается 3 визита; окно короче — и «вдвое
+# реже» решали бы случайные пропуски.
+CHURN_SLOWING_WINDOW_DAYS = 90
+# В прошлом окне — не меньше 3 визитов («ходил хотя бы раз в месяц»): у гостя с 1–2 визитами
+# «вдвое реже» — это один визит против двух, случайность, а не перемена привычки.
+CHURN_SLOWING_MIN_PREV = 3
+# «Вдвое реже»: визитов в последнем окне не больше половины прошлых. Сравнение в целых —
+# 2 × последние <= прошлые, без дробей и округлений.
+CHURN_SLOWING_FACTOR = 2
+# Подсказка к порогу: паузы перед повторными визитами за год до даты среза (полный сезонный
+# цикл, как у ущерба). Доля пауз длиннее порога — возвраты, которые порог успел записать в
+# «Ушли» (потом они же — «Вернулись после паузы»).
+CHURN_RETURN_WINDOW_DAYS = 365
+# Перцентили паузы для подписи «половина возвращается за N дней, 9 из 10 — за M».
+CHURN_RETURN_PERCENTILES = (50, 90)
 
 # Витрина считает «регистрацию» по дате создания клиента в iiko; если она
 # недоступна у большинства гостей — модуль переходит в fallback-режим ТЗ
@@ -1115,22 +1140,102 @@ def _load_visit_revenue(conn, venue=None):
 
 
 def _leaver_buckets(items):
-    """[(визитов за жизнь до среза, выручка до среза)] -> «Кто уходит» по CHURN_LEAVER_BUCKETS."""
+    """«Кто уходит» по CHURN_LEAVER_BUCKETS.
+
+    items — [(визитов за жизнь до среза, выручка до среза, выручка за год до ухода)].
+    avg_ltv — средняя выручка гостя группы до среза; damage_month — ущерб от оттока группы:
+    выручка её гостей за год до их последнего визита / CHURN_DAMAGE_MONTHS. Итог damage_month
+    округляется от несокращённой суммы, поэтому сумма округлённых групп может отличаться от
+    него на рубль-два.
+    """
     total = len(items)
     buckets = []
     for label, lo, hi in CHURN_LEAVER_BUCKETS:
-        revenues = [rev for visits, rev in items if visits >= lo and (hi is None or visits <= hi)]
+        group = [(rev, year) for visits, rev, year in items
+                 if visits >= lo and (hi is None or visits <= hi)]
         buckets.append({
             'segment': label, 'visits_from': lo, 'visits_to': hi,
-            'count': len(revenues),
-            'share_pct': _rate(len(revenues), total),
-            'avg_ltv': round(sum(revenues) / len(revenues)) if revenues else None,
+            'count': len(group),
+            'share_pct': _rate(len(group), total),
+            'avg_ltv': round(sum(rev for rev, _y in group) / len(group)) if group else None,
+            'damage_month': round(sum(year for _r, year in group) / CHURN_DAMAGE_MONTHS),
         })
-    return {'total': total, 'buckets': buckets}
+    year_total = sum(year for _v, _r, year in items)
+    return {'total': total, 'buckets': buckets,
+            'damage_month': round(year_total / CHURN_DAMAGE_MONTHS),
+            'damage_year': round(year_total)}
+
+
+def _revenue_year_before_last(days, cum, i1):
+    """Выручка гостя за CHURN_DAMAGE_WINDOW_DAYS по его последний визит включительно.
+
+    days/cum — из _load_visit_revenue, i1 — сколько визитов не позже даты среза (последний —
+    days[i1 - 1]). Ушедший к срезу давно не приходит, поэтому окно кончается его последним
+    визитом, а не датой среза: иначе при пороге 180 полгода окна были бы пустыми.
+    """
+    lo = bisect_left(days, days[i1 - 1] - (CHURN_DAMAGE_WINDOW_DAYS - 1), 0, i1)
+    return cum[i1 - 1] - (cum[lo - 1] if lo else 0.0)
+
+
+def _slowing_windows(days, i1, asof_o):
+    """(визитов в прошлом окне, визитов в последнем окне) для «Стали ходить реже».
+
+    Последнее окно — CHURN_SLOWING_WINDOW_DAYS дней по дату среза включительно, прошлое —
+    столько же дней перед ним. days — дни визитов гостя (порядковые), i1 — сколько их не
+    позже asof_o. Общая для счётчика churn_all и списка churn_slowing: одно правило.
+    """
+    w = CHURN_SLOWING_WINDOW_DAYS
+    recent_lo = bisect_left(days, asof_o - (w - 1), 0, i1)
+    prev_lo = bisect_left(days, asof_o - (2 * w - 1), 0, recent_lo)
+    return recent_lo - prev_lo, i1 - recent_lo
+
+
+def _slowing_base(prev, recent):
+    """База «Стали ходить реже»: ходил хотя бы раз в месяц (CHURN_SLOWING_MIN_PREV) и ещё ходит."""
+    return prev >= CHURN_SLOWING_MIN_PREV and recent >= 1
+
+
+def _is_slowing(prev, recent):
+    """Из базы — те, у кого в последнем окне визитов не больше 1/CHURN_SLOWING_FACTOR прошлых."""
+    return _slowing_base(prev, recent) and CHURN_SLOWING_FACTOR * recent <= prev
+
+
+def _nearest_rank(sorted_values, pct):
+    """Перцентиль по ближайшему рангу: значение номер ceil(pct × n / 100) по возрастанию.
+
+    Наименьшее значение, не больше которого — не меньше pct % значений; без интерполяции,
+    поэтому ответ — один из настоящих дней. Пустой список — None.
+    """
+    if not sorted_values:
+        return None
+    rank = (pct * len(sorted_values) + 99) // 100
+    return sorted_values[max(rank, 1) - 1]
+
+
+def _return_gap_stats(gaps, asof_o):
+    """Подсказка к порогу из пауз перед повторными визитами за год до среза (см. churn_all).
+
+    later_than — для каждого порога CHURN_DEAD_DAYS_CHOICES доля пауз длиннее него, %:
+    столько возвратов порог успел бы записать в «Ушли». percentiles — паузы, за которые
+    возвращается половина и 9 из 10 (CHURN_RETURN_PERCENTILES). Нет возвратов — None.
+    """
+    gaps = sorted(gaps)
+    n = len(gaps)
+    return {
+        'window_from': date.fromordinal(asof_o - (CHURN_RETURN_WINDOW_DAYS - 1)).isoformat(),
+        'window_to': date.fromordinal(asof_o).isoformat(),
+        'returns': n,
+        'percentiles': [{'pct': pct, 'days': _nearest_rank(gaps, pct)}
+                        for pct in CHURN_RETURN_PERCENTILES],
+        'later_than': [{'days': x, 'pct': _rate(n - bisect_right(gaps, x), n)}
+                       for x in CHURN_DEAD_DAYS_CHOICES],
+    }
 
 
 _CHURN_COUNTS = ('start_alive', 'died', 'reactivated', 'bounced', 'new', 'new_died',
                  'end_alive')
+# Ущерб и «Стали ходить реже» в строке ряда (с 2026-10-30): у будущего периода — None.
+_CHURN_EXTRA = ('damage_month', 'damage_year', 'slowing', 'slowing_base', 'slowing_pct')
 
 
 def churn_all(store, period, meta, periods=None, venue=None):
@@ -1159,7 +1264,21 @@ def churn_all(store, period, meta, periods=None, venue=None):
       newbie_matures_on). Гость, вернувшийся на (X + 1)-й день, здесь «не вернулся»,
       хотя мёртвым ни дня не был: согласованность с «Возвратами» важнее;
     - leavers (только выбранный период): died + new_died по числу визитов за жизнь
-      до asof (CHURN_LEAVER_BUCKETS), средний LTV — выручка до asof.
+      до asof (CHURN_LEAVER_BUCKETS), средний LTV — выручка до asof;
+    - ущерб от оттока (решение владельца 2026-10-30): damage_year — выручка ушедших
+      (died + new_died) за CHURN_DAMAGE_WINDOW_DAYS по их последний визит, damage_month —
+      она же / CHURN_DAMAGE_MONTHS («средний чек × чеков в месяц» статьи); то же по группам
+      «Кто уходит». Это ущерб, если ушедшие не вернутся: при коротком пороге часть из них
+      вернётся («Вернулись после паузы» следующих периодов);
+    - «Стали ходить реже» (скрытый отток): на asof гость жив по порогу X, в прошлом окне
+      CHURN_SLOWING_WINDOW_DAYS у него не меньше CHURN_SLOWING_MIN_PREV визитов, в
+      последнем — хотя бы один и не больше половины прошлых (_slowing_windows). slowing —
+      сколько таких, slowing_base — живые с 3+ визитами в прошлом окне и хоть одним в
+      последнем, slowing_pct — доля, %. Это снимок на дату среза, поэтому у неполного
+      периода не занижен, в отличие от оттока;
+    - return_gaps (только выбранный период, от порога не зависит): паузы перед повторными
+      визитами за CHURN_RETURN_WINDOW_DAYS по asof — доля пауз длиннее каждого порога и
+      перцентили (_return_gap_stats). У будущего периода — None.
 
     Первый визит — первый элемент того же списка визитов, что и статусы (а не
     денормализованная guests.first_order_date): один источник, баланс не может
@@ -1167,7 +1286,8 @@ def churn_all(store, period, meta, periods=None, venue=None):
     чек в нём, «ушёл из бара» не значит «ушёл из сети»; data_to — общий для сети.
 
     periods — длина ряда (None — CHURN_SERIES_DEFAULT для типа периода).
-    -> {'data_to', 'scope_from', 'by_days': {X: {'series': [...], 'leavers': {...}}}}
+    -> {'data_to', 'scope_from', 'return_gaps',
+        'by_days': {X: {'series': [...], 'leavers': {...}}}}
     """
     venue = resolve_venue(venue)
     choices = CHURN_DEAD_DAYS_CHOICES
@@ -1180,8 +1300,10 @@ def churn_all(store, period, meta, periods=None, venue=None):
         scope_from = date.fromordinal(min(d[0] for d, _c in visits.values())).isoformat()
     plist = _series_periods(period, n, scope_from)
     by_days = {x: {'series': [], 'leavers': _leaver_buckets([])} for x in choices}
+    return_gaps = None
     if not plist:
-        return {'data_to': last_full, 'scope_from': scope_from, 'by_days': by_days}
+        return {'data_to': last_full, 'scope_from': scope_from, 'return_gaps': return_gaps,
+                'by_days': by_days}
 
     dt_o = date.fromisoformat(last_full).toordinal()
     guests = list(visits.values())
@@ -1195,7 +1317,7 @@ def churn_all(store, period, meta, periods=None, venue=None):
                 row = dict(base, asof=None, state='future', churn_pct=None,
                            newbie_no_return=None, newbie_no_return_pct=None,
                            newbie_matures_on=None)
-                row.update({name: None for name in _CHURN_COUNTS})
+                row.update({name: None for name in _CHURN_COUNTS + _CHURN_EXTRA})
                 by_days[x]['series'].append(row)
             continue
         asof_o = min(e_o, dt_o)
@@ -1207,15 +1329,21 @@ def churn_all(store, period, meta, periods=None, venue=None):
         new_died = [0] * k
         end = [0] * k
         no_return = [0] * k
+        damage = [0.0] * k
+        slow_base = [0] * k
+        slowing = [0] * k
         n_new = 0
         selected = idx == len(plist) - 1
         leavers = [[] for _ in choices] if selected else None
+        gaps = [] if selected else None
         for days, cum in guests:
             first = days[0]
             if first > asof_o:
                 continue
             i1 = bisect_right(days, asof_o)
             gap1 = asof_o - days[i1 - 1]
+            # Выручка за год до ухода — только если гость ушёл хотя бы при одном пороге.
+            year_rev = None
             i0 = bisect_right(days, prev_o, 0, i1)
             if i0:
                 # Был гостем до периода: живой или мёртвый накануне.
@@ -1229,8 +1357,11 @@ def churn_all(store, period, meta, periods=None, venue=None):
                         start[j] += 1
                         if not alive_end:
                             died[j] += 1
+                            if year_rev is None:
+                                year_rev = _revenue_year_before_last(days, cum, i1)
+                            damage[j] += year_rev
                             if selected:
-                                leavers[j].append((i1, cum[i1 - 1]))
+                                leavers[j].append((i1, cum[i1 - 1], year_rev))
                     elif alive_end:
                         react[j] += 1
                     elif visited:
@@ -1244,10 +1375,27 @@ def churn_all(store, period, meta, periods=None, venue=None):
                         end[j] += 1
                     else:
                         new_died[j] += 1
+                        if year_rev is None:
+                            year_rev = _revenue_year_before_last(days, cum, i1)
+                        damage[j] += year_rev
                         if selected:
-                            leavers[j].append((i1, cum[i1 - 1]))
+                            leavers[j].append((i1, cum[i1 - 1], year_rev))
                     if second_gap is None or second_gap > x:
                         no_return[j] += 1
+            # «Стали ходить реже» — снимок на asof, от новизны гостя не зависит.
+            prev_w, recent_w = _slowing_windows(days, i1, asof_o)
+            if _slowing_base(prev_w, recent_w):
+                drop = _is_slowing(prev_w, recent_w)
+                for j, x in enumerate(choices):
+                    if gap1 <= x:
+                        slow_base[j] += 1
+                        if drop:
+                            slowing[j] += 1
+            if selected:
+                # Паузы перед повторными визитами, случившимися за год по asof.
+                lo = bisect_left(days, asof_o - (CHURN_RETURN_WINDOW_DAYS - 1), 0, i1)
+                for i in range(max(lo, 1), i1):
+                    gaps.append(days[i] - days[i - 1])
         for j, x in enumerate(choices):
             matures_o = e_o + x
             mature = matures_o <= dt_o
@@ -1262,11 +1410,18 @@ def churn_all(store, period, meta, periods=None, venue=None):
                 'newbie_no_return': no_return[j] if mature else None,
                 'newbie_no_return_pct': _rate(no_return[j], n_new) if mature else None,
                 'newbie_matures_on': date.fromordinal(matures_o).isoformat(),
+                'damage_month': round(damage[j] / CHURN_DAMAGE_MONTHS),
+                'damage_year': round(damage[j]),
+                'slowing': slowing[j], 'slowing_base': slow_base[j],
+                'slowing_pct': _rate(slowing[j], slow_base[j]),
             })
             by_days[x]['series'].append(row)
             if selected:
                 by_days[x]['leavers'] = _leaver_buckets(leavers[j])
-    return {'data_to': last_full, 'scope_from': scope_from, 'by_days': by_days}
+        if selected:
+            return_gaps = _return_gap_stats(gaps, asof_o)
+    return {'data_to': last_full, 'scope_from': scope_from, 'return_gaps': return_gaps,
+            'by_days': by_days}
 
 
 def churn_view(full, dead_days):
@@ -1284,6 +1439,8 @@ def churn_view(full, dead_days):
         'series': series,
         'period': series[-1] if series else None,
         'leavers': part['leavers'],
+        # Подсказка к порогу от порога не зависит: доли «позже порога» — сразу для всех.
+        'return_gaps': full['return_gaps'],
     }
 
 
@@ -1292,6 +1449,59 @@ def churn(store, period, meta, dead_days=CHURN_DEAD_DAYS_DEFAULT, periods=None,
     """Отток по одному порогу (§17): churn_all + churn_view; порог — parse_dead_days."""
     return churn_view(churn_all(store, period, meta, periods, venue),
                       parse_dead_days(dead_days))
+
+
+def churn_slowing(store, period, meta, dead_days=CHURN_DEAD_DAYS_DEFAULT, venue=None):
+    """«Стали ходить реже» (§17) поимённо — то же правило, что счётчик slowing в churn_all.
+
+    Дата среза — как у выбранного периода в churn_all: min(конец периода, data_to); у
+    будущего периода и пустой витрины список пуст (asof = None). Гость в списке, если на
+    дату среза он жив по порогу dead_days и _is_slowing: в прошлых 90 днях не меньше 3
+    визитов, в последних 90 — хотя бы один и не больше половины прошлых. Поэтому total —
+    ровно period.slowing ответа оттока с тем же порогом.
+
+    revenue_12m — выручка гостя за RFM_WINDOW_DAYS по дату среза (как M в RFM); порядок —
+    по ней, самые ценные сверху, при равенстве — по guest_id. С баром — только его чеки
+    (визиты и выручка); имя, телефон и карта — общие для сети.
+    -> {'asof', 'dead_days', 'total', 'guests': [...]}
+    """
+    venue = resolve_venue(venue)
+    x = parse_dead_days(dead_days)
+    out = {'asof': None, 'dead_days': x, 'total': 0, 'guests': []}
+    last_full = data_to(meta)
+    if not last_full or period['p_start'].isoformat() > last_full:
+        return out
+    asof_o = min(period['p_end'].toordinal(), date.fromisoformat(last_full).toordinal())
+    m_from = asof_o - (RFM_WINDOW_DAYS - 1)
+    with store.conn() as conn:
+        visits = _load_visit_revenue(conn, venue)
+        info = {r['guest_id']: r for r in conn.execute(
+            "SELECT guest_id, name, phone, card_number FROM guests")}
+    rows = []
+    for guest_id, (days, cum) in visits.items():
+        i1 = bisect_right(days, asof_o)
+        if not i1:
+            continue
+        gap = asof_o - days[i1 - 1]
+        prev_w, recent_w = _slowing_windows(days, i1, asof_o)
+        if gap > x or not _is_slowing(prev_w, recent_w):
+            continue
+        lo = bisect_left(days, m_from, 0, i1)
+        g = info.get(guest_id)
+        rows.append({
+            'guest_id': guest_id,
+            'name': g['name'] if g else None,
+            'phone': g['phone'] if g else None,
+            'card_number': g['card_number'] if g else None,
+            'last_visit': date.fromordinal(days[i1 - 1]).isoformat(),
+            'recency_days': gap,
+            'visits_prev': prev_w,
+            'visits_recent': recent_w,
+            'revenue_12m': round(cum[i1 - 1] - (cum[lo - 1] if lo else 0.0)),
+        })
+    rows.sort(key=lambda r: (-r['revenue_12m'], r['guest_id']))
+    out.update(asof=date.fromordinal(asof_o).isoformat(), total=len(rows), guests=rows)
+    return out
 
 
 # ---------------------------------------------------------------- §9 Товары

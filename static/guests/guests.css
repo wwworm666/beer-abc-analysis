@@ -79,6 +79,12 @@
 /* --- Карточки метрик --- */
 .metric-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
     gap: 14px; margin-bottom: 20px; }
+/* «Отток» (2026-10-30): восемь плиток двумя рядами по четыре — сверху потери, снизу приток
+   и база. auto-fill на пять колонок оставил бы во втором ряду три пустых места. */
+.metric-grid.metric-grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 900px) {
+    .metric-grid.metric-grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 .gmetric { background: var(--bg-secondary); border: 1px solid var(--border-color);
     border-radius: 14px; padding: 16px 18px; }
 .gmetric-label { font-size: 0.72rem; font-weight: 600; letter-spacing: .05em;
@@ -144,6 +150,10 @@
 /* Подпись перед кнопками переключателя («Ушёл, если нет визита:» на «Оттоке») */
 .sub-switch .sub-label { align-self: center; margin-right: 4px; font-size: 0.8rem;
     color: var(--text-tertiary); }
+/* Подсказка к порогу «Оттока» — сразу под переключателем; выбранный порог жирным. */
+.churn-hint { margin: -8px 0 0; }
+.churn-hint b { color: var(--text-secondary); }
+.churn-hint + .how-block { margin-bottom: 16px; }
 
 /* --- Блок «Как считается» --- */
 .how-block { margin-top: 8px; border: 1px dashed var(--border-color);
