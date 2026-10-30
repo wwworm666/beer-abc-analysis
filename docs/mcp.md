@@ -1333,6 +1333,13 @@ py -3 scripts/mcp_eval.py          # сухой план эталонного п
 
 ## Changelog
 
+- **2026-10-30 («Бары рядом» и «всё время»)** — [guests.md](guests.md), §17: маршрут
+  `/api/guests/churn` принимает `periods` до 1040 и `all` (кнопка вкладки «Графики за»), а у
+  `analytics_guests_churn` и `analytics_guests_ltv` потолок остаётся 60 — теперь константой
+  `CHURN_SERIES_AGENT_MAX` (ряд «всё время» недель — около 200 тыс. знаков, мост урезал бы).
+  `analytics_guests_churn_guests` без `store` отдаёт у гостя `favorite_store` и
+  `favorite_store_name` — любимую точку. Новых маршрутов и инструментов нет: сравнение баров
+  страница собирает тем же `/api/guests/churn?store=`; числа охвата прежние.
 - **2026-10-30 (кликабельные плитки «Оттока»)** — [guests.md](guests.md), «Гости плитки
   поимённо»: `analytics_guests_churn_slowing` заменён на `analytics_guests_churn_guests`
   (маршрут `/api/guests/churn-guests` вместо `/api/guests/churn-slowing`) — гости любой плитки

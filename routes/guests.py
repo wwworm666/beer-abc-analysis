@@ -25,6 +25,7 @@ anchor — любая дата внутри периода; дефолт: тек
 
 import csv
 import io
+import threading
 
 from flask import Blueprint, Response, jsonify, render_template, request
 
@@ -36,6 +37,18 @@ from core.venues_config import PHYSICAL_VENUES, VENUES
 from extensions import APP_VERSION, BARS, cached_olap
 
 guests_bp = Blueprint('guests', __name__)
+
+# Тяжёлые расчёты «Оттока» (churn_all, churn_guests) — по одному на процесс. Вкладка при «Все
+# бары» шлёт шесть запросов разом (сеть, список и четыре бара), а потоки gthread делят один
+# GIL: построчное чтение SQLite отдаёт GIL на каждой строке и ждёт его за чужим циклом. Замер
+# на искусственной витрине размера прода, ряд «всё время» месяцев, шесть запросов разом: без
+# очереди — 8,8 с, в очереди — 1,4 с. В очереди поток ждёт на замке и GIL не делит.
+_CHURN_CALC_LOCK = threading.Lock()
+
+
+def _churn_calc(fn, *args):
+    with _CHURN_CALC_LOCK:
+        return fn(*args)
 
 
 def _ctx(by_venue=True):
@@ -125,7 +138,7 @@ def api_churn():
         dead_days = ga.parse_dead_days(request.args.get('dead_days'))
         periods = ga.parse_series_len(request.args.get('periods'), period['type'])
         full = cached_olap(_cache_key('churn', meta, periods, ga.data_to(meta)),
-                           lambda: ga.churn_all(store, period, meta, periods, venue))
+                           lambda: _churn_calc(ga.churn_all, store, period, meta, periods, venue))
         return jsonify({'meta': meta, 'data': ga.churn_view(full, dead_days)})
     except Exception as e:
         return jsonify({'error': f'{type(e).__name__}: {e}'}), 500
@@ -154,18 +167,18 @@ def api_churn_guests():
             return jsonify({'error': str(e)}), 400
         store, period, meta, venue = _ctx()
         dead_days = ga.parse_dead_days(request.args.get('dead_days'))
-        data = ga.churn_guests(store, period, meta, group, dead_days, venue, bucket)
+        data = _churn_calc(ga.churn_guests, store, period, meta, group, dead_days, venue, bucket)
         if request.args.get('export') == 'csv':
             buf = io.StringIO()
             w = csv.writer(buf, delimiter=';')
-            w.writerow(['Телефон', 'Карта', 'Имя', 'Первый визит', 'Последний визит',
-                        'Дней с визита', 'Визитов за всё время', 'Визитов в периоде',
+            w.writerow(['Телефон', 'Карта', 'Имя', 'Любимая точка', 'Первый визит',
+                        'Последний визит', 'Дней с визита', 'Визитов за всё время', 'Визитов в периоде',
                         'Выручка в периоде', 'Выручка за 12 мес', 'LTV',
                         'Пауза перед визитом в периоде, дней', 'Визитов за прошлые 90 дней',
                         'Визитов за последние 90 дней', 'Ущерб в месяц (у ушедших)'])
             for g in data['guests']:
-                w.writerow([g['phone'], g['card_number'], g['name'], g['first_visit'],
-                            g['last_visit'], g['recency_days'], g['visits_total'],
+                w.writerow([g['phone'], g['card_number'], g['name'], g['favorite_store_name'],
+                            g['first_visit'], g['last_visit'], g['recency_days'], g['visits_total'],
                             g['visits_period'], g['revenue_period'], g['revenue_12m'], g['ltv'],
                             g['pause_days'], g['visits_prev'], g['visits_recent'],
                             g['damage_month']])

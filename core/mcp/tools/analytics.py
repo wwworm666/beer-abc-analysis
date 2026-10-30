@@ -131,6 +131,12 @@ RFM_SEGMENT_PATTERN = ('^(' + '|'.join(RFM_SEGMENTS) + ')(,(' + '|'.join(RFM_SEG
 # мост урежет с пометкой, полный список — CSV.
 RFM_LIMIT_MAX = 200
 
+# Потолок periods у агента (analytics_guests_churn, analytics_guests_ltv): 60 строк оттока —
+# около 24 тыс. знаков при пределе моста 60 тыс. Маршрут принимает больше, вплоть до «всё
+# время» (core/guest_analytics.CHURN_SERIES_MAX и ?periods=all — кнопка вкладки): такой ответ
+# мост урезал бы.
+CHURN_SERIES_AGENT_MAX = 60
+
 # Плитки «Оттока» с поимённым списком (core/guest_analytics.CHURN_GUEST_GROUPS) и группы
 # «Кто уходит» (метки CHURN_LEAVER_BUCKETS) — enum group и bucket у analytics_guests_churn_guests.
 CHURN_GUEST_GROUPS: Tuple[str, ...] = ('left', 'reactivated', 'new', 'newbie_no_return', 'slowing')
@@ -1368,7 +1374,8 @@ _T_GUESTS = [
         '/api/guests/churn',
         extra_props={
             'dead_days': _churn_dead_days_prop(),
-            'periods': {'type': 'integer', 'minimum': 3, 'maximum': 60,
+            'periods': {'type': 'integer', 'minimum': 3,
+                        'maximum': CHURN_SERIES_AGENT_MAX,
                         'description': 'Сколько периодов в ряду, 3–60 (по умолчанию неделя 26, '
                                        'месяц 24, квартал 12, год 8).'},
         },
@@ -1390,9 +1397,11 @@ _T_GUESTS = [
         'recency_days, visits_total и ltv (₽, за жизнь по дату среза), visits_period и '
         'revenue_period (₽, с начала периода), revenue_12m (₽, 365 дней по дату среза), '
         'pause_days (пауза перед первым визитом в периоде), visits_prev / visits_recent, '
-        "damage_month (₽, только у left). Всегда передавайте limit (например 50); export='csv' "
-        '— весь список файлом. Дата среза asof = min(конец периода, data_to); у будущего периода '
-        'список пуст. Формулы — guests.md, §17.',
+        'damage_month (₽, только у left); без store — favorite_store и favorite_store_name, '
+        'любимая точка гостя (больше дней-визитов по дату среза): какой бар его возвращает. '
+        "Всегда передавайте limit (например 50); export='csv' — весь список файлом. Дата среза "
+        'asof = min(конец периода, data_to); у будущего периода список пуст. Формулы — '
+        'guests.md, §17.',
         '/api/guests/churn-guests',
         extra_props={
             'group': {'type': 'string', 'enum': list(CHURN_GUEST_GROUPS),
@@ -1518,7 +1527,8 @@ _T_GUESTS = [
         '(сравнение баров — только для всей сети).',
         '/api/guests/ltv',
         extra_props={
-            'periods': {'type': 'integer', 'minimum': 3, 'maximum': 60,
+            'periods': {'type': 'integer', 'minimum': 3,
+                        'maximum': CHURN_SERIES_AGENT_MAX,
                         'description': 'Сколько периодов в ряду, 3–60 (по умолчанию неделя 26, '
                                        'месяц 24, квартал 12, год 8).'},
         },

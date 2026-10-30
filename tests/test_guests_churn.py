@@ -558,8 +558,11 @@ class TestParams(unittest.TestCase):
         self.assertEqual(ga.parse_series_len('x', 'week'), 26)
         self.assertEqual(ga.parse_series_len('', 'quarter'), 12)
         self.assertEqual(ga.parse_series_len('1', 'month'), ga.CHURN_SERIES_MIN)
-        self.assertEqual(ga.parse_series_len('999', 'year'), ga.CHURN_SERIES_MAX)
+        self.assertEqual(ga.parse_series_len('99999', 'year'), ga.CHURN_SERIES_MAX)
         self.assertEqual(ga.parse_series_len('12', 'month'), 12)
+        self.assertEqual(ga.parse_series_len('120', 'month'), 120, 'больше 60 — для страницы')
+        for raw in ('all', 'ALL', ' all '):
+            self.assertEqual(ga.parse_series_len(raw, 'week'), ga.CHURN_SERIES_MAX, raw)
 
 
 class RouteMixin:
@@ -602,6 +605,38 @@ class TestChurnRoute(RouteMixin, ChurnBase):
         d = self.get(dead_days='45', periods='много')
         self.assertEqual(d['dead_days'], 30)
         self.assertEqual(len(d['series']), 4, 'длина по умолчанию, обрезанная началом витрины')
+
+    def test_heavy_calculations_run_one_at_a_time(self):
+        """Шесть запросов вкладки разом не делят GIL: расчёт идёт под замком процесса."""
+        seen = []
+        real_all, real_guests = ga.churn_all, ga.churn_guests
+
+        def spy_all(*args):
+            seen.append(('churn_all', self.rg._CHURN_CALC_LOCK.locked()))
+            return real_all(*args)
+
+        def spy_guests(*args):
+            seen.append(('churn_guests', self.rg._CHURN_CALC_LOCK.locked()))
+            return real_guests(*args)
+
+        with mock.patch.object(ga, 'churn_all', spy_all), \
+                mock.patch.object(ga, 'churn_guests', spy_guests):
+            self.get(periods='5')
+            response = self.client.get('/api/guests/churn-guests', query_string={
+                'period_type': 'month', 'anchor': '2026-03-15', 'group': 'left'})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(seen, [('churn_all', True), ('churn_guests', True)])
+        self.assertFalse(self.rg._CHURN_CALC_LOCK.locked(), 'замок отпущен после расчёта')
+
+    def test_all_periods_is_whole_history(self):
+        """«Всё время»: ряд от первого чека витрины (01.12.2025), а не два года."""
+        self.assertEqual(len(self.get(periods='3')['series']), 3)
+        series = self.get(periods='all')['series']
+        self.assertEqual([r['p_start'] for r in series],
+                         ['2025-12-01', '2026-01-01', '2026-02-01', '2026-03-01'])
+        weeks = self.get(periods='all', period_type='week')['series']
+        self.assertEqual((weeks[0]['p_start'], len(weeks)), ('2025-12-01', 15),
+                         'недели с понедельника 01.12.2025 по неделю 09–15.03')
 
     def test_ltv_route_reads_periods(self):
         response = self.client.get('/api/guests/ltv', query_string={
@@ -666,6 +701,36 @@ class TestChurnGuests(ChurnBase):
             self.guests('new', bucket='1')
 
 
+class TestFavoriteStore(ChurnBase):
+    """Любимая точка ушедшего во всей сети — какой бар его возвращает (правило §11)."""
+    GUESTS = {
+        'P': [('2026-01-10', 'bolshoy', 1000.0), ('2026-01-20', 'ligovskiy', 1000.0),
+              ('2026-02-05', 'ligovskiy', 1000.0)],
+        'Q': [('2026-02-10', 'ligovskiy', 1000.0), ('2026-02-12', 'bolshoy', 1000.0)],
+        'R': [('2026-02-20', 'varshavskaya', 1000.0)] +
+             [(d, 'kremenchugskaya', 1000.0) for d in ('2026-05-01', '2026-05-05', '2026-05-10')],
+        'Z': [('2026-05-20', 'bolshoy', 1000.0)],
+    }
+
+    def left(self, venue=None):
+        period, meta = self.ctx(venue=venue)
+        return ga.churn_guests(self.store, period, meta, 'left', 30, venue)['guests']
+
+    def test_network_rows_carry_favorite_store(self):
+        fav = {g['name']: (g['favorite_store'], g['favorite_store_name']) for g in self.left()}
+        self.assertEqual(fav['P'], ('ligovskiy', 'Лиговский'), '2 дня в Лиговском против 1')
+        self.assertEqual(fav['Q'][0], 'bolshoy', 'поровну — первый по порядку заведений')
+        self.assertEqual(fav['R'][0], 'varshavskaya',
+                         'по дату среза: майские визиты на Кременчугской ещё не случились')
+        self.assertEqual(set(fav), {'P', 'Q', 'R'})
+
+    def test_bar_rows_have_no_favorite_store(self):
+        rows = self.left('ligovskiy')
+        self.assertTrue(rows)
+        self.assertEqual({(g['favorite_store'], g['favorite_store_name']) for g in rows},
+                         {(None, None)}, 'с баром все визиты в нём — колонка не нужна')
+
+
 class TestChurnGuestsRoute(RouteMixin, ChurnBase):
     GUESTS = SLOWING
 
@@ -699,7 +764,7 @@ class TestChurnGuestsRoute(RouteMixin, ChurnBase):
         self.assertIn('churn_slowing_2026-03-31_90d.csv',
                       response.headers['Content-Disposition'])
         body = response.get_data().decode('utf-8-sig').strip().splitlines()
-        self.assertEqual(body[0].split(';')[0], 'Телефон')
+        self.assertEqual(body[0].split(';')[:4], ['Телефон', 'Карта', 'Имя', 'Любимая точка'])
         self.assertEqual(len(body), 1 + 3, 'выгрузка — весь список, limit не действует')
 
     def test_bad_params_are_400(self):

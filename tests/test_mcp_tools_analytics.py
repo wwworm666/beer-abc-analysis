@@ -705,10 +705,13 @@ def test_constants_match_code():
         texts['analytics_guests_churn']
     assert 'по умолчанию ' + str(guest_analytics.CHURN_DEAD_DAYS_DEFAULT) in \
         texts['analytics_guests_churn']
+    # Ряд: у агента потолок ниже, чем у страницы («всё время» мост урезал бы).
+    assert analytics.CHURN_SERIES_AGENT_MAX <= guest_analytics.CHURN_SERIES_MAX
     for tool in ('analytics_guests_churn', 'analytics_guests_ltv'):
         periods = _prop(tool, 'periods')
         assert (periods['minimum'], periods['maximum']) == (guest_analytics.CHURN_SERIES_MIN,
-                                                            guest_analytics.CHURN_SERIES_MAX)
+                                                            analytics.CHURN_SERIES_AGENT_MAX)
+        assert '3–' + str(analytics.CHURN_SERIES_AGENT_MAX) in periods['description']
     # Ущерб, «Стали ходить реже» и подсказка к порогу (2026-10-30): окна и пороги в текстах —
     # те же, что в коде; у списка порог — тот же enum, что у оттока.
     churn_text = texts['analytics_guests_churn']

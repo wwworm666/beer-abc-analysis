@@ -98,10 +98,16 @@ CHURN_DEAD_DAYS_DEFAULT = 30
 # Длина ряда по умолчанию — сколько периодов выбранного типа видно на графике:
 # полгода недель, два года месяцев, три года кварталов, восемь лет (витрина с 2017-12).
 CHURN_SERIES_DEFAULT = {'week': 26, 'month': 24, 'quarter': 12, 'year': 8}
-# Границы параметра periods (как у прежнего months динамики базы): меньше трёх точек —
-# не ряд, больше 60 — ответ перестаёт помещаться в предел моста MCP (60 тыс. знаков).
+# Границы параметра periods: меньше трёх точек — не ряд. Сверху — «всё время»
+# (?periods=all, кнопка вкладки, просьба владельца 2026-10-30: «по умолчанию только 2 года»):
+# ряд сам обрезается по первому чеку сети или бара, а 1040 недель — 20 лет, с запасом больше
+# истории витрины (с 2017-12: 461 неделя на 2026-10). Замер на искусственной витрине размера
+# прода (4 500 гостей, 52 тыс. чеков с 2017-12): все 107 месяцев — 0,4 с и 48 тыс. знаков, все
+# 461 неделя — 1,4 с и 208 тыс. знаков, повтор — из кэша. Агенту MCP потолок ниже
+# (core/mcp/tools/analytics.CHURN_SERIES_AGENT_MAX): длинный ответ не помещается в мост.
 CHURN_SERIES_MIN = 3
-CHURN_SERIES_MAX = 60
+CHURN_SERIES_MAX = 1040
+CHURN_SERIES_ALL = 'all'
 # «Кто уходит»: ушедшие по числу визитов за всю жизнь до даты среза. Границы те же, что
 # у сегментов частоты §4, но смысл другой (там визиты за период) — поэтому своя константа:
 # правка сегментов частоты не должна молча менять эту разбивку.
@@ -194,6 +200,17 @@ def resolve_period(period_type='month', anchor=None):
         label = f"{MONTH_NAMES_NOM[a.month - 1]} {a.year}"
     return {'type': period_type, 'p_start': p_start, 'p_end': p_end,
             'prev_start': prev_start, 'prev_end': prev_end, 'label': label}
+
+
+_VENUE_ORDER = {k: i for i, k in enumerate(PHYSICAL_VENUES)}
+
+
+def _favorite_rank(store, visit_days):
+    """Ключ сортировки «любимой точки» гостя: больше дней-визитов, при равенстве — порядок
+    PHYSICAL_VENUES, затем ключ бара (детерминированный tie-break). Одно правило для «Точек»
+    (§11), карточки гостя (§12) и списков гостей «Оттока» (§17). Меньший ключ — любимее.
+    """
+    return (-visit_days, _VENUE_ORDER.get(store, 99), store)
 
 
 def resolve_venue(raw):
@@ -415,12 +432,16 @@ def parse_dead_days(raw):
 def parse_series_len(raw, period_type):
     """?periods= -> длина ряда в CHURN_SERIES_MIN..MAX; пусто или мусор — по умолчанию.
 
-    Без int() на сыром вводе в маршруте: у прежнего ?months= мусор давал 500.
+    'all' — вся история: CHURN_SERIES_MAX, а ряд обрезается по первому чеку сети или бара
+    (_series_periods). Без int() на сыром вводе в маршруте: у прежнего ?months= мусор давал 500.
     """
     default = CHURN_SERIES_DEFAULT.get(period_type, CHURN_SERIES_DEFAULT['month'])
+    text = str(raw).strip().lower()
+    if text == CHURN_SERIES_ALL:
+        return CHURN_SERIES_MAX
     try:
-        value = int(str(raw).strip())
-    except (TypeError, ValueError):
+        value = int(text)
+    except ValueError:
         return default
     return min(max(value, CHURN_SERIES_MIN), CHURN_SERIES_MAX)
 
@@ -1523,7 +1544,9 @@ def churn_guests(store, period, meta, group, dead_days=CHURN_DEAD_DAYS_DEFAULT, 
     выручка за год по последний визит / 12). Порядок — самые ценные сверху: left — по ущербу,
     reactivated и new — по выручке в периоде, newbie_no_return — по LTV, slowing — по выручке
     за 12 мес; при равенстве — по guest_id. С баром — только его чеки; имя, телефон и карта —
-    общие для сети.
+    общие для сети. По всей сети у строки ещё favorite_store / favorite_store_name — любимая
+    точка гостя по дату среза (_favorite_rank, правило §11): какой бар его возвращает; с баром —
+    None.
     -> {'asof', 'dead_days', 'group', 'bucket', 'mature', 'matures_on', 'total', 'guests'}
     Raises:
         ValueError: неизвестная группа, корзина или bucket не у group=left (ответ 400).
@@ -1555,6 +1578,16 @@ def churn_guests(store, period, meta, group, dead_days=CHURN_DEAD_DAYS_DEFAULT, 
         visits = _load_visit_revenue(conn, venue)
         info = {r['guest_id']: r for r in conn.execute(
             "SELECT guest_id, name, phone, card_number FROM guests")}
+        # По всей сети — любимая точка гостя по дату среза (_favorite_rank): какой бар
+        # возвращает ушедшего. С баром не нужна — все визиты в нём.
+        fav = {}
+        if venue is None:
+            for r in conn.execute(
+                    "SELECT guest_id, store, COUNT(DISTINCT open_date) v FROM receipts "
+                    "WHERE open_date <= ? GROUP BY guest_id, store", (out['asof'],)):
+                rank = _favorite_rank(r['store'], r['v'])
+                if r['guest_id'] not in fav or rank < fav[r['guest_id']]:
+                    fav[r['guest_id']] = rank
     picked = []
     for guest_id, (days, cum) in visits.items():
         if days[0] > asof_o:
@@ -1581,11 +1614,14 @@ def churn_guests(store, period, meta, group, dead_days=CHURN_DEAD_DAYS_DEFAULT, 
         rev12 = ltv - (cum[lo12 - 1] if lo12 else 0.0)
         year_rev = _revenue_year_before_last(days, cum, i1) if group == 'left' else None
         g = info.get(guest_id)
+        fav_store = fav[guest_id][2] if guest_id in fav else None
         row = {
             'guest_id': guest_id,
             'name': g['name'] if g else None,
             'phone': g['phone'] if g else None,
             'card_number': g['card_number'] if g else None,
+            'favorite_store': fav_store,
+            'favorite_store_name': VENUES.get(fav_store, {}).get('name', fav_store),
             'first_visit': date.fromordinal(days[0]).isoformat(),
             'last_visit': date.fromordinal(days[i1 - 1]).isoformat(),
             'recency_days': gap1,
@@ -1805,14 +1841,13 @@ def venues_analytics(store, period, meta, venue=None):
         dist_period = dist(conn, p_start, p_end)
         dist_lifetime = dist(conn, '0000-01-01', '9999-12-31')
 
-    order_idx = {k: i for i, k in enumerate(PHYSICAL_VENUES)}
     fav = {}
     stores_per_guest = {}
     for r in per_guest_store:
         gid = r['guest_id']
         stores_per_guest.setdefault(gid, set()).add(r['store'])
         cur = fav.get(gid)
-        cand = (-r['v'], order_idx.get(r['store'], 99), r['store'])
+        cand = _favorite_rank(r['store'], r['v'])
         if cur is None or cand < cur[0]:
             fav[gid] = (cand, r['store'])
     fav_counts = {}
@@ -1925,11 +1960,9 @@ def guest_card(store, guest_id, period, meta):
             FROM receipts WHERE guest_id = ? AND open_date >= ? AND open_date <= ?
             """, (guest_id, win_start, asof)).fetchone()
 
-    order_idx = {k: i for i, k in enumerate(PHYSICAL_VENUES)}
     fav_store = None
     if stores:
-        fav_store = sorted(stores, key=lambda r: (-r['v'], order_idx.get(r['store'], 99),
-                                                  r['store']))[0]['store']
+        fav_store = min(stores, key=lambda r: _favorite_rank(r['store'], r['v']))['store']
     rfm_block = None
     if w and w['f']:
         rec_days = _days_between(w['last_visit'], asof)

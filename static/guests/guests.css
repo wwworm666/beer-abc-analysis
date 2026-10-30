@@ -163,6 +163,28 @@
 .churn-hint { margin: -8px 0 0; }
 .churn-hint b { color: var(--text-secondary); }
 .churn-hint + .how-block { margin-bottom: 16px; }
+/* «Отток»: два переключателя в ряд — порог и «Графики за». */
+.churn-switches { display: flex; flex-wrap: wrap; column-gap: 28px; }
+/* Список гостей: первые строки сразу, остальные — по кнопке «Показать ещё». */
+.gtable tr.churn-more[hidden] { display: none; }
+.churn-more-btn { margin-top: 12px; }
+/* «Бары рядом»: строка всей сети под барами. */
+.gtable tr.row-total td { font-weight: 600; border-top: 2px solid var(--border-color); }
+/* «Бары рядом»: девять колонок — длинные заголовки переносятся, чтобы таблица помещалась. */
+.gtable.churn-bars-table th { white-space: normal; vertical-align: bottom; }
+/* «Отток по барам»: малые графики на бар, одна легенда над ними. */
+.churn-legend { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-bottom: 12px;
+    font-size: 0.75rem; color: var(--text-secondary); }
+.churn-legend-item { display: inline-flex; align-items: center; gap: 6px; }
+.churn-swatch { width: 12px; height: 12px; border-radius: 2px; }
+.churn-swatch-danger { background: var(--danger); }
+.churn-swatch-warning { background: var(--warning); }
+.churn-bars-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+@media (max-width: 900px) { .churn-bars-grid { grid-template-columns: 1fr; } }
+.churn-bar-cell { min-width: 0; }
+.churn-bar-name { margin-bottom: 6px; font-size: 0.8rem; font-weight: 600;
+    color: var(--text-primary); }
+.chart-box.short { height: 200px; }
 
 /* --- Блок «Как считается» --- */
 .how-block { margin-top: 8px; border: 1px dashed var(--border-color);
