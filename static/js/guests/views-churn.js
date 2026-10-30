@@ -135,6 +135,40 @@ Guests.registerView('churn', function (pane) {
             G.howBlock(['churn_threshold'], meta);
     }
 
+    // Подпись под графиком: где кончается каждая линия и почему (владелец 2026-10-30: «почему
+    // линия обрывается»). Отток рисуется по полным периодам, «Не вернулись» — по созревшим;
+    // «Стали ходить реже» — снимок на дату, доходит до конца. Обе линии до конца — подписи нет.
+    function lineEndsNote(rows, dataTo, type) {
+        var lastChurn = -1, lastNewbie = -1;
+        rows.forEach(function (r, i) {
+            if (r.state === 'complete' && r.churn_pct !== null) lastChurn = i;
+            if (r.newbie_no_return_pct !== null) lastNewbie = i;
+        });
+        var end = rows.length - 1;
+        function why(r) {
+            if (r.state === 'future') return shortLabel(r, type) + ' ещё не начался';
+            if (r.state === 'partial') return shortLabel(r, type) + ' не закончен';
+            return '';
+        }
+        function whyNewbie(r) {
+            if (r.state !== 'future' && r.new === 0) return 'в ' + shortLabel(r, type) + ' новых не было';
+            if (r.state !== 'future' && r.newbie_matures_on && r.newbie_matures_on > dataTo) {
+                return shortLabel(r, type) + ' созреет ' + G.fmtDate(r.newbie_matures_on);
+            }
+            return why(r);
+        }
+        function part(name, last, reason) {
+            return name + ' — ' + (last >= 0 ? shortLabel(rows[last], type) : 'пока ни одного периода') +
+                (reason ? ' (' + reason + ')' : '');
+        }
+        var parts = [];
+        if (rows.length && lastChurn < end) parts.push(part('отток', lastChurn, why(rows[lastChurn + 1])));
+        if (rows.length && lastNewbie < end) {
+            parts.push(part('«Не вернулись»', lastNewbie, whyNewbie(rows[lastNewbie + 1])));
+        }
+        return parts.length ? '<div class="note-line">Последняя точка: ' + parts.join('; ') + '.</div>' : '';
+    }
+
     function leftCount(row) {
         return row.died + row.new_died;
     }
@@ -395,7 +429,7 @@ Guests.registerView('churn', function (pane) {
     }
 
     // «Отток по барам» (только «Все бары»): малый график на бар, одна шкала и одна легенда.
-    function barsTrendCard(perBar, meta) {
+    function barsTrendCard(perBar, meta, endsNote) {
         var html = '<div class="gcard"><h3>Отток по барам' + G.helpIcon('churn_bars') + '</h3>' +
             '<div class="churn-legend">' +
             '<span class="churn-legend-item"><span class="churn-swatch churn-swatch-danger"></span>' +
@@ -407,7 +441,8 @@ Guests.registerView('churn', function (pane) {
                 '</div><div class="chart-box short"><canvas id="churnBarChart-' + b.key +
                 '"></canvas></div></div>';
         });
-        return html + '</div>' +
+        // Подпись — та же, что под «Отток по периодам»: последний полный день у баров общий с сетью.
+        return html + '</div>' + (endsNote || '') +
             G.howBlock(['churn_bars', 'churn_rate', 'churn_newbie', 'churn_range'], meta) + '</div>';
     }
 
@@ -512,11 +547,13 @@ Guests.registerView('churn', function (pane) {
             }
 
             if (p) {
+                var endsNote = lineEndsNote(d.series, d.data_to, type);
                 html += '<div class="gcard"><h3>Отток по периодам' + G.helpIcon('churn_rate') +
                     '</h3><div class="chart-box"><canvas id="churnRateChart"></canvas></div>' +
+                    endsNote +
                     G.howBlock(['churn_alive', 'churn_rate', 'churn_newbie', 'churn_slowing',
                                 'churn_range'], meta) + '</div>';
-                if (showBars) html += barsTrendCard(perBar, meta);
+                if (showBars) html += barsTrendCard(perBar, meta, endsNote);
                 html += '<div class="gcard"><h3>Баланс базы' + G.helpIcon('churn_balance') +
                     '</h3><div class="chart-box tall"><canvas id="churnFlowChart"></canvas></div>' +
                     balanceTable(d.series, type) +

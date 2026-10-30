@@ -587,6 +587,7 @@ test('«Отток»: ущерб, подсказка к порогу и клик
             'в режиме бара — колонка любимой точки или сравнение баров');
         assert.ok(html.includes('Сравнение баров — при выборе «Все бары».'), 'нет подсказки про «Все бары»');
         assert.ok(!html.includes('churn-more-btn'), '2 строки — без кнопки «Показать ещё»');
+        assert.ok(!html.includes('Последняя точка'), 'обе линии до конца — подпись не нужна');
         // Длина графиков: месяц — 1 год · 2 года (по умолчанию) · 5 лет · всё время.
         const main = fetchCalls.find((c) => String(c.url).startsWith('/api/guests/churn?'));
         assert.equal(query(main.url).get('periods'), '24', 'по умолчанию два года месяцев');
@@ -695,6 +696,50 @@ test('«Отток»: список — первые 10 гостей, остал�
         assert.ok(html.includes('class="sync-btn churn-more-btn">Показать ещё 2<'),
             'нет кнопки «Показать ещё 2»');
         assert.ok(html.includes('всего 82, все с телефонами — в CSV'), 'нет числа всех гостей группы');
+    });
+});
+
+// Подпись под графиком (владелец: «почему линия обрывается»): срез 12.09 — сентябрь идёт,
+// новички августа созреют 30.09.
+function endsNoteHtml(series) {
+    const { sandbox, byId } = loadGuests({
+        views: ['static/js/guests/views-churn.js'], gh: makeGh('ligovskiy'), init: true,
+        respond: churnRespond(Object.assign(metaOf('ligovskiy', 'Лиговский'), { period_type: 'month' }),
+                              Object.assign(churnData(series[series.length - 1]), { series: series })),
+    });
+    sandbox.Guests.activateTab('churn');
+    return byId;
+}
+
+test('«Отток»: подпись «Последняя точка» — где и почему кончаются линии', () => {
+    const byId = endsNoteHtml([
+        churnRow({ p_start: '2026-07-01', p_end: '2026-07-31', churn_pct: 10.0, newbie_no_return_pct: 40.0 }),
+        churnRow({ newbie_no_return: null, newbie_no_return_pct: null, newbie_matures_on: '2026-09-30' }),
+        churnRow({ p_start: '2026-09-01', p_end: '2026-09-30', asof: '2026-09-12', state: 'partial',
+                   churn_pct: 8.0, newbie_no_return: null, newbie_no_return_pct: null,
+                   newbie_matures_on: '2026-10-31' }),
+    ]);
+    return later(() => {
+        const html = byId['pane-churn'].innerHTML;
+        const note = 'Последняя точка: отток — авг 26 (сен 26 не закончен); «Не вернулись» — июл 26 ' +
+            '(авг 26 созреет 30.09.2026).';
+        assert.ok(html.includes(note), 'нет подписи под графиком: ' +
+            (html.match(/Последняя точка[^<]*/) || ['—'])[0]);
+        assert.ok(html.indexOf(note) > html.indexOf('id="churnRateChart"') &&
+            html.indexOf(note) < html.indexOf('<h3>Баланс базы'), 'подпись не под «Отток по периодам»');
+    });
+});
+
+test('«Отток»: подпись — созревший период без новых гостей, а не «созреет» в прошлом', () => {
+    const byId = endsNoteHtml([
+        churnRow({ p_start: '2026-07-01', p_end: '2026-07-31' }),
+        churnRow({ new: 0, newbie_no_return: null, newbie_no_return_pct: null,
+                   newbie_matures_on: '2026-09-30' }),
+    ]);
+    return later(() => {
+        const html = byId['pane-churn'].innerHTML;
+        assert.ok(html.includes('Последняя точка: «Не вернулись» — июл 26 (в авг 26 новых не было).'),
+            'подпись для месяца без новых: ' + (html.match(/Последняя точка[^<]*/) || ['—'])[0]);
     });
 });
 
