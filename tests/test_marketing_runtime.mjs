@@ -462,43 +462,103 @@ function churnRow(over) {
         asof: '2026-08-31', state: 'complete', start_alive: 100, died: 12, reactivated: 5,
         bounced: 0, new: 20, new_died: 0, end_alive: 113, churn_pct: 12.0,
         newbie_no_return: 9, newbie_no_return_pct: 45.0, newbie_matures_on: '2026-10-01',
+        damage_month: 2500, damage_year: 30000, slowing: 4, slowing_base: 40, slowing_pct: 10.0,
     }, over || {});
 }
 function churnData(period) {
     return {
         dead_days: 30, choices: [30, 60, 90, 180], data_to: '2026-09-12',
         series: [churnRow({ p_start: '2026-07-01', p_end: '2026-07-31', label: 'Июль 2026',
-                            churn_pct: 10.0 }), period],
+                            churn_pct: 10.0, new: 18, reactivated: 6 }), period],
         period: period,
-        leavers: { total: 12, buckets: [
-            { segment: '1', visits_from: 1, visits_to: 1, count: 7, share_pct: 58.3, avg_ltv: 1500 },
-            { segment: '2-3', visits_from: 2, visits_to: 3, count: 3, share_pct: 25.0, avg_ltv: 4200 },
-            { segment: '4-8', visits_from: 4, visits_to: 8, count: 2, share_pct: 16.7, avg_ltv: 9000 },
-            { segment: '9+', visits_from: 9, visits_to: null, count: 0, share_pct: 0.0, avg_ltv: null },
+        leavers: { total: 12, damage_month: 2500, damage_year: 30000, buckets: [
+            { segment: '1', visits_from: 1, visits_to: 1, count: 7, share_pct: 58.3, avg_ltv: 1500,
+              damage_month: 900 },
+            { segment: '2-3', visits_from: 2, visits_to: 3, count: 3, share_pct: 25.0, avg_ltv: 4200,
+              damage_month: 700 },
+            { segment: '4-8', visits_from: 4, visits_to: 8, count: 2, share_pct: 16.7, avg_ltv: 9000,
+              damage_month: 900 },
+            { segment: '9+', visits_from: 9, visits_to: null, count: 0, share_pct: 0.0, avg_ltv: null,
+              damage_month: 0 },
         ] },
+        return_gaps: { window_from: '2025-09-01', window_to: '2026-08-31', returns: 300,
+                       percentiles: [{ pct: 50, days: 9 }, { pct: 90, days: 75 }],
+                       later_than: [{ days: 30, pct: 27.1 }, { days: 60, pct: 12.0 },
+                                    { days: 90, pct: 6.2 }, { days: 180, pct: 2.1 }] },
     };
+}
+// Ответ /api/guests/churn-slowing: limit 50 отдал 2 строки из 4 (обрезка — на сервере).
+const SLOWING = { asof: '2026-08-31', dead_days: 30, total: 4, returned: 2, limit: 50, guests: [
+    { guest_id: 'g1', name: 'Анна', phone: '79110000001', card_number: '1001',
+      last_visit: '2026-08-20', recency_days: 11, visits_prev: 6, visits_recent: 3,
+      revenue_12m: 52000 },
+    { guest_id: 'g2', name: 'Борис', phone: '79110000002', card_number: '1002',
+      last_visit: '2026-08-02', recency_days: 29, visits_prev: 3, visits_recent: 1,
+      revenue_12m: 18000 },
+] };
+// Два запроса вкладки: отток и список «Стали ходить реже» — каждому свой ответ.
+function churnRespond(meta, data) {
+    return (url) => (String(url).startsWith('/api/guests/churn-slowing?')
+        ? { meta: meta, data: SLOWING } : { meta: meta, data: data });
 }
 
 test('«Отток»: открывается, просит порог 30 и бар страницы, рисует плитки и «Кто уходит»', () => {
     const { sandbox, byId, fetchCalls } = loadGuests({
         views: ['static/js/guests/views-churn.js'], gh: makeGh('ligovskiy'), init: true,
-        respond: () => ({ meta: Object.assign(metaOf('ligovskiy', 'Лиговский'),
-                                              { period_type: 'month' }),
-                          data: churnData(churnRow()) }),
+        respond: churnRespond(Object.assign(metaOf('ligovskiy', 'Лиговский'),
+                                            { period_type: 'month' }),
+                              churnData(churnRow())),
     });
     sandbox.Guests.activateTab('churn');
     return later(() => {
-        const call = fetchCalls.find((c) => String(c.url).startsWith('/api/guests/churn'));
+        const call = fetchCalls.find((c) => String(c.url).startsWith('/api/guests/churn?'));
         assert.ok(call, 'вкладка не запросила /api/guests/churn');
         assert.equal(query(call.url).get('dead_days'), '30', 'порог по умолчанию — 30');
         assert.equal(query(call.url).get('store'), 'ligovskiy', 'бар страницы не ушёл в запрос');
-        const html = byId['pane-churn'].innerHTML;
+        const html = byId['pane-churn'].innerHTML.replace(/[  ]/g, ' ');
         assert.ok(html.includes('Отток за период') && html.includes('12%'), 'нет плитки оттока');
         assert.ok(html.includes('июл 26: 10%'), 'нет сравнения с прошлым периодом');
         assert.ok(html.includes('пришёл и не вернулся'), 'нет таблицы «Кто уходит»');
         assert.ok(html.includes('data-days="90"'), 'нет переключателя порога');
-        assert.equal((html.match(/class="how-block"/g) || []).length, 3,
-            '«Как считается» — у каждой из трёх карточек');
+        assert.equal((html.match(/class="gmetric"/g) || []).length, 8,
+            'восемь плиток: потери и приток с базой');
+        assert.ok(html.includes('Новые гости') && html.includes('июл 26: 18'),
+            '«Новые гости» без сравнения с прошлым периодом');
+        assert.ok(html.includes('Вернулись после паузы') && html.includes('июл 26: 6'),
+            'нет отдельной плитки «Вернулись после паузы»');
+        assert.equal((html.match(/class="how-block"/g) || []).length, 5,
+            '«Как считается» — у подсказки к порогу и у каждой из четырёх карточек');
+    });
+});
+
+test('«Отток»: ущерб, «Стали ходить реже» со списком и подсказка к порогу', () => {
+    const { sandbox, byId, fetchCalls } = loadGuests({
+        views: ['static/js/guests/views-churn.js'], gh: makeGh('ligovskiy'), init: true,
+        respond: churnRespond(Object.assign(metaOf('ligovskiy', 'Лиговский'),
+                                            { period_type: 'month', p_end: '2026-08-31' }),
+                              churnData(churnRow())),
+    });
+    sandbox.Guests.activateTab('churn');
+    return later(() => {
+        const call = fetchCalls.find((c) => String(c.url).startsWith('/api/guests/churn-slowing?'));
+        assert.ok(call, 'вкладка не запросила список «Стали ходить реже»');
+        const q = query(call.url);
+        assert.deepEqual([q.get('dead_days'), q.get('limit'), q.get('store')],
+            ['30', '50', 'ligovskiy'], 'список — по тому же порогу и бару, 50 строк');
+        const html = byId['pane-churn'].innerHTML.replace(/[  ]/g, ' ');
+        assert.ok(html.includes('Ущерб от оттока') && html.includes('2 500 ₽') &&
+            html.includes('в год: 30 000 ₽'), 'нет плитки ущерба');
+        assert.ok(html.includes('Ущерб в месяц') && html.includes('900 ₽'),
+            'нет колонки ущерба в «Кто уходит»');
+        assert.ok(html.includes('из 40 ходивших раз в месяц и чаще (10%)'),
+            'нет плитки «Стали ходить реже»');
+        assert.ok(html.includes('Возвратов позже порога') && html.includes('<b>30 дн — 27,1%</b>') &&
+            html.includes('90 дн — 6,2%') && html.includes('9 из 10 — за 75 дн'),
+            'нет подсказки к порогу или выбранный порог не выделен');
+        assert.ok(html.includes('Стали ходить реже · 4') && html.includes('Анна') &&
+            html.includes('6 → 3') && html.includes('показаны 2 из 4'), 'нет списка гостей');
+        assert.ok(html.includes('/api/guests/churn-slowing?period_type=month&anchor=2026-08-31' +
+            '&store=ligovskiy&dead_days=30&export=csv'), 'нет выгрузки CSV по тем же условиям');
     });
 });
 
@@ -507,11 +567,13 @@ test('«Отток»: будущий период — подпись вмест�
                               asof: null, state: 'future', start_alive: null, died: null,
                               reactivated: null, bounced: null, new: null, new_died: null,
                               end_alive: null, churn_pct: null, newbie_no_return: null,
-                              newbie_no_return_pct: null, newbie_matures_on: null });
+                              newbie_no_return_pct: null, newbie_matures_on: null,
+                              damage_month: null, damage_year: null, slowing: null,
+                              slowing_base: null, slowing_pct: null });
     const { sandbox, byId } = loadGuests({
         views: ['static/js/guests/views-churn.js'], init: true,
-        respond: () => ({ meta: Object.assign(metaOf(), { period_type: 'month' }),
-                          data: churnData(future) }),
+        respond: churnRespond(Object.assign(metaOf(), { period_type: 'month' }),
+                              Object.assign(churnData(future), { return_gaps: null })),
     });
     sandbox.Guests.activateTab('churn');
     return later(() => {

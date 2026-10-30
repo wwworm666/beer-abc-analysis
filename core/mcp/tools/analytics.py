@@ -126,7 +126,8 @@ RFM_SEGMENT_PATTERN = ('^(' + '|'.join(RFM_SEGMENTS) + ')(,(' + '|'.join(RFM_SEG
 # Потолок limit у агента. Строка гостя RFM — около 255 знаков JSON (замер 2026-09-28:
 # 2 214 гостей, 568 тыс. знаков), 200 строк — около 51 тыс.: ответ целиком помещается в
 # предел моста (60 тыс. знаков). Сам маршрут принимает любой limit от 1; полный список —
-# export='csv'.
+# export='csv'. Тот же потолок у списка «Стали ходить реже» (analytics_guests_churn_slowing):
+# его строка короче — около 220 знаков, 200 строк тоже помещаются.
 RFM_LIMIT_MAX = 200
 
 # Поля месячного плана (core/plans_manager.PlansManager.PLAN_SCHEMA).
@@ -228,6 +229,13 @@ _GUEST_VENUE_NOTE = ('store — бар: отчёт считается так, б
                      'его чеки; гость бара — хоть один чек в нём, поэтому сумма по барам '
                      'больше сети; регистрация — за баром первой покупки, по барам в сумме '
                      'даёт сеть); без store — вся сеть.')
+
+
+def _churn_dead_days_prop() -> dict:
+    """Порог оттока (core/guest_analytics.CHURN_DEAD_DAYS_CHOICES) — у обоих инструментов «Оттока»."""
+    return {'type': 'integer', 'enum': [30, 60, 90, 180],
+            'description': 'Порог «мёртвого» в днях без визита: 30, 60, 90 или 180 (по '
+                           'умолчанию 30).'}
 
 
 def _guest_store_prop() -> dict:
@@ -1337,19 +1345,54 @@ _T_GUESTS = [
         'же окна (null, пока период не созрел, дата — newbie_matures_on). Дата среза строки: '
         'asof = min(конец периода, data_to), data_to — последний ПОЛНЫЙ день данных; state — '
         'complete / partial / future (у future все числа null). leavers — ушедшие выбранного '
-        'периода по числу визитов за жизнь (1 / 2-3 / 4-8 / 9+): count, share_pct, avg_ltv (₽). '
-        'Формулы — guests.md, §17.',
+        'периода по числу визитов за жизнь (1 / 2-3 / 4-8 / 9+): count, share_pct, avg_ltv (₽), '
+        'damage_month (₽). Ущерб от оттока: damage_year — выручка ушедших (died + new_died) за '
+        '365 дней по их последний визит, damage_month — она же / 12 (средний чек × чеков в '
+        'месяц), в каждой строке и итогом в leavers; это ущерб, если ушедшие не вернутся. '
+        '«Стали ходить реже» (скрытый отток) на дату среза: slowing — живые по dead_days, у кого '
+        'в прошлых 90 днях было не меньше 3 визитов, а в последних 90 — хотя бы один и не больше '
+        'половины прошлого; slowing_base — живые с 3+ визитами в прошлом окне и хоть одним в '
+        'последнем, slowing_pct — slowing / slowing_base, %; поимённо — '
+        'analytics_guests_churn_slowing. return_gaps — подсказка к порогу (от dead_days не '
+        'зависит): паузы перед повторными визитами за 365 дней по дату среза, returns — сколько '
+        'их, later_than — для каждого порога доля пауз длиннее него, % (столько возвратов порог '
+        'успел бы записать в «Ушли»), percentiles — за сколько дней возвращается половина и 9 из '
+        '10. Формулы — guests.md, §17.',
         '/api/guests/churn',
         extra_props={
-            'dead_days': {'type': 'integer', 'enum': [30, 60, 90, 180],
-                          'description': 'Порог «мёртвого» в днях без визита: 30, 60, 90 или '
-                                         '180 (по умолчанию 30).'},
+            'dead_days': _churn_dead_days_prop(),
             'periods': {'type': 'integer', 'minimum': 3, 'maximum': 60,
                         'description': 'Сколько периодов в ряду, 3–60 (по умолчанию неделя 26, '
                                        'месяц 24, квартал 12, год 8).'},
         },
         extra_query=('dead_days', 'periods'),
         examples=({'period_type': 'month', 'anchor': '2026-09-15', 'dead_days': 30},),
+    ),
+    _guests_tool(
+        'analytics_guests_churn_slowing', 'Гости: стали ходить реже',
+        'Скрытый отток (вкладка «Отток», §17) поимённо: гости, которые на дату среза живы по '
+        'порогу dead_days, в прошлых 90 днях ходили не меньше 3 раз, а в последних 90 днях '
+        'были хотя бы раз, но не больше половины прошлого. total — сколько таких (то же число, '
+        'что period.slowing у analytics_guests_churn с тем же dead_days); guests — по убыванию '
+        'выручки за 12 мес: guest_id, name, phone, card_number, last_visit, recency_days, '
+        'visits_prev (визитов в прошлых 90 днях), visits_recent (в последних 90), revenue_12m '
+        '(₽, чеки за 365 дней по дату среза). Всегда передавайте limit (например 50), returned — '
+        "сколько отдано; export='csv' — весь список файлом. Дата среза asof = min(конец "
+        'периода, data_to); у будущего периода список пуст. Формулы — guests.md, §17.',
+        '/api/guests/churn-slowing',
+        extra_props={
+            'dead_days': _churn_dead_days_prop(),
+            'limit': {'type': 'integer', 'minimum': 1, 'maximum': RFM_LIMIT_MAX,
+                      'description': ('Сколько гостей вернуть — самые ценные по выручке за 12 '
+                                      'мес; до ' + str(RFM_LIMIT_MAX) + '.')},
+            'export': {'type': 'string', 'enum': ['csv'],
+                       'description': "'csv' — весь список файлом (CSV через «;»), limit не "
+                                      'действует.'},
+        },
+        extra_query=('dead_days', 'limit', 'export'),
+        examples=({'period_type': 'month', 'anchor': '2026-09-15', 'dead_days': 30,
+                   'limit': 20},),
+        # Не also_in content: в списке телефоны гостей (как у RFM, проверка 2026-09-28).
     ),
     _guests_tool(
         'analytics_guests_activity', 'Гости: активность базы',

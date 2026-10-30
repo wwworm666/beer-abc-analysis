@@ -16,6 +16,9 @@
     F      05.01, 15.01, 29.01       жив на начало ровно на границе (пауза 30), ушёл
     G      28.03                     новый, не вернулся
     H      20.05                     задаёт последний день с чеками
+
+С 2026-10-30 — ущерб от оттока, «Стали ходить реже» (своя витрина SLOWING) и подсказка к
+порогу (паузы перед повторными визитами); ожидаемые числа сверены ручным расчётом.
 """
 
 import os
@@ -115,6 +118,29 @@ class TestMainNumbers(ChurnBase):
         self.assertEqual((buckets['4-8']['count'], buckets['4-8']['avg_ltv']), (0, None))
         self.assertEqual(buckets['1']['share_pct'], 50.0)
 
+    def test_march_damage(self):
+        """Ущерб = выручка ушедших за год по их последний визит; в месяц — / 12."""
+        d = self.churn(30)
+        p, leavers = d['period'], d['leavers']
+        self.assertEqual((p['damage_year'], p['damage_month']), (4000, 333),
+                         'B — 1 000 ₽, F — 3 000 ₽; 4 000 / 12 = 333,3')
+        self.assertEqual((leavers['damage_year'], leavers['damage_month']), (4000, 333),
+                         'итог «Кто уходит» = плитка')
+        self.assertEqual([b['damage_month'] for b in leavers['buckets']], [83, 250, 0, 0],
+                         '1 000 / 12 и 3 000 / 12; пустые группы — 0 ₽')
+
+    def test_return_gaps(self):
+        """Паузы перед повторными визитами за год по 31.03: 10, 14, 15, 23, 45, 78 дней."""
+        gaps = self.churn(30)['return_gaps']
+        self.assertEqual((gaps['window_from'], gaps['window_to'], gaps['returns']),
+                         ('2025-04-01', '2026-03-31', 6))
+        self.assertEqual([(r['days'], r['pct']) for r in gaps['later_than']],
+                         [(30, 33.3), (60, 16.7), (90, 0.0), (180, 0.0)],
+                         'длиннее 30 — E (45) и C (78); длиннее 60 — только C')
+        self.assertEqual([(p['pct'], p['days']) for p in gaps['percentiles']],
+                         [(50, 15), (90, 78)], 'ближайший ранг: 3-е и 6-е из 6')
+        self.assertEqual(self.churn(90)['return_gaps'], gaps, 'от порога не зависит')
+
     def test_march_x60_differs_and_is_not_mature(self):
         p = self.churn(60)['period']
         self.assertEqual((p['start_alive'], p['died'], p['end_alive']), (5, 2, 5),
@@ -137,10 +163,13 @@ class TestMainNumbers(ChurnBase):
         self.assertEqual((may['state'], may['asof']), ('partial', '2026-05-20'))
         self.assertIsNone(may['newbie_no_return_pct'])
         self.assertEqual(may['newbie_matures_on'], '2026-06-30')
-        june = self.churn(30, 'month', '2026-06-15')['period']
+        june_full = self.churn(30, 'month', '2026-06-15')
+        june = june_full['period']
         self.assertEqual(june['state'], 'future')
-        for key in ('start_alive', 'died', 'new', 'end_alive', 'churn_pct', 'asof'):
+        for key in ('start_alive', 'died', 'new', 'end_alive', 'churn_pct', 'asof',
+                    'damage_month', 'damage_year', 'slowing', 'slowing_base', 'slowing_pct'):
             self.assertIsNone(june[key], key + ': у будущего периода нет чисел, а не нули')
+        self.assertIsNone(june_full['return_gaps'], 'у будущего периода нет и подсказки')
 
     def test_zero_base_gives_none_not_zero(self):
         p = self.churn(30, 'month', '2025-12-15')['period']
@@ -244,8 +273,19 @@ class TestBoundaries(ChurnBase):
         'R31': _visits(['2026-03-01', '2026-04-01']),   # возврат через 31 день
         'S30': _visits(['2026-01-29']),                 # на 28.02 пауза 30
         'S31': _visits(['2026-01-28']),                 # на 28.02 пауза 31
+        'RG': _visits(['2025-03-01', '2025-04-01']),    # возврат в первый день окна пауз
+        'RH': _visits(['2025-03-02', '2025-03-31']),    # возврат за день до окна
         'Z': _visits(['2026-06-30']),
     }
+
+    def test_return_gap_window_and_strict_threshold(self):
+        """Окно пауз — 365 дней по срез; «позже порога» — строго больше: 30 при X = 30 — вовремя."""
+        gaps = self.churn(30)['return_gaps']
+        self.assertEqual(gaps['window_from'], '2025-04-01')
+        self.assertEqual(gaps['returns'], 2, 'R30 (30 дней) и RG (31); RH — до окна, R31 — после среза')
+        self.assertEqual([(r['days'], r['pct']) for r in gaps['later_than']][:2],
+                         [(30, 50.0), (60, 0.0)])
+        self.assertEqual([p['days'] for p in gaps['percentiles']], [30, 31])
 
     def test_newbie_window_equals_retention_window(self):
         """Окно «не вернулись» — X дней, как «Возвраты через X дней» (решение 2026-10-29)."""
@@ -259,6 +299,97 @@ class TestBoundaries(ChurnBase):
     def test_start_gap_x_is_alive_x_plus_one_is_dead(self):
         p = self.churn(30)['period']
         self.assertEqual((p['start_alive'], p['died']), (1, 1), 'жив только S30, и он ушёл')
+
+
+class TestDamageWindow(ChurnBase):
+    """Окно ущерба — 365 дней по последний визит ушедшего, а не по дату среза."""
+    GUESTS = {
+        'L': _visits(['2025-03-01', '2025-03-02', '2026-03-01']),
+        'Z': _visits(['2026-05-20']),
+    }
+
+    def test_window_ends_at_last_visit(self):
+        p = self.churn(30, anchor='2026-04-15')['period']
+        self.assertEqual(p['died'], 1, 'L жив на 31.03 (пауза 30) и мёртв на 30.04')
+        self.assertEqual(p['damage_year'], 2500,
+                         '02.03.2025 (ровно за 364 дня) + 01.03.2026; 01.03.2025 — вне окна; '
+                         'окно по дату среза дало бы 1 500')
+        self.assertEqual(p['damage_month'], 208, '2 500 / 12 = 208,3')
+
+
+# «Стали ходить реже»: срез 31.03.2026 — последние 90 дней 01.01–31.03, прошлые 03.10–31.12.
+SLOWING = {
+    'S1': _visits(['2025-10-10', '2025-11-01', '2025-11-20', '2025-12-15',
+                   '2026-01-20', '2026-03-25']),                    # 4 -> 2: реже, пауза 6
+    'S2': _visits(['2025-10-10', '2025-11-01', '2025-11-20', '2025-12-15',
+                   '2026-01-10', '2026-02-10', '2026-03-20']),      # 4 -> 3: не вдвое
+    'S3': _visits(['2025-10-20', '2025-11-20', '2026-03-01']),      # 2 -> 1: ходил реже раза в месяц
+    'S4': _visits(['2025-10-10', '2025-11-10', '2025-12-10']),      # 3 -> 0: перестал ходить
+    'S5': _visits(['2025-10-05', '2025-11-05', '2025-12-05', '2026-01-15']),  # 3 -> 1, пауза 75
+    'BND': _visits(['2025-10-02', '2025-10-03', '2025-11-15', '2025-12-31',
+                    '2026-01-01']),                                 # края окон: 3 -> 1, пауза 89
+    'BND2': _visits(['2025-10-02', '2025-10-03', '2025-12-31', '2026-01-01']),  # 02.10 вне окна: 2 -> 1
+    'Z': _visits(['2026-05-20']),
+}
+
+
+class TestSlowing(ChurnBase):
+    GUESTS = SLOWING
+
+    def test_counts_by_threshold(self):
+        expected = {30: (1, 2, 50.0), 60: (1, 2, 50.0), 90: (3, 4, 75.0), 180: (3, 4, 75.0)}
+        for dead_days, counts in expected.items():
+            p = self.churn(dead_days)['period']
+            self.assertEqual((p['slowing'], p['slowing_base'], p['slowing_pct']), counts,
+                             dead_days)
+
+    def test_window_edges(self):
+        """03.10 и 31.12 — прошлое окно, 01.01 — последнее, 02.10 — вне окон (BND2 не в базе)."""
+        period, meta = self.ctx()
+        names = [g['name'] for g in ga.churn_slowing(self.store, period, meta, 90)['guests']]
+        self.assertIn('BND', names)
+        self.assertNotIn('BND2', names)
+
+    def test_list_matches_counter_and_is_sorted_by_revenue(self):
+        period, meta = self.ctx()
+        for dead_days in ga.CHURN_DEAD_DAYS_CHOICES:
+            listed = ga.churn_slowing(self.store, period, meta, dead_days)
+            self.assertEqual(listed['total'], self.churn(dead_days)['period']['slowing'],
+                             'список и плитка — одно правило')
+        listed = ga.churn_slowing(self.store, period, meta, 90)
+        self.assertEqual((listed['asof'], listed['dead_days']), ('2026-03-31', 90))
+        rows = [(g['name'], g['visits_prev'], g['visits_recent'], g['recency_days'],
+                 g['last_visit'], g['revenue_12m']) for g in listed['guests']]
+        self.assertEqual(rows, [
+            ('S1', 4, 2, 6, '2026-03-25', 6500),
+            ('BND', 3, 1, 89, '2026-01-01', 5000),
+            ('S5', 3, 1, 75, '2026-01-15', 4000),
+        ], 'по убыванию выручки за 12 мес; 02.10.2025 у BND — в окне выручки, но не в окне визитов')
+        self.assertTrue(listed['guests'][0]['phone'], 'телефон для обзвона')
+
+    def test_future_period_list_is_empty(self):
+        period, meta = self.ctx(anchor='2026-06-15')
+        listed = ga.churn_slowing(self.store, period, meta, 30)
+        self.assertEqual((listed['asof'], listed['total'], listed['guests']), (None, 0, []))
+
+
+class TestSlowingVenue(ChurnBase):
+    """Бар как отдельное заведение: в сети гость стал ходить реже, в каждом баре — нет."""
+    GUESTS = {
+        'SV': [(d, 'bolshoy', 1000.0) for d in ('2025-10-10', '2025-11-01', '2025-11-20',
+                                                 '2025-12-15')] +
+              [(d, 'ligovskiy', 1000.0) for d in ('2026-01-20', '2026-03-25')],
+        'Z': [('2026-05-20', 'bolshoy', 1000.0)],
+    }
+
+    def test_bar_rules(self):
+        self.assertEqual(self.churn(30)['period']['slowing'], 1, 'в сети 4 -> 2')
+        self.assertEqual(self.churn(30, venue='bolshoy')['period']['slowing'], 0,
+                         'в Большом 4 -> 0: перестал ходить, а не стал реже')
+        self.assertEqual(self.churn(30, venue='ligovskiy')['period']['slowing'], 0,
+                         'в Лиговском раньше не ходил')
+        period, meta = self.ctx(venue='ligovskiy')
+        self.assertEqual(ga.churn_slowing(self.store, period, meta, 30, 'ligovskiy')['total'], 0)
 
 
 class TestVenue(ChurnBase):
@@ -308,6 +439,9 @@ class TestEmptyStore(ChurnBase):
         d = self.churn(30)
         self.assertEqual((d['series'], d['period'], d['data_to']), ([], None, None))
         self.assertEqual(d['leavers']['total'], 0)
+        self.assertIsNone(d['return_gaps'])
+        period, meta = self.ctx()
+        self.assertEqual(ga.churn_slowing(self.store, period, meta)['total'], 0)
 
 
 class TestLtvOnDate(ChurnBase):
@@ -426,7 +560,9 @@ class TestParams(unittest.TestCase):
         self.assertEqual(ga.parse_series_len('12', 'month'), 12)
 
 
-class TestChurnRoute(ChurnBase):
+class RouteMixin:
+    """Flask test client с маршрутами «Маркетинга» на временной витрине теста (кэш очищен)."""
+
     def setUp(self):
         super().setUp()
         from flask import Flask
@@ -444,6 +580,8 @@ class TestChurnRoute(ChurnBase):
         self.rg.get_store = self.saved_get_store
         super().tearDown()
 
+
+class TestChurnRoute(RouteMixin, ChurnBase):
     def get(self, **params):
         query = dict({'period_type': 'month', 'anchor': '2026-03-15'}, **params)
         response = self.client.get('/api/guests/churn', query_string=query)
@@ -470,6 +608,44 @@ class TestChurnRoute(ChurnBase):
         series = response.get_json()['data']['series']
         self.assertEqual([r['p_start'] for r in series],
                          ['2026-01-01', '2026-02-01', '2026-03-01'])
+
+
+class TestSlowingRoute(RouteMixin, ChurnBase):
+    GUESTS = SLOWING
+
+    def get(self, **params):
+        query = dict({'period_type': 'month', 'anchor': '2026-03-15'}, **params)
+        return self.client.get('/api/guests/churn-slowing', query_string=query)
+
+    def test_json_limit_and_counter(self):
+        response = self.get(dead_days='90', limit='2')
+        self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
+        d = response.get_json()['data']
+        self.assertEqual((d['total'], d['returned'], d['limit'], d['dead_days']), (3, 2, 2, 90))
+        self.assertEqual([g['name'] for g in d['guests']], ['S1', 'BND'], 'самые ценные сверху')
+        churn = self.client.get('/api/guests/churn', query_string={
+            'period_type': 'month', 'anchor': '2026-03-15', 'dead_days': '90'}).get_json()
+        self.assertEqual(churn['data']['period']['slowing'], d['total'], 'плитка = список')
+
+    def test_default_threshold_and_full_list(self):
+        d = self.get().get_json()['data']
+        self.assertEqual((d['dead_days'], d['total'], d['returned'], d['limit']), (30, 1, 1, None))
+
+    def test_csv_is_whole_list(self):
+        response = self.get(dead_days='90', limit='1', export='csv')
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.mimetype.startswith('text/csv'))
+        self.assertIn('churn_slowing_2026-03-31_90d.csv',
+                      response.headers['Content-Disposition'])
+        body = response.get_data().decode('utf-8-sig').strip().splitlines()
+        self.assertEqual(body[0].split(';')[0], 'Телефон')
+        self.assertEqual(len(body), 1 + 3, 'выгрузка — весь список, limit не действует')
+
+    def test_bad_limit_is_400(self):
+        for bad in ('0', 'abc', '1.5'):
+            response = self.get(limit=bad)
+            self.assertEqual(response.status_code, 400, bad)
+            self.assertIn('limit', response.get_json()['error'])
 
 
 if __name__ == '__main__':

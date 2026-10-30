@@ -131,6 +131,49 @@ def api_churn():
         return jsonify({'error': f'{type(e).__name__}: {e}'}), 500
 
 
+@guests_bp.route('/api/guests/churn-slowing')
+def api_churn_slowing():
+    """«Стали ходить реже» поимённо (§17, скрытый отток). ?dead_days=&limit=&export=csv
+
+    Правило — ga.churn_slowing (то же, что счётчик period.slowing у /api/guests/churn), гости
+    по убыванию выручки за 12 мес. ?limit=N — первые N (целое ≥ 1, иначе 400), без него —
+    все; total — сколько всего до обрезки. ?export=csv — весь список файлом, limit не
+    действует: выгрузка нужна для обзвона целиком. Не кэшируется: в ответе телефоны, а
+    общий кэш на 64 ключа нужен дорогим отчётам дашборда.
+    """
+    try:
+        try:
+            limit = _list_limit()
+        except ValueError as e:
+            return jsonify({'error': str(e)}), 400
+        store, period, meta, venue = _ctx()
+        dead_days = ga.parse_dead_days(request.args.get('dead_days'))
+        data = ga.churn_slowing(store, period, meta, dead_days, venue)
+        if request.args.get('export') == 'csv':
+            buf = io.StringIO()
+            w = csv.writer(buf, delimiter=';')
+            w.writerow(['Телефон', 'Карта', 'Имя', 'Последний визит', 'Дней с визита',
+                        'Визитов за прошлые 90 дней', 'Визитов за последние 90 дней',
+                        'Выручка за 12 мес'])
+            for g in data['guests']:
+                w.writerow([g['phone'], g['card_number'], g['name'], g['last_visit'],
+                            g['recency_days'], g['visits_prev'], g['visits_recent'],
+                            g['revenue_12m']])
+            out = buf.getvalue().encode('utf-8-sig')  # BOM для Excel
+            suffix = f"_{meta['venue']}" if meta.get('venue') else ''
+            return Response(out, mimetype='text/csv; charset=utf-8', headers={
+                'Content-Disposition':
+                    f"attachment; filename=churn_slowing_{data['asof'] or meta['asof']}"
+                    f"_{dead_days}d{suffix}.csv"})
+        if limit is not None:
+            data['guests'] = data['guests'][:limit]
+        data['returned'] = len(data['guests'])
+        data['limit'] = limit
+        return jsonify({'meta': meta, 'data': data})
+    except Exception as e:
+        return jsonify({'error': f'{type(e).__name__}: {e}'}), 500
+
+
 @guests_bp.route('/api/guests/activity')
 def api_activity():
     """Активность базы на дату среза (ТЗ §3)."""
@@ -208,16 +251,25 @@ def _rfm_list_filter():
     q = (request.args.get('q') or '').strip()
     if q and len(q) < ga.RFM_QUERY_MIN_LEN:
         raise ValueError('q — минимум ' + str(ga.RFM_QUERY_MIN_LEN) + ' символа')
-    limit = None
+    return segments, q or None, _list_limit()
+
+
+def _list_limit():
+    """?limit=N для списков гостей (RFM, «Стали ходить реже»): целое ≥ 1, None — без обрезки.
+
+    Raises:
+        ValueError: не целое или меньше 1 — текст для ответа 400.
+    """
     raw_limit = (request.args.get('limit') or '').strip()
-    if raw_limit:
-        try:
-            limit = int(raw_limit)
-        except ValueError:
-            limit = 0            # '²', '1.5', 'abc' — то же, что ноль: 400 ниже
-        if limit < 1:
-            raise ValueError('limit — целое число от 1')
-    return segments, q or None, limit
+    if not raw_limit:
+        return None
+    try:
+        limit = int(raw_limit)
+    except ValueError:
+        limit = 0            # '²', '1.5', 'abc' — то же, что ноль: 400 ниже
+    if limit < 1:
+        raise ValueError('limit — целое число от 1')
+    return limit
 
 
 @guests_bp.route('/api/guests/rfm')

@@ -211,6 +211,16 @@ test('единый словарь раздела: одно слово — оди
     // Время обновления витрины — по Москве.
     assert.ok(!formulas.includes('ночью в 05:10') && formulas.includes('08:10 МСК'),
         'время обновления витрины в «Как считается»');
+    // «Отток» по статье (2026-10-30): названия новых блоков — как в «Словаре раздела»
+    // docs/guests.md, у каждого — своя формула в «Как считается».
+    const churnView = read('static/js/guests/views-churn.js');
+    for (const term of ['Ущерб от оттока', 'Ущерб в месяц', 'Стали ходить реже',
+                        'Возвратов позже порога']) {
+        assert.ok(churnView.includes(term), `нет «${term}» на «Оттоке»`);
+    }
+    for (const key of ['churn_damage:', 'churn_slowing:', 'churn_threshold:']) {
+        assert.ok(formulas.includes(key), `нет формулы ${key}`);
+    }
 });
 
 test('«Рост базы» без динамики: два разных «Ушедших» на странице недопустимы', () => {

@@ -227,6 +227,11 @@ BAD_ARGS = [
      'порог — только 30/60/90/180: маршрут молча посчитал бы по 30'),
     ('analytics_guests_churn', {'dead_days': '30'}, 'порог — число, а не строка'),
     ('analytics_guests_churn', {'periods': 1}, 'ряд — от 3 периодов'),
+    ('analytics_guests_churn_slowing', {'dead_days': 45},
+     'порог — только 30/60/90/180: маршрут молча посчитал бы по 30'),
+    ('analytics_guests_churn_slowing', {'limit': 0}, 'limit — от 1'),
+    ('analytics_guests_churn_slowing', {'limit': 5000}, 'больше 200 строк мост всё равно урежет'),
+    ('analytics_guests_churn_slowing', {'export': 'xlsx'}, 'выгрузка — только csv'),
     ('analytics_guests_ltv', {'periods': 61}, 'ряд — до 60 периодов'),
     ('analytics_explorer_report', {'rows': ['Store.Name'], 'period': 'last_week'},
      'без показателей отчёт не строится'),
@@ -610,7 +615,8 @@ def test_bar_ids_match_code():
                     'analytics_guest_card', 'analytics_guests_sync',
                     'analytics_guests_sync_status'}
     guest_tools = [spec for spec in analytics.TOOLS if spec.path.startswith('/api/guests/')]
-    assert len(guest_tools) == 18, len(guest_tools)
+    # 19 с 2026-10-30: список «Стали ходить реже» (analytics_guests_churn_slowing).
+    assert len(guest_tools) == 19, len(guest_tools)
     for spec in guest_tools:
         props = spec.input_schema.get('properties', {})
         if spec.name in network_only:
@@ -698,6 +704,25 @@ def test_constants_match_code():
         periods = _prop(tool, 'periods')
         assert (periods['minimum'], periods['maximum']) == (guest_analytics.CHURN_SERIES_MIN,
                                                             guest_analytics.CHURN_SERIES_MAX)
+    # Ущерб, «Стали ходить реже» и подсказка к порогу (2026-10-30): окна и пороги в текстах —
+    # те же, что в коде; у списка порог — тот же enum, что у оттока.
+    churn_text = texts['analytics_guests_churn']
+    slowing_text = texts['analytics_guests_churn_slowing']
+    assert str(guest_analytics.CHURN_DAMAGE_WINDOW_DAYS) + ' дней' in churn_text
+    assert '/ ' + str(guest_analytics.CHURN_DAMAGE_MONTHS) in churn_text
+    assert str(guest_analytics.CHURN_RETURN_WINDOW_DAYS) + ' дней' in churn_text
+    assert guest_analytics.CHURN_RETURN_PERCENTILES == (50, 90)
+    assert 'половина и 9 из 10' in churn_text
+    assert guest_analytics.CHURN_SLOWING_FACTOR == 2
+    for text in (churn_text, slowing_text):
+        assert 'прошлых ' + str(guest_analytics.CHURN_SLOWING_WINDOW_DAYS) + ' днях' in text
+        assert 'не больше половины' in text
+    assert 'не меньше ' + str(guest_analytics.CHURN_SLOWING_MIN_PREV) + ' визитов' in churn_text
+    assert 'не меньше ' + str(guest_analytics.CHURN_SLOWING_MIN_PREV) + ' раз' in slowing_text
+    assert _prop('analytics_guests_churn_slowing', 'dead_days')['enum'] == \
+        list(guest_analytics.CHURN_DEAD_DAYS_CHOICES)
+    assert _prop('analytics_guests_churn_slowing', 'limit')['maximum'] == analytics.RFM_LIMIT_MAX
+    assert str(guest_analytics.RFM_WINDOW_DAYS) + ' дней' in slowing_text
     assert monthly_report.TOP_STYLES == 8 and 'топ-8' in texts['analytics_monthly_draft_liters']
     assert (day_weights.WEEKDAY_WEIGHT, day_weights.WEEKEND_WEIGHT) == (1.0, 2.0)
     assert 'пт/сб = 2' in analytics.INSTRUCTIONS
