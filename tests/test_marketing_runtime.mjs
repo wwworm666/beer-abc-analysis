@@ -487,19 +487,29 @@ function churnData(period) {
                                     { days: 90, pct: 6.2 }, { days: 180, pct: 2.1 }] },
     };
 }
-// Ответ /api/guests/churn-slowing: limit 50 отдал 2 строки из 4 (обрезка — на сервере).
-const SLOWING = { asof: '2026-08-31', dead_days: 30, total: 4, returned: 2, limit: 50, guests: [
-    { guest_id: 'g1', name: 'Анна', phone: '79110000001', card_number: '1001',
-      last_visit: '2026-08-20', recency_days: 11, visits_prev: 6, visits_recent: 3,
-      revenue_12m: 52000 },
-    { guest_id: 'g2', name: 'Борис', phone: '79110000002', card_number: '1002',
-      last_visit: '2026-08-02', recency_days: 29, visits_prev: 3, visits_recent: 1,
-      revenue_12m: 18000 },
-] };
-// Два запроса вкладки: отток и список «Стали ходить реже» — каждому свой ответ.
+// Ответ /api/guests/churn-guests для группы из запроса: limit 50 отдал 2 строки из 4.
+function guestList(group, bucket) {
+    return { asof: '2026-08-31', dead_days: 30, group: group, bucket: bucket || null, mature: true,
+             matures_on: null, total: 4, returned: 2, limit: 50, guests: [
+        { guest_id: 'g1', name: 'Анна', phone: '79110000001', card_number: '1001',
+          first_visit: '2025-02-01', last_visit: '2026-07-20', recency_days: 42, visits_total: 31,
+          ltv: 64000, visits_period: 0, revenue_period: 0, revenue_12m: 52000, pause_days: null,
+          visits_prev: 6, visits_recent: 3, damage_month: 4300 },
+        { guest_id: 'g2', name: 'Борис', phone: '79110000002', card_number: '1002',
+          first_visit: '2026-03-01', last_visit: '2026-07-02', recency_days: 60, visits_total: 5,
+          ltv: 9000, visits_period: 0, revenue_period: 0, revenue_12m: 9000, pause_days: null,
+          visits_prev: 3, visits_recent: 1, damage_month: 750 },
+    ] };
+}
+// Два запроса вкладки: отток и список гостей выбранной плитки — каждому свой ответ.
 function churnRespond(meta, data) {
-    return (url) => (String(url).startsWith('/api/guests/churn-slowing?')
-        ? { meta: meta, data: SLOWING } : { meta: meta, data: data });
+    return (url) => {
+        if (String(url).startsWith('/api/guests/churn-guests?')) {
+            const q = query(url);
+            return { meta: meta, data: guestList(q.get('group'), q.get('bucket')) };
+        }
+        return { meta: meta, data: data };
+    };
 }
 
 test('«Отток»: открывается, просит порог 30 и бар страницы, рисует плитки и «Кто уходит»', () => {
@@ -531,7 +541,7 @@ test('«Отток»: открывается, просит порог 30 и ба
     });
 });
 
-test('«Отток»: ущерб, «Стали ходить реже» со списком и подсказка к порогу', () => {
+test('«Отток»: ущерб, подсказка к порогу и кликабельные плитки со списком гостей', () => {
     const { sandbox, byId, fetchCalls } = loadGuests({
         views: ['static/js/guests/views-churn.js'], gh: makeGh('ligovskiy'), init: true,
         respond: churnRespond(Object.assign(metaOf('ligovskiy', 'Лиговский'),
@@ -540,12 +550,13 @@ test('«Отток»: ущерб, «Стали ходить реже» со сп
     });
     sandbox.Guests.activateTab('churn');
     return later(() => {
-        const call = fetchCalls.find((c) => String(c.url).startsWith('/api/guests/churn-slowing?'));
-        assert.ok(call, 'вкладка не запросила список «Стали ходить реже»');
+        const call = fetchCalls.find((c) => String(c.url).startsWith('/api/guests/churn-guests?'));
+        assert.ok(call, 'вкладка не запросила список гостей');
         const q = query(call.url);
-        assert.deepEqual([q.get('dead_days'), q.get('limit'), q.get('store')],
-            ['30', '50', 'ligovskiy'], 'список — по тому же порогу и бару, 50 строк');
-        const html = byId['pane-churn'].innerHTML.replace(/[  ]/g, ' ');
+        assert.deepEqual([q.get('group'), q.get('dead_days'), q.get('limit'), q.get('store')],
+            ['left', '30', '50', 'ligovskiy'], 'по умолчанию — «Ушли», тот же порог и бар, 50 строк');
+        assert.equal(q.get('bucket'), null, 'без выбранной строки «Кто уходит» корзины нет');
+        const html = byId['pane-churn'].innerHTML.replace(/[\u2009\u00a0]/g, ' ');
         assert.ok(html.includes('Ущерб от оттока') && html.includes('2 500 ₽') &&
             html.includes('в год: 30 000 ₽'), 'нет плитки ущерба');
         assert.ok(html.includes('Ущерб в месяц') && html.includes('900 ₽'),
@@ -555,10 +566,21 @@ test('«Отток»: ущерб, «Стали ходить реже» со сп
         assert.ok(html.includes('Возвратов позже порога') && html.includes('<b>30 дн — 27,1%</b>') &&
             html.includes('90 дн — 6,2%') && html.includes('9 из 10 — за 75 дн'),
             'нет подсказки к порогу или выбранный порог не выделен');
-        assert.ok(html.includes('Стали ходить реже · 4') && html.includes('Анна') &&
-            html.includes('6 → 3') && html.includes('показаны 2 из 4'), 'нет списка гостей');
-        assert.ok(html.includes('/api/guests/churn-slowing?period_type=month&anchor=2026-08-31' +
-            '&store=ligovskiy&dead_days=30&export=csv'), 'нет выгрузки CSV по тем же условиям');
+        // Плитки с гостями кликабельны: «Ушли» и «Ущерб» (одна группа), «Стали ходить реже»,
+        // «Новые гости», «Вернулись после паузы» и созревшая «Не вернулись»; «Ушли» выбраны.
+        assert.equal((html.match(/class="churn-pick/g) || []).length, 6, 'кликабельных плиток не 6');
+        assert.equal((html.match(/class="churn-pick active" data-group="left"/g) || []).length, 2,
+            'выбранная группа «Ушли» не подсвечена');
+        for (const group of ['slowing', 'new', 'reactivated', 'newbie_no_return']) {
+            assert.ok(html.includes('data-group="' + group + '"'), 'не кликается: ' + group);
+        }
+        assert.equal((html.match(/class="churn-bucket-pick/g) || []).length, 4,
+            'строки «Кто уходит» не кликаются');
+        assert.ok(html.includes('data-bucket="9+"'), 'нет строки «9 визитов и больше»');
+        assert.ok(html.includes('Ушли · 4') && html.includes('Анна') && html.includes('4 300 ₽') &&
+            html.includes('показаны 2 из 4') && html.includes('Другая группа'), 'нет списка «Ушли»');
+        assert.ok(html.includes('/api/guests/churn-guests?period_type=month&anchor=2026-08-31' +
+            '&store=ligovskiy&group=left&dead_days=30&export=csv'), 'нет выгрузки CSV по тем же условиям');
     });
 });
 

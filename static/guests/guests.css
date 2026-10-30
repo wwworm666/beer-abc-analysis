@@ -150,6 +150,15 @@
 /* Подпись перед кнопками переключателя («Ушёл, если нет визита:» на «Оттоке») */
 .sub-switch .sub-label { align-self: center; margin-right: 4px; font-size: 0.8rem;
     color: var(--text-tertiary); }
+/* Кликабельные плитки и строки «Кто уходит» на «Оттоке» (2026-10-30): по ним открывается
+   список этих гостей; выбранная группа подсвечена. */
+.churn-pick { cursor: pointer; border-radius: 14px; }
+.churn-pick .gmetric { height: 100%; box-sizing: border-box; transition: border-color .15s ease; }
+.churn-pick:hover .gmetric, .churn-pick.active .gmetric { border-color: var(--accent); }
+.churn-pick:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.churn-bucket-pick { cursor: pointer; }
+.churn-bucket-pick:hover td, .churn-bucket-pick.active td { background: var(--accent-light); }
+.churn-bucket-pick:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 /* Подсказка к порогу «Оттока» — сразу под переключателем; выбранный порог жирным. */
 .churn-hint { margin: -8px 0 0; }
 .churn-hint b { color: var(--text-secondary); }
@@ -167,6 +176,8 @@
 
 /* --- Поиск гостя / карточка гостя --- */
 .guest-search { display: flex; gap: 10px; margin-bottom: 16px; }
+/* Кнопка рядом с длинной подписью (CSV списка): на телефоне не ломается в овал на две строки. */
+.guest-search .sync-btn { white-space: nowrap; align-self: flex-start; }
 .guest-search input { flex: 1 1 auto; max-width: 420px; padding: 11px 16px;
     border: 1px solid var(--border-color); border-radius: 999px;
     font-family: inherit; font-size: 0.9rem; background: var(--bg-secondary);

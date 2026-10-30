@@ -2,20 +2,70 @@
    Отток за период, баланс базы по периодам и кто уходит. Порог X — подпереключатель
    вкладки (pane.dataset, как у «Когорт»); сервер считает все пороги разом и отдаёт один.
    С 2026-10-30 (статья Unisender о churn rate): ущерб от оттока в рублях, «Стали ходить
-   реже» (скрытый отток, поимённо — /api/guests/churn-slowing) и подсказка к порогу. */
+   реже» (скрытый отток) и подсказка к порогу. Плитки с группами гостей и строки «Кто уходит»
+   кликабельны: карточка списка показывает этих гостей поимённо (/api/guests/churn-guests). */
 
 Guests.registerView('churn', function (pane) {
     var G = Guests;
     var DEFAULT_DAYS = 30;              // зеркало CHURN_DEAD_DAYS_DEFAULT (решение владельца)
     var CHOICES = [30, 60, 90, 180];    // зеркало CHURN_DEAD_DAYS_CHOICES; ответ несёт data.choices
-    // Строк списка «Стали ходить реже» на экране — самые ценные по выручке; весь список — CSV.
-    var SLOWING_LIMIT = 50;
+    // Строк списка гостей на экране — самые ценные в группе; весь список — CSV.
+    var LIST_LIMIT = 50;
+    var DEFAULT_GROUP = 'left';
+    var OTHER_LIST = 'Другая группа — плитка вверху или строка «Кто уходит».';
+    // Колонки списка: заголовок, число ли, ячейка.
+    var COLS = {
+        visits_total: ['Визитов за всё время', true, function (g) { return G.fmtNum(g.visits_total); }],
+        first_visit: ['Первый визит', false, function (g) { return G.fmtDate(g.first_visit); }],
+        last_visit: ['Последний визит', false, function (g) { return G.fmtDate(g.last_visit); }],
+        damage_month: ['Ущерб в месяц', true, function (g) { return G.fmtMoney(g.damage_month); }],
+        ltv: ['LTV', true, function (g) { return G.fmtMoney(g.ltv); }],
+        pause_days: ['Пауза перед возвратом, дней', true, function (g) { return G.fmtNum(g.pause_days); }],
+        visits_period: ['Визитов в периоде', true, function (g) { return G.fmtNum(g.visits_period); }],
+        revenue_period: ['Выручка в периоде', true, function (g) { return G.fmtMoney(g.revenue_period); }],
+        revenue_12m: ['Выручка за 12 мес', true, function (g) { return G.fmtMoney(g.revenue_12m); }],
+        visits_change: ['Визитов: было → стало', true, function (g) {
+            return G.fmtNum(g.visits_prev) + ' → ' + G.fmtNum(g.visits_recent);
+        }]
+    };
+    // Группы плиток: заголовок списка, порядок, колонки и формулы «Как считается».
+    var GROUPS = {
+        left: { title: 'Ушли', order: 'по ущербу в месяц',
+                cols: ['visits_total', 'last_visit', 'damage_month', 'ltv'],
+                keys: ['churn_balance', 'churn_damage'] },
+        reactivated: { title: 'Вернулись после паузы', order: 'по выручке в периоде',
+                cols: ['pause_days', 'last_visit', 'visits_period', 'revenue_period'],
+                keys: ['churn_balance'] },
+        'new': { title: 'Новые гости', order: 'по выручке в периоде',
+                cols: ['first_visit', 'visits_period', 'revenue_period'],
+                keys: ['churn_balance'] },
+        newbie_no_return: { title: 'Не вернулись после первого визита', order: 'по LTV',
+                cols: ['first_visit', 'ltv'], keys: ['churn_newbie'] },
+        slowing: { title: 'Стали ходить реже', order: 'по выручке за 12 мес',
+                cols: ['visits_change', 'last_visit', 'revenue_12m'], keys: ['churn_slowing'] }
+    };
     var LEAVER_NAMES = {
         '1': '1 визит — пришёл и не вернулся',
         '2-3': '2–3 визита',
         '4-8': '4–8 визитов',
         '9+': '9 визитов и больше'
     };
+
+    function currentGroup() {
+        var g = pane.dataset.group || DEFAULT_GROUP;
+        return GROUPS[g] ? g : DEFAULT_GROUP;
+    }
+
+    function currentBucket() {
+        return currentGroup() === 'left' ? (pane.dataset.bucket || '') : '';
+    }
+
+    // Плитка, по которой открывается список её гостей.
+    function pick(group, html) {
+        return '<div class="churn-pick' + activeIf(group === currentGroup() && !currentBucket()) +
+            '" data-group="' + group + '" role="button" tabindex="0" title="Показать гостей">' +
+            html + '</div>';
+    }
 
     function deadDays() {
         var v = parseInt(pane.dataset.deadDays || String(DEFAULT_DAYS), 10);
@@ -87,18 +137,23 @@ Guests.registerView('churn', function (pane) {
         // Два ряда по четыре: сверху потери (качество), снизу приток и база (количество).
         return '<div class="metric-grid metric-grid-4">' +
             G.metricCard('churn_rate', 'Отток за период', G.fmtPct(p.churn_pct), churnSub) +
-            G.metricCard('churn_balance', 'Ушли', G.fmtNum(leftCount(p)),
-                'из них после одного визита: ' + G.fmtNum(one)) +
-            G.metricCard('churn_damage', 'Ущерб от оттока', G.fmtMoney(p.damage_month),
-                'в месяц · в год: ' + G.fmtMoney(p.damage_year)) +
-            G.metricCard('churn_slowing', 'Стали ходить реже', G.fmtNum(p.slowing), slowingSub) +
-            G.metricCard('churn_balance', 'Новые гости', G.fmtNum(p.new), prevNum('new')) +
-            G.metricCard('churn_balance', 'Вернулись после паузы', G.fmtNum(p.reactivated),
-                prevNum('reactivated')) +
+            pick('left', G.metricCard('churn_balance', 'Ушли', G.fmtNum(leftCount(p)),
+                'из них после одного визита: ' + G.fmtNum(one))) +
+            pick('left', G.metricCard('churn_damage', 'Ущерб от оттока', G.fmtMoney(p.damage_month),
+                'в месяц · в год: ' + G.fmtMoney(p.damage_year))) +
+            pick('slowing', G.metricCard('churn_slowing', 'Стали ходить реже', G.fmtNum(p.slowing),
+                slowingSub)) +
+            pick('new', G.metricCard('churn_balance', 'Новые гости', G.fmtNum(p.new),
+                prevNum('new'))) +
+            pick('reactivated', G.metricCard('churn_balance', 'Вернулись после паузы',
+                G.fmtNum(p.reactivated), prevNum('reactivated'))) +
             G.metricCard('churn_balance', 'Живые на конец', G.fmtNum(p.end_alive),
                 'на начало: ' + G.fmtNum(p.start_alive)) +
-            G.metricCard('churn_newbie', 'Не вернулись после первого визита', newbieValue,
-                newbieSub) +
+            (p.newbie_no_return_pct !== null
+                ? pick('newbie_no_return', G.metricCard('churn_newbie',
+                    'Не вернулись после первого визита', newbieValue, newbieSub))
+                : G.metricCard('churn_newbie', 'Не вернулись после первого визита', newbieValue,
+                    newbieSub)) +
             '</div>';
     }
 
@@ -133,7 +188,10 @@ Guests.registerView('churn', function (pane) {
             '<th>Визитов за всю жизнь</th><th class="num">Гостей</th><th class="num">Доля</th>' +
             '<th class="num">Средний LTV</th><th class="num">Ущерб в месяц</th></tr></thead><tbody>';
         leavers.buckets.forEach(function (b) {
-            html += '<tr><td>' + G.esc(LEAVER_NAMES[b.segment] || b.segment) + '</td>' +
+            var on = currentGroup() === 'left' && currentBucket() === b.segment;
+            html += '<tr class="churn-bucket-pick' + activeIf(on) + '" data-bucket="' +
+                G.esc(b.segment) + '" tabindex="0" title="Показать гостей">' +
+                '<td>' + G.esc(LEAVER_NAMES[b.segment] || b.segment) + '</td>' +
                 '<td class="num"><b>' + G.fmtNum(b.count) + '</b></td>' +
                 '<td class="num">' + G.fmtPct(b.share_pct) + '</td>' +
                 '<td class="num">' + G.fmtMoney(b.avg_ltv) + '</td>' +
@@ -142,36 +200,85 @@ Guests.registerView('churn', function (pane) {
         return html + '</tbody></table></div>';
     }
 
-    function slowingCard(list, days, meta) {
-        var html = '<div class="gcard"><h3>Стали ходить реже · ' + G.fmtNum(list.total) +
-            G.helpIcon('churn_slowing') + '</h3>';
-        if (!list.total) {
-            html += '<div class="note-line">Таких гостей нет.</div>';
+    function listCard(list, days, meta) {
+        var spec = GROUPS[list.group] || GROUPS[DEFAULT_GROUP];
+        var title = spec.title + (list.bucket ? ' · ' + (LEAVER_NAMES[list.bucket] || list.bucket) : '');
+        var html = '<div class="gcard" id="churnList"><h3>' + G.esc(title) +
+            (list.total !== null && list.total !== undefined ? ' · ' + G.fmtNum(list.total) : '') +
+            G.helpIcon('churn_list') + '</h3>';
+        if (!list.mature) {
+            html += '<div class="note-line">Список появится ' + G.fmtDate(list.matures_on) +
+                ': у последних новичков периода ещё не прошло ' + days + ' дней.</div>';
+        } else if (!list.total) {
+            html += '<div class="note-line">Таких гостей нет. ' + OTHER_LIST + '</div>';
         } else {
-            var csvUrl = '/api/guests/churn-slowing?period_type=' + G.state.periodType +
+            var csvUrl = '/api/guests/churn-guests?period_type=' + G.state.periodType +
                 '&anchor=' + meta.p_end + (meta.venue ? '&store=' + encodeURIComponent(meta.venue) : '') +
-                '&dead_days=' + days + '&export=csv';
-            html += '<div class="guest-search"><div class="note-line">Ещё ходят, но вдвое реже, ' +
-                'чем раньше. Сверху — самые ценные по выручке за 12 мес' +
-                (list.total > list.returned
+                '&group=' + list.group + '&dead_days=' + days +
+                (list.bucket ? '&bucket=' + encodeURIComponent(list.bucket) : '') + '&export=csv';
+            html += '<div class="guest-search"><div class="note-line">Сверху — самые ценные: ' +
+                spec.order + (list.total > list.returned
                     ? '; показаны ' + G.fmtNum(list.returned) + ' из ' + G.fmtNum(list.total)
-                    : '') + '.</div>' +
+                    : '') + '. ' + OTHER_LIST + '</div>' +
                 '<a class="sync-btn" href="' + csvUrl + '">Скачать CSV</a></div>' +
-                '<div class="gtable-wrap"><table class="gtable"><thead><tr>' +
-                '<th>Гость</th><th>Телефон</th><th class="num">Визитов: было → стало</th>' +
-                '<th>Последний визит</th><th class="num">Выручка за 12 мес</th>' +
-                '</tr></thead><tbody>';
+                '<div class="gtable-wrap"><table class="gtable"><thead><tr><th>Гость</th><th>Телефон</th>' +
+                spec.cols.map(function (c) {
+                    return '<th' + (COLS[c][1] ? ' class="num"' : '') + '>' + COLS[c][0] + '</th>';
+                }).join('') + '</tr></thead><tbody>';
             list.guests.forEach(function (g) {
                 html += '<tr><td>' + G.esc(g.name || g.guest_id) + '</td>' +
                     '<td>' + G.esc(g.phone || '—') + '</td>' +
-                    '<td class="num">' + G.fmtNum(g.visits_prev) + ' → ' + G.fmtNum(g.visits_recent) +
-                    '</td>' +
-                    '<td>' + G.fmtDate(g.last_visit) + '</td>' +
-                    '<td class="num">' + G.fmtMoney(g.revenue_12m) + '</td></tr>';
+                    spec.cols.map(function (c) {
+                        return '<td' + (COLS[c][1] ? ' class="num"' : '') + '>' + COLS[c][2](g) + '</td>';
+                    }).join('') + '</tr>';
             });
             html += '</tbody></table></div>';
         }
-        return html + G.howBlock(['churn_slowing'], meta) + '</div>';
+        return html + G.howBlock(['churn_list'].concat(spec.keys), meta) + '</div>';
+    }
+
+    function listParams(days) {
+        var params = { group: currentGroup(), dead_days: days, limit: LIST_LIMIT };
+        if (currentBucket()) params.bucket = currentBucket();
+        return params;
+    }
+
+    // Клик по плитке или строке «Кто уходит»: список этих гостей, без перерисовки вкладки.
+    function choose(group, bucket, meta) {
+        pane.dataset.group = group;
+        pane.dataset.bucket = bucket || '';
+        pane.querySelectorAll('.churn-pick').forEach(function (el) {
+            el.classList.toggle('active', !bucket && el.dataset.group === group);
+        });
+        pane.querySelectorAll('.churn-bucket-pick').forEach(function (el) {
+            el.classList.toggle('active', !!bucket && el.dataset.bucket === bucket);
+        });
+        var days = deadDays();
+        return G.api('/api/guests/churn-guests', listParams(days)).then(function (resp) {
+            var card = pane.querySelector('#churnList');
+            if (!card) return;
+            card.outerHTML = listCard(resp.data, days, meta);
+            var fresh = pane.querySelector('#churnList');
+            if (fresh && fresh.scrollIntoView) fresh.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }).catch(function (e) {
+            var card = pane.querySelector('#churnList');
+            if (card) card.innerHTML = '<div class="pane-error">Ошибка: ' + G.esc(e.message) + '</div>';
+        });
+    }
+
+    function bindPicks(meta) {
+        function onActivate(el, fn) {
+            el.addEventListener('click', fn);
+            el.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fn(); }
+            });
+        }
+        pane.querySelectorAll('.churn-pick').forEach(function (el) {
+            onActivate(el, function () { choose(el.dataset.group, '', meta); });
+        });
+        pane.querySelectorAll('.churn-bucket-pick').forEach(function (el) {
+            onActivate(el, function () { choose('left', el.dataset.bucket, meta); });
+        });
     }
 
     function drawCharts(rows, type) {
@@ -213,7 +320,7 @@ Guests.registerView('churn', function (pane) {
         var days = deadDays();
         return Promise.all([
             G.api('/api/guests/churn', { dead_days: days }),
-            G.api('/api/guests/churn-slowing', { dead_days: days, limit: SLOWING_LIMIT })
+            G.api('/api/guests/churn-guests', listParams(days))
         ]).then(function (answers) {
             var resp = answers[0];
             var list = answers[1].data;
@@ -256,7 +363,7 @@ Guests.registerView('churn', function (pane) {
                 html += '<div class="gcard"><h3>Кто уходит · ' + shortLabel(p, type) +
                     G.helpIcon('churn_leavers') + '</h3>' + leaversTable(d.leavers) +
                     G.howBlock(['churn_leavers', 'churn_damage'], meta) + '</div>';
-                html += slowingCard(list, d.dead_days, meta);
+                html += listCard(list, d.dead_days, meta);
             }
 
             pane.innerHTML = html;
@@ -269,6 +376,7 @@ Guests.registerView('churn', function (pane) {
                     });
                 });
             });
+            bindPicks(meta);
             if (p) drawCharts(d.series, type);
         });
     }
