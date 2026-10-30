@@ -121,6 +121,11 @@ window.Guests = (function () {
         var gh = hub();
         return gh ? gh.barName(key) : 'Все бары';
     }
+    // Бары сети по порядку показа (GH.BARS: key, name, short) — для сравнения баров рядом.
+    function bars() {
+        var gh = hub();
+        return gh ? gh.BARS : [];
+    }
     function renderBarPick() {
         var label = document.getElementById('barPickLabel');
         if (label) label.textContent = barName(state.bar);
@@ -355,6 +360,7 @@ window.Guests = (function () {
         registerView: registerView,
         setBar: setBar,
         barName: barName,
+        bars: bars,
         fmtNum: fmtNum, fmtMoney: fmtMoney, fmtPct: fmtPct,
         fmtDate: fmtDate, fmtMonth: fmtMonth, periodShort: periodShort, esc: esc,
         helpIcon: helpIcon, howBlock: howBlock, metricCard: metricCard,

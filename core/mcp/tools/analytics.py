@@ -126,9 +126,21 @@ RFM_SEGMENT_PATTERN = ('^(' + '|'.join(RFM_SEGMENTS) + ')(,(' + '|'.join(RFM_SEG
 # Потолок limit у агента. Строка гостя RFM — около 255 знаков JSON (замер 2026-09-28:
 # 2 214 гостей, 568 тыс. знаков), 200 строк — около 51 тыс.: ответ целиком помещается в
 # предел моста (60 тыс. знаков). Сам маршрут принимает любой limit от 1; полный список —
-# export='csv'. Тот же потолок у списка «Стали ходить реже» (analytics_guests_churn_slowing):
-# его строка короче — около 220 знаков, 200 строк тоже помещаются.
+# export='csv'. Тот же потолок у гостей плиток «Оттока» (analytics_guests_churn_guests):
+# их строка — около 330 знаков, 150 строк помещаются, 200 — на грани; ответ дольше 60 тыс.
+# мост урежет с пометкой, полный список — CSV.
 RFM_LIMIT_MAX = 200
+
+# Потолок periods у агента (analytics_guests_churn, analytics_guests_ltv): 60 строк оттока —
+# около 24 тыс. знаков при пределе моста 60 тыс. Маршрут принимает больше, вплоть до «всё
+# время» (core/guest_analytics.CHURN_SERIES_MAX и ?periods=all — кнопка вкладки): такой ответ
+# мост урезал бы.
+CHURN_SERIES_AGENT_MAX = 60
+
+# Плитки «Оттока» с поимённым списком (core/guest_analytics.CHURN_GUEST_GROUPS) и группы
+# «Кто уходит» (метки CHURN_LEAVER_BUCKETS) — enum group и bucket у analytics_guests_churn_guests.
+CHURN_GUEST_GROUPS: Tuple[str, ...] = ('left', 'reactivated', 'new', 'newbie_no_return', 'slowing')
+CHURN_LEAVER_BUCKETS: Tuple[str, ...] = ('1', '2-3', '4-8', '9+')
 
 # Поля месячного плана (core/plans_manager.PlansManager.PLAN_SCHEMA).
 # cardChecksShare необязателен: PLAN_DEFAULTS подставляет 70.
@@ -1276,11 +1288,12 @@ _T_ANALYSIS = [
 
 
 def _guests_tool(name, title, description, path, extra_props=None, extra_query=(),
-                 examples=None, by_venue=True, **flags) -> ToolSpec:
+                 examples=None, by_venue=True, required=(), **flags) -> ToolSpec:
     """Отчёт витрины гостей: period_type + anchor (+ store) плюс свои параметры.
 
     by_venue=False — отчёт на бары не делится (маршрут зовёт _ctx(by_venue=False)
-    и store не читает), поэтому поля store в схеме нет.
+    и store не читает), поэтому поля store в схеме нет. required — обязательные свои
+    параметры (без них маршрут отвечает 400).
     """
     props = _guest_period_props()
     query = ('period_type', 'anchor')
@@ -1294,7 +1307,7 @@ def _guests_tool(name, title, description, path, extra_props=None, extra_query=(
         name=name, title=title, description=description + ' ' + ' '.join(notes),
         method='GET', path=path, body='none',
         query_params=query + tuple(extra_query),
-        input_schema=_obj(props),
+        input_schema=_obj(props, required=tuple(required)),
         read_only=True, idempotent=True,
         examples=examples if examples is not None else ({'period_type': 'month',
                                                           'anchor': '2026-08-15'},),
@@ -1353,7 +1366,7 @@ _T_GUESTS = [
         'в прошлых 90 днях было не меньше 3 визитов, а в последних 90 — хотя бы один и не больше '
         'половины прошлого; slowing_base — живые с 3+ визитами в прошлом окне и хоть одним в '
         'последнем, slowing_pct — slowing / slowing_base, %; поимённо — '
-        'analytics_guests_churn_slowing. return_gaps — подсказка к порогу (от dead_days не '
+        'analytics_guests_churn_guests (group=slowing). return_gaps — подсказка к порогу (от dead_days не '
         'зависит): паузы перед повторными визитами за 365 дней по дату среза, returns — сколько '
         'их, later_than — для каждого порога доля пауз длиннее него, % (столько возвратов порог '
         'успел бы записать в «Ушли»), percentiles — за сколько дней возвращается половина и 9 из '
@@ -1361,7 +1374,8 @@ _T_GUESTS = [
         '/api/guests/churn',
         extra_props={
             'dead_days': _churn_dead_days_prop(),
-            'periods': {'type': 'integer', 'minimum': 3, 'maximum': 60,
+            'periods': {'type': 'integer', 'minimum': 3,
+                        'maximum': CHURN_SERIES_AGENT_MAX,
                         'description': 'Сколько периодов в ряду, 3–60 (по умолчанию неделя 26, '
                                        'месяц 24, квартал 12, год 8).'},
         },
@@ -1369,29 +1383,49 @@ _T_GUESTS = [
         examples=({'period_type': 'month', 'anchor': '2026-09-15', 'dead_days': 30},),
     ),
     _guests_tool(
-        'analytics_guests_churn_slowing', 'Гости: стали ходить реже',
-        'Скрытый отток (вкладка «Отток», §17) поимённо: гости, которые на дату среза живы по '
-        'порогу dead_days, в прошлых 90 днях ходили не меньше 3 раз, а в последних 90 днях '
-        'были хотя бы раз, но не больше половины прошлого. total — сколько таких (то же число, '
-        'что period.slowing у analytics_guests_churn с тем же dead_days); guests — по убыванию '
-        'выручки за 12 мес: guest_id, name, phone, card_number, last_visit, recency_days, '
-        'visits_prev (визитов в прошлых 90 днях), visits_recent (в последних 90), revenue_12m '
-        '(₽, чеки за 365 дней по дату среза). Всегда передавайте limit (например 50), returned — '
-        "сколько отдано; export='csv' — весь список файлом. Дата среза asof = min(конец "
-        'периода, data_to); у будущего периода список пуст. Формулы — guests.md, §17.',
-        '/api/guests/churn-slowing',
+        'analytics_guests_churn_guests', 'Гости: кто в плитке «Оттока»',
+        'Гости одной плитки вкладки «Отток» (§17) поимённо — ровно те, что посчитаны в '
+        'analytics_guests_churn с тем же периодом, dead_days и store. group: left — «Ушли» '
+        '(died + new_died; bucket 1 / 2-3 / 4-8 / 9+ — группа «Кто уходит» по числу визитов за '
+        'жизнь), reactivated — «Вернулись после паузы», new — «Новые гости» (первый визит в '
+        'периоде), newbie_no_return — «Не вернулись после первого визита» (пока период не созрел, '
+        'mature=false и matures_on, списка нет), slowing — «Стали ходить реже» (живы по порогу, в '
+        'прошлых 90 днях не меньше 3 визитов, в последних 90 — хотя бы один и не больше половины). '
+        'total — сколько гостей в группе; guests — самые ценные сверху (left — по ущербу, '
+        'reactivated и new — по выручке в периоде, newbie_no_return — по LTV, slowing — по '
+        'выручке за 12 мес): guest_id, name, phone, card_number, first_visit, last_visit, '
+        'recency_days, visits_total и ltv (₽, за жизнь по дату среза), visits_period и '
+        'revenue_period (₽, с начала периода), revenue_12m (₽, 365 дней по дату среза), '
+        'pause_days (пауза перед первым визитом в периоде), visits_prev / visits_recent, '
+        'damage_month (₽, только у left); без store — favorite_store и favorite_store_name, '
+        'любимая точка гостя (больше дней-визитов по дату среза): какой бар его возвращает. '
+        "Всегда передавайте limit (например 50); export='csv' — весь список файлом. Дата среза "
+        'asof = min(конец периода, data_to); у будущего периода список пуст. Формулы — '
+        'guests.md, §17.',
+        '/api/guests/churn-guests',
         extra_props={
+            'group': {'type': 'string', 'enum': list(CHURN_GUEST_GROUPS),
+                      'description': ('Плитка: left («Ушли»), reactivated («Вернулись после '
+                                      'паузы»), new («Новые гости»), newbie_no_return («Не '
+                                      'вернулись после первого визита»), slowing («Стали ходить '
+                                      'реже»).')},
             'dead_days': _churn_dead_days_prop(),
+            'bucket': {'type': 'string', 'enum': list(CHURN_LEAVER_BUCKETS),
+                       'description': ('Только для group=left: группа «Кто уходит» по числу '
+                                       'визитов за жизнь — 1, 2-3, 4-8 или 9+.')},
             'limit': {'type': 'integer', 'minimum': 1, 'maximum': RFM_LIMIT_MAX,
-                      'description': ('Сколько гостей вернуть — самые ценные по выручке за 12 '
-                                      'мес; до ' + str(RFM_LIMIT_MAX) + '.')},
+                      'description': ('Сколько гостей вернуть — самые ценные в группе; до '
+                                      + str(RFM_LIMIT_MAX) + '.')},
             'export': {'type': 'string', 'enum': ['csv'],
                        'description': "'csv' — весь список файлом (CSV через «;»), limit не "
                                       'действует.'},
         },
-        extra_query=('dead_days', 'limit', 'export'),
-        examples=({'period_type': 'month', 'anchor': '2026-09-15', 'dead_days': 30,
-                   'limit': 20},),
+        extra_query=('group', 'dead_days', 'bucket', 'limit', 'export'),
+        required=('group',),
+        examples=({'period_type': 'month', 'anchor': '2026-09-15', 'group': 'left',
+                   'dead_days': 30, 'limit': 20},
+                  {'period_type': 'month', 'anchor': '2026-09-15', 'group': 'left',
+                   'bucket': '9+', 'limit': 20}),
         # Не also_in content: в списке телефоны гостей (как у RFM, проверка 2026-09-28).
     ),
     _guests_tool(
@@ -1493,7 +1527,8 @@ _T_GUESTS = [
         '(сравнение баров — только для всей сети).',
         '/api/guests/ltv',
         extra_props={
-            'periods': {'type': 'integer', 'minimum': 3, 'maximum': 60,
+            'periods': {'type': 'integer', 'minimum': 3,
+                        'maximum': CHURN_SERIES_AGENT_MAX,
                         'description': 'Сколько периодов в ряду, 3–60 (по умолчанию неделя 26, '
                                        'месяц 24, квартал 12, год 8).'},
         },

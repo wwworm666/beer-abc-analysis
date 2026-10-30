@@ -346,17 +346,17 @@ class TestSlowing(ChurnBase):
     def test_window_edges(self):
         """03.10 и 31.12 — прошлое окно, 01.01 — последнее, 02.10 — вне окон (BND2 не в базе)."""
         period, meta = self.ctx()
-        names = [g['name'] for g in ga.churn_slowing(self.store, period, meta, 90)['guests']]
+        names = [g['name'] for g in ga.churn_guests(self.store, period, meta, 'slowing', 90)['guests']]
         self.assertIn('BND', names)
         self.assertNotIn('BND2', names)
 
     def test_list_matches_counter_and_is_sorted_by_revenue(self):
         period, meta = self.ctx()
         for dead_days in ga.CHURN_DEAD_DAYS_CHOICES:
-            listed = ga.churn_slowing(self.store, period, meta, dead_days)
+            listed = ga.churn_guests(self.store, period, meta, 'slowing', dead_days)
             self.assertEqual(listed['total'], self.churn(dead_days)['period']['slowing'],
                              'список и плитка — одно правило')
-        listed = ga.churn_slowing(self.store, period, meta, 90)
+        listed = ga.churn_guests(self.store, period, meta, 'slowing', 90)
         self.assertEqual((listed['asof'], listed['dead_days']), ('2026-03-31', 90))
         rows = [(g['name'], g['visits_prev'], g['visits_recent'], g['recency_days'],
                  g['last_visit'], g['revenue_12m']) for g in listed['guests']]
@@ -369,7 +369,7 @@ class TestSlowing(ChurnBase):
 
     def test_future_period_list_is_empty(self):
         period, meta = self.ctx(anchor='2026-06-15')
-        listed = ga.churn_slowing(self.store, period, meta, 30)
+        listed = ga.churn_guests(self.store, period, meta, 'slowing', 30)
         self.assertEqual((listed['asof'], listed['total'], listed['guests']), (None, 0, []))
 
 
@@ -389,7 +389,8 @@ class TestSlowingVenue(ChurnBase):
         self.assertEqual(self.churn(30, venue='ligovskiy')['period']['slowing'], 0,
                          'в Лиговском раньше не ходил')
         period, meta = self.ctx(venue='ligovskiy')
-        self.assertEqual(ga.churn_slowing(self.store, period, meta, 30, 'ligovskiy')['total'], 0)
+        self.assertEqual(
+            ga.churn_guests(self.store, period, meta, 'slowing', 30, 'ligovskiy')['total'], 0)
 
 
 class TestVenue(ChurnBase):
@@ -441,7 +442,8 @@ class TestEmptyStore(ChurnBase):
         self.assertEqual(d['leavers']['total'], 0)
         self.assertIsNone(d['return_gaps'])
         period, meta = self.ctx()
-        self.assertEqual(ga.churn_slowing(self.store, period, meta)['total'], 0)
+        for group in ga.CHURN_GUEST_GROUPS:
+            self.assertFalse(ga.churn_guests(self.store, period, meta, group)['total'], group)
 
 
 class TestLtvOnDate(ChurnBase):
@@ -556,8 +558,11 @@ class TestParams(unittest.TestCase):
         self.assertEqual(ga.parse_series_len('x', 'week'), 26)
         self.assertEqual(ga.parse_series_len('', 'quarter'), 12)
         self.assertEqual(ga.parse_series_len('1', 'month'), ga.CHURN_SERIES_MIN)
-        self.assertEqual(ga.parse_series_len('999', 'year'), ga.CHURN_SERIES_MAX)
+        self.assertEqual(ga.parse_series_len('99999', 'year'), ga.CHURN_SERIES_MAX)
         self.assertEqual(ga.parse_series_len('12', 'month'), 12)
+        self.assertEqual(ga.parse_series_len('120', 'month'), 120, 'больше 60 — для страницы')
+        for raw in ('all', 'ALL', ' all '):
+            self.assertEqual(ga.parse_series_len(raw, 'week'), ga.CHURN_SERIES_MAX, raw)
 
 
 class RouteMixin:
@@ -601,6 +606,38 @@ class TestChurnRoute(RouteMixin, ChurnBase):
         self.assertEqual(d['dead_days'], 30)
         self.assertEqual(len(d['series']), 4, 'длина по умолчанию, обрезанная началом витрины')
 
+    def test_heavy_calculations_run_one_at_a_time(self):
+        """Шесть запросов вкладки разом не делят GIL: расчёт идёт под замком процесса."""
+        seen = []
+        real_all, real_guests = ga.churn_all, ga.churn_guests
+
+        def spy_all(*args):
+            seen.append(('churn_all', self.rg._CHURN_CALC_LOCK.locked()))
+            return real_all(*args)
+
+        def spy_guests(*args):
+            seen.append(('churn_guests', self.rg._CHURN_CALC_LOCK.locked()))
+            return real_guests(*args)
+
+        with mock.patch.object(ga, 'churn_all', spy_all), \
+                mock.patch.object(ga, 'churn_guests', spy_guests):
+            self.get(periods='5')
+            response = self.client.get('/api/guests/churn-guests', query_string={
+                'period_type': 'month', 'anchor': '2026-03-15', 'group': 'left'})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(seen, [('churn_all', True), ('churn_guests', True)])
+        self.assertFalse(self.rg._CHURN_CALC_LOCK.locked(), 'замок отпущен после расчёта')
+
+    def test_all_periods_is_whole_history(self):
+        """«Всё время»: ряд от первого чека витрины (01.12.2025), а не два года."""
+        self.assertEqual(len(self.get(periods='3')['series']), 3)
+        series = self.get(periods='all')['series']
+        self.assertEqual([r['p_start'] for r in series],
+                         ['2025-12-01', '2026-01-01', '2026-02-01', '2026-03-01'])
+        weeks = self.get(periods='all', period_type='week')['series']
+        self.assertEqual((weeks[0]['p_start'], len(weeks)), ('2025-12-01', 15),
+                         'недели с понедельника 01.12.2025 по неделю 09–15.03')
+
     def test_ltv_route_reads_periods(self):
         response = self.client.get('/api/guests/ltv', query_string={
             'period_type': 'month', 'anchor': '2026-03-15', 'periods': '3'})
@@ -610,42 +647,135 @@ class TestChurnRoute(RouteMixin, ChurnBase):
                          ['2026-01-01', '2026-02-01', '2026-03-01'])
 
 
-class TestSlowingRoute(RouteMixin, ChurnBase):
+class TestChurnGuests(ChurnBase):
+    """Гости плиток поимённо (кликабельные плитки, 2026-10-30): список = счётчик плитки."""
+
+    def guests(self, group, dead_days=30, anchor='2026-03-15', period_type='month', bucket=None):
+        period, meta = self.ctx(period_type, anchor)
+        return ga.churn_guests(self.store, period, meta, group, dead_days, bucket=bucket)
+
+    def test_every_list_matches_its_tile(self):
+        for anchor, period_type in (('2026-03-15', 'month'), ('2026-02-01', 'quarter'),
+                                    ('2026-05-15', 'month'), ('2026-01-15', 'month')):
+            for dead_days in ga.CHURN_DEAD_DAYS_CHOICES:
+                d = self.churn(dead_days, period_type, anchor)
+                p = d['period']
+                tiles = {'left': p['died'] + p['new_died'], 'reactivated': p['reactivated'],
+                         'new': p['new'], 'newbie_no_return': p['newbie_no_return'],
+                         'slowing': p['slowing']}
+                for group, count in tiles.items():
+                    got = self.guests(group, dead_days, anchor, period_type)['total']
+                    self.assertEqual(got, count, (anchor, period_type, dead_days, group))
+                for b in d['leavers']['buckets']:
+                    got = self.guests('left', dead_days, anchor, period_type, b['segment'])['total']
+                    self.assertEqual(got, b['count'], (anchor, dead_days, b['segment']))
+
+    def test_march_rows(self):
+        left = self.guests('left')['guests']
+        self.assertEqual([(g['name'], g['visits_total'], g['damage_month'], g['ltv']) for g in left],
+                         [('F', 3, 250, 3000), ('B', 1, 83, 1000)], 'по ущербу в месяц')
+        self.assertEqual([g['name'] for g in self.guests('left', bucket='1')['guests']], ['B'])
+        back = self.guests('reactivated')['guests']
+        self.assertEqual([(g['name'], g['pause_days'], g['visits_period'], g['revenue_period'])
+                          for g in back], [('C', 78, 1, 1500)], '01.01 → 20.03 — пауза 78 дней')
+        new = self.guests('new')['guests']
+        self.assertEqual([(g['name'], g['first_visit'], g['revenue_period']) for g in new],
+                         [('D', '2026-03-10', 3000), ('G', '2026-03-28', 1500)], 'по выручке')
+        self.assertEqual([g['name'] for g in self.guests('newbie_no_return')['guests']], ['G'])
+
+    def test_newbie_list_waits_for_maturity(self):
+        d = self.guests('newbie_no_return', 60)
+        self.assertEqual((d['mature'], d['total'], d['guests'], d['matures_on']),
+                         (False, None, [], '2026-05-30'), '31.03 + 60 — позже 20.05')
+
+    def test_params(self):
+        self.assertEqual(ga.parse_churn_group('LEFT'), 'left')
+        for bad in (None, '', 'died', 'all'):
+            with self.assertRaises(ValueError):
+                ga.parse_churn_group(bad)
+        self.assertEqual(ga.parse_leaver_bucket('9 '), '9+', 'плюс в адресе приходит пробелом')
+        self.assertIsNone(ga.parse_leaver_bucket(''))
+        with self.assertRaises(ValueError):
+            ga.parse_leaver_bucket('10+')
+        with self.assertRaises(ValueError):
+            self.guests('new', bucket='1')
+
+
+class TestFavoriteStore(ChurnBase):
+    """Любимая точка ушедшего во всей сети — какой бар его возвращает (правило §11)."""
+    GUESTS = {
+        'P': [('2026-01-10', 'bolshoy', 1000.0), ('2026-01-20', 'ligovskiy', 1000.0),
+              ('2026-02-05', 'ligovskiy', 1000.0)],
+        'Q': [('2026-02-10', 'ligovskiy', 1000.0), ('2026-02-12', 'bolshoy', 1000.0)],
+        'R': [('2026-02-20', 'varshavskaya', 1000.0)] +
+             [(d, 'kremenchugskaya', 1000.0) for d in ('2026-05-01', '2026-05-05', '2026-05-10')],
+        'Z': [('2026-05-20', 'bolshoy', 1000.0)],
+    }
+
+    def left(self, venue=None):
+        period, meta = self.ctx(venue=venue)
+        return ga.churn_guests(self.store, period, meta, 'left', 30, venue)['guests']
+
+    def test_network_rows_carry_favorite_store(self):
+        fav = {g['name']: (g['favorite_store'], g['favorite_store_name']) for g in self.left()}
+        self.assertEqual(fav['P'], ('ligovskiy', 'Лиговский'), '2 дня в Лиговском против 1')
+        self.assertEqual(fav['Q'][0], 'bolshoy', 'поровну — первый по порядку заведений')
+        self.assertEqual(fav['R'][0], 'varshavskaya',
+                         'по дату среза: майские визиты на Кременчугской ещё не случились')
+        self.assertEqual(set(fav), {'P', 'Q', 'R'})
+
+    def test_bar_rows_have_no_favorite_store(self):
+        rows = self.left('ligovskiy')
+        self.assertTrue(rows)
+        self.assertEqual({(g['favorite_store'], g['favorite_store_name']) for g in rows},
+                         {(None, None)}, 'с баром все визиты в нём — колонка не нужна')
+
+
+class TestChurnGuestsRoute(RouteMixin, ChurnBase):
     GUESTS = SLOWING
 
     def get(self, **params):
         query = dict({'period_type': 'month', 'anchor': '2026-03-15'}, **params)
-        return self.client.get('/api/guests/churn-slowing', query_string=query)
+        return self.client.get('/api/guests/churn-guests', query_string=query)
 
     def test_json_limit_and_counter(self):
-        response = self.get(dead_days='90', limit='2')
+        response = self.get(group='slowing', dead_days='90', limit='2')
         self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
         d = response.get_json()['data']
-        self.assertEqual((d['total'], d['returned'], d['limit'], d['dead_days']), (3, 2, 2, 90))
+        self.assertEqual((d['group'], d['total'], d['returned'], d['limit'], d['dead_days']),
+                         ('slowing', 3, 2, 2, 90))
         self.assertEqual([g['name'] for g in d['guests']], ['S1', 'BND'], 'самые ценные сверху')
         churn = self.client.get('/api/guests/churn', query_string={
             'period_type': 'month', 'anchor': '2026-03-15', 'dead_days': '90'}).get_json()
         self.assertEqual(churn['data']['period']['slowing'], d['total'], 'плитка = список')
 
     def test_default_threshold_and_full_list(self):
-        d = self.get().get_json()['data']
+        d = self.get(group='slowing').get_json()['data']
         self.assertEqual((d['dead_days'], d['total'], d['returned'], d['limit']), (30, 1, 1, None))
 
+    def test_bucket_with_plus(self):
+        d = self.get(group='left', dead_days='90', bucket='9+').get_json()['data']
+        self.assertEqual((d['bucket'], d['total']), ('9+', 0))
+
     def test_csv_is_whole_list(self):
-        response = self.get(dead_days='90', limit='1', export='csv')
+        response = self.get(group='slowing', dead_days='90', limit='1', export='csv')
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.mimetype.startswith('text/csv'))
         self.assertIn('churn_slowing_2026-03-31_90d.csv',
                       response.headers['Content-Disposition'])
         body = response.get_data().decode('utf-8-sig').strip().splitlines()
-        self.assertEqual(body[0].split(';')[0], 'Телефон')
+        self.assertEqual(body[0].split(';')[:4], ['Телефон', 'Карта', 'Имя', 'Любимая точка'])
         self.assertEqual(len(body), 1 + 3, 'выгрузка — весь список, limit не действует')
 
-    def test_bad_limit_is_400(self):
-        for bad in ('0', 'abc', '1.5'):
-            response = self.get(limit=bad)
-            self.assertEqual(response.status_code, 400, bad)
-            self.assertIn('limit', response.get_json()['error'])
+    def test_bad_params_are_400(self):
+        for params, word in (({'group': 'slowing', 'limit': '0'}, 'limit'),
+                             ({'group': 'slowing', 'limit': '1.5'}, 'limit'),
+                             ({}, 'group'), ({'group': 'died'}, 'group'),
+                             ({'group': 'left', 'bucket': '10+'}, 'bucket'),
+                             ({'group': 'new', 'bucket': '1'}, 'bucket')):
+            response = self.get(**params)
+            self.assertEqual(response.status_code, 400, params)
+            self.assertIn(word, response.get_json()['error'], params)
 
 
 if __name__ == '__main__':

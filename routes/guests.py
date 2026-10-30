@@ -25,6 +25,7 @@ anchor — любая дата внутри периода; дефолт: тек
 
 import csv
 import io
+import threading
 
 from flask import Blueprint, Response, jsonify, render_template, request
 
@@ -36,6 +37,18 @@ from core.venues_config import PHYSICAL_VENUES, VENUES
 from extensions import APP_VERSION, BARS, cached_olap
 
 guests_bp = Blueprint('guests', __name__)
+
+# Тяжёлые расчёты «Оттока» (churn_all, churn_guests) — по одному на процесс. Вкладка при «Все
+# бары» шлёт шесть запросов разом (сеть, список и четыре бара), а потоки gthread делят один
+# GIL: построчное чтение SQLite отдаёт GIL на каждой строке и ждёт его за чужим циклом. Замер
+# на искусственной витрине размера прода, ряд «всё время» месяцев, шесть запросов разом: без
+# очереди — 8,8 с, в очереди — 1,4 с. В очереди поток ждёт на замке и GIL не делит.
+_CHURN_CALC_LOCK = threading.Lock()
+
+
+def _churn_calc(fn, *args):
+    with _CHURN_CALC_LOCK:
+        return fn(*args)
 
 
 def _ctx(by_venue=True):
@@ -125,46 +138,58 @@ def api_churn():
         dead_days = ga.parse_dead_days(request.args.get('dead_days'))
         periods = ga.parse_series_len(request.args.get('periods'), period['type'])
         full = cached_olap(_cache_key('churn', meta, periods, ga.data_to(meta)),
-                           lambda: ga.churn_all(store, period, meta, periods, venue))
+                           lambda: _churn_calc(ga.churn_all, store, period, meta, periods, venue))
         return jsonify({'meta': meta, 'data': ga.churn_view(full, dead_days)})
     except Exception as e:
         return jsonify({'error': f'{type(e).__name__}: {e}'}), 500
 
 
-@guests_bp.route('/api/guests/churn-slowing')
-def api_churn_slowing():
-    """«Стали ходить реже» поимённо (§17, скрытый отток). ?dead_days=&limit=&export=csv
+@guests_bp.route('/api/guests/churn-guests')
+def api_churn_guests():
+    """Гости плитки «Оттока» поимённо (§17). ?group=&dead_days=&bucket=&limit=&export=csv
 
-    Правило — ga.churn_slowing (то же, что счётчик period.slowing у /api/guests/churn), гости
-    по убыванию выручки за 12 мес. ?limit=N — первые N (целое ≥ 1, иначе 400), без него —
-    все; total — сколько всего до обрезки. ?export=csv — весь список файлом, limit не
-    действует: выгрузка нужна для обзвона целиком. Не кэшируется: в ответе телефоны, а
-    общий кэш на 64 ключа нужен дорогим отчётам дашборда.
+    group — left («Ушли»), reactivated, new, newbie_no_return, slowing (ga.CHURN_GUEST_GROUPS);
+    обязателен. bucket — одна группа «Кто уходит» (1, 2-3, 4-8, 9+), только для left. Правило —
+    ga.churn_guests: те же гости, что в счётчике плитки с тем же порогом. Неверные group,
+    bucket или limit — 400. ?limit=N — первые N (самые ценные), без него — все; total —
+    сколько всего до обрезки. ?export=csv — весь список файлом, limit не действует: выгрузка
+    нужна для обзвона целиком. Не кэшируется: в ответе телефоны, а общий кэш на 64 ключа
+    нужен дорогим отчётам дашборда.
     """
     try:
         try:
             limit = _list_limit()
+            group = ga.parse_churn_group(request.args.get('group'))
+            bucket = ga.parse_leaver_bucket(request.args.get('bucket'))
+            if bucket is not None and group != 'left':
+                raise ValueError('bucket — только для group=left («Кто уходит»)')
         except ValueError as e:
             return jsonify({'error': str(e)}), 400
         store, period, meta, venue = _ctx()
         dead_days = ga.parse_dead_days(request.args.get('dead_days'))
-        data = ga.churn_slowing(store, period, meta, dead_days, venue)
+        data = _churn_calc(ga.churn_guests, store, period, meta, group, dead_days, venue, bucket)
         if request.args.get('export') == 'csv':
             buf = io.StringIO()
             w = csv.writer(buf, delimiter=';')
-            w.writerow(['Телефон', 'Карта', 'Имя', 'Последний визит', 'Дней с визита',
-                        'Визитов за прошлые 90 дней', 'Визитов за последние 90 дней',
-                        'Выручка за 12 мес'])
+            w.writerow(['Телефон', 'Карта', 'Имя', 'Любимая точка', 'Первый визит',
+                        'Последний визит', 'Дней с визита', 'Визитов за всё время', 'Визитов в периоде',
+                        'Выручка в периоде', 'Выручка за 12 мес', 'LTV',
+                        'Пауза перед визитом в периоде, дней', 'Визитов за прошлые 90 дней',
+                        'Визитов за последние 90 дней', 'Ущерб в месяц (у ушедших)'])
             for g in data['guests']:
-                w.writerow([g['phone'], g['card_number'], g['name'], g['last_visit'],
-                            g['recency_days'], g['visits_prev'], g['visits_recent'],
-                            g['revenue_12m']])
+                w.writerow([g['phone'], g['card_number'], g['name'], g['favorite_store_name'],
+                            g['first_visit'], g['last_visit'], g['recency_days'], g['visits_total'],
+                            g['visits_period'], g['revenue_period'], g['revenue_12m'], g['ltv'],
+                            g['pause_days'], g['visits_prev'], g['visits_recent'],
+                            g['damage_month']])
             out = buf.getvalue().encode('utf-8-sig')  # BOM для Excel
-            suffix = f"_{meta['venue']}" if meta.get('venue') else ''
+            parts = [group, data['asof'] or meta['asof'], f'{dead_days}d']
+            if bucket:
+                parts.append(bucket.replace('+', 'plus'))
+            if meta.get('venue'):
+                parts.append(meta['venue'])
             return Response(out, mimetype='text/csv; charset=utf-8', headers={
-                'Content-Disposition':
-                    f"attachment; filename=churn_slowing_{data['asof'] or meta['asof']}"
-                    f"_{dead_days}d{suffix}.csv"})
+                'Content-Disposition': 'attachment; filename=churn_' + '_'.join(parts) + '.csv'})
         if limit is not None:
             data['guests'] = data['guests'][:limit]
         data['returned'] = len(data['guests'])
@@ -255,7 +280,7 @@ def _rfm_list_filter():
 
 
 def _list_limit():
-    """?limit=N для списков гостей (RFM, «Стали ходить реже»): целое ≥ 1, None — без обрезки.
+    """?limit=N для списков гостей (RFM, гости плиток «Оттока»): целое ≥ 1, None — без обрезки.
 
     Raises:
         ValueError: не целое или меньше 1 — текст для ответа 400.

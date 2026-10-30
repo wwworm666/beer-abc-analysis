@@ -487,19 +487,29 @@ function churnData(period) {
                                     { days: 90, pct: 6.2 }, { days: 180, pct: 2.1 }] },
     };
 }
-// Ответ /api/guests/churn-slowing: limit 50 отдал 2 строки из 4 (обрезка — на сервере).
-const SLOWING = { asof: '2026-08-31', dead_days: 30, total: 4, returned: 2, limit: 50, guests: [
-    { guest_id: 'g1', name: 'Анна', phone: '79110000001', card_number: '1001',
-      last_visit: '2026-08-20', recency_days: 11, visits_prev: 6, visits_recent: 3,
-      revenue_12m: 52000 },
-    { guest_id: 'g2', name: 'Борис', phone: '79110000002', card_number: '1002',
-      last_visit: '2026-08-02', recency_days: 29, visits_prev: 3, visits_recent: 1,
-      revenue_12m: 18000 },
-] };
-// Два запроса вкладки: отток и список «Стали ходить реже» — каждому свой ответ.
+// Ответ /api/guests/churn-guests для группы из запроса: limit 50 отдал 2 строки из 4.
+function guestList(group, bucket) {
+    return { asof: '2026-08-31', dead_days: 30, group: group, bucket: bucket || null, mature: true,
+             matures_on: null, total: 4, returned: 2, limit: 50, guests: [
+        { guest_id: 'g1', name: 'Анна', phone: '79110000001', card_number: '1001',
+          first_visit: '2025-02-01', last_visit: '2026-07-20', recency_days: 42, visits_total: 31,
+          ltv: 64000, visits_period: 0, revenue_period: 0, revenue_12m: 52000, pause_days: null,
+          visits_prev: 6, visits_recent: 3, damage_month: 4300 },
+        { guest_id: 'g2', name: '', phone: '79110000002', card_number: '1002',
+          first_visit: '2026-03-01', last_visit: '2026-07-02', recency_days: 60, visits_total: 5,
+          ltv: 9000, visits_period: 0, revenue_period: 0, revenue_12m: 9000, pause_days: null,
+          visits_prev: 3, visits_recent: 1, damage_month: 750 },
+    ] };
+}
+// Два запроса вкладки: отток и список гостей выбранной плитки — каждому свой ответ.
 function churnRespond(meta, data) {
-    return (url) => (String(url).startsWith('/api/guests/churn-slowing?')
-        ? { meta: meta, data: SLOWING } : { meta: meta, data: data });
+    return (url) => {
+        if (String(url).startsWith('/api/guests/churn-guests?')) {
+            const q = query(url);
+            return { meta: meta, data: guestList(q.get('group'), q.get('bucket')) };
+        }
+        return { meta: meta, data: data };
+    };
 }
 
 test('«Отток»: открывается, просит порог 30 и бар страницы, рисует плитки и «Кто уходит»', () => {
@@ -531,7 +541,7 @@ test('«Отток»: открывается, просит порог 30 и ба
     });
 });
 
-test('«Отток»: ущерб, «Стали ходить реже» со списком и подсказка к порогу', () => {
+test('«Отток»: ущерб, подсказка к порогу и кликабельные плитки со списком гостей', () => {
     const { sandbox, byId, fetchCalls } = loadGuests({
         views: ['static/js/guests/views-churn.js'], gh: makeGh('ligovskiy'), init: true,
         respond: churnRespond(Object.assign(metaOf('ligovskiy', 'Лиговский'),
@@ -540,12 +550,13 @@ test('«Отток»: ущерб, «Стали ходить реже» со сп
     });
     sandbox.Guests.activateTab('churn');
     return later(() => {
-        const call = fetchCalls.find((c) => String(c.url).startsWith('/api/guests/churn-slowing?'));
-        assert.ok(call, 'вкладка не запросила список «Стали ходить реже»');
+        const call = fetchCalls.find((c) => String(c.url).startsWith('/api/guests/churn-guests?'));
+        assert.ok(call, 'вкладка не запросила список гостей');
         const q = query(call.url);
-        assert.deepEqual([q.get('dead_days'), q.get('limit'), q.get('store')],
-            ['30', '50', 'ligovskiy'], 'список — по тому же порогу и бару, 50 строк');
-        const html = byId['pane-churn'].innerHTML.replace(/[  ]/g, ' ');
+        assert.deepEqual([q.get('group'), q.get('dead_days'), q.get('limit'), q.get('store')],
+            ['left', '30', '50', 'ligovskiy'], 'по умолчанию — «Ушли», тот же порог и бар, 50 строк');
+        assert.equal(q.get('bucket'), null, 'без выбранной строки «Кто уходит» корзины нет');
+        const html = byId['pane-churn'].innerHTML.replace(/[\u2009\u00a0]/g, ' ');
         assert.ok(html.includes('Ущерб от оттока') && html.includes('2 500 ₽') &&
             html.includes('в год: 30 000 ₽'), 'нет плитки ущерба');
         assert.ok(html.includes('Ущерб в месяц') && html.includes('900 ₽'),
@@ -555,10 +566,180 @@ test('«Отток»: ущерб, «Стали ходить реже» со сп
         assert.ok(html.includes('Возвратов позже порога') && html.includes('<b>30 дн — 27,1%</b>') &&
             html.includes('90 дн — 6,2%') && html.includes('9 из 10 — за 75 дн'),
             'нет подсказки к порогу или выбранный порог не выделен');
-        assert.ok(html.includes('Стали ходить реже · 4') && html.includes('Анна') &&
-            html.includes('6 → 3') && html.includes('показаны 2 из 4'), 'нет списка гостей');
-        assert.ok(html.includes('/api/guests/churn-slowing?period_type=month&anchor=2026-08-31' +
-            '&store=ligovskiy&dead_days=30&export=csv'), 'нет выгрузки CSV по тем же условиям');
+        // Плитки с гостями кликабельны: «Ушли» и «Ущерб» (одна группа), «Стали ходить реже»,
+        // «Новые гости», «Вернулись после паузы» и созревшая «Не вернулись»; «Ушли» выбраны.
+        assert.equal((html.match(/class="churn-pick/g) || []).length, 6, 'кликабельных плиток не 6');
+        assert.equal((html.match(/class="churn-pick active" data-group="left"/g) || []).length, 2,
+            'выбранная группа «Ушли» не подсвечена');
+        for (const group of ['slowing', 'new', 'reactivated', 'newbie_no_return']) {
+            assert.ok(html.includes('data-group="' + group + '"'), 'не кликается: ' + group);
+        }
+        assert.equal((html.match(/class="churn-bucket-pick/g) || []).length, 4,
+            'строки «Кто уходит» не кликаются');
+        assert.ok(html.includes('data-bucket="9+"'), 'нет строки «9 визитов и больше»');
+        assert.ok(html.includes('<td><span class="dim">без имени</span></td>') && !html.includes('<td>g2</td>'),
+            'гость без имени показан номером, а не «без имени», как в RFM');
+        assert.ok(html.includes('Ушли · 4') && html.includes('Анна') && html.includes('4 300 ₽') &&
+            html.includes('всего 4, все с телефонами — в CSV') && html.includes('Другая группа'),
+            'нет списка «Ушли»');
+        // С баром: колонки «Любимая точка» нет (все визиты в нём), сравнения баров — тоже.
+        assert.ok(!html.includes('Любимая точка') && !html.includes('Бары рядом'),
+            'в режиме бара — колонка любимой точки или сравнение баров');
+        assert.ok(html.includes('Сравнение баров — при выборе «Все бары».'), 'нет подсказки про «Все бары»');
+        assert.ok(!html.includes('churn-more-btn'), '2 строки — без кнопки «Показать ещё»');
+        assert.ok(!html.includes('Последняя точка'), 'обе линии до конца — подпись не нужна');
+        // Длина графиков: месяц — 1 год · 2 года (по умолчанию) · 5 лет · всё время.
+        const main = fetchCalls.find((c) => String(c.url).startsWith('/api/guests/churn?'));
+        assert.equal(query(main.url).get('periods'), '24', 'по умолчанию два года месяцев');
+        for (const [v, label] of [['12', '1 год'], ['60', '5 лет'], ['all', 'всё время']]) {
+            assert.ok(html.includes('data-range="' + v + '">' + label + '<'), 'нет кнопки ' + label);
+        }
+        assert.ok(html.includes('class="sub-btn active" data-range="24">2 года<'),
+            'выбранная длина не подсвечена');
+        assert.ok(html.includes('/api/guests/churn-guests?period_type=month&anchor=2026-08-31' +
+            '&store=ligovskiy&group=left&dead_days=30&export=csv'), 'нет выгрузки CSV по тем же условиям');
+    });
+});
+
+// «Все бары»: тот же отчёт по каждому бару — у каждого свои числа; Варшавская не ответила.
+function barRow(over) {
+    return churnRow(Object.assign({ p_start: '2026-08-01', p_end: '2026-08-31' }, over));
+}
+const BAR_PERIODS = {
+    bolshoy: barRow({ churn_pct: 61.6, died: 98, new_died: 0, damage_month: 74238 }),
+    ligovskiy: barRow({ churn_pct: 48.1, died: 77, new_died: 0, damage_month: 71233 }),
+    kremenchugskaya: barRow({ churn_pct: 30.0, died: 20, new_died: 1, damage_month: 9000 }),
+};
+
+test('«Отток» во всей сети: «Бары рядом», «Отток по барам» и любимая точка в списке', () => {
+    const net = churnRow({ p_start: '2026-08-01', p_end: '2026-08-31' });
+    const { sandbox, byId, fetchCalls } = loadGuests({
+        views: ['static/js/guests/views-churn.js'], gh: makeGh(''), init: true,
+        respond: (url) => {
+            const q = query(url);
+            const meta = Object.assign(metaOf(q.get('store')), { period_type: 'month',
+                                                                  p_end: '2026-08-31' });
+            if (String(url).startsWith('/api/guests/churn-guests?')) {
+                const list = guestList(q.get('group'), q.get('bucket'));
+                list.guests[0].favorite_store = 'ligovskiy';
+                list.guests[0].favorite_store_name = 'Лиговский';
+                return { meta: meta, data: list };
+            }
+            const store = q.get('store');
+            if (store === 'varshavskaya') return { error: 'TypeError: boom' };
+            const period = store ? BAR_PERIODS[store] : net;
+            return { meta: meta, data: Object.assign(churnData(period),
+                { series: [barRow({ p_start: '2026-07-01', p_end: '2026-07-31' }), period] }) };
+        },
+    });
+    sandbox.Guests.activateTab('churn');
+    return later(() => {
+        const churnCalls = fetchCalls.filter((c) => String(c.url).startsWith('/api/guests/churn?'));
+        assert.deepEqual(churnCalls.map((c) => query(c.url).get('store')),
+            [null, 'bolshoy', 'ligovskiy', 'kremenchugskaya', 'varshavskaya'],
+            'сеть и каждый бар — тем же маршрутом');
+        for (const c of churnCalls) {
+            assert.deepEqual([query(c.url).get('dead_days'), query(c.url).get('periods')], ['30', '24'],
+                'у баров тот же порог и та же длина графиков');
+        }
+        const html = byId['pane-churn'].innerHTML.replace(/[\u2009\u00a0]/g, ' ');
+        assert.ok(!html.includes('pane-error'), 'вкладка упала из-за бара без ответа');
+        assert.ok(html.includes('Бары рядом · авг 26'), 'нет сравнения баров');
+        for (const needle of ['<td>Большой пр. В.О</td><td class="num">61,6%</td><td class="num">98</td>',
+                              '<td>Лиговский</td><td class="num">48,1%</td>',
+                              '<td>Кременчугская</td><td class="num">30%</td><td class="num">21</td>',
+                              '<td>Варшавская</td><td class="num">—</td>',
+                              '<tr class="row-total"><td>Вся сеть</td><td class="num">12%</td>']) {
+            assert.ok(html.includes(needle), 'в таблице баров нет: ' + needle);
+        }
+        assert.ok(html.includes('Бары не складываются в сеть'), 'нет подписи, что бары не складываются');
+        assert.ok(html.includes('id="churnBarsChart"'), 'нет столбиков по барам');
+        assert.ok(html.includes('Отток по барам'), 'нет малых графиков по барам');
+        for (const key of ['bolshoy', 'ligovskiy', 'kremenchugskaya', 'varshavskaya']) {
+            assert.ok(html.includes('id="churnBarChart-' + key + '"'), 'нет графика бара ' + key);
+        }
+        assert.ok(html.includes('<th>Любимая точка</th>') && html.includes('<td>Лиговский</td>'),
+            'в списке по сети нет любимой точки гостя');
+        // Порядок: плитки, бары рядом, кто уходит, список, графики по периодам, по барам, баланс.
+        const order = ['class="metric-grid', '<h3>Бары рядом', '<h3>Кто уходит', 'id="churnList"',
+                       '<h3>Отток по периодам', '<h3>Отток по барам', '<h3>Баланс базы']
+            .map((t) => html.indexOf(t));
+        assert.ok(order.every((v, i) => v >= 0 && (i === 0 || v > order[i - 1])),
+            'карточки не в том порядке: ' + order.join(', '));
+    });
+});
+
+test('«Отток»: список — первые 10 гостей, остальные по кнопке «Показать ещё»', () => {
+    const many = (group, bucket) => {
+        const list = guestList(group, bucket);
+        list.total = 82;
+        list.returned = 12;
+        list.guests = Array.from({ length: 12 }, (_, i) => Object.assign({}, list.guests[0],
+            { guest_id: 'g' + i, name: 'Гость ' + i }));
+        return list;
+    };
+    const { sandbox, byId } = loadGuests({
+        views: ['static/js/guests/views-churn.js'], gh: makeGh('ligovskiy'), init: true,
+        respond: (url) => {
+            const meta = Object.assign(metaOf('ligovskiy', 'Лиговский'), { period_type: 'month' });
+            const q = query(url);
+            return String(url).startsWith('/api/guests/churn-guests?')
+                ? { meta: meta, data: many(q.get('group'), q.get('bucket')) }
+                : { meta: meta, data: churnData(churnRow()) };
+        },
+    });
+    sandbox.Guests.activateTab('churn');
+    return later(() => {
+        const html = byId['pane-churn'].innerHTML;
+        assert.equal((html.match(/<tr class="churn-more" hidden>/g) || []).length, 2,
+            'строки после десятой не спрятаны');
+        assert.ok(html.includes('class="sync-btn churn-more-btn">Показать ещё 2<'),
+            'нет кнопки «Показать ещё 2»');
+        assert.ok(html.includes('всего 82, все с телефонами — в CSV'), 'нет числа всех гостей группы');
+    });
+});
+
+// Подпись под графиком (владелец: «почему линия обрывается»): срез 12.09 — сентябрь идёт,
+// новички августа созреют 30.09.
+function endsNoteHtml(series) {
+    const { sandbox, byId } = loadGuests({
+        views: ['static/js/guests/views-churn.js'], gh: makeGh('ligovskiy'), init: true,
+        respond: churnRespond(Object.assign(metaOf('ligovskiy', 'Лиговский'), { period_type: 'month' }),
+                              Object.assign(churnData(series[series.length - 1]), { series: series })),
+    });
+    sandbox.Guests.activateTab('churn');
+    return byId;
+}
+
+test('«Отток»: подпись «Последняя точка» — где и почему кончаются линии', () => {
+    const byId = endsNoteHtml([
+        churnRow({ p_start: '2026-07-01', p_end: '2026-07-31', churn_pct: 10.0, newbie_no_return_pct: 40.0 }),
+        churnRow({ newbie_no_return: null, newbie_no_return_pct: null, newbie_matures_on: '2026-09-30' }),
+        churnRow({ p_start: '2026-09-01', p_end: '2026-09-30', asof: '2026-09-12', state: 'partial',
+                   churn_pct: 8.0, newbie_no_return: null, newbie_no_return_pct: null,
+                   newbie_matures_on: '2026-10-31' }),
+    ]);
+    return later(() => {
+        const html = byId['pane-churn'].innerHTML;
+        const note = 'Последняя точка: отток — авг 26 (сен 26 не закончен); «Не вернулись» — июл 26 ' +
+            '(авг 26 созреет 30.09.2026).';
+        assert.ok(html.includes(note), 'нет подписи под графиком: ' +
+            (html.match(/Последняя точка[^<]*/) || ['—'])[0]);
+        assert.ok(html.indexOf(note) > html.indexOf('id="churnRateChart"') &&
+            html.indexOf(note) < html.indexOf('<h3>Баланс базы'), 'подпись не под «Отток по периодам»');
+    });
+});
+
+test('«Отток»: подпись — созревший период без новых гостей, а не «созреет» в прошлом', () => {
+    const byId = endsNoteHtml([
+        churnRow({ p_start: '2026-07-01', p_end: '2026-07-31' }),
+        churnRow({ new: 0, newbie_no_return: null, newbie_no_return_pct: null,
+                   newbie_matures_on: '2026-09-30' }),
+    ]);
+    return later(() => {
+        const html = byId['pane-churn'].innerHTML;
+        assert.ok(html.includes('Последняя точка: «Не вернулись» — июл 26 (в авг 26 новых не было).'),
+            'подпись для месяца без новых: ' + (html.match(/Последняя точка[^<]*/) || ['—'])[0]);
     });
 });
 
@@ -580,7 +761,8 @@ test('«Отток»: будущий период — подпись вмест�
         const html = byId['pane-churn'].innerHTML;
         assert.ok(!html.includes('pane-error'), 'вид упал на будущем периоде');
         assert.ok(html.includes('считать пока нечего'), 'нет подписи про будущий период');
-        assert.ok(!html.includes('Кто уходит'), 'у будущего периода нечего разбирать');
+        assert.ok(!html.includes('<h3>Кто уходит'), 'у будущего периода нечего разбирать');
+        assert.ok(!html.includes('Бары рядом'), 'у будущего периода нечего сравнивать');
     });
 });
 

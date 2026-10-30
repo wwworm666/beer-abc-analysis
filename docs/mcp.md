@@ -1333,6 +1333,22 @@ py -3 scripts/mcp_eval.py          # сухой план эталонного п
 
 ## Changelog
 
+- **2026-10-30 («Бары рядом» и «всё время»)** — [guests.md](guests.md), §17: маршрут
+  `/api/guests/churn` принимает `periods` до 1040 и `all` (кнопка вкладки «Графики за»), а у
+  `analytics_guests_churn` и `analytics_guests_ltv` потолок остаётся 60 — теперь константой
+  `CHURN_SERIES_AGENT_MAX` (ряд «всё время» недель — около 200 тыс. знаков, мост урезал бы).
+  `analytics_guests_churn_guests` без `store` отдаёт у гостя `favorite_store` и
+  `favorite_store_name` — любимую точку. Новых маршрутов и инструментов нет: сравнение баров
+  страница собирает тем же `/api/guests/churn?store=`; числа охвата прежние.
+- **2026-10-30 (кликабельные плитки «Оттока»)** — [guests.md](guests.md), «Гости плитки
+  поимённо»: `analytics_guests_churn_slowing` заменён на `analytics_guests_churn_guests`
+  (маршрут `/api/guests/churn-guests` вместо `/api/guests/churn-slowing`) — гости любой плитки
+  «Оттока»: обязательный `group` (`left`, `reactivated`, `new`, `newbie_no_return`, `slowing` —
+  прежний список), `bucket` — строка «Кто уходит» (только с `left`), `dead_days`, `limit` до
+  200, `export='csv'`; `also_in` по-прежнему нет (телефоны). `_guests_tool` принимает
+  `required`. Числа охвата не изменились: 268 пар, 236 инструментами и 32 исключениями,
+  инструментов 253, `routes/guests.py` — 19, analytics — 58. Агенты увидят новое имя после
+  перезапуска.
 - **2026-10-30 («Отток» по статье о churn rate)** — [guests.md](guests.md), §17: новый
   инструмент `analytics_guests_churn_slowing` (маршрут `/api/guests/churn-slowing`) — поимённо
   «Стали ходить реже»: `dead_days`, `limit` до 200, `export='csv'`; в списке телефоны, поэтому

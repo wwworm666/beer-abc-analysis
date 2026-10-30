@@ -150,10 +150,41 @@
 /* Подпись перед кнопками переключателя («Ушёл, если нет визита:» на «Оттоке») */
 .sub-switch .sub-label { align-self: center; margin-right: 4px; font-size: 0.8rem;
     color: var(--text-tertiary); }
+/* Кликабельные плитки и строки «Кто уходит» на «Оттоке» (2026-10-30): по ним открывается
+   список этих гостей; выбранная группа подсвечена. */
+.churn-pick { cursor: pointer; border-radius: 14px; }
+.churn-pick .gmetric { height: 100%; box-sizing: border-box; transition: border-color .15s ease; }
+.churn-pick:hover .gmetric, .churn-pick.active .gmetric { border-color: var(--accent); }
+.churn-pick:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.churn-bucket-pick { cursor: pointer; }
+.churn-bucket-pick:hover td, .churn-bucket-pick.active td { background: var(--accent-light); }
+.churn-bucket-pick:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 /* Подсказка к порогу «Оттока» — сразу под переключателем; выбранный порог жирным. */
 .churn-hint { margin: -8px 0 0; }
 .churn-hint b { color: var(--text-secondary); }
 .churn-hint + .how-block { margin-bottom: 16px; }
+/* «Отток»: два переключателя в ряд — порог и «Графики за». */
+.churn-switches { display: flex; flex-wrap: wrap; column-gap: 28px; }
+/* Список гостей: первые строки сразу, остальные — по кнопке «Показать ещё». */
+.gtable tr.churn-more[hidden] { display: none; }
+.churn-more-btn { margin-top: 12px; }
+/* «Бары рядом»: строка всей сети под барами. */
+.gtable tr.row-total td { font-weight: 600; border-top: 2px solid var(--border-color); }
+/* «Бары рядом»: девять колонок — длинные заголовки переносятся, чтобы таблица помещалась. */
+.gtable.churn-bars-table th { white-space: normal; vertical-align: bottom; }
+/* «Отток по барам»: малые графики на бар, одна легенда над ними. */
+.churn-legend { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-bottom: 12px;
+    font-size: 0.75rem; color: var(--text-secondary); }
+.churn-legend-item { display: inline-flex; align-items: center; gap: 6px; }
+.churn-swatch { width: 12px; height: 12px; border-radius: 2px; }
+.churn-swatch-danger { background: var(--danger); }
+.churn-swatch-warning { background: var(--warning); }
+.churn-bars-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+@media (max-width: 900px) { .churn-bars-grid { grid-template-columns: 1fr; } }
+.churn-bar-cell { min-width: 0; }
+.churn-bar-name { margin-bottom: 6px; font-size: 0.8rem; font-weight: 600;
+    color: var(--text-primary); }
+.chart-box.short { height: 200px; }
 
 /* --- Блок «Как считается» --- */
 .how-block { margin-top: 8px; border: 1px dashed var(--border-color);
@@ -167,6 +198,8 @@
 
 /* --- Поиск гостя / карточка гостя --- */
 .guest-search { display: flex; gap: 10px; margin-bottom: 16px; }
+/* Кнопка рядом с длинной подписью (CSV списка): на телефоне не ломается в овал на две строки. */
+.guest-search .sync-btn { white-space: nowrap; align-self: flex-start; }
 .guest-search input { flex: 1 1 auto; max-width: 420px; padding: 11px 16px;
     border: 1px solid var(--border-color); border-radius: 999px;
     font-family: inherit; font-size: 0.9rem; background: var(--bg-secondary);

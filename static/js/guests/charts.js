@@ -46,6 +46,14 @@ window.GCharts = (function () {
         return chart;
     }
 
+    // compactX — подписи периодов без наклона, лишние пропускаются: на узком графике и в
+    // длинном ряду («всё время») наклонные подписи съедают треть высоты.
+    function compactTicks(opts, extraOpts) {
+        if (!extraOpts.compactX) return;
+        opts.scales.x.ticks.maxRotation = 0;
+        opts.scales.x.ticks.autoSkipPadding = 12;
+        delete extraOpts.compactX;
+    }
     function bar(canvasId, labels, datasets, extraOpts) {
         var opts = baseOptions();
         extraOpts = extraOpts || {};
@@ -54,6 +62,7 @@ window.GCharts = (function () {
             opts.scales.y.stacked = true;
             delete extraOpts.stacked;
         }
+        compactTicks(opts, extraOpts);
         Object.assign(opts, extraOpts);
         return make(canvasId, { type: 'bar', data: { labels: labels, datasets: datasets }, options: opts });
     }
@@ -78,6 +87,18 @@ window.GCharts = (function () {
             opts.scales.y.beginAtZero = true;
             delete extraOpts.beginAtZero;
         }
+        // yMax — общий верх оси у малых графиков рядом (бары на одном экране): с разными
+        // осями одинаковая высота линии значила бы разные проценты.
+        if (extraOpts.yMax !== undefined) {
+            opts.scales.y.max = extraOpts.yMax;
+            delete extraOpts.yMax;
+        }
+        // noLegend — у группы малых графиков легенда одна, над ними.
+        if (extraOpts.noLegend) {
+            opts.plugins.legend.display = false;
+            delete extraOpts.noLegend;
+        }
+        compactTicks(opts, extraOpts);
         Object.assign(opts, extraOpts);
         return make(canvasId, { type: 'line', data: { labels: labels, datasets: datasets }, options: opts });
     }

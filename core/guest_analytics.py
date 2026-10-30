@@ -28,8 +28,8 @@
 каждый гость попадает ровно в одну графу по состояниям накануне периода и на
 дату среза: остался, ушёл, вернулся, новый; баланс сходится точно. Дата среза —
 последний ПОЛНЫЙ день данных (data_to), а не «сегодня». С 2026-10-30 там же ущерб от
-оттока в рублях, «Стали ходить реже» (скрытый отток; поимённо — churn_slowing) и
-подсказка к порогу — через сколько дней гости возвращаются. Подробности — churn_all.
+оттока в рублях, «Стали ходить реже» (скрытый отток) и подсказка к порогу — через сколько
+дней гости возвращаются; гости каждой плитки поимённо — churn_guests. Подробности — churn_all.
 
 Определения (те же, что в /discounts и месячной витрине):
 - заказ (чек) = строка receipts (ключ дата+бар+номер чека+гость);
@@ -98,10 +98,16 @@ CHURN_DEAD_DAYS_DEFAULT = 30
 # Длина ряда по умолчанию — сколько периодов выбранного типа видно на графике:
 # полгода недель, два года месяцев, три года кварталов, восемь лет (витрина с 2017-12).
 CHURN_SERIES_DEFAULT = {'week': 26, 'month': 24, 'quarter': 12, 'year': 8}
-# Границы параметра periods (как у прежнего months динамики базы): меньше трёх точек —
-# не ряд, больше 60 — ответ перестаёт помещаться в предел моста MCP (60 тыс. знаков).
+# Границы параметра periods: меньше трёх точек — не ряд. Сверху — «всё время»
+# (?periods=all, кнопка вкладки, просьба владельца 2026-10-30: «по умолчанию только 2 года»):
+# ряд сам обрезается по первому чеку сети или бара, а 1040 недель — 20 лет, с запасом больше
+# истории витрины (с 2017-12: 461 неделя на 2026-10). Замер на искусственной витрине размера
+# прода (4 500 гостей, 52 тыс. чеков с 2017-12): все 107 месяцев — 0,4 с и 48 тыс. знаков, все
+# 461 неделя — 1,4 с и 208 тыс. знаков, повтор — из кэша. Агенту MCP потолок ниже
+# (core/mcp/tools/analytics.CHURN_SERIES_AGENT_MAX): длинный ответ не помещается в мост.
 CHURN_SERIES_MIN = 3
-CHURN_SERIES_MAX = 60
+CHURN_SERIES_MAX = 1040
+CHURN_SERIES_ALL = 'all'
 # «Кто уходит»: ушедшие по числу визитов за всю жизнь до даты среза. Границы те же, что
 # у сегментов частоты §4, но смысл другой (там визиты за период) — поэтому своя константа:
 # правка сегментов частоты не должна молча менять эту разбивку.
@@ -129,6 +135,11 @@ CHURN_SLOWING_FACTOR = 2
 CHURN_RETURN_WINDOW_DAYS = 365
 # Перцентили паузы для подписи «половина возвращается за N дней, 9 из 10 — за M».
 CHURN_RETURN_PERCENTILES = (50, 90)
+# Плитки «Оттока» с поимённым списком (кликабельны, решение владельца 2026-10-30: «если мы
+# знаем имена гостей»): «Ушли», «Вернулись после паузы», «Новые гости», «Не вернулись после
+# первого визита», «Стали ходить реже». Каждая группа — ровно те гости, что в счётчике плитки
+# (churn_guests). Схема MCP перечисляет те же значения (enum group).
+CHURN_GUEST_GROUPS = ('left', 'reactivated', 'new', 'newbie_no_return', 'slowing')
 
 # Витрина считает «регистрацию» по дате создания клиента в iiko; если она
 # недоступна у большинства гостей — модуль переходит в fallback-режим ТЗ
@@ -189,6 +200,17 @@ def resolve_period(period_type='month', anchor=None):
         label = f"{MONTH_NAMES_NOM[a.month - 1]} {a.year}"
     return {'type': period_type, 'p_start': p_start, 'p_end': p_end,
             'prev_start': prev_start, 'prev_end': prev_end, 'label': label}
+
+
+_VENUE_ORDER = {k: i for i, k in enumerate(PHYSICAL_VENUES)}
+
+
+def _favorite_rank(store, visit_days):
+    """Ключ сортировки «любимой точки» гостя: больше дней-визитов, при равенстве — порядок
+    PHYSICAL_VENUES, затем ключ бара (детерминированный tie-break). Одно правило для «Точек»
+    (§11), карточки гостя (§12) и списков гостей «Оттока» (§17). Меньший ключ — любимее.
+    """
+    return (-visit_days, _VENUE_ORDER.get(store, 99), store)
 
 
 def resolve_venue(raw):
@@ -410,12 +432,16 @@ def parse_dead_days(raw):
 def parse_series_len(raw, period_type):
     """?periods= -> длина ряда в CHURN_SERIES_MIN..MAX; пусто или мусор — по умолчанию.
 
-    Без int() на сыром вводе в маршруте: у прежнего ?months= мусор давал 500.
+    'all' — вся история: CHURN_SERIES_MAX, а ряд обрезается по первому чеку сети или бара
+    (_series_periods). Без int() на сыром вводе в маршруте: у прежнего ?months= мусор давал 500.
     """
     default = CHURN_SERIES_DEFAULT.get(period_type, CHURN_SERIES_DEFAULT['month'])
+    text = str(raw).strip().lower()
+    if text == CHURN_SERIES_ALL:
+        return CHURN_SERIES_MAX
     try:
-        value = int(str(raw).strip())
-    except (TypeError, ValueError):
+        value = int(text)
+    except ValueError:
         return default
     return min(max(value, CHURN_SERIES_MIN), CHURN_SERIES_MAX)
 
@@ -1166,6 +1192,30 @@ def _leaver_buckets(items):
             'damage_year': round(year_total)}
 
 
+def _churn_group(gap0, gap1, visited, x):
+    """Графа гостя за период при пороге x — одно правило для счётчиков churn_all и списков churn_guests.
+
+    gap0 — пауза на конец дня накануне периода (None — первый визит гостя в периоде), gap1 —
+    пауза на дату среза, visited — заходил ли гость в периоде.
+    -> 'stayed' (жив накануне и на срез), 'died' (жив накануне, мёртв на срез), 'reactivated'
+       (мёртв накануне, жив на срез), 'bounced' (мёртв накануне, заходил, снова мёртв), 'gone'
+       (мёртв накануне и на срез, не заходил), 'new' (первый визит в периоде, жив на срез),
+       'new_died' (первый визит в периоде, мёртв на срез).
+    """
+    if gap0 is None:
+        return 'new' if gap1 <= x else 'new_died'
+    if gap0 <= x:
+        return 'stayed' if gap1 <= x else 'died'
+    if gap1 <= x:
+        return 'reactivated'
+    return 'bounced' if visited else 'gone'
+
+
+def _newbie_no_return(days, x):
+    """Новичок без второго визита в (первый визит, первый + x] — то же окно, что «Возвраты» §5."""
+    return len(days) < 2 or days[1] - days[0] > x
+
+
 def _revenue_year_before_last(days, cum, i1):
     """Выручка гостя за CHURN_DAMAGE_WINDOW_DAYS по его последний визит включительно.
 
@@ -1182,7 +1232,7 @@ def _slowing_windows(days, i1, asof_o):
 
     Последнее окно — CHURN_SLOWING_WINDOW_DAYS дней по дату среза включительно, прошлое —
     столько же дней перед ним. days — дни визитов гостя (порядковые), i1 — сколько их не
-    позже asof_o. Общая для счётчика churn_all и списка churn_slowing: одно правило.
+    позже asof_o. Общая для счётчика churn_all и списка churn_guests: одно правило.
     """
     w = CHURN_SLOWING_WINDOW_DAYS
     recent_lo = bisect_left(days, asof_o - (w - 1), 0, i1)
@@ -1345,43 +1395,35 @@ def churn_all(store, period, meta, periods=None, venue=None):
             # Выручка за год до ухода — только если гость ушёл хотя бы при одном пороге.
             year_rev = None
             i0 = bisect_right(days, prev_o, 0, i1)
-            if i0:
-                # Был гостем до периода: живой или мёртвый накануне.
-                gap0 = prev_o - days[i0 - 1]
-                visited = i1 > i0
-                for j, x in enumerate(choices):
-                    alive_end = gap1 <= x
-                    if alive_end:
-                        end[j] += 1
-                    if gap0 <= x:
-                        start[j] += 1
-                        if not alive_end:
-                            died[j] += 1
-                            if year_rev is None:
-                                year_rev = _revenue_year_before_last(days, cum, i1)
-                            damage[j] += year_rev
-                            if selected:
-                                leavers[j].append((i1, cum[i1 - 1], year_rev))
-                    elif alive_end:
-                        react[j] += 1
-                    elif visited:
-                        bounced[j] += 1
-            else:
-                # Первый визит в периоде (не позже среза — проверено выше).
+            # gap0 = None — первый визит в периоде (не позже среза — проверено выше).
+            gap0 = prev_o - days[i0 - 1] if i0 else None
+            visited = i1 > i0
+            if gap0 is None:
                 n_new += 1
-                second_gap = days[1] - first if len(days) > 1 else None
-                for j, x in enumerate(choices):
-                    if gap1 <= x:
-                        end[j] += 1
+            for j, x in enumerate(choices):
+                # Графа — общей функцией со списками churn_guests: счёт и список не разойдутся.
+                group = _churn_group(gap0, gap1, visited, x)
+                if gap1 <= x:
+                    end[j] += 1
+                if group == 'stayed':
+                    start[j] += 1
+                elif group == 'died' or group == 'new_died':
+                    if group == 'died':
+                        start[j] += 1
+                        died[j] += 1
                     else:
                         new_died[j] += 1
-                        if year_rev is None:
-                            year_rev = _revenue_year_before_last(days, cum, i1)
-                        damage[j] += year_rev
-                        if selected:
-                            leavers[j].append((i1, cum[i1 - 1], year_rev))
-                    if second_gap is None or second_gap > x:
-                        no_return[j] += 1
+                    if year_rev is None:
+                        year_rev = _revenue_year_before_last(days, cum, i1)
+                    damage[j] += year_rev
+                    if selected:
+                        leavers[j].append((i1, cum[i1 - 1], year_rev))
+                elif group == 'reactivated':
+                    react[j] += 1
+                elif group == 'bounced':
+                    bounced[j] += 1
+                if gap0 is None and _newbie_no_return(days, x):
+                    no_return[j] += 1
             # «Стали ходить реже» — снимок на asof, от новизны гостя не зависит.
             prev_w, recent_w = _slowing_windows(days, i1, asof_o)
             if _slowing_base(prev_w, recent_w):
@@ -1451,56 +1493,154 @@ def churn(store, period, meta, dead_days=CHURN_DEAD_DAYS_DEFAULT, periods=None,
                       parse_dead_days(dead_days))
 
 
-def churn_slowing(store, period, meta, dead_days=CHURN_DEAD_DAYS_DEFAULT, venue=None):
-    """«Стали ходить реже» (§17) поимённо — то же правило, что счётчик slowing в churn_all.
+def parse_churn_group(raw):
+    """?group= -> имя из CHURN_GUEST_GROUPS (регистр не важен).
 
-    Дата среза — как у выбранного периода в churn_all: min(конец периода, data_to); у
-    будущего периода и пустой витрины список пуст (asof = None). Гость в списке, если на
-    дату среза он жив по порогу dead_days и _is_slowing: в прошлых 90 днях не меньше 3
-    визитов, в последних 90 — хотя бы один и не больше половины прошлых. Поэтому total —
-    ровно period.slowing ответа оттока с тем же порогом.
+    Raises:
+        ValueError: группы нет или она неизвестна — текст для ответа 400 (молча пустой список
+        выглядел бы как «таких гостей нет»).
+    """
+    group = str(raw or '').strip().lower()
+    if group not in CHURN_GUEST_GROUPS:
+        raise ValueError('group — одна из: ' + ', '.join(CHURN_GUEST_GROUPS))
+    return group
 
-    revenue_12m — выручка гостя за RFM_WINDOW_DAYS по дату среза (как M в RFM); порядок —
-    по ней, самые ценные сверху, при равенстве — по guest_id. С баром — только его чеки
-    (визиты и выручка); имя, телефон и карта — общие для сети.
-    -> {'asof', 'dead_days', 'total', 'guests': [...]}
+
+def parse_leaver_bucket(raw):
+    """?bucket= для group=left -> метка из CHURN_LEAVER_BUCKETS или None (все ушедшие).
+
+    «9+» в адресе без кодирования приходит как «9 » (плюс — это пробел), поэтому пробел
+    читается как плюс.
+    Raises:
+        ValueError: неизвестная метка — текст для ответа 400.
+    """
+    label = str(raw or '').replace(' ', '+').strip()
+    if not label:
+        return None
+    labels = [b[0] for b in CHURN_LEAVER_BUCKETS]
+    if label not in labels:
+        raise ValueError('bucket — одна из: ' + ', '.join(labels))
+    return label
+
+
+def churn_guests(store, period, meta, group, dead_days=CHURN_DEAD_DAYS_DEFAULT, venue=None,
+                 bucket=None):
+    """Гости одной плитки «Оттока» поимённо (§17) — те же правила, что счётчики churn_all.
+
+    Плитки кликабельны (решение владельца 2026-10-30: «если мы знаем имена гостей»): каждая
+    группа — ровно те гости, что посчитаны в плитке с тем же порогом, периодом и баром:
+    - left — «Ушли»: died + new_died (_churn_group); bucket — одна группа «Кто уходит» по числу
+      визитов за жизнь до среза (CHURN_LEAVER_BUCKETS);
+    - reactivated — «Вернулись после паузы»; new — «Новые гости» (первый визит в периоде);
+    - newbie_no_return — «Не вернулись после первого визита» (_newbie_no_return); пока период не
+      созрел (конец периода + X позже data_to), списка нет: mature = False, дата — matures_on;
+    - slowing — «Стали ходить реже» (_slowing_windows, _is_slowing; жив на срез по порогу).
+
+    Строка гостя: имя, телефон, карта; first_visit и last_visit, recency_days (дней с визита
+    на срез), visits_total и ltv (визиты и выручка за жизнь по срез), visits_period и
+    revenue_period (с начала периода по срез), revenue_12m (RFM_WINDOW_DAYS по срез, как M в
+    RFM), pause_days (пауза перед первым визитом в периоде; у вернувшихся она длиннее порога),
+    visits_prev / visits_recent (окна «Стали ходить реже»), damage_month (только у left:
+    выручка за год по последний визит / 12). Порядок — самые ценные сверху: left — по ущербу,
+    reactivated и new — по выручке в периоде, newbie_no_return — по LTV, slowing — по выручке
+    за 12 мес; при равенстве — по guest_id. С баром — только его чеки; имя, телефон и карта —
+    общие для сети. По всей сети у строки ещё favorite_store / favorite_store_name — любимая
+    точка гостя по дату среза (_favorite_rank, правило §11): какой бар его возвращает; с баром —
+    None.
+    -> {'asof', 'dead_days', 'group', 'bucket', 'mature', 'matures_on', 'total', 'guests'}
+    Raises:
+        ValueError: неизвестная группа, корзина или bucket не у group=left (ответ 400).
     """
     venue = resolve_venue(venue)
     x = parse_dead_days(dead_days)
-    out = {'asof': None, 'dead_days': x, 'total': 0, 'guests': []}
+    group = parse_churn_group(group)
+    if bucket is not None and group != 'left':
+        raise ValueError('bucket — только для group=left («Кто уходит»)')
+    out = {'asof': None, 'dead_days': x, 'group': group, 'bucket': bucket, 'mature': True,
+           'matures_on': None, 'total': 0, 'guests': []}
     last_full = data_to(meta)
     if not last_full or period['p_start'].isoformat() > last_full:
         return out
-    asof_o = min(period['p_end'].toordinal(), date.fromisoformat(last_full).toordinal())
+    s_o, e_o = period['p_start'].toordinal(), period['p_end'].toordinal()
+    dt_o = date.fromisoformat(last_full).toordinal()
+    asof_o = min(e_o, dt_o)
+    prev_o = s_o - 1
+    out['asof'] = date.fromordinal(asof_o).isoformat()
+    if group == 'newbie_no_return':
+        out['matures_on'] = date.fromordinal(e_o + x).isoformat()
+        if e_o + x > dt_o:
+            out.update(mature=False, total=None)
+            return out
+    b_lo, b_hi = next(((lo, hi) for label, lo, hi in CHURN_LEAVER_BUCKETS if label == bucket),
+                      (1, None))
     m_from = asof_o - (RFM_WINDOW_DAYS - 1)
     with store.conn() as conn:
         visits = _load_visit_revenue(conn, venue)
         info = {r['guest_id']: r for r in conn.execute(
             "SELECT guest_id, name, phone, card_number FROM guests")}
-    rows = []
+        # По всей сети — любимая точка гостя по дату среза (_favorite_rank): какой бар
+        # возвращает ушедшего. С баром не нужна — все визиты в нём.
+        fav = {}
+        if venue is None:
+            for r in conn.execute(
+                    "SELECT guest_id, store, COUNT(DISTINCT open_date) v FROM receipts "
+                    "WHERE open_date <= ? GROUP BY guest_id, store", (out['asof'],)):
+                rank = _favorite_rank(r['store'], r['v'])
+                if r['guest_id'] not in fav or rank < fav[r['guest_id']]:
+                    fav[r['guest_id']] = rank
+    picked = []
     for guest_id, (days, cum) in visits.items():
+        if days[0] > asof_o:
+            continue
         i1 = bisect_right(days, asof_o)
-        if not i1:
-            continue
-        gap = asof_o - days[i1 - 1]
+        gap1 = asof_o - days[i1 - 1]
+        i0 = bisect_right(days, prev_o, 0, i1)
+        gap0 = prev_o - days[i0 - 1] if i0 else None
         prev_w, recent_w = _slowing_windows(days, i1, asof_o)
-        if gap > x or not _is_slowing(prev_w, recent_w):
+        if group == 'slowing':
+            hit = gap1 <= x and _is_slowing(prev_w, recent_w)
+        elif group == 'newbie_no_return':
+            hit = gap0 is None and _newbie_no_return(days, x)
+        elif group == 'new':
+            hit = gap0 is None
+        else:
+            kind = _churn_group(gap0, gap1, i1 > i0, x)
+            hit = kind in ('died', 'new_died') if group == 'left' else kind == group
+        if not hit or (group == 'left' and not (i1 >= b_lo and (b_hi is None or i1 <= b_hi))):
             continue
-        lo = bisect_left(days, m_from, 0, i1)
+        ltv = cum[i1 - 1]
+        before = cum[i0 - 1] if i0 else 0.0
+        lo12 = bisect_left(days, m_from, 0, i1)
+        rev12 = ltv - (cum[lo12 - 1] if lo12 else 0.0)
+        year_rev = _revenue_year_before_last(days, cum, i1) if group == 'left' else None
         g = info.get(guest_id)
-        rows.append({
+        fav_store = fav[guest_id][2] if guest_id in fav else None
+        row = {
             'guest_id': guest_id,
             'name': g['name'] if g else None,
             'phone': g['phone'] if g else None,
             'card_number': g['card_number'] if g else None,
+            'favorite_store': fav_store,
+            'favorite_store_name': VENUES.get(fav_store, {}).get('name', fav_store),
+            'first_visit': date.fromordinal(days[0]).isoformat(),
             'last_visit': date.fromordinal(days[i1 - 1]).isoformat(),
-            'recency_days': gap,
+            'recency_days': gap1,
+            'visits_total': i1,
+            'ltv': round(ltv),
+            'visits_period': i1 - i0,
+            'revenue_period': round(ltv - before),
+            'revenue_12m': round(rev12),
+            'pause_days': days[i0] - days[i0 - 1] if i0 and i1 > i0 else None,
             'visits_prev': prev_w,
             'visits_recent': recent_w,
-            'revenue_12m': round(cum[i1 - 1] - (cum[lo - 1] if lo else 0.0)),
-        })
-    rows.sort(key=lambda r: (-r['revenue_12m'], r['guest_id']))
-    out.update(asof=date.fromordinal(asof_o).isoformat(), total=len(rows), guests=rows)
+            'damage_month': round(year_rev / CHURN_DAMAGE_MONTHS) if year_rev is not None else None,
+        }
+        # Сортировка по несокращённым суммам: округлённые рубли чаще совпадают.
+        value = {'left': year_rev, 'reactivated': ltv - before, 'new': ltv - before,
+                 'newbie_no_return': ltv, 'slowing': rev12}[group]
+        picked.append((-value, guest_id, row))
+    picked.sort(key=lambda t: (t[0], t[1]))
+    out.update(total=len(picked), guests=[row for _v, _g, row in picked])
     return out
 
 
@@ -1701,14 +1841,13 @@ def venues_analytics(store, period, meta, venue=None):
         dist_period = dist(conn, p_start, p_end)
         dist_lifetime = dist(conn, '0000-01-01', '9999-12-31')
 
-    order_idx = {k: i for i, k in enumerate(PHYSICAL_VENUES)}
     fav = {}
     stores_per_guest = {}
     for r in per_guest_store:
         gid = r['guest_id']
         stores_per_guest.setdefault(gid, set()).add(r['store'])
         cur = fav.get(gid)
-        cand = (-r['v'], order_idx.get(r['store'], 99), r['store'])
+        cand = _favorite_rank(r['store'], r['v'])
         if cur is None or cand < cur[0]:
             fav[gid] = (cand, r['store'])
     fav_counts = {}
@@ -1821,11 +1960,9 @@ def guest_card(store, guest_id, period, meta):
             FROM receipts WHERE guest_id = ? AND open_date >= ? AND open_date <= ?
             """, (guest_id, win_start, asof)).fetchone()
 
-    order_idx = {k: i for i, k in enumerate(PHYSICAL_VENUES)}
     fav_store = None
     if stores:
-        fav_store = sorted(stores, key=lambda r: (-r['v'], order_idx.get(r['store'], 99),
-                                                  r['store']))[0]['store']
+        fav_store = min(stores, key=lambda r: _favorite_rank(r['store'], r['v']))['store']
     rfm_block = None
     if w and w['f']:
         rec_days = _days_between(w['last_visit'], asof)
