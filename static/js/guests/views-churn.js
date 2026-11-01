@@ -107,11 +107,13 @@ Guests.registerView('churn', function (pane) {
         return on ? ' active' : '';
     }
 
+    // На телефоне — одна строка: единица «дней» уходит из кнопок в подпись (guests.css, до 480 px).
     function switcher(current, choices) {
-        return '<div class="sub-switch"><span class="sub-label">Ушёл, если нет визита:</span>' +
+        return '<div class="sub-switch"><span class="sub-label">Ушёл, если нет визита' +
+            '<span class="sub-unit-l">, дней</span>:</span>' +
             choices.map(function (x) {
                 return '<button class="sub-btn' + activeIf(x === current) +
-                    '" data-days="' + x + '">' + x + ' дней</button>';
+                    '" data-days="' + x + '">' + x + '<span class="sub-unit"> дней</span></button>';
             }).join('') + '</div>';
     }
 
@@ -136,10 +138,14 @@ Guests.registerView('churn', function (pane) {
         });
         var days = {};
         gaps.percentiles.forEach(function (p) { days[p.pct] = p.days; });
-        return '<div class="note-line churn-hint">Возвратов позже порога: ' + parts.join(' · ') +
+        var text = 'Возвратов позже порога: ' + parts.join(' · ') +
             '. Половина гостей возвращается за ' + G.fmtNum(days[50]) + ' дн, 9 из 10 — за ' +
-            G.fmtNum(days[90]) + ' дн.' + G.helpIcon('churn_threshold') + '</div>' +
-            G.howBlock(['churn_threshold'], meta);
+            G.fmtNum(days[90]) + ' дн.';
+        // На телефоне строка подсказки уходит в «Как считается» первым пунктом (guests.css):
+        // на узком экране она занимала четыре строки над плитками.
+        return '<div class="note-line churn-hint">' + text + G.helpIcon('churn_threshold') + '</div>' +
+            G.howBlock(['churn_threshold'], meta).replace('</summary>',
+                '</summary><div class="how-item churn-hint-item">' + text + '</div>');
     }
 
     // Подпись под графиком: где кончается каждая линия и почему (владелец 2026-10-30: «почему

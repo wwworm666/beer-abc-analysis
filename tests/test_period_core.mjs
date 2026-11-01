@@ -41,6 +41,7 @@ test('общие примеры: названия и короткие назва
         assert.equal(K.periodTitle(p), c.title, JSON.stringify(c));
         assert.equal(p.label, c.title, 'label периода = название');
         assert.equal(K.periodShort(p), c.short, JSON.stringify(c));
+        assert.equal(K.periodTitleCompact(p), c.compact, 'название для телефона: ' + JSON.stringify(c));
     }
 });
 
@@ -50,6 +51,7 @@ test('общие примеры: состояние, cutoff и вторая ст
         assert.equal(K.periodState(p, c.last_full_day, c.max_date), c.state, JSON.stringify(c));
         assert.equal(K.cutoffOf(p, c.last_full_day, c.max_date), c.cutoff, JSON.stringify(c));
         assert.equal(K.periodSub(p, c.last_full_day, c.max_date), c.sub, JSON.stringify(c));
+        assert.equal(K.periodSubCompact(c.sub), c.sub_compact, 'вторая строка для телефона: ' + JSON.stringify(c));
     }
 });
 

@@ -258,6 +258,24 @@
             default: return dm(s) + '–' + dm(e);
         }
     }
+    // Название для узкого экрана (полоса на телефоне): день, месяц, год — как periodTitle;
+    // отрезок — числами с годом в конце: «26.10–01.11.26», через год — «29.12.25–04.01.26».
+    function periodTitleCompact(period) {
+        var s = fromISO(period.start), e = fromISO(period.end);
+        if (!s || !e) return '';
+        var g = period.granularity;
+        if (g === 'day' || g === 'month' || g === 'year') return periodTitleOf(g, s, e);
+        var dm = function (d) { return pad(d.getDate()) + '.' + pad(d.getMonth() + 1); };
+        var yy = function (d) { return '.' + String(d.getFullYear()).slice(2); };
+        if (s.getFullYear() === e.getFullYear()) return dm(s) + '–' + dm(e) + yy(e);
+        return dm(s) + yy(s) + '–' + dm(e) + yy(e);
+    }
+    // Вторая строка для узкого экрана: последняя часть periodSub («идёт, по 01.11»).
+    function periodSubCompact(sub) {
+        if (!sub) return '';
+        var parts = String(sub).split(' · ');
+        return parts[parts.length - 1];
+    }
     function pluralDays(n) {
         var abs = Math.abs(n) % 100, last = abs % 10;
         if (abs > 10 && abs < 20) return 'дней';
@@ -472,7 +490,8 @@
         currentPeriod: currentPeriod, lastDays: lastDays, changeGranularity: changeGranularity,
         monthOf: monthOf,
         periodState: periodState, cutoffOf: cutoffOf, periodTitle: periodTitle, periodShort: periodShort,
-        periodSub: periodSub, pluralDays: pluralDays, matchQuick: matchQuick,
+        periodSub: periodSub, periodTitleCompact: periodTitleCompact, periodSubCompact: periodSubCompact,
+        pluralDays: pluralDays, matchQuick: matchQuick,
         readUrlPeriod: readUrlPeriod, writeUrl: writeUrl, writeUrlPeriod: writeUrlPeriod,
         maskTyped: maskTyped, parseTyped: parseTyped, parseTypedRange: parseTypedRange,
         formatTyped: formatTyped, validateRange: validateRange,

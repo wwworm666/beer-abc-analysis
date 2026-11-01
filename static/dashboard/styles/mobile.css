@@ -118,7 +118,7 @@
 /* Extra small screens (< 480px) */
 @media (max-width: 480px) {
     .container {
-        padding: 16px 8px;
+        padding: 10px 8px 16px;
     }
 
     .header-left h1 {

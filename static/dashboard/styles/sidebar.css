@@ -366,8 +366,12 @@
         max-width: none;
     }
 
+    /* Карточка заголовка ниже: 52 px вместо 76 (макет мобильной версии, утверждён владельцем
+       2026-11-01) — первые цифры страницы выше. */
     .header-bar {
-        padding: 10px 12px;
+        height: 52px;
+        margin-bottom: 8px;
+        padding: 0 12px 0 8px;
         gap: 10px;
         border-radius: var(--border-radius-sm);
     }
@@ -384,11 +388,11 @@
     }
 
     .header-bar-page {
-        font-size: 1rem;
+        font-size: 15px;
     }
 
     .header-bar-logo {
-        font-size: 1.1rem;
+        font-size: 14px;
     }
 }
 /* ============================================================

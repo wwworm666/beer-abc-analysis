@@ -34,6 +34,8 @@
         .btn-ghost { background: transparent; border-color: var(--border-color, #e3e6ea); color: inherit; }
         .btn-danger { background: transparent; border-color: var(--danger, #dc2626); color: var(--danger, #dc2626); }
         .btn-sm { padding: 5px 9px; font-size: 12px; font-weight: 500; }
+        /* Таблица шире телефона (около 720 px): прокручивается внутри карточки, а не вся страница. */
+        .users-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
         table.users { width: 100%; border-collapse: collapse; font-size: 14px; }
         table.users th, table.users td { padding: 10px 8px; text-align: left; border-bottom: 1px solid var(--border-color, #eceef1); }
         table.users input, table.users select { padding: 6px 8px; border: 1px solid var(--border-color, #e3e6ea); border-radius: 6px; background: var(--bg, #f7f8fa); color: inherit; font-size: 13px; }
@@ -114,6 +116,7 @@
 
             <div class="panel">
                 <h2>Аккаунты ({{ users | length }})</h2>
+                <div class="users-scroll">
                 <table class="users">
                     <thead>
                         <tr>
@@ -161,6 +164,7 @@
                     {% endfor %}
                     </tbody>
                 </table>
+                </div>
             </div>
 
         </div>

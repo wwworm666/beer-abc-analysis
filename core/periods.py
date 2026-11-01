@@ -220,6 +220,27 @@ def period_short(step, start, end):
     return start.strftime('%d.%m') + '–' + end.strftime('%d.%m')
 
 
+def period_title_compact(step, start, end):
+    """Название для узкого экрана — полосы «Бар и период» на телефоне (до 480 px).
+
+    День, месяц и год — как period_title («29 октября 2026», «Октябрь 2026», «2026»): они
+    помещаются. Отрезок (неделя, свой период) — числами с годом в конце: «26.10–01.11.26»,
+    через границу года — «29.12.25–04.01.26». Полное «1 мар 2024 – 31 окт 2026» на телефоне
+    обрезалось бы до «1 мар 2…» (замер 2026-11-01, экран 390 px).
+    """
+    if step in ('day', 'month', 'year'):
+        return period_title(step, start, end)
+    if start.year == end.year:
+        return start.strftime('%d.%m') + '–' + end.strftime('%d.%m.%y')
+    return start.strftime('%d.%m.%y') + '–' + end.strftime('%d.%m.%y')
+
+
+def period_sub_compact(sub):
+    """Вторая строка для узкого экрана: последняя часть period_sub (части разделены « · »):
+    «идёт, по 01.11» вместо «неделя 44 · идёт, по 01.11»; одна часть — как есть."""
+    return sub.split(' · ')[-1] if sub else ''
+
+
 def plural_days(n):
     abs_n = abs(n) % 100
     last = abs_n % 10

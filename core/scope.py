@@ -184,15 +184,22 @@ def build_strip(user_id, args, cookies, mode='report', step='week', live=True, l
     if bar_mode == 'none':
         bar_name = bar_label or ALL_BARS_LABEL
         bar_hint = ALL_BARS_HINT if bar_hint is None else bar_hint
+        bar_short = bar_name
     else:
         row = site_bar(bar)
         bar_name, bar_hint = (row['name'], row['short']) if row else (ALL_BARS_LABEL, ALL_BARS_HINT)
+        # На телефоне бар — коротким именем (ВО, Лиг, Крем, Вар), вся сеть — «Все бары» (Р6).
+        bar_short = row['short'] if row else ALL_BARS_LABEL
     note = ' · '.join(x for x in (res['note'], bar_note) if x)
     shown = res['period']
     last_full = date.fromisoformat(clock['last_full_day'])
     max_date = date.fromisoformat(clock['max_date'])
     title = periods.period_title(shown.step, shown.start, shown.end) if shown else 'Сейчас'
     sub = periods.period_sub(shown, last_full, max_date) if shown else 'данные на сейчас'
+    # Полоса на телефоне (до 480 px): название и вторая строка — короткие, чтобы не обрезались
+    # (periods.period_title_compact, period_sub_compact; страница — period_core.js).
+    title_c = periods.period_title_compact(shown.step, shown.start, shown.end) if shown else title
+    sub_c = periods.period_sub_compact(sub)
     client = {
         'user': user_id, 'mode': mode, 'step': step, 'clock': clock, 'steps': steps,
         'allowFuture': bool(allow_future), 'maxDays': max_days, 'maxReason': max_reason,
@@ -209,6 +216,7 @@ def build_strip(user_id, args, cookies, mode='report', step='week', live=True, l
     return {
         'mode': mode, 'bar': bar, 'bar_mode': bar_mode, 'bar_name': bar_name, 'bar_hint': bar_hint,
         'bar_options': _bar_options(bar_mode), 'title': title, 'sub': sub,
+        'bar_short': bar_short, 'title_c': title_c, 'sub_c': sub_c,
         'partial': bool(shown) and periods.period_state(shown, last_full, max_date) == 'partial',
         'note': note, 'client': client,
     }

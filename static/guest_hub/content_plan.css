@@ -1670,3 +1670,23 @@ button.gh-cp-originchip.is-on:hover { border-color: var(--gh-accent); }
     .gh-cp-ap-i { grid-template-columns: minmax(0, 1fr); }
     .gh-cp-ap-why { grid-column: 1; }
 }
+
+/* Значки вида плана и «Утвердить готовые» — только на телефоне. */
+#cpFilters .gh-cp-ico { display: none; }
+
+/* Телефон (до 480 px) — макет мобильной версии, утверждён владельцем 2026-11-01: площадка,
+   «Календарь | Таблица» и действия — одной строкой, вид и действия значками (было три строки
+   над планом). Подписи — в aria-label и title. */
+@media (max-width: 480px) {
+    #cpFilters { flex-wrap: nowrap; align-items: center; gap: 6px; padding: 6px 8px; }
+    #cpFilters .gh-pick-cap { display: none; }
+    #cpFilters .gh-pick { flex: 1 1 auto; min-width: 0; }
+    #cpFilters .gh-pick-btn { padding: 8px 6px; }
+    #cpFilters .gh-filters-seg { flex: none; padding: 0; }
+    #cpFilters .gh-filters-seg .gh-seg { display: inline-flex; width: auto; }
+    #cpFilters .gh-filters-seg .gh-seg-btn { flex: none; width: 38px; padding: 0; }
+    #cpFilters .gh-cp-ico { display: inline-block; }
+    #cpFilters .gh-cp-t { display: none; }
+    #cpFilters .gh-filters-actions { flex: none; gap: 6px; padding: 0; }
+    #cpFilters .gh-filters-actions .gh-btn { flex: none; width: 40px; height: 40px; padding: 0; justify-content: center; }
+}

@@ -35,6 +35,7 @@ class TestSharedExamples(unittest.TestCase):
             self.assertEqual(p.step, c['step'], c)
             self.assertEqual(p.title(), c['title'], c)
             self.assertEqual(P.period_short(p.step, p.start, p.end), c['short'], c)
+            self.assertEqual(P.period_title_compact(p.step, p.start, p.end), c['compact'], c)
 
     def test_states_sub_and_cutoff(self):
         for c in CASES['states']:
@@ -43,6 +44,7 @@ class TestSharedExamples(unittest.TestCase):
             self.assertEqual(p.state(lfd, mx), c['state'], c)
             self.assertEqual(P.cutoff_of(p, lfd, mx), c['cutoff'], c)
             self.assertEqual(P.period_sub(p, lfd, mx), c['sub'], c)
+            self.assertEqual(P.period_sub_compact(c['sub']), c['sub_compact'], c)
 
     def test_last_closed(self):
         for c in CASES['last_closed']:

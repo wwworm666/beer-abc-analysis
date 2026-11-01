@@ -243,10 +243,19 @@ window.Guests = (function () {
         });
     }
 
+    // На телефоне вкладки — одна строка с прокруткой вбок (guests.css): выбранная видна целиком.
+    function revealTab(btn) {
+        var row = btn && btn.parentNode;
+        if (!row || !(row.scrollWidth > row.clientWidth)) return;
+        var left = btn.offsetLeft - row.offsetLeft, right = left + btn.offsetWidth;
+        if (left < row.scrollLeft) row.scrollLeft = Math.max(0, left - 16);
+        else if (right > row.scrollLeft + row.clientWidth) row.scrollLeft = right - row.clientWidth + 16;
+    }
     function activateTab(tab) {
         state.activeTab = tab;
         document.querySelectorAll('.gtab-btn').forEach(function (b) {
             b.classList.toggle('active', b.dataset.tab === tab);
+            if (b.dataset.tab === tab) revealTab(b);
         });
         document.querySelectorAll('.gtab-pane').forEach(function (p) {
             p.classList.toggle('active', p.id === 'pane-' + tab);

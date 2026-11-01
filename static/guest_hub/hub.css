@@ -1543,8 +1543,28 @@ button.gh-toast-a {
 }
 /* Узкий телефон: поле .container — 8px (static/dashboard/styles/mobile.css), края
    содержимого раздела — по нему же, под краями карточки заголовка и полосы. */
+/* Значки счётчиков на вкладках раздела — только на телефоне (ниже). */
+.gh-tab-n { display: none; }
 @media (max-width: 480px) {
     body.gh-page .gh-wrap { padding-left: 8px; padding-right: 8px; }
+    /* Строка счётчиков на телефоне занимала две строки — числа переезжают значками на вкладки
+       (shared/guest_hub_strip.html, GH.fillBadges); подпись бара не нужна — бар виден в полосе. */
+    .gh-embed .gh-strip { gap: 0; padding-bottom: 10px; }
+    .gh-embed .gh-attn { display: none; }
+    .gh-tab { gap: 6px; padding: 0 6px; }
+    .gh-tab-n:not([hidden]) {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 18px;
+        height: 18px;
+        padding: 0 5px;
+        border-radius: 9px;
+        background: var(--gh-accent);
+        color: var(--gh-card);
+        font: 700 11px/1 var(--gh-sans);
+    }
+    .gh-tab-n--warn:not([hidden]) { background: var(--gh-bad); }
 }
 @keyframes ghToastInTop {
     from { opacity: 0; transform: translateY(-8px); }

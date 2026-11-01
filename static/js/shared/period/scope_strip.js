@@ -124,6 +124,7 @@
     var barMenu = root.document.getElementById('ks-bar-menu');
     var barName = root.document.getElementById('ks-bar-name');
     var barHint = root.document.getElementById('ks-bar-hint');
+    var barShort = root.document.getElementById('ks-bar-short');   // на телефоне — короткое имя
     var backdrop = root.document.getElementById('ks-backdrop');
 
     function barLabel(key) {
@@ -137,6 +138,7 @@
         var label = barLabel(state.bar);
         if (barName) barName.textContent = label.name;
         if (barHint) barHint.textContent = label.hint;
+        if (barShort) barShort.textContent = state.bar ? label.hint : cfg.allLabel;
         if (!barMenu) return;
         Array.prototype.forEach.call(barMenu.querySelectorAll('[data-bar]'), function (item) {
             var on = item.getAttribute('data-bar') === state.bar;

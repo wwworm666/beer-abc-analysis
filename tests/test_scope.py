@@ -196,6 +196,18 @@ class TestTemplate(unittest.TestCase):
         self.assertIn('Бар и период — общие для всех страниц', html)
         self.assertIn('window.KULTURA_STRIP', html)
 
+    def test_phone_labels_rendered(self):
+        """Полоса на телефоне (макет 2026-11-01): короткие бар, название и вторая строка периода."""
+        self.client.set_cookie(scope.COOKIE_PERIOD, '7:2024-03-01_2026-10-31')
+        self.client.set_cookie(scope.COOKIE_BAR, '7:ligovskiy')
+        html = self.client.get('/page').get_data(as_text=True)
+        self.assertIn('<span class="kp-title-c">01.03.24–31.10.26</span>', html)
+        self.assertIn('id="ks-bar-short">Лиг<', html)
+        self.client.set_cookie(scope.COOKIE_BAR, '7:all')
+        html = self.client.get('/page?date_from=2026-10-26&date_to=2026-11-01').get_data(as_text=True)
+        self.assertIn('<span class="kp-title-c">26.10–01.11.26</span>', html)
+        self.assertIn('id="ks-bar-short">Все бары<', html, 'вся сеть — «Все бары» и на телефоне')
+
     def test_foreign_choice_ignored(self):
         self.client.set_cookie(scope.COOKIE_PERIOD, '8:2024-03-01_2026-10-31')
         html = self.client.get('/page').get_data(as_text=True)

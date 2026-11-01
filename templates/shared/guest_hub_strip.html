@@ -34,10 +34,14 @@
       «Ошибки отправки» / «Время вышло» -> /content-plan/table?state=failed|overdue —
           без периода в адресе таблица плана открывает эти состояния по всем
           месяцам (в полосе — подпись «все месяцы»). -#}
+{#- На телефоне (до 480 px) строки счётчиков нет: те же числа — значками на вкладках
+    (.gh-tab-n, data-attn-badge — ключи ответа через пробел, значок — их сумма, ноль не показан):
+    «Контент-план» — публикаций сегодня и (красным) ошибки отправки + время вышло, «Отзывы» — без
+    ответа. Макет мобильной версии утверждён владельцем 2026-11-01. -#}
 <div class="gh-strip">
   <nav class="gh-tabs" aria-label="Раздел «Гости»">
-    <a class="gh-tab{% if hub_active == 'content' %} is-active{% endif %}" href="/content-plan"{% if hub_active == 'content' %} aria-current="page"{% endif %}>Контент-план</a>
-    <a class="gh-tab{% if hub_active == 'reviews' %} is-active{% endif %}" href="/reviews"{% if hub_active == 'reviews' %} aria-current="page"{% endif %}>Отзывы</a>
+    <a class="gh-tab{% if hub_active == 'content' %} is-active{% endif %}" href="/content-plan"{% if hub_active == 'content' %} aria-current="page"{% endif %}>Контент-план<b class="gh-tab-n" data-attn-badge="publications_today" hidden></b><b class="gh-tab-n gh-tab-n--warn" data-attn-badge="delivery_errors overdue" hidden></b></a>
+    <a class="gh-tab{% if hub_active == 'reviews' %} is-active{% endif %}" href="/reviews"{% if hub_active == 'reviews' %} aria-current="page"{% endif %}>Отзывы<b class="gh-tab-n" data-attn-badge="reviews_unanswered" hidden></b></a>
     <a class="gh-tab{% if hub_active == 'guests' %} is-active{% endif %}" href="/guests"{% if hub_active == 'guests' %} aria-current="page"{% endif %}>Маркетинг</a>
   </nav>
 
