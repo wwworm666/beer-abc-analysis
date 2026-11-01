@@ -16,6 +16,12 @@
  *   KStrip.get()                       -> {bar, period}
  *   KStrip.showPeriod(period)          -> показать период, не меняя общий выбор (показ — не выбор)
  *   KStrip.setBar(ключ)                -> сменить бар из кода страницы (сохраняется для сайта)
+ *   KStrip.setPeriod(период)           -> выбрать период из кода страницы (как выбор в элементе)
+ *   KStrip.barInfo(ключ)               -> {key, name, short, iiko_name, bar_id} или null
+ *
+ * Режим бара (cfg.barMode): all — «Все бары» и бары; single — страница «по одному бару»: при
+ * «Все бары» на сайте сервер показывает последний бар таких страниц с подписью (ответ Р4), выбор
+ * здесь сохраняется и как общий бар, и как последний бар таких страниц; none — бар не выбирается.
  *   KStrip.setSteps(steps, причина)    -> шаги вкладки
  *   KStrip.setNote(текст)              -> подпись в полосе («по месяцам — показан октябрь 2026»)
  *
@@ -122,6 +128,7 @@
         return { name: cfg.allLabel, hint: cfg.allHint };
     }
     function renderBar() {
+        if (cfg.barMode === 'none') return;   // подпись страницы без баров рисует сервер
         var label = barLabel(state.bar);
         if (barName) barName.textContent = label.name;
         if (barHint) barHint.textContent = label.hint;
@@ -154,7 +161,13 @@
     function chooseBar(key, cause) {
         var v = S.normalize(key);
         if (v === null) v = '';
-        if (cause === 'user') v = S.setBar(v);
+        // Страница «по одному бару» не показывает всю сеть: остаётся её бар (подпись — с сервера).
+        if (cfg.barMode === 'single' && !v) return;
+        if (cause === 'user') {
+            v = S.setBar(v);
+            if (cfg.barMode === 'single') S.setBarSingle(v);
+            setNote('');
+        }
         var changed = v !== state.bar;
         state.bar = v;
         renderBar();
@@ -209,6 +222,13 @@
         },
         // Сменить бар из кода страницы — как выбор в меню: сохраняется для всего сайта.
         setBar: function (key) { chooseBar(key, 'user'); },
+        // Выбрать период из кода страницы (открыт сохранённый отчёт, «Открыть последний период с
+        // данными») — как выбор в элементе: сохраняется для сайта и пишется в адрес.
+        setPeriod: function (period) { picker.set(period); },
+        barInfo: function (key) {
+            for (var i = 0; i < cfg.bars.length; i++) if (cfg.bars[i].key === key) return cfg.bars[i];
+            return null;
+        },
         setSteps: function (steps, note) { picker.setSteps(steps, note); },
         setNote: setNote,
         config: cfg

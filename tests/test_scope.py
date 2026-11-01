@@ -135,6 +135,30 @@ class TestStrip(unittest.TestCase):
         none = scope.build_strip(7, {}, {scope.COOKIE_BAR: '7:ligovskiy'}, bar_mode='none')
         self.assertEqual(none['bar_name'], 'Все бары', 'страница на бары не делится')
 
+    def test_single_bar_page_shows_last_single_bar(self):
+        """Р4: страница «по одному бару» при «Все бары» — последний бар таких страниц, с подписью."""
+        first = scope.build_strip(7, {}, {}, mode='now', bar_mode='single')
+        self.assertEqual(first['bar'], 'bolshoy', 'не выбирали — первый бар')
+        self.assertEqual(first['note'], 'по одному бару: показан Большой пр. В.О')
+        last = scope.build_strip(7, {}, {scope.COOKIE_BAR_SINGLE: '7:varshavskaya'}, mode='now',
+                                 bar_mode='single')
+        self.assertEqual((last['bar'], last['bar_name']), ('varshavskaya', 'Варшавская'))
+        chosen = scope.build_strip(7, {}, {scope.COOKIE_BAR: '7:ligovskiy',
+                                           scope.COOKIE_BAR_SINGLE: '7:varshavskaya'},
+                                   mode='now', bar_mode='single')
+        self.assertEqual((chosen['bar'], chosen['note']), ('ligovskiy', ''), 'общий бар сильнее')
+        self.assertEqual(chosen['client']['globalBar'], 'ligovskiy')
+
+    def test_bar_label_for_pages_without_bars(self):
+        me = scope.build_strip(7, {}, {}, mode='monthly', step='month', bar_mode='none',
+                               bar_label='Личная страница', bar_hint='')
+        self.assertEqual((me['bar_name'], me['bar_hint']), ('Личная страница', ''))
+
+    def test_client_bar_table_has_iiko_names_and_bar_ids(self):
+        bars = scope.build_strip(7, {}, {})['client']['bars']
+        self.assertEqual(bars[0], {'key': 'bolshoy', 'name': 'Большой пр. В.О', 'short': 'ВО',
+                                   'iiko_name': 'Большой пр. В.О', 'bar_id': 'bar1'})
+
     def test_now_mode_title(self):
         strip = scope.build_strip(7, {}, {}, mode='now')
         self.assertEqual((strip['title'], strip['sub']), ('Сейчас', 'данные на сейчас'))

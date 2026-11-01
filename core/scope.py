@@ -12,7 +12,10 @@
 без мигания и с ровной анимацией перехода между страницами):
 - kultura_period = '<номер пользователя>:<YYYY-MM-DD>_<YYYY-MM-DD>', срок PERIOD_TTL_SECONDS;
   срок продлевается при каждом открытии страницы с полосой (static/js/shared/period/scope.js);
-- kultura_bar = '<номер пользователя>:<ключ бара|all>', срок BAR_TTL_SECONDS.
+- kultura_bar = '<номер пользователя>:<ключ бара|all>', срок BAR_TTL_SECONDS;
+- kultura_bar_single = '<номер пользователя>:<ключ бара>' — последний бар, выбранный на странице
+  «по одному бару» (склад, кран бара, фиды): её показывает такая страница, когда на сайте выбраны
+  все бары (ответ Р4), с подписью в полосе.
 Номер пользователя в значении: на общем компьютере чужой выбор не подхватывается.
 
 Порядок источников при открытии страницы: ссылка (?date_from=&date_to=&bar=) → выбор из
@@ -34,6 +37,7 @@ from core.venues_config import ALL_BARS_HINT, ALL_BARS_LABEL, SITE_BARS, bar_key
 
 COOKIE_PERIOD = 'kultura_period'
 COOKIE_BAR = 'kultura_bar'
+COOKIE_BAR_SINGLE = 'kultura_bar_single'
 # Период помнится час (ответ владельца Р1, 2026-11-01); срок продлевается при открытии страницы.
 PERIOD_TTL_SECONDS = 3600
 # Бар — пока не сменишь: год, чтобы браузер не выбросил cookie раньше.
@@ -64,6 +68,19 @@ def read_bar(cookies, user_id):
     """Бар из cookie: ключ, '' — вся сеть, None — выбора нет или он чужой."""
     value = _owned(cookies.get(COOKIE_BAR), user_id)
     return None if value is None else bar_key(value)
+
+
+def read_bar_single(cookies, user_id):
+    """Последний бар страниц «по одному бару» (ответ Р4): ключ или None (не выбирали, чужой)."""
+    value = _owned(cookies.get(COOKIE_BAR_SINGLE), user_id)
+    key = None if value is None else bar_key(value)
+    return key or None
+
+
+def bars_client():
+    """Таблица баров для страницы: ключ, имя, короткое имя, имя iiko, bar1…bar4."""
+    return [{'key': b['key'], 'name': b['name'], 'short': b['short'], 'iiko_name': b['iiko_name'],
+             'bar_id': b['bar_id']} for b in SITE_BARS]
 
 
 def read_period(cookies, user_id):
@@ -145,11 +162,14 @@ def _period_dict(p):
 
 def build_strip(user_id, args, cookies, mode='report', step='week', live=True, last_full_day=None,
                 data_start=None, steps=None, bar_mode='all', allow_future=False, max_days=None,
-                max_reason=None, freshness=None):
+                max_reason=None, freshness=None, bar_label=None, bar_hint=None):
     """Полоса страницы: подписи для первой отрисовки сервером и настройки для страницы (client).
 
-    bar_mode: all — «Все бары» и бары; single — только один бар (склад, кран бара); none — страница
-    на бары не делится (бар в полосе серый). Даты — строки ISO или date.
+    bar_mode: all — «Все бары» и бары; single — только один бар (склад, кран бара, фиды): при
+    «Все бары» на сайте показан последний бар таких страниц (cookie kultura_bar_single, иначе
+    первый бар) с подписью в полосе — ответ Р4; none — страница на бары не делится (бар в полосе
+    серый; подпись — bar_label / bar_hint, по умолчанию «Все бары · вся сеть»). Даты — строки ISO
+    или date.
     """
     if mode not in MODES:
         raise ValueError('mode — одно из: ' + ', '.join(MODES))
@@ -157,12 +177,17 @@ def build_strip(user_id, args, cookies, mode='report', step='week', live=True, l
     clock = periods.page_config(live=live, last_full_day=as_date(last_full_day), data_start=as_date(data_start))
     res = resolve(args, cookies, user_id, mode=mode, step=step, clock=clock, allow_future=allow_future)
     steps = list(steps or (['month'] if mode == 'monthly' else DEFAULT_STEPS))
-    bar = res['bar']
+    bar, bar_note = res['bar'], ''
+    if bar_mode == 'single' and not bar:
+        bar = read_bar_single(cookies, user_id) or SITE_BARS[0]['key']
+        bar_note = 'по одному бару: показан ' + site_bar(bar)['name']
     if bar_mode == 'none':
-        bar_name, bar_hint = ALL_BARS_LABEL, ALL_BARS_HINT
+        bar_name = bar_label or ALL_BARS_LABEL
+        bar_hint = ALL_BARS_HINT if bar_hint is None else bar_hint
     else:
         row = site_bar(bar)
         bar_name, bar_hint = (row['name'], row['short']) if row else (ALL_BARS_LABEL, ALL_BARS_HINT)
+    note = ' · '.join(x for x in (res['note'], bar_note) if x)
     shown = res['period']
     last_full = date.fromisoformat(clock['last_full_day'])
     max_date = date.fromisoformat(clock['max_date'])
@@ -172,20 +197,20 @@ def build_strip(user_id, args, cookies, mode='report', step='week', live=True, l
         'user': user_id, 'mode': mode, 'step': step, 'clock': clock, 'steps': steps,
         'allowFuture': bool(allow_future), 'maxDays': max_days, 'maxReason': max_reason,
         'freshness': freshness,
-        'bar': bar, 'barMode': bar_mode, 'barSource': res['bar_source'],
-        'bars': [{'key': b['key'], 'name': b['name'], 'short': b['short']} for b in SITE_BARS],
+        'bar': bar, 'globalBar': res['bar'], 'barMode': bar_mode, 'barSource': res['bar_source'],
+        'barNote': bar_note, 'bars': bars_client(),
         'allLabel': ALL_BARS_LABEL, 'allHint': ALL_BARS_HINT,
         'period': _period_dict(shown), 'chosen': _period_dict(res['chosen']),
         'chosenSource': res['chosen_source'], 'default': _period_dict(res['default']),
-        'note': res['note'],
-        'cookies': {'period': COOKIE_PERIOD, 'bar': COOKIE_BAR},
+        'note': note,
+        'cookies': {'period': COOKIE_PERIOD, 'bar': COOKIE_BAR, 'barSingle': COOKIE_BAR_SINGLE},
         'ttl': {'period': PERIOD_TTL_SECONDS, 'bar': BAR_TTL_SECONDS},
     }
     return {
         'mode': mode, 'bar': bar, 'bar_mode': bar_mode, 'bar_name': bar_name, 'bar_hint': bar_hint,
         'bar_options': _bar_options(bar_mode), 'title': title, 'sub': sub,
         'partial': bool(shown) and periods.period_state(shown, last_full, max_date) == 'partial',
-        'note': res['note'], 'client': client,
+        'note': note, 'client': client,
     }
 
 
@@ -199,8 +224,8 @@ def scope_base(user_id):
     """Настройки общего выбора для страниц без полосы (static/js/shared/period/scope.js)."""
     return {
         'user': user_id,
-        'bars': [{'key': b['key'], 'name': b['name'], 'short': b['short']} for b in SITE_BARS],
-        'cookies': {'period': COOKIE_PERIOD, 'bar': COOKIE_BAR},
+        'bars': bars_client(),
+        'cookies': {'period': COOKIE_PERIOD, 'bar': COOKIE_BAR, 'barSingle': COOKIE_BAR_SINGLE},
         'ttl': {'period': PERIOD_TTL_SECONDS, 'bar': BAR_TTL_SECONDS},
     }
 

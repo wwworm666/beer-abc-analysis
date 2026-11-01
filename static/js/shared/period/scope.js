@@ -6,7 +6,9 @@
  * браузера, чтобы сервер сразу рисовал полосу с выбором:
  *   - kultura_period = '<номер пользователя>:<YYYY-MM-DD>_<YYYY-MM-DD>', срок — час (ответ
  *     владельца Р1), продлевается при каждом открытии страницы с полосой (touchPeriod);
- *   - kultura_bar = '<номер пользователя>:<ключ бара|all>', срок — год.
+ *   - kultura_bar = '<номер пользователя>:<ключ бара|all>', срок — год;
+ *   - kultura_bar_single = '<номер>:<ключ бара>' — последний бар страниц «по одному бару»
+ *     (склад, кран бара, фиды; ответ Р4), срок — год.
  * Номер пользователя в значении: на общем компьютере чужой выбор не подхватывается. Вся сеть —
  * явным 'all': пустой ключ значил бы «не выбирали» и поднял бы старый ключ.
  *
@@ -29,14 +31,17 @@
     var ISO = /^\d{4}-\d{2}-\d{2}$/;
     var cfg = {
         user: null,
-        cookies: { period: 'kultura_period', bar: 'kultura_bar' },
+        cookies: { period: 'kultura_period', bar: 'kultura_bar', barSingle: 'kultura_bar_single' },
         ttl: { period: 3600, bar: 365 * 24 * 3600 }
     };
 
     function configure(c) {
         c = c || {};
         if (c.user !== undefined && c.user !== null) cfg.user = c.user;
-        if (c.cookies) cfg.cookies = { period: c.cookies.period || cfg.cookies.period, bar: c.cookies.bar || cfg.cookies.bar };
+        if (c.cookies) {
+            cfg.cookies = { period: c.cookies.period || cfg.cookies.period, bar: c.cookies.bar || cfg.cookies.bar,
+                            barSingle: c.cookies.barSingle || cfg.cookies.barSingle };
+        }
         if (c.ttl) cfg.ttl = { period: c.ttl.period || cfg.ttl.period, bar: c.ttl.bar || cfg.ttl.bar };
     }
 
@@ -116,6 +121,16 @@
         if (!opts || opts.url !== false) writeUrlBar(v);
         return v;
     }
+    // Последний бар страниц «по одному бару» (ответ Р4): ключ или null.
+    function getBarSingle() {
+        var v = normalize(owned(readCookie(cfg.cookies.barSingle)));
+        return v || null;
+    }
+    function setBarSingle(raw) {
+        var v = normalize(raw);
+        if (!v || cfg.user === null) return;
+        writeCookie(cfg.cookies.barSingle, cfg.user + ':' + v, cfg.ttl.bar);
+    }
     function writeUrlBar(v) {
         if (!root.history || !root.location) return;
         var q = new URLSearchParams(root.location.search);
@@ -179,7 +194,7 @@
 
     return {
         KEY: KEY, BARS: BARS, configure: configure, normalize: normalize,
-        getBar: getBar, setBar: setBar, storedBar: storedBar,
+        getBar: getBar, setBar: setBar, storedBar: storedBar, getBarSingle: getBarSingle, setBarSingle: setBarSingle,
         getPeriod: getPeriod, setPeriod: setPeriod, touchPeriod: touchPeriod, resetPeriod: resetPeriod,
         watch: watch, readCookie: readCookie
     };

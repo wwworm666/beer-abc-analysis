@@ -141,6 +141,16 @@ test('выбор из другой вкладки подхватывается �
     assert.equal(seen.length, 1);
 });
 
+test('последний бар страниц «по одному бару» (ответ Р4)', () => {
+    reset();
+    assert.equal(S.getBarSingle(), null);
+    S.setBarSingle('varshavskaya');
+    assert.equal(writes.at(-1), 'kultura_bar_single=7%3Avarshavskaya; Max-Age=31536000; Path=/; SameSite=Lax; Secure');
+    assert.equal(S.getBarSingle(), 'varshavskaya');
+    S.setBarSingle('');
+    assert.equal(S.getBarSingle(), 'varshavskaya', 'вся сеть — не бар страницы «по одному бару»');
+});
+
 test('без номера пользователя cookie не пишутся (страница без входа)', () => {
     reset();
     delete require.cache[require.resolve(path.join(ROOT, 'static/js/shared/period/scope.js'))];

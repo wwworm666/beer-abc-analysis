@@ -342,12 +342,16 @@
    период), `monthly` (месяц выбранного, подпись в полосе), `now` (страница «на сейчас»); `step` —
    шаг правила открытия (`day`, `week`, `month`, `year`, `last30`, `last_closed_month`); у витрины с
    ночной загрузкой — `live=False, last_full_day=..., data_start=...`; ещё `steps`, `bar_mode`
-   (`all`, `single`, `none`), `allow_future`, `max_days` и `max_reason`, `freshness`.
+   (`all`; `single` — страница «по одному бару»: при «Все бары» на сайте показан последний бар
+   таких страниц с подписью, ответ Р4; `none` — бар не выбирается, подпись `bar_label` /
+   `bar_hint`), `allow_future`, `max_days` и `max_reason`, `freshness`.
    Кнопки страницы справа — `{% set strip_actions %}…{% endset %}`.
 2. Своей разметки бара и периода у страницы нет: полосу рисует `templates/shared/nav.html`, скрипты
    элемента подключает сама полоса.
 3. Страница берёт бар и период из `window.KStrip.get()` и слушает `KStrip.onChange(fn)`; запросы —
-   `date_from` и `date_to`, сервер разбирает их `periods.parse_period`.
+   `date_from` и `date_to`, сервер разбирает их `periods.parse_period`. Имя бара для iiko и номер
+   bar1…bar4 — `KStrip.barInfo(ключ)` (`iiko_name`, `bar_id`); выбрать период из кода страницы —
+   `KStrip.setPeriod(период)`.
 
 Пока не переведены (этапы 2–6 плана): «Маркетинг» (`static/js/guests/common.js`), конструктор,
 розлив, фасовка, кухня, ежемесячный отчёт, сотрудники, зарплата, цели, график, «Мои смены», чистота,
