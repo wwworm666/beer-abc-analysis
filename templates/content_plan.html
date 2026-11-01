@@ -23,6 +23,13 @@
 <!-- data-cp-view — какой вид открыла страница: calendar (/content-plan — главная, решение владельца
      2026-10-23) или table (/content-plan/table — подстраница). -->
 <body class="gh-page gh-scope" data-is-admin="{{ 'true' if current_user and current_user.is_admin else 'false' }}" data-cp-view="{{ cp_view or 'calendar' }}">
+    {#- Бар и месяц — общая полоса сайта «Бар и период» (shared/nav.html -> shared/scope_strip.html,
+        план единого виджета docs/planning/period-widget-rollout.md, этап 5): выбор один на весь
+        сайт, своих стрелок месяца и меню бара у страницы нет. Страница помесячная (mode='monthly'):
+        показан месяц общего выбора (неделя — месяц её четверга, свой период — месяц середины или
+        последний, подпись в полосе), смена месяца в полосе — новый общий выбор. Без выбора — этот
+        месяц по рабочим суткам бара; план готовят заранее, поэтому будущие месяцы можно. -#}
+    {% set strip = kultura_strip(mode='monthly', step='month', live=True, allow_future=True) %}
     <div class="container">
         {% set page_title = "Контент-план" %}
         {% set page_subtitle = "План публикаций и рассылок на месяц" %}
@@ -30,43 +37,16 @@
     </div>
 
     <div class="gh-wrap gh-cp-wrap">
+        {#- Раздел «Гости»: вкладки Контент-план / Отзывы / Маркетинг и счётчики «требует внимания»
+            (shared/guest_hub_strip.html) — так же, как на /guests. -#}
         {% set hub_active = 'content' %}
-        {% set hub_title = 'Контент-план' %}
-        {% set hub_subtitle = 'План публикаций и рассылок на месяц' %}
-        {% include 'shared/guest_hub_head.html' %}
+        <div class="gh-scope gh-embed">
+            {% include 'shared/guest_hub_strip.html' %}
+        </div>
 
-        <!-- Полоса фильтров: месяц, бар (общий для раздела), площадка, вид.
-             Справа — два главных действия месяца. -->
+        <!-- Фильтры страницы: площадка и вид; справа — два главных действия месяца.
+             Бар и месяц выбираются в общей полосе «Бар и период» над разделом. -->
         <div class="gh-filters" id="cpFilters">
-            <div class="gh-month">
-                <button type="button" class="gh-month-nav" id="cpPrev" aria-label="Предыдущий месяц">
-                    <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M8.5 3 4.5 7l4 4" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                </button>
-                <button type="button" class="gh-month-val" id="cpMonthBtn"
-                        data-tip="Месяц плана. Нажмите, чтобы вернуться к текущему месяцу.">
-                    <span class="gh-pick-cap">Месяц</span>
-                    <span class="gh-month-label" id="cpMonthLabel">—</span>
-                </button>
-                <button type="button" class="gh-month-nav" id="cpNext" aria-label="Следующий месяц">
-                    <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M5.5 3l4 4-4 4" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                </button>
-            </div>
-
-            <span class="gh-sep"></span>
-
-            <div class="gh-pick">
-                <button type="button" class="gh-pick-btn" id="cpBarBtn" aria-haspopup="true" aria-expanded="false">
-                    <span class="gh-pick-cap">Бар</span>
-                    <span class="gh-pick-val">
-                        <span id="cpBarLabel">Все бары</span>
-                        <svg class="gh-chev" width="9" height="9" viewBox="0 0 10 10" aria-hidden="true"><path d="M2 3.5 5 6.5 8 3.5" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                    </span>
-                </button>
-                <div class="gh-menu" id="cpBarMenu" hidden></div>
-            </div>
-
-            <span class="gh-sep"></span>
-
             <div class="gh-pick">
                 <button type="button" class="gh-pick-btn" id="cpChBtn" aria-haspopup="true" aria-expanded="false">
                     <span class="gh-pick-cap">Площадка</span>
@@ -171,8 +151,9 @@
             </div>
         </div>
 
-        <!-- Снимаемый фильтр состояния (?state=); в сквозном виде (?state= без
-             ?month=, ссылки полосы «Требует внимания») — чип «Все месяцы · …». -->
+        <!-- Снимаемый фильтр состояния (?state=); в сквозном виде (?state=overdue|failed
+             без периода в адресе, ссылки полосы «Требует внимания») — чип «Все месяцы · …»,
+             а в полосе «Бар и период» — подпись «все месяцы». -->
         <div class="gh-cp-statebar" id="cpStateBar" hidden></div>
 
         <!-- Загрузка и ошибка на месте плана: страница не остаётся молча пустой. -->
@@ -289,6 +270,5 @@
 
     <script src="/static/js/guest_hub/common.js?v={{ app_version }}"></script>
     <script src="/static/js/guest_hub/content_plan.js?v={{ app_version }}"></script>
-    <script src="/static/logo.js"></script>
 </body>
 </html>

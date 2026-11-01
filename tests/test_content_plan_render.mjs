@@ -47,6 +47,7 @@ const reviewRoutes = read('routes/reviews.py');
 
 let passed = 0;
 let failed = 0;
+const asyncTests = [];
 function test(name, fn) {
     try {
         fn();
@@ -71,20 +72,42 @@ test('шаблон подключает стили и скрипты с кэш-�
         'common.js (window.GH) должен загружаться раньше скрипта страницы');
 });
 
-test('каркас страницы: body, сайдбар, шапка раздела внутри .gh-wrap', () => {
+test('каркас страницы: body, общая карточка заголовка и полоса «Бар и период», полоса раздела внутри .gh-wrap', () => {
     // data-is-admin — права пользователя для экрана (решает сервер: 403 admin_required).
     assert.match(html, /<body class="gh-page gh-scope" data-is-admin="\{\{ 'true' if current_user and current_user\.is_admin else 'false' \}\}" data-cp-view="\{\{ cp_view or 'calendar' \}\}">/,
         'нет классов страницы раздела или флага прав на body');
-    assert.match(html, /\{% include 'shared\/nav\.html' %\}/, 'нет общего сайдбара');
+    // С 2026-11-01 — общий каркас сайта, как /guests: заголовок — общая карточка shared/nav.html.
+    const navAt = html.indexOf("{% include 'shared/nav.html' %}");
+    assert.ok(navAt > 0, 'нет общего меню');
+    assert.match(html, /\{% set page_title = "Контент-план" %\}/, 'нет заголовка общей карточки');
+    assert.match(html, /\{% set page_subtitle = "План публикаций и рассылок на месяц" %\}/, 'нет подзаголовка');
+    assert.ok(!html.includes('guest_hub_head.html') && !html.includes('hub_title'), 'вернулась своя шапка раздела');
     const wrapAt = html.indexOf('class="gh-wrap');
-    const headAt = html.indexOf("{% include 'shared/guest_hub_head.html' %}");
-    assert.ok(wrapAt > 0 && headAt > wrapAt, 'шапка раздела подключена не внутри .gh-wrap');
+    const embedAt = html.indexOf('<div class="gh-scope gh-embed">');
+    const hubAt = html.indexOf("{% include 'shared/guest_hub_strip.html' %}");
+    assert.ok(navAt < wrapAt && wrapAt < embedAt && embedAt < hubAt, 'полоса раздела не в .gh-embed внутри .gh-wrap');
+    assert.ok(hubAt < html.indexOf('id="cpFilters"'), 'полоса раздела должна стоять до фильтров страницы');
     assert.match(html, /\{% set hub_active = 'content' %\}/, 'не отмечена активная вкладка');
-    assert.match(html, /\{% set hub_title = 'Контент-план' %\}/, 'нет заголовка');
-    assert.match(html, /\{% set hub_subtitle = 'План публикаций и рассылок на месяц' %\}/, 'нет подзаголовка');
-    for (const partial of ['templates/shared/guest_hub_head.html', 'templates/shared/guest_hub_strip.html']) {
-        assert.ok(fs.existsSync(path.join(ROOT, partial)), `нет общего шаблона ${partial}`);
+    assert.ok(fs.existsSync(path.join(ROOT, 'templates/shared/guest_hub_strip.html')), 'нет общего шаблона полосы раздела');
+});
+
+test('полоса «Бар и период»: помесячная, будущие месяцы можно; своих стрелок месяца и меню бара нет', () => {
+    const decl = "{% set strip = kultura_strip(mode='monthly', step='month', live=True, allow_future=True) %}";
+    assert.ok(html.includes(decl), 'полоса объявлена не так (помесячная, шаг месяц, живые данные, будущее можно)');
+    assert.ok(html.indexOf(decl) < html.indexOf("{% include 'shared/nav.html' %}"), 'полоса объявлена после общего меню');
+    for (const id of ['cpPrev', 'cpNext', 'cpMonthBtn', 'cpMonthLabel', 'cpBarBtn', 'cpBarLabel', 'cpBarMenu']) {
+        assert.ok(!html.includes(`id="${id}"`) && !js.includes(`'${id}'`), `вернулся свой выбор месяца или бара: #${id}`);
     }
+    assert.ok(!/class="gh-month"/.test(html), 'вернулись стрелки месяца страницы');
+    // Площадка, вид и действия месяца остаются фильтрами и кнопками страницы.
+    for (const id of ['cpChBtn', 'cpViewSeg', 'cpApproveBtn', 'cpAddBtn']) {
+        assert.ok(html.includes(`id="${id}"`), `пропал #${id}`);
+    }
+    // Месяц полосы в адрес пишет сама полоса: страница ?month= не пишет.
+    assert.ok(!/setParams\(\{ month: (?!null)/.test(js), 'страница снова пишет ?month= в адрес');
+    assert.ok(!js.includes('GH.setBar('), 'бар выбирается мимо полосы');
+    assert.match(fnBody('init'), /s\.onChange\(onStripChange\)/, 'страница не слушает полосу');
+    assert.match(js, /var SCOPE_NOTE = 'все месяцы';/, 'нет подписи полосы для сквозного вида');
 });
 
 test('все id, которые ищет JS, объявлены в шаблоне', () => {
@@ -522,19 +545,21 @@ test('уход со страницы: несохранённое уходит с
     assert.deepEqual(JSON.parse(JSON.stringify(calls[0][3])), { keepalive: true }, 'запрос ушёл без keepalive');
 });
 
-test('сквозной вид ?state= без ?month=: запрос без месяца, чип «Все месяцы», выход в месяц', () => {
+test('сквозной вид ?state= без периода в адресе: запрос без месяца, чип «Все месяцы», выход в месяц', () => {
     const { cp } = loadPage();
     cp.state.month = '2026-09';
     cp.state.stateFilter = 'overdue';
     assert.equal(cp.listUrl(), '/api/content-plan?month=2026-09');
     cp.state.scope = 'state';
     assert.equal(cp.listUrl(), '/api/content-plan?state=overdue');
-    assert.match(js, /S\.scope = !monthGiven && SCOPE_STATES\.indexOf\(S\.stateFilter\) >= 0 && S\.view === 'table' \? 'state' : '';/,
-        'сквозной вид не включается по ?state= без ?month=');
+    assert.match(js, /S\.scope = !periodGiven && SCOPE_STATES\.indexOf\(S\.stateFilter\) >= 0 && S\.view === 'table' \? 'state' : '';/,
+        'сквозной вид не включается по ?state= без периода в адресе');
+    assert.match(js, /var periodGiven = monthGiven \|\| !!\(params\.get\('date_from'\) \|\| params\.get\('date_to'\)\);/,
+        'период в адресе (даты полосы) не закрывает сквозной вид');
     assert.match(fnBody('load'), /if \(S\.scope && data\.scope !== 'state'\)/, 'нет отката, если сервер не знает сквозного вида');
     assert.match(fnBody('renderStateBar'), /Все месяцы · ' \+ esc\(SCOPE_NAMES\[S\.stateFilter\]\)/, 'нет чипа «Все месяцы · …»');
-    assert.match(fnBody('switchMonth'), /if \(S\.scope\) \{ leaveScope\(mon, S\.stateFilter\); return; \}/,
-        'стрелки месяца не выводят из сквозного вида');
+    assert.match(fnBody('onStripChange'), /leaveScope\(mon, S\.stateFilter\);/,
+        'выбор месяца в полосе не выводит из сквозного вида');
     assert.match(fnBody('setStateFilter'), /if \(S\.scope\) \{ leaveScope\(S\.month, next\); return; \}/,
         'крестик чипа не возвращает план месяца');
     assert.match(fnBody('setView'), /S\.view === 'calendar' && S\.scope\) \{ leaveScope/, 'календарь в сквозном виде');
@@ -1678,7 +1703,7 @@ test('вид — страница: календарь /content-plan (главн�
     assert.match(js, /window\.addEventListener\('popstate'/);
     // Маршруты: подстраница таблицы, старый ?view=table и сквозной ?state= без месяца ведут на неё.
     assert.match(routes, /@content_plan_bp\.route\('\/content-plan\/table'\)/);
-    assert.match(routes, /return redirect\(url_for\('content_plan\.content_plan_table_page', \*\*args\)\)/);
+    assert.match(routes, /return redirect\(url_for\('content_plan\.content_plan_table_page'\) \+ _query\(rest\)\)/);
     // Ссылки полосы «Требует внимания» — сразу на таблицу (вид по всем месяцам есть только у неё).
     const strip = read('templates/shared/guest_hub_strip.html');
     assert.match(strip, /\/content-plan\/table\?state=failed/);
@@ -1897,6 +1922,228 @@ test('«На другие бары»: бары, где пост уже есть,
     assert.match(fnBody('dtTarget'), /var bc = node\.getAttribute\('data-bc'\);/);
     assert.match(fnBody('secMore'), /'тип, перенос, повтор, другие бары, удаление'/);
 });
+
+// ==================== 2026-11-01: бар и месяц — из полосы «Бар и период» ====================
+// Страница исполняется целиком (init) с настоящими common.js и period_core.js, поддельной
+// полосой window.KStrip и поддельным DOM: проверяется, какой месяц уходит в запрос, что
+// перечитывается при выборе в полосе и что страница пишет в полосу и в адрес.
+
+class StubEl {
+    constructor(tag, id) {
+        this.tagName = String(tag || 'div').toUpperCase();
+        this.id = id || '';
+        this.attrs = {};
+        this.listeners = {};
+        this.hidden = false;
+        this.disabled = false;
+        this.value = '';
+        this.textContent = '';
+        this.innerHTML = '';
+        this.style = {};
+        this.children = [];
+        this.parentNode = null;
+        const set = new Set();
+        this.classList = {
+            add: (...c) => c.forEach((x) => set.add(x)),
+            remove: (...c) => c.forEach((x) => set.delete(x)),
+            toggle: (c, on) => { const v = on === undefined ? !set.has(c) : !!on; if (v) set.add(c); else set.delete(c); return v; },
+            contains: (c) => set.has(c),
+        };
+    }
+    setAttribute(n, v) { this.attrs[n] = String(v); }
+    getAttribute(n) { return n in this.attrs ? this.attrs[n] : null; }
+    hasAttribute(n) { return n in this.attrs; }
+    removeAttribute(n) { delete this.attrs[n]; }
+    addEventListener(t, f) { (this.listeners[t] = this.listeners[t] || []).push(f); }
+    removeEventListener() {}
+    get firstChild() { return this.children[0] || null; }
+    contains(x) { return x === this || this.children.some((c) => c.contains(x)); }
+    closest() { return null; }
+    querySelector() { return new StubEl('div'); }
+    querySelectorAll() { return []; }
+    appendChild(c) { this.children.push(c); c.parentNode = this; return c; }
+    removeChild(c) { this.children = this.children.filter((x) => x !== c); c.parentNode = null; return c; }
+    focus() {}
+    getBoundingClientRect() { return { top: 0, left: 0, right: 0, bottom: 0, width: 0, height: 0 }; }
+}
+
+const monthP = (ym) => {
+    const days = new Date(Number(ym.slice(0, 4)), Number(ym.slice(5, 7)), 0).getDate();
+    return { granularity: 'month', start: `${ym}-01`, end: `${ym}-${days}`, key: `${ym}-01_${ym}-${days}` };
+};
+
+// Поддельная полоса: то же поведение, что static/js/shared/period/scope_strip.js для страницы —
+// выбор в полосе снимает её подпись и сообщает onChange; setPeriod — выбор из кода страницы.
+function fakeStrip({ period, bar = '', note = '' }) {
+    const listeners = [];
+    const emit = (e) => listeners.forEach((fn) => fn(e));
+    return {
+        state: { bar, period }, notes: [], chosen: [], shown: [], bars: [],
+        config: { note },
+        get() { return { bar: this.state.bar, period: this.state.period }; },
+        onChange(fn) { listeners.push(fn); },
+        setNote(t) { this.notes.push(t); },
+        showPeriod(p) { this.shown.push(p); this.state.period = p; },
+        setPeriod(p) {
+            this.chosen.push(p);
+            if (p.key === (this.state.period && this.state.period.key)) return;
+            this.state.period = p;
+            this.notes.push('');
+            emit({ type: 'period', period: p, bar: this.state.bar, cause: 'user' });
+        },
+        setBar(k) {
+            this.bars.push(k);
+            const changed = k !== this.state.bar;
+            this.state.bar = k;
+            this.notes.push('');
+            if (changed) emit({ type: 'bar', bar: k, period: this.state.period, cause: 'user' });
+        },
+        // Выбор человека в полосе (cause user) или в другой вкладке (external).
+        fire(e) {
+            if (e.period) this.state.period = e.period;
+            if (e.bar !== undefined) this.state.bar = e.bar;
+            if (e.cause !== 'external') this.notes.push('');
+            emit(e);
+        },
+    };
+}
+
+const periodCore = read('static/js/shared/period/period_core.js');
+const planPayload = (month, extra = {}) => ({
+    month, today: '2026-11-01', now: '2026-11-01T12:00', materials: [], stats: { materials: 0, placements: 0, by_state: {} },
+    states: [], delivery: deliveryFixture(), ...extra,
+});
+const flush = () => new Promise((r) => setTimeout(r, 0));
+
+// Поднимает страницу: common.js + period_core.js + content_plan.js; respond(url) -> тело ответа.
+function bootCp({ path = '/content-plan', search = '', view = 'calendar', strip = null, respond } = {}) {
+    const ids = {};
+    const urls = [];
+    const calls = [];
+    const location = { pathname: path, search, hash: '' };
+    const history = {
+        replaceState: (s, t, url) => { urls.push(url); location.search = url.indexOf('?') >= 0 ? url.slice(url.indexOf('?')) : ''; },
+        pushState: (s, t, url) => { urls.push(url); },
+    };
+    const body = new StubEl('body');
+    body.setAttribute('data-cp-view', view);
+    body.setAttribute('data-is-admin', 'true');
+    const document = {
+        readyState: 'complete', body, documentElement: new StubEl('html'), activeElement: null,
+        visibilityState: 'visible', cookie: '',
+        getElementById(id) { if (!ids[id]) ids[id] = new StubEl('div', id); return ids[id]; },
+        createElement: (t) => new StubEl(t),
+        addEventListener() {}, removeEventListener() {},
+        querySelector() { return null; }, querySelectorAll() { return []; },
+    };
+    const window = {
+        location, history, document, pageYOffset: 0, scrollTo() {}, innerWidth: 1280, innerHeight: 900,
+        localStorage: { getItem: () => null, setItem() {}, removeItem() {} },
+        addEventListener() {}, removeEventListener() {}, matchMedia: () => ({ matches: false }),
+    };
+    if (strip) window.KStrip = strip;
+    const answer = (url) => {
+        calls.push(url);
+        const body = respond ? respond(url) : null;
+        const text = JSON.stringify(body === undefined || body === null ? {} : body);
+        return Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve(text), json: () => Promise.resolve(JSON.parse(text)) });
+    };
+    const ctx = vm.createContext({
+        window, document, console, setTimeout, clearTimeout, Promise, JSON, Math, Date, Intl, URLSearchParams,
+        Error, String, Number, Object, Array, isFinite, encodeURIComponent, decodeURIComponent,
+        fetch: (url) => answer(url),
+    });
+    vm.runInContext(periodCore, ctx, { filename: 'period_core.js' });
+    vm.runInContext(common, ctx, { filename: 'common.js' });
+    vm.runInContext(js, ctx, { filename: 'content_plan.js' });
+    return { cp: window.__contentPlan, ids, urls, calls, window, location };
+}
+const planCalls = (calls) => calls.filter((u) => u.startsWith('/api/content-plan?'));
+
+asyncTests.push(['полоса: месяц плана — месяц полосы, выбор месяца перечитывает план, выбор бара — перерисовывает', async () => {
+    const strip = fakeStrip({ period: monthP('2026-12'), bar: 'ligovskiy' });
+    const page = bootCp({ strip, respond: (url) => (url.startsWith('/api/content-plan?') ? planPayload(url.slice(-7)) : {}) });
+    await flush();
+    assert.deepEqual(planCalls(page.calls), ['/api/content-plan?month=2026-12'], 'первый запрос — не месяц полосы');
+    assert.equal(page.cp.state.month, '2026-12');
+    assert.equal(page.cp.state.bar, 'ligovskiy', 'бар не из полосы');
+    strip.fire({ type: 'period', period: monthP('2027-01'), bar: 'ligovskiy', cause: 'user' });
+    await flush();
+    assert.equal(planCalls(page.calls).pop(), '/api/content-plan?month=2027-01', 'выбор месяца в полосе не перечитал план');
+    // Неделя из полосы (с другой страницы) — месяц её четверга: 26 окт – 1 ноя -> октябрь.
+    strip.fire({ type: 'period', period: { granularity: 'week', start: '2026-10-26', end: '2026-11-01', key: 'w' }, cause: 'external' });
+    await flush();
+    assert.equal(planCalls(page.calls).pop(), '/api/content-plan?month=2026-10', 'неделя — не месяц четверга');
+    const before = planCalls(page.calls).length;
+    strip.fire({ type: 'bar', bar: 'bolshoy', cause: 'user' });
+    await flush();
+    assert.equal(page.cp.state.bar, 'bolshoy');
+    assert.equal(planCalls(page.calls).length, before, 'смена бара перечитала месяц (фильтр бара — на экране)');
+    assert.ok(!page.urls.some((u) => /[?&]month=/.test(u)), `страница пишет ?month= в адрес: ${page.urls.join(' ')}`);
+}]);
+
+asyncTests.push(['сквозной вид: подпись «все месяцы» в полосе; выбор месяца в полосе выводит в месяц, выбор из другой вкладки — нет', async () => {
+    const strip = fakeStrip({ period: monthP('2026-11'), note: 'по месяцам — показан ноябрь 2026' });
+    const page = bootCp({
+        path: '/content-plan/table', search: '?state=overdue', view: 'table', strip,
+        respond: (url) => (url.startsWith('/api/content-plan?state=') ? planPayload('2026-11', { scope: 'state', state: 'overdue' })
+            : url.startsWith('/api/content-plan?') ? planPayload(url.slice(-7)) : {}),
+    });
+    await flush();
+    assert.deepEqual(planCalls(page.calls), ['/api/content-plan?state=overdue']);
+    assert.equal(page.cp.state.scope, 'state');
+    assert.equal(strip.notes[strip.notes.length - 1], 'все месяцы', 'нет подписи «все месяцы» в полосе');
+    // Бар в полосе снимает её подпись — сквозной вид ставит её обратно.
+    strip.fire({ type: 'bar', bar: 'bolshoy', cause: 'user' });
+    assert.equal(strip.notes[strip.notes.length - 1], 'все месяцы', 'после смены бара подпись пропала');
+    // Выбор из другой вкладки: сквозной вид остаётся, месяц для выхода — новый.
+    strip.fire({ type: 'period', period: monthP('2026-12'), cause: 'external' });
+    await flush();
+    assert.equal(page.cp.state.scope, 'state', 'выбор из другой вкладки закрыл сквозной вид');
+    assert.equal(planCalls(page.calls).length, 1);
+    // Выбор месяца в полосе: обычный месяц с тем же фильтром, даты месяца — в адресе.
+    strip.fire({ type: 'period', period: monthP('2027-01'), cause: 'user' });
+    await flush();
+    assert.equal(page.cp.state.scope, '');
+    assert.equal(page.cp.state.stateFilter, 'overdue', 'фильтр состояния не остался');
+    assert.equal(planCalls(page.calls).pop(), '/api/content-plan?month=2027-01');
+    assert.match(page.location.search, /date_from=2027-01-01&date_to=2027-01-31/, 'месяц не закреплён в адресе — F5 снова откроет все месяцы');
+    assert.equal(strip.notes[strip.notes.length - 1], '', 'подпись «все месяцы» осталась');
+}]);
+
+asyncTests.push(['?open= материала из другого месяца — месяц выбирается в полосе (общий выбор), план не грузится дважды', async () => {
+    const strip = fakeStrip({ period: monthP('2026-11') });
+    const page = bootCp({
+        search: '?open=m9', strip,
+        respond: (url) => (url.startsWith('/api/content-plan/materials/m9') ? { material: { id: 'm9', month: '2026-12', placements: [] } }
+            : url.startsWith('/api/content-plan?') ? planPayload(url.slice(-7)) : {}),
+    });
+    for (let i = 0; i < 6; i++) await flush();
+    assert.deepEqual(strip.chosen.map((p) => p.key), ['2026-12-01_2026-12-31'], 'месяц материала не выбран в полосе');
+    assert.deepEqual(planCalls(page.calls), ['/api/content-plan?month=2026-11', '/api/content-plan?month=2026-12'],
+        'план месяца материала загружен не один раз');
+}]);
+
+asyncTests.push(['маршрут: ?month=YYYY-MM -> 302 с датами месяца, сквозной вид — без периода в адресе', async () => {
+    assert.match(routes, /converted = month_link_query\(request\.args\)/, 'календарь не переводит ?month=');
+    assert.match(routes, /redirect_target\(url_for\('content_plan\.content_plan_table_page'\), request\.args\)/,
+        'таблица не переводит ?month=');
+    assert.match(routes, /has_period = bool\(args\.get\('date_from'\) or args\.get\('date_to'\)\)/);
+    const links = read('core/month_links.py');
+    assert.match(links, /def month_link_query\(args, keep=\(\)\):/);
+}]);
+
+for (const [name, fn] of asyncTests) {
+    try {
+        await fn();
+        passed++;
+        console.log(`  ok  ${name}`);
+    } catch (e) {
+        failed++;
+        console.log(`FAIL  ${name}`);
+        console.log(`      ${e && e.message}`);
+    }
+}
 
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed === 0 ? 0 : 1);

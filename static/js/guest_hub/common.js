@@ -5,14 +5,17 @@
      - запросы к API (GH.api) с понятными ошибками по-русски;
      - справочники: бары, площадки, дни недели, месяцы;
      - форматирование дат, чисел и длительностей (без обращения к серверу);
-     - общий фильтр бара между страницами раздела (localStorage 'gh.bar');
+     - бар — общий выбор сайта (полоса «Бар и период», window.KStrip / KScope;
+       без них — localStorage 'kultura.bar', старый 'gh.bar' читается);
      - тосты (действие — ссылка или кнопка), диалоги подтверждения и ввода,
        выдвижная карточка, меню (стрелки ходят по пунктам, у края окна меню
        само прижимается вправо), переключатель-сегменты;
      - всплывающие подсказки по data-tip: мышью — по наведению и фокусу,
        пальцем — тапом по кружку «?» (.gh-help), повторный тап закрывает;
-     - шапка (гамбургер) и полоса «требует внимания» (GH.loadAttention;
-       GH.onAttention отдаёт её ответ страницам);
+     - полоса «требует внимания» (GH.loadAttention; GH.onAttention отдаёт её
+       ответ страницам; при смене бара в полосе «Бар и период» — заново).
+       Карточка заголовка — общая для сайта (shared/nav.html), своей шапки у
+       раздела с 2026-11-01 нет;
      - GH.api(..., {keepalive: true}) — сохранение при уходе со страницы.
 
    Правила расчётов (детерминированные, без Math.round-сюрпризов):
@@ -304,12 +307,22 @@
         }
     }
 
-    // Общий фильтр бара: '' = все бары. Неизвестное значение читается как ''.
-    // Бар — один на весь сайт (план единого виджета): если общее меню подключило KScope
-    // (static/js/shared/period/scope.js, cookie kultura_bar), читаем и пишем через него — иначе
-    // выбор на «Маркетинге» не дошёл бы до дашборда. Без KScope — прежний localStorage.
+    // Бар: '' = все бары. Неизвестное значение читается как ''.
+    // Бар — один на весь сайт (план единого виджета). На странице с полосой «Бар и период»
+    // (window.KStrip) — бар полосы: ровно то, что видно в ней, в том числе после выбора в другой
+    // вкладке. Без полосы — общий выбор через KScope (static/js/shared/period/scope.js, cookie
+    // kultura_bar), иначе выбор на одной странице не дошёл бы до дашборда; без KScope — прежний
+    // localStorage.
+    function stripOnPage() {
+        return root.KStrip && typeof root.KStrip.get === 'function' ? root.KStrip : null;
+    }
     GH.getBar = function () {
         var v;
+        var strip = stripOnPage();
+        if (strip) {
+            v = strip.get().bar;
+            return findBar(v) ? v : '';
+        }
         if (root.KScope) {
             v = root.KScope.getBar();
             return findBar(v) ? v : '';
@@ -318,9 +331,16 @@
         if (v === null) v = storageGet(LEGACY_BAR_KEY);
         return findBar(v) ? v : '';
     };
-    // Сохраняет выбор и сам обновляет полосу «требует внимания».
+    // Сохраняет выбор и обновляет полосу «требует внимания». С полосой «Бар и период» — выбор
+    // в ней (как нажатие в её меню: сохраняется для сайта, полоса сообщает страницам через
+    // KStrip.onChange, счётчики перечитывает boot ниже).
     GH.setBar = function (key) {
         var v = findBar(key) ? key : '';
+        var strip = stripOnPage();
+        if (strip && typeof strip.setBar === 'function') {
+            strip.setBar(v);
+            return v;
+        }
         if (root.KScope) root.KScope.setBar(v, { url: false });
         else storageSet(BAR_STORAGE_KEY, v || 'all');
         if (byId('ghAttention')) GH.loadAttention();
@@ -1077,19 +1097,7 @@
         root.addEventListener('resize', hideTip);
     }
 
-    // ==================== шапка и «требует внимания» ====================
-
-    // Гамбургер шапки раздела открывает общий сайдбар: клик пробрасывается на
-    // скрытую кнопку #sidebar-toggle из shared/nav.html (как на /draft).
-    GH.initHeader = function () {
-        var burger = byId('ghBurger');
-        if (!burger || burger.getAttribute('data-gh-bound')) return;
-        burger.setAttribute('data-gh-bound', '1');
-        burger.addEventListener('click', function () {
-            var toggle = byId('sidebar-toggle');
-            if (toggle) toggle.click();
-        });
-    };
+    // ==================== «требует внимания» ====================
 
     var attnGen = 0;
     // Последний успешный ответ полосы: {bar, data}; null — ещё не пришёл или
@@ -1141,7 +1149,8 @@
         var my = ++attnGen;
         var bar = GH.getBar();
         var scope = node.querySelector('[data-attn-scope]');
-        if (scope) scope.textContent = bar ? GH.barName(bar) : 'Вся сеть';
+        // Вся сеть подписана одинаково на всём сайте — «Все бары» (ответ владельца Р6).
+        if (scope) scope.textContent = GH.barName(bar);
         return GH.api('GET', '/api/guest-hub/attention?bar=' + encodeURIComponent(bar)).then(
             function (data) {
                 if (my !== attnGen) return data;
@@ -1166,7 +1175,6 @@
 
     function boot() {
         installGlobals();
-        GH.initHeader();
         if (byId('ghAttention')) {
             GH.loadAttention();
             // Бар выбирают в общей полосе сайта (window.KStrip, общее меню): счётчики раздела
