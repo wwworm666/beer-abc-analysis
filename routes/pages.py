@@ -114,8 +114,13 @@ def suppliers():
 
 @pages_bp.route('/employee')
 def employee_dashboard():
-    """Страница детального дашборда по сотруднику"""
-    return render_template('employee.html', bars=BARS)
+    """Страница детального дашборда по сотруднику.
+
+    Бар и период — общая полоса сайта (шаблон объявляет kultura_strip, сервер —
+    core/scope.build_strip): своих календарей и списка баров у страницы нет, анализ считается
+    сразу при выборе сотрудника и смене бара или периода (docs/employee.md).
+    """
+    return render_template('employee.html')
 
 
 @pages_bp.route('/salary')
