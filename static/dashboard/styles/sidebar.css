@@ -345,8 +345,14 @@
         display: none;
     }
 
+    /* Подзаголовок на телефоне скрыт, сжимается сам заголовок: длинный («ABC/XYZ и потери: …»)
+       обрезается многоточием, а не наезжает на логотип. На компьютере сначала сжимается
+       подзаголовок (у него overflow: hidden), заголовок остаётся целым. */
     .header-bar-page {
         font-size: 1.1rem;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
 
     .header-bar-logo {

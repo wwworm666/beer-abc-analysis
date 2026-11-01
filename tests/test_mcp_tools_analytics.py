@@ -176,7 +176,7 @@ BAD_ARGS = [
                                           'metric': 'cardChecks'},
      'cardChecks — вкладка карточки cardChecksShare, а не карточка'),
     ('analytics_packaging', {'bar': 'ligovskiy', 'days': 30},
-     'ключ заведения вместо русского имени iiko: ответ «Нет данных»'),
+     'ключ заведения вместо русского имени iiko: схема держит одно написание'),
     ('analytics_discounts', {'bar': 'Лиговский'}, 'даты обязательны'),
     ('analytics_plan_save', dict(SAMPLE_ARGS['analytics_plan_save'], venue_key='all'),
      '«все заведения» — сумма баров, отдельно не планируется'),

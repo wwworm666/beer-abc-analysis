@@ -1,7 +1,6 @@
 from flask import Blueprint, request, jsonify
 import pandas as pd
 from datetime import datetime, timedelta
-from zoneinfo import ZoneInfo
 from core.olap_reports import OlapReports
 from core.packaging_analysis import PackagingAnalysis
 from core.packaging_loader import load_packaging
@@ -34,6 +33,25 @@ def _abc_bar(raw):
         return None
     row = site_bar(key) if key else None
     return row['iiko_name'] if row else raw
+
+
+def _days_window(raw):
+    """Окно ?days= без дат (агенты) -> (date_from, date_to) ISO или ValueError (ответ 400).
+
+    Последние N ПОЛНЫХ рабочих дней по вчера — как «Последние 30 дней» полосы на странице
+    (core/periods.last_days от последнего полного дня): сегодняшний неполный день в окно не
+    входит, иначе выручка дня делилась бы на неполную смену. Рабочие сутки бара — до 06:00 МСК
+    (msk_time.business_today). До 2026-11-01 окно было «с сегодня − N по сегодня» (N + 1 дат,
+    сегодняшний день неполный) — план единого виджета, этап 3. По умолчанию N = 30.
+    """
+    try:
+        days = int(raw if raw is not None else 30)
+    except (TypeError, ValueError):
+        raise ValueError('Поле days должно быть числом')
+    if days < 1:
+        raise ValueError('Поле days — от 1')
+    end = msk_time.business_today() - timedelta(days=1)
+    return (end - timedelta(days=days - 1)).isoformat(), end.isoformat()
 
 
 @analysis_bp.route('/api/packaging', methods=['POST'])
@@ -71,15 +89,10 @@ def analyze_packaging():
             # days разбирается только здесь: при явно переданных датах это поле
             # не используется, и мусор в нём не должен ронять валидный запрос.
             try:
-                days = int(data.get('days', 30))
-            except (TypeError, ValueError):
-                return jsonify({'error': 'Поле days должно быть числом'}), 400
-            # Московский день, а не UTC: иначе на UTC-хосте после 21:00 «сегодня»
-            # уезжает на сутки назад (тот же дефолт, что у /api/draft-kegs).
-            today = datetime.now(ZoneInfo('Europe/Moscow')).date()
-            date_to = today.strftime('%Y-%m-%d')
-            date_from = (today - timedelta(days=days)).strftime('%Y-%m-%d')
-            print(f"   Period: {days} dney (computed: {date_from} - {date_to})")
+                date_from, date_to = _days_window(data.get('days'))
+            except ValueError as e:
+                return jsonify({'error': str(e)}), 400
+            print(f"   Period: days (computed: {date_from} - {date_to})")
         else:
             print(f"   Period: {date_from} - {date_to}")
 
@@ -149,12 +162,9 @@ def analyze_kitchen():
 
         if not date_from or not date_to:
             try:
-                days = int(data.get('days', 30))
-            except (TypeError, ValueError):
-                return jsonify({'error': 'Поле days должно быть числом'}), 400
-            today = datetime.now(ZoneInfo('Europe/Moscow')).date()
-            date_to = today.strftime('%Y-%m-%d')
-            date_from = (today - timedelta(days=days)).strftime('%Y-%m-%d')
+                date_from, date_to = _days_window(data.get('days'))
+            except ValueError as e:
+                return jsonify({'error': str(e)}), 400
 
         try:
             if datetime.strptime(date_from, '%Y-%m-%d') > datetime.strptime(date_to, '%Y-%m-%d'):
@@ -204,22 +214,21 @@ def analyze_draft():
     try:
         data = request.json
         bar_name = data.get('bar')
-        days = int(data.get('days', 30))
         date_from = data.get('date_from')
         date_to = data.get('date_to')
 
         print(f"\n[DRAFT] Zapusk analiza razlivnogo piva...")
         print(f"   Bar: {bar_name if bar_name else 'VSE'}")
 
-        # Обработка дат: если переданы конкретные даты, используем их, иначе вычисляем.
-        # «Сегодня» — по Москве (core/msk_time), как у /api/packaging, /api/kitchen и
-        # /api/draft-kegs: прод-контейнер живёт в UTC, и с 00:00 до 03:00 МСК наивный
-        # datetime.now() сдвигал окно «последние N дней» на сутки назад.
+        # Обработка дат: если переданы конкретные даты, используем их, иначе — последние days
+        # полных рабочих дней по вчера (_days_window, как у /api/packaging, /api/kitchen и
+        # /api/draft-kegs).
         if not date_from or not date_to:
-            date_to_obj = msk_time.today()
-            date_from = (date_to_obj - timedelta(days=days)).strftime("%Y-%m-%d")
-            date_to = date_to_obj.strftime("%Y-%m-%d")
-            print(f"   Period: {days} dney (computed: {date_from} - {date_to})")
+            try:
+                date_from, date_to = _days_window(data.get('days'))
+            except ValueError as e:
+                return jsonify({'error': str(e)}), 400
+            print(f"   Period: days (computed: {date_from} - {date_to})")
         else:
             print(f"   Period: {date_from} - {date_to}")
 
@@ -592,15 +601,10 @@ def analyze_draft_kegs():
             # days разбирается только здесь: при явно переданных датах это поле
             # не используется, и мусор в нём не должен ронять валидный запрос.
             try:
-                days = int(data.get('days', 30))
-            except (TypeError, ValueError):
-                return jsonify({'error': 'Поле days должно быть числом'}), 400
-            # Тот же дефолт, что у остальных страниц: московский день, иначе на
-            # UTC-хосте после 21:00 «сегодня» уезжает на сутки назад.
-            today = datetime.now(ZoneInfo('Europe/Moscow')).date()
-            date_to = today.strftime('%Y-%m-%d')
-            date_from = (today - timedelta(days=days)).strftime('%Y-%m-%d')
-            print(f"   Period: {days} dney (computed: {date_from} - {date_to})")
+                date_from, date_to = _days_window(data.get('days'))
+            except ValueError as e:
+                return jsonify({'error': str(e)}), 400
+            print(f"   Period: days (computed: {date_from} - {date_to})")
         else:
             print(f"   Period: {date_from} - {date_to}")
 
