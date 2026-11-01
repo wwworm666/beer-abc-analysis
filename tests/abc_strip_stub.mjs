@@ -28,17 +28,22 @@ export const SITE_BARS = [
     { key: 'varshavskaya', name: 'Варшавская', short: 'Вар', iiko_name: 'Варшавская', bar_id: 'bar4' }
 ];
 
-// Полоса: get / onChange / barInfo / config — как у scope_strip.js; choose() — выбор в полосе,
-// как кликом: меняет бар или период и рассылает событие подписчикам.
-export function fakeStrip(K) {
+// Полоса: get / onChange / barInfo / setPeriod / config — как у scope_strip.js; choose() —
+// выбор в полосе, как кликом: меняет бар или период и рассылает событие подписчикам.
+// period — период полосы при открытии (по умолчанию последние 30 дней, как у ABC-страниц).
+export function fakeStrip(K, period) {
     const listeners = [];
-    const st = { bar: '', period: K.lastDays(30) };
+    const st = { bar: '', period: period || K.lastDays(30) };
+    const setCalls = [];
     return {
         get: () => ({ bar: st.bar, period: st.period }),
         onChange: (fn) => { listeners.push(fn); },
         barInfo: (key) => SITE_BARS.find((b) => b.key === key) || null,
         config: { allLabel: 'Все бары', bars: SITE_BARS },
         listeners,
+        setCalls,
+        // Выбор периода из кода страницы (открыт сохранённый отчёт) — как выбор в элементе.
+        setPeriod(p) { setCalls.push(p); this.choose({ period: p }); },
         choose(change) {
             const type = change.bar !== undefined ? 'bar' : 'period';
             if (change.bar !== undefined) st.bar = change.bar;
@@ -49,11 +54,13 @@ export function fakeStrip(K) {
 }
 
 // Ядро периодов и полоса — в песочницу страницы (до запуска abc_view.js и скрипта страницы).
-export function bootStrip(sandbox) {
+// step — правило открытия страницы: 'last30' (ABC) или 'week' (конструктор, эта неделя).
+export function bootStrip(sandbox, step) {
     new vm.Script(PERIOD_CORE, { filename: 'period_core.js' }).runInContext(sandbox);
     // Часы страницы — как их отдаёт сервер полосе (core/periods.page_config, живой iiko).
     sandbox.KPeriod.configure({ today: '2026-11-01', last_full_day: '2026-10-31', max_date: '2026-11-01' });
-    sandbox.KStrip = fakeStrip(sandbox.KPeriod);
+    const K = sandbox.KPeriod;
+    sandbox.KStrip = fakeStrip(K, step === 'week' ? K.currentPeriod('week') : K.lastDays(30));
     return sandbox.KStrip;
 }
 

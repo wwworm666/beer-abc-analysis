@@ -782,11 +782,14 @@ def _client():
     global _APP
     if _APP is None:
         from flask import Flask
+        from core.scope import init_scope
         from routes.explorer import explorer_bp
         app = Flask(__name__, template_folder=os.path.join(os.path.dirname(HERE), 'templates'))
         app.jinja_env.globals['app_version'] = 'test'
         app.secret_key = 'test'
         app.register_blueprint(explorer_bp)
+        # Как в app.py: страница объявляет полосу «Бар и период» (kultura_strip, core/scope.py).
+        init_scope(app)
         _APP = app
     return _APP.test_client()
 
@@ -854,6 +857,31 @@ def test_routes_saved_and_export_and_page():
     boot = json.loads(html.split('id="exBoot">', 1)[1].split('</script>', 1)[0])
     assert boot['default']['report_type'] == 'SALES'
     assert [p['id'] for p in boot['periods']] == list(olap_constructor.PERIOD_PRESETS)
+    # С 2026-11-01 период и бар — общая полоса сайта: своего меню периода и кнопки
+    # «Построить» нет, у отчёта по умолчанию нет своего периода, бар — фильтр по полю бара.
+    assert 'id="kultura-strip"' in html and '"step": "week"' in html
+    assert 'header-bar-page">Конструктор<' in html and 'header-bar-sub">OLAP-отчёты iiko' in html
+    for gone in ('exPerBtn', 'exPerMenu', 'exRun', 'exBurger', '>Построить<', 'type="date"'):
+        assert gone not in html, gone
+    assert 'period' not in boot['default']
+    assert boot['bar_fields'] == olap_catalog.BAR_FIELD
+    assert boot['bar_fields']['SALES'] == 'Store.Name' and boot['bar_fields']['STOCK'] is None
+
+
+def test_bar_field_is_a_value_filter_in_catalog():
+    """Поле бара (olap_catalog.BAR_FIELD) фильтруется списком значений: по нему страница
+    ставит фильтр бара, выбранного в полосе «Бар и период» (с 2026-11-01)."""
+    assert set(olap_catalog.BAR_FIELD) == set(olap_catalog.REPORT_TYPES)
+    checked = 0
+    for report_type, field_id in olap_catalog.BAR_FIELD.items():
+        path = olap_catalog._repo_path(report_type)
+        if not field_id or not path:
+            continue
+        fields = {f.id: f for f in olap_catalog.normalize(olap_catalog._read_json(path), report_type)}
+        assert fields[field_id].filter_op == 'values', (report_type, field_id)
+        assert fields[field_id].group, (report_type, field_id)
+        checked += 1
+    assert checked == 2, 'продажи и проводки — поля бара в снимках каталога'
 
 
 def teardown_module(module):
