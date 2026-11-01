@@ -548,6 +548,9 @@ button.tp-stat:focus-visible { outline: none; box-shadow: inset var(--tp-focus);
 .tp-barcard-row b { font-family: var(--tp-mono); font-weight: 600; color: var(--tp-ink); }
 .tp-barcard-row.is-warn, .tp-barcard-row.is-warn b { color: var(--tp-warn-ink); }
 .tp-barcard-foot { font-size: 13px; color: var(--tp-accent-ink); }
+/* Окно «Активность за 7 дней» датами — под своей строкой (gap карточки 12 px). */
+.tp-barcard-sub { margin-top: -10px; font-size: 12px; color: var(--tp-ink4); text-align: right; }
+.tp-barcard-sub:empty { display: none; }
 
 /* ==================== Связи с Untappd (/taps/untappd) ==================== */
 

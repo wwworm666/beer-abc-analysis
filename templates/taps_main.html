@@ -17,6 +17,10 @@
     <div class="container">
         {% set page_title = "Краны" %}
         {% set page_subtitle = "Что стоит на кранах в барах" %}
+        {#- Полоса «Бар и период» (план единого виджета, этап 6): страница «на сейчас»; выбран бар —
+            только его карточка, «Все бары» — все четыре (ответ владельца Р9). Сервер прячет чужие
+            карточки сразу, без мигания; смену бара в полосе подхватывает скрипт ниже. -#}
+        {% set strip = kultura_strip(mode='now') %}
         {% include 'shared/nav.html' %}
 
         <div class="tp">
@@ -28,7 +32,10 @@
             </div>
             <div class="tp-bars-grid">
                 {% for bar in bars %}
-                <a class="tp-panel tp-barcard" href="/taps/{{ bar.id }}" data-bar="{{ bar.id }}" data-taps="{{ bar.taps }}">
+                {#- Ключ бара полосы (bolshoy…) по номеру bar1…bar4 — из таблицы баров сайта. -#}
+                {% set site = strip.client.bars | selectattr('bar_id', 'equalto', bar.id) | first %}
+                {% set key = site.key if site else '' %}
+                <a class="tp-panel tp-barcard" href="/taps/{{ bar.id }}" data-bar="{{ bar.id }}" data-key="{{ key }}" data-taps="{{ bar.taps }}"{% if strip.bar and key != strip.bar %} hidden{% endif %}>
                     <h2>{{ bar.name }}</h2>
                     <div class="tp-meter" aria-hidden="true"><span style="width: 0%"></span></div>
                     <div class="tp-barcard-row"><span>Активных</span><b data-field="active">—</b></div>
@@ -37,6 +44,8 @@
                     <div class="tp-barcard-row" title="Доля кран-дней с подключённой кегой за последние 7 дней, включая сегодня">
                         <span>Активность за 7 дней</span><b data-field="activity">—</b>
                     </div>
+                    {#- Окно активности датами с сервера (activity_from / activity_to ответа). -#}
+                    <div class="tp-barcard-sub" data-field="activity-dates"></div>
                     <div class="tp-barcard-foot">Открыть краны</div>
                 </a>
                 {% endfor %}
@@ -45,9 +54,24 @@
     </div>
     <script src="/static/logo.js"></script>
     <script>
-        /* /taps: состояние кранов по барам из /api/taps/<bar>/stats (routes/taps.py). */
+        /* /taps: состояние кранов по барам из /api/taps/<bar>/stats (routes/taps.py).
+           Бар — общая полоса «Бар и период»: выбран бар — только его карточка (ответ Р9). */
         (function () {
             'use strict';
+            // Окно активности — датами с сервера, название — общим KPeriod, как в полосе.
+            function windowDates(fromIso, toIso) {
+                const K = window.KPeriod;
+                const start = K && fromIso ? K.fromISO(fromIso) : null;
+                const end = K && toIso ? K.fromISO(toIso) : null;
+                return start && end ? K.customPeriod(start, end).label : '';
+            }
+            function shownBar() { return window.KStrip ? KStrip.get().bar : ''; }
+            function visibleCards() {
+                const bar = shownBar();
+                const cards = Array.from(document.querySelectorAll('.tp-barcard'));
+                cards.forEach(card => { card.hidden = !!bar && card.dataset.key !== bar; });
+                return cards.filter(card => !card.hidden);
+            }
             async function load(card) {
                 const total = Number(card.dataset.taps);
                 const set = (field, value) => { card.querySelector('[data-field="' + field + '"]').textContent = value; };
@@ -58,6 +82,7 @@
                     set('active', data.active + ' из ' + (data.total || total));
                     set('empty', String(data.empty));
                     set('activity', data.activity_7d.toFixed(1).replace('.', ',') + '%');
+                    set('activity-dates', windowDates(data.activity_from, data.activity_to));
                     card.querySelector('.tp-meter span').style.width = Math.round(data.active / (data.total || total) * 100) + '%';
                     const row = card.querySelector('[data-row="unverified"]');
                     row.hidden = !data.unverified;
@@ -84,8 +109,11 @@
             }
             function loadAll() {
                 if (document.visibilityState !== 'visible') return;
-                document.querySelectorAll('.tp-barcard').forEach(load);
+                visibleCards().forEach(load);
                 loadLinks();
+            }
+            if (window.KStrip) {
+                KStrip.onChange(e => { if (e.type === 'bar') visibleCards().forEach(load); });
             }
             loadAll();
             setInterval(loadAll, 60000);

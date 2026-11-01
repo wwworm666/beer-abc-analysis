@@ -191,6 +191,8 @@ def test_window_days_from_snapshot():
         assert idx[(BAR_LIG, P_BOTTLE)]['avg_sales'] == 4.5      # 45 / 10
         # Первый приход 26.10 = today − 10 → граница окна, не новинка: 11 / 10.
         assert idx[(BAR_LIG, P_NEW)]['avg_sales'] == 1.1
+        # Окно — датами для подписи на странице (этап 6 плана единого виджета).
+        assert (d['window_days'], d['window_from'], d['window_to']) == (10, '2025-10-26', '2025-11-05')
 
 
 def test_invalid_bars_400():

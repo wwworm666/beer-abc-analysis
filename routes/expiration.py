@@ -18,7 +18,7 @@ from datetime import date, datetime
 
 from core.iiko_barcodes import get_barcode_map, invert_to_product_gtins
 from core.expiry_recommend import recommend
-from core.stock_consumption import WINDOW_DAYS, aggregate_consumption
+from core.stock_consumption import WINDOW_DAYS, aggregate_consumption, window_meta
 from core.stock_snapshot import get_stock_snapshot, get_stocks_nomenclature
 from extensions import BARS
 
@@ -187,6 +187,7 @@ def expiration_board():
     Ответ:
         {
             updated_at, chz_updated_at,
+            window_days, window_from, window_to — окно расхода снимка (ISO, включительно),
             kpi: {risk_rub, critical_count, surplus_units},
             tier_counts: {expired, critical, urgent, watch, fresh, unknown},
             calendar: [{date, risk_rub}, ...30],
@@ -396,6 +397,8 @@ def expiration_board():
         'updated_at': snapshot['fetched_at'],
         'chz_updated_at': chz_updated_at,
         'bars': [_ID_TO_BAR.get(b, b) for b in target_bar_ids],
+        # Окно расхода снимка датами — подпись на странице «расход за 30 дней: 2 окт – 1 ноя 2026».
+        **window_meta(snapshot),
         'kpi': {
             'risk_rub': int(round(risk_rub_total)),
             'critical_count': critical_count,

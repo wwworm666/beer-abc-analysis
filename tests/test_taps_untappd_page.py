@@ -39,12 +39,17 @@ ROUTES = _read('routes', 'taps.py')
 
 def test_page_opens_and_is_not_a_bar():
     import routes.pages as rp
+    from core.scope import init_scope
     app = Flask(__name__, template_folder=os.path.join(ROOT, 'templates'))
     app.register_blueprint(rp.pages_bp)
     app.context_processor(lambda: {'current_user': {'login': 'masha', 'is_admin': False}})
+    init_scope(app)   # полоса «Бар и период» (kultura_strip), как в app.py
     response = app.test_client().get('/taps/untappd')
     html = response.get_data(as_text=True)
     assert response.status_code == 200 and 'Связи с Untappd' in html and 'Бар не найден' not in html
+    # связи — на всю сеть: полоса «на сейчас», бар серый (этап 6 плана единого виджета)
+    assert 'id="kultura-strip" data-mode="now"' in html
+    assert 'disabled title="Страница на бары не делится"' in html and 'id="ks-bar-hint">вся сеть<' in html
     assert '/static/js/taps/untappd.js?v=' + rp.APP_VERSION in html
     # у страниц кранов теперь есть версия для сброса кэша (Safari держит старые bar.js и taps.css)
     main = app.test_client().get('/taps').get_data(as_text=True)

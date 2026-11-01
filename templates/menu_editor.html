@@ -99,6 +99,9 @@
 <div class="container">
     {% set page_title = "Редактор меню" %}
     {% set page_subtitle = "карточка сорта" %}
+    {#- Полоса «Бар и период» (план единого виджета, этап 6): меню одно на всю сеть — бар в полосе
+        серый («Все бары · вся сеть»), период — «сейчас». -#}
+    {% set strip = kultura_strip(mode='now', bar_mode='none', bar_hint='вся сеть') %}
     {% include 'shared/nav.html' %}
 
     <div class="me-grid">
@@ -155,6 +158,8 @@
           <div class="me-vol"><label class="me-vol-pick"><input type="checkbox" id="v-05" onchange="onVolToggle(this)"><span>0,5 л</span></label><input class="me-in" id="f-p05" type="number" min="0" placeholder="цена" oninput="paint()"></div>
           <div class="me-vol"><label class="me-vol-pick"><input type="checkbox" id="v-10" onchange="onVolToggle(this)"><span>1,0 л</span></label><input class="me-in" id="f-p10" type="number" min="0" placeholder="цена" oninput="paint()"></div>
           <div class="me-hint">Галка = объём на карточке (1–3 колонки, макет рассчитан на 3). Цена хранится и без галки.</div>
+          {#- Окно продаж для цен — датами (core/menu_pricing.price_window, то же окно, что у кнопки). -#}
+          <div class="me-hint" id="price-window">Кнопка «Обновить цены из iiko» в библиотеке берёт цену прайса из продаж за {{ price_window.days }} дней: {{ price_window.label }}.</div>
         </div>
 
         <div class="me-sec">

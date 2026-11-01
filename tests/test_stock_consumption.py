@@ -19,7 +19,7 @@ from datetime import date
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from core.stock_consumption import (WINDOW_DAYS, aggregate_consumption, format_period,  # noqa: E402
-                                    is_outgoing, new_stats, parse_ops_date, period_bounds)
+                                    is_outgoing, new_stats, parse_ops_date, period_bounds, window_meta)
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OPS_CACHE = os.path.join(ROOT, 'data', 'cache', 'store_operations_report.json')
@@ -75,6 +75,15 @@ def test_period_bounds_default_window():
 def test_period_bounds_custom_window():
     assert period_bounds(TODAY, 7) == (date(2025, 10, 29), TODAY)
     assert period_bounds(date(2026, 1, 3), 5) == (date(2025, 12, 29), date(2026, 1, 3))
+
+
+def test_window_meta_dates_for_page_label():
+    """Окно расхода снимка датами — те же границы, что у запроса iiko (period_bounds)."""
+    assert window_meta({'today': '2025-11-05', 'window_days': 30}) == {
+        'window_days': 30, 'window_from': '2025-10-06', 'window_to': '2025-11-05'}
+    assert window_meta({'today': '2026-01-03', 'window_days': 5})['window_from'] == '2025-12-29'
+    # без читаемой даты — без дат (страница пишет «за 30 дней»), а не выдуманные даты
+    assert window_meta({'today': None}) == {'window_days': WINDOW_DAYS, 'window_from': None, 'window_to': None}
 
 
 def test_format_period_iiko_v1():
