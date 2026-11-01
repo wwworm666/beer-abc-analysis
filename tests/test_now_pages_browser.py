@@ -197,6 +197,11 @@ def _scenario(sync_playwright, base):
         page.goto(base + '/yandex')                # выбор сохранён для сайта
         page.wait_for_selector('#yf-bars [aria-selected="true"]')
         assert page.get_attribute('#yf-bars [aria-selected="true"]', 'data-id') == 'bar2'
+        # Бар из ссылки на странице «по одному бару» — и последний бар таких страниц (Р4).
+        page.goto(base + '/yandex?bar=kremenchugskaya')
+        page.wait_for_selector('#yf-bars [aria-selected="true"]')
+        single = {c['name']: c['value'] for c in page.context.cookies()}.get(scope.COOKIE_BAR_SINGLE)
+        assert single == str(USER_ID) + '%3Akremenchugskaya', single
 
         browser.close()
     assert not errors, errors

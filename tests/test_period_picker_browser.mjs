@@ -172,6 +172,11 @@ await test('страница «на сейчас»: серая надпись, �
     assert.equal(await text(page, '#now .kp-sub'), 'данные на сейчас');
     assert.equal(await page.$eval('#now .kp-trigger', (el) => el.disabled), true);
     assert.equal(await page.$eval('#now .kp-prev', (el) => el.hidden), true);
+    // Скрыты и на экране: .kp-arrow { display: flex } без правила [hidden] показывал бы стрелки,
+    // которые ничего не делают (склад, сроки, температура — замечено на этапе 6).
+    for (const sel of ['#now .kp-prev', '#now .kp-next']) {
+        assert.equal(await page.$eval(sel, (el) => getComputedStyle(el).display), 'none', sel + ' видна');
+    }
 });
 
 await test('ошибок страницы нет', async () => {

@@ -52,7 +52,12 @@
     // Ссылка с периодом и баром делает их текущим выбором; иначе — продлить час выбранного периода.
     if (cfg.chosenSource === 'url' && cfg.chosen) S.setPeriod(cfg.chosen);
     else S.touchPeriod();
-    if (cfg.barSource === 'url') S.setBar(state.bar, { url: false });
+    if (cfg.barSource === 'url') {
+        S.setBar(state.bar, { url: false });
+        // Бар страницы «по одному бару» из ссылки (/taps/bar2, ?bar=) — и последний бар таких
+        // страниц (ответ Р4): иначе склад после крана бара открылся бы на прежнем баре.
+        if (cfg.barMode === 'single' && state.bar) S.setBarSingle(state.bar);
+    }
     // Адрес показывает выбранный период — ссылку можно скопировать. Без выбора адрес чистый, а
     // у помесячной страницы в адрес не идёт показанный месяц: по ссылке он стал бы выбором.
     if (cfg.chosen && cfg.mode === 'report') K.writeUrlPeriod(toPeriod(cfg.chosen));

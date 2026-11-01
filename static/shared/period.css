@@ -143,6 +143,7 @@
     box-shadow: var(--shadow-lg);
 }
 
+.kp-arrow[hidden],
 .kp-panel[hidden],
 .kp-backdrop[hidden] {
     display: none;
