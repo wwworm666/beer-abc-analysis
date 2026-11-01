@@ -233,7 +233,10 @@ export const THRESHOLDS = {
 
 // localStorage ключи
 export const STORAGE_KEYS = {
-    THEME: 'dashboard_theme',
+    // Один ключ темы на весь сайт — как в общем меню (shared/nav.html); прежний 'dashboard_theme'
+    // читается для перехода (modules/theme.js).
+    THEME: 'theme',
+    LEGACY_THEME: 'dashboard_theme',
     SELECTED_VENUE: 'dashboard_selected_venue',
     SELECTED_PERIOD: 'dashboard_selected_period'
 };

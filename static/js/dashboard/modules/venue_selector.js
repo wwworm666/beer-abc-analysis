@@ -25,7 +25,7 @@ class VenueSelector {
 
         try {
             await this.loadVenues();
-            this.setupEventListeners();
+            if (this.selectElement) this.setupEventListeners();
             this.initialized = true;
         } catch (error) {
             console.error('Ошибка инициализации VenueSelector:', error);
@@ -42,6 +42,9 @@ class VenueSelector {
         try {
             const venues = await getVenues();
             state.setVenues(venues);
+            // С 2026-11-01 бар выбирают в общей полосе сайта (templates/shared/scope_strip.html):
+            // скрытого select нет — список нужен только другим модулям (state.venues).
+            if (!this.selectElement) return;
             this.populateSelect(venues);
 
             // Установить выбранное заведение

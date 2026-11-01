@@ -670,3 +670,58 @@
         min-height: 44px;
     }
 }
+
+/* ============================================================
+   Полоса «Бар и период» (templates/shared/scope_strip.html) — та же шапка фильтров
+   дашборда (.filter-bar, .fb-*), плюс подпись страницы и подсветка выбора.
+   ============================================================ */
+
+/* «по месяцам — показан октябрь 2026», «Период из ссылки не распознан…». */
+.ks-note {
+    align-self: center;
+    padding: 0 12px;
+    font-size: 11.5px;
+    color: var(--warning);
+}
+
+.ks-menu-note {
+    padding: 8px 12px 4px;
+    border-top: 1px solid var(--border-light);
+    margin-top: 4px;
+    font-size: 11px;
+    color: var(--text-tertiary);
+}
+
+/* Страница на бары не делится: бар серый, меню нет. */
+.ks .fb-venue:disabled {
+    cursor: default;
+    opacity: 0.6;
+}
+
+.ks .fb-venue:disabled:hover {
+    background: transparent;
+}
+
+/* Выбор применён ко всему сайту: короткая подсветка рамки полосы. */
+@keyframes ks-applied {
+    0% { box-shadow: 0 0 0 0 var(--accent-light), var(--shadow-sm); border-color: var(--accent); }
+    100% { box-shadow: 0 0 0 6px transparent, var(--shadow-sm); border-color: var(--border-color); }
+}
+
+.ks--applied {
+    animation: ks-applied 0.7s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ks--applied {
+        animation: none;
+    }
+}
+
+@media (max-width: 768px) {
+    .ks-note {
+        order: 4;
+        flex: 1 1 100%;
+        padding: 0 4px 6px;
+    }
+}

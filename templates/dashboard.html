@@ -29,14 +29,10 @@
     <!-- Chart.js Library (локальная копия для ускорения загрузки) -->
     <script src="/static/libs/chart.umd.min.js"></script>
 
-    <!-- Стандарт периодов (docs/period-standard.md): даты страницы с сервера, общий элемент
-         «Период» и выбор бара на весь сайт. Обычные скрипты — до модулей дашборда. -->
+    <!-- Бар и период — общая полоса сайта (templates/shared/scope_strip.html): её стили и
+         скрипты (period_core.js, scope.js, period_picker.js, scope_strip.js) подключает общее
+         меню в начале страницы, до модулей дашборда; даты страницы — с сервера (core/scope). -->
     <link rel="stylesheet" href="/static/shared/period.css?v={{ app_version }}">
-    <script>window.DASHBOARD_PERIOD = {{ period_config | tojson }};</script>
-    <script src="/static/js/shared/period/period_core.js?v={{ app_version }}"></script>
-    <script src="/static/js/shared/period/scope.js?v={{ app_version }}"></script>
-    <script src="/static/js/shared/period/period_picker.js?v={{ app_version }}"></script>
-    <script>KPeriod.configure(window.DASHBOARD_PERIOD);</script>
 </head>
 <body>
 

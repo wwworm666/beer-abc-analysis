@@ -385,3 +385,34 @@
         font-size: 1.1rem;
     }
 }
+/* ============================================================
+   Переход между страницами (план единого виджета, раздел 3.8).
+   Карточка заголовка и полоса «Бар и период» стоят на месте, содержимое
+   под ними сменяется плавно: видно, что выбор бара и периода — один на весь
+   сайт. Cross-document View Transitions: Chrome, Edge, новые Safari; в
+   остальных браузерах — обычный переход. При «уменьшить движение» — без
+   анимации.
+   ============================================================ */
+
+@view-transition {
+    navigation: auto;
+}
+
+.header-bar {
+    view-transition-name: kultura-header;
+}
+
+#kultura-strip {
+    view-transition-name: kultura-strip;
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+    animation-duration: 0.18s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    @view-transition {
+        navigation: none;
+    }
+}

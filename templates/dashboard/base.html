@@ -3,42 +3,13 @@
 {% set page_title = "Дашборд" %}
 {% set page_subtitle = "Выручка, средний чек, эффективность смен" %}
 
-<div class="container">
-    {% include 'shared/nav.html' %}
-
-    <!-- ============================================================
-         Шапка фильтров (макет 5a/6a): ОДНА полоса, два выбора —
-         заведение и период. Период — общий элемент сайта по стандарту
-         docs/period-standard.md (шаг, сетка, быстрый выбор и свой период —
-         в его панели). На телефоне полоса разворачивается в две строки,
-         списки открываются снизу нижним листом.
-         ============================================================ -->
-    <div class="filter-bar" id="filter-bar">
-        <!-- Заведение. Данные по-прежнему держит скрытый <select>:
-             его наполняет modules/venue_selector.js, а меню — только вид над ним. -->
-        <button type="button" class="fb-item fb-venue" id="venue-trigger"
-                aria-haspopup="listbox" aria-expanded="false">
-            <svg class="fb-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M10 21v-5h4v5"/></svg>
-            <span class="fb-strong" id="venue-trigger-name">Все заведения</span>
-            <span class="fb-hint" id="venue-trigger-hint"></span>
-            <svg class="fb-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-        </button>
-        <select id="venue-selector" class="fb-native-select" aria-hidden="true" tabindex="-1">
-            <option value="">Загрузка...</option>
-        </select>
-
-        <span class="fb-divider"></span>
-
-        <!-- Период — общий элемент сайта (static/js/shared/period/period_picker.js, стандарт
-             docs/period-standard.md): стрелки, название с годом и пометкой «идёт», панель с шагом,
-             сеткой периодов, быстрым выбором и своим календарём. Разметку строит сам элемент. -->
-        <div class="fb-period" id="cg-period"></div>
-
-        <span class="fb-spacer"></span>
-        <span class="fb-divider fb-divider-export"></span>
-
-        <!-- Экспорт: на десктопе две текстовые кнопки, на телефоне одна иконка,
-             открывающая тот же выбор Excel/PDF нижним листом. -->
+{#- Полоса «Бар и период» — общая для сайта (templates/shared/scope_strip.html, план единого
+    виджета docs/planning/period-widget-rollout.md): бар и период — один выбор на все страницы;
+    без выбора — эта неделя (ответ владельца Р2). Справа — выгрузка дашборда: на компьютере две
+    кнопки, на телефоне одна иконка с тем же выбором Excel/PDF нижним листом (filter_menus.js). -#}
+{% set strip = kultura_strip(mode='report', step='week', live=True,
+                             freshness='Данные iiko — по сегодня, обновляются не реже раза в 10 минут') %}
+{% set strip_actions %}
         <div class="fb-export">
             <button type="button" class="fb-ghost" id="btn-export-excel" title="Экспорт в Excel">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
@@ -49,23 +20,10 @@
                 <span>PDF</span>
             </button>
         </div>
-
         <button type="button" class="fb-arrow fb-export-mobile" id="export-trigger"
                 aria-haspopup="menu" aria-expanded="false" aria-label="Выгрузка" title="Выгрузка">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
         </button>
-
-        <!-- Затемнение под нижний лист (только мобильный) -->
-        <div class="fb-backdrop hidden" id="fb-backdrop"></div>
-
-        <!-- Список заведений -->
-        <div class="fb-menu hidden" id="venue-menu" role="listbox" aria-labelledby="venue-trigger">
-            <span class="fb-grab"></span>
-            <span class="fb-menu-label">Заведение</span>
-            <div id="venue-option-list"></div>
-        </div>
-
-        <!-- Выгрузка (мобильный) -->
         <div class="fb-menu hidden" id="export-menu" role="menu" aria-labelledby="export-trigger">
             <span class="fb-grab"></span>
             <span class="fb-menu-label">Выгрузка</span>
@@ -76,7 +34,10 @@
                 <span class="fb-menu-name">PDF</span>
             </button>
         </div>
-    </div>
+{% endset %}
+
+<div class="container">
+    {% include 'shared/nav.html' %}
 
     <!-- Tabs Navigation -->
     <div class="tabs-container">

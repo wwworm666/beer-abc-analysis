@@ -1,5 +1,11 @@
 <!-- Shared Navigation: Sidebar + Header Bar -->
-{# Usage: set page_title = "Page", page_subtitle = "Sub", then include 'shared/nav.html' #}
+{# Usage: set page_title = "Page", page_subtitle = "Sub", then include 'shared/nav.html'.
+   Полоса «Бар и период» (план единого виджета): до общего меню
+       {% set strip = kultura_strip(mode='report', step='week') %}
+   и при необходимости {% set strip_actions %}кнопки страницы{% endset %}. #}
+{#- Тема — до первой отрисовки меню и заголовка: иначе тёмная тема мигала бы светлой при каждом
+    переходе (и в анимации перехода между страницами). -#}
+<script>(function(){try{var t=localStorage.getItem('theme')||localStorage.getItem('dashboard_theme');if(t&&t!=='light')document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
 
 <!-- Sidebar Navigation -->
 <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
@@ -245,6 +251,17 @@
         <span class="cursor">_</span>
     </a>
 </div>
+{#- Логотип — на всех страницах (раньше на шести он оставался пустым «>_»); logo.js
+    защищён от второго запуска, если страница подключает его сама. -#}
+<script src="/static/logo.js?v={{ kultura_static_version | default('') }}"></script>
+
+{#- Общий выбор бара и периода — на всех страницах: даже без полосы страница должна видеть и
+    сохранять выбор (раздел «Гости» пишет бар сюда же). -#}
+{#- default — шаблон рендерит и приложение без core.scope.init_scope (тесты страниц). -#}
+<script>window.KULTURA_SCOPE = {{ (kultura_scope | default({})) | tojson }};</script>
+<script src="/static/js/shared/period/scope.js?v={{ kultura_static_version | default('') }}"></script>
+<script>KScope.configure(window.KULTURA_SCOPE);</script>
+{% if strip %}{% include 'shared/scope_strip.html' %}{% endif %}
 
 <!-- Sidebar Script -->
 <script>
@@ -305,8 +322,8 @@
         if (theme === 'dark' && btns[1]) btns[1].classList.add('active');
     };
 
-    // Apply saved theme
-    var savedTheme = localStorage.getItem('theme') || 'light';
+    // Apply saved theme (прежний ключ дашборда — для перехода на один ключ)
+    var savedTheme = localStorage.getItem('theme') || localStorage.getItem('dashboard_theme') || 'light';
     if (savedTheme !== 'light') {
         window.dashboardSetTheme(savedTheme);
     }

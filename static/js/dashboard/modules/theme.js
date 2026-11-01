@@ -30,17 +30,10 @@ class ThemeManager {
      * Загрузить тему из localStorage
      */
     loadTheme() {
-        const saved = localStorage.getItem(STORAGE_KEYS.THEME);
-        if (saved) {
-            return saved;
-        }
-
-        // Проверяем системные настройки
-        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-            return 'dark';
-        }
-
-        return 'light';
+        // Одна тема на весь сайт: тот же ключ и то же правило, что в общем меню (shared/nav.html) —
+        // иначе при переходе между дашбордом и другими страницами тема переключалась бы.
+        const saved = localStorage.getItem(STORAGE_KEYS.THEME) || localStorage.getItem(STORAGE_KEYS.LEGACY_THEME);
+        return saved || 'light';
     }
 
     /**
@@ -89,7 +82,7 @@ class ThemeManager {
         // Слушаем изменения системных настроек
         if (window.matchMedia) {
             window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
-                if (!localStorage.getItem(STORAGE_KEYS.THEME)) {
+                if (!localStorage.getItem(STORAGE_KEYS.THEME) && !localStorage.getItem(STORAGE_KEYS.LEGACY_THEME)) {
                     // Если пользователь не выбирал тему вручную,
                     // следуем системным настройкам
                     this.applyTheme(e.matches ? 'dark' : 'light');

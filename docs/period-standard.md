@@ -132,7 +132,7 @@
 ```
 
 - **Название — всегда с годом:** «Октябрь 2026», «2026», неделя — «26 окт – 1 ноя 2026» (номер
-  недели мельче), свой период — «12 – 25 окт 2026», длинный — «01.03.2024 – 31.10.2026».
+  недели мельче), свой период — «12 – 25 окт 2026», длинный — «1 мар 2024 – 31 окт 2026».
 - **Неполный период подписан текстом** «идёт, по 29.10» — и на телефоне. Подсказки только при
   наведении не используются.
 - **Стрелки** шагают на один период текущего шага. › выключена на текущем периоде (кроме страниц,
@@ -319,37 +319,47 @@
 
 ## Файлы
 
-Стандарт (фазы 1–2, 2026-11-01):
+Стандарт (фазы 1–3 и этап 1 плана единого виджета, 2026-11-01):
 
 | Файл | Что делает |
 |---|---|
-| `core/periods.py` | Сервер: `Period` (шаг, `date_from`/`date_to` включительно, ключ, название, `to_meta`), `period_for`, `from_bounds` (шаг по границам), `shift`, `last_closed`, `current`, `last_days`, состояние и `cutoff`, подписи, `parse_period` (`date_from`/`date_to`, синоним `key`; ошибка — `PeriodError` → 400), `page_config(live, last_full_day, data_start)` |
-| `static/js/shared/period/period_core.js` | Страница: то же, что сервер (`window.KPeriod`), плюс часы страницы `configure(page_config)`, быстрый выбор `QUICK`, адрес `readUrlPeriod` / `writeUrlPeriod` |
-| `static/js/shared/period/period_picker.js` | Элемент «Период» (`window.KPeriodPicker.mount`) |
-| `static/js/shared/period/scope.js` | Бар на весь сайт (`window.KScope.getBar` / `setBar`, ключ `kultura.bar`, `?bar=`) |
-| `static/shared/period.css` | Стили элемента: компьютер — выпадающая панель, телефон — лист снизу |
-| `tests/fixtures/period_labels.json` | Общие примеры подписей, состояний и правил открытия — по ним проверяются и сервер, и страница |
-| `tests/test_periods.py`, `tests/test_period_core.mjs` | Тесты сервера и ядра страницы |
+| `core/periods.py` | Сервер: `Period` (шаг, `date_from`/`date_to` включительно, ключ, название, `to_meta`), `period_for`, `from_bounds`, `shift`, `last_closed`, `current`, `last_days`, `month_of` (месяц для страниц «только месяц», ответ Р3), состояние и `cutoff`, подписи, `parse_period` (`date_from`/`date_to`, синоним `key`; ошибка или перевёрнутые даты — `PeriodError` → 400), `page_config(live, last_full_day, data_start)`. Кварталов нет |
+| `core/scope.py` | Общий выбор бара и периода на сайт: cookie `kultura_period` (час, ответ Р1) и `kultura_bar` с номером пользователя, порядок «ссылка -> выбор -> правило страницы» (`resolve`, `page_default` — текущий период шага, ответ Р2), полоса страницы `build_strip` (подписи для первой отрисовки и настройки страницы); шаблонам — `kultura_strip(...)`, `kultura_scope` |
+| `core/venues_config.py` | Таблица баров сайта `SITE_BARS` (ключ, имя, короткое имя, имя iiko и варианты написания, bar1…bar4), `bar_key()` — любое написание бара к ключу, подпись всей сети `ALL_BARS_LABEL` («Все бары», ответ Р6) |
+| `templates/shared/scope_strip.html` | Полоса «Бар и период» (вид шапки фильтров дашборда); рисует общее меню `templates/shared/nav.html`, если страница объявила `strip` |
+| `static/js/shared/period/period_core.js` | Страница: то же, что сервер (`window.KPeriod`), плюс часы страницы `configure`, быстрый выбор `QUICK` и набор сайта `SITE_QUICK`, `monthOf`, свой период цифрами (`maskTyped`, `parseTyped`, `parseTypedRange`, `validateRange`), адрес `readUrlPeriod` / `writeUrlPeriod` |
+| `static/js/shared/period/period_picker.js` | Элемент «Период» (`window.KPeriodPicker.mount`): поля своего периода, календарь на два месяца с выбором месяца и года, «Сбросить выбор», режим «на сейчас» |
+| `static/js/shared/period/scope.js` | Общий выбор в браузере (`window.KScope`): cookie, копия бара `kultura.bar` для раздела «Гости», продление часа, сброс, подхват из других вкладок; подключается общим меню на всех страницах |
+| `static/js/shared/period/scope_strip.js` | Полоса на странице (`window.KStrip`: `get`, `onChange`, `showPeriod`, `setBar`, `setSteps`, `setNote`) |
+| `static/shared/period.css` | Стили элемента и полосы: компьютер — выпадающая панель, телефон — лист снизу |
+| `static/dashboard/styles/sidebar.css` | Переход между страницами (View Transitions): карточка заголовка и полоса стоят на месте |
+| `tests/fixtures/period_labels.json` | Общие примеры подписей, состояний, правил открытия и `month_of` — по ним проверяются и сервер, и страница |
+| `tests/test_periods.py`, `tests/test_period_core.mjs`, `tests/test_scope.py`, `tests/test_scope_store.mjs`, `tests/test_period_picker_browser.mjs` | Тесты сервера, ядра, общего выбора, хранилища в браузере и элемента в настоящем браузере |
 
-Как подключить страницу (фазы 4–8):
-1. Маршрут кладёт в шаблон `period_config=periods.page_config(...)`: живые данные iiko — `live=True`;
-   витрина с ночной загрузкой — `live=False, last_full_day=..., data_start=...`.
-2. Шаблон: `period.css`, затем обычными скриптами `period_core.js`, `scope.js`, `period_picker.js` и
-   `KPeriod.configure(window.<PAGE>_PERIOD)` — до скриптов страницы.
-3. Страница: начальный период — `KPeriod.readUrlPeriod()` или правило открытия (`KPeriod.lastClosed(шаг)`,
-   `KPeriod.currentPeriod(шаг)`, `KPeriod.lastDays(N)`), затем
-   `KPeriodPicker.mount(контейнер, {steps, quick, value, allowFuture, urlSync: true, freshness, onChange})`.
-   Методы: `get()`, `set(period, {silent})`, `setSteps(steps, причина)`, `destroy()`.
-4. Запросы — `date_from` и `date_to` выбранного периода; сервер разбирает их `periods.parse_period`.
+Как подключить страницу к полосе (этапы 2–6 плана):
+1. Шаблон до общего меню объявляет полосу:
+   `{% set strip = kultura_strip(mode='report', step='week') %}` — `mode`: `report` (ровно выбранный
+   период), `monthly` (месяц выбранного, подпись в полосе), `now` (страница «на сейчас»); `step` —
+   шаг правила открытия (`day`, `week`, `month`, `year`, `last30`, `last_closed_month`); у витрины с
+   ночной загрузкой — `live=False, last_full_day=..., data_start=...`; ещё `steps`, `bar_mode`
+   (`all`, `single`, `none`), `allow_future`, `max_days` и `max_reason`, `freshness`.
+   Кнопки страницы справа — `{% set strip_actions %}…{% endset %}`.
+2. Своей разметки бара и периода у страницы нет: полосу рисует `templates/shared/nav.html`, скрипты
+   элемента подключает сама полоса.
+3. Страница берёт бар и период из `window.KStrip.get()` и слушает `KStrip.onChange(fn)`; запросы —
+   `date_from` и `date_to`, сервер разбирает их `periods.parse_period`.
 
-Пока не переведены: `static/js/guests/common.js` («Маркетинг»), `static/js/explorer/page.js`,
-`static/js/draft/draft.js`, `static/js/packaging/packaging.js`, `static/js/kitchen/kitchen.js`,
-`static/js/schedule/common.js`, `templates/{bonus,employee,goals,monthly_report}.html` и др. (таблица
-«Как сейчас»); сервер — `core/guest_analytics.resolve_period`, `core/olap_constructor.py` (пресеты),
-`core/weeks_generator.py`.
+Пока не переведены (этапы 2–6 плана): «Маркетинг» (`static/js/guests/common.js`), конструктор,
+розлив, фасовка, кухня, ежемесячный отчёт, сотрудники, зарплата, цели, график, «Мои смены», чистота,
+контент-план, отзывы и страницы «на сейчас»; сервер — `core/guest_analytics.resolve_period`,
+`core/olap_constructor.py` (пресеты), `core/weeks_generator.py`.
 
 ## Changelog
 
+- **2026-11-01 (6)** — Этап 1 плана единого виджета: кварталов нет, `month_of`, перевёрнутые даты — 400;
+  свой период цифрами и календарь с выбором года; общий выбор бара и периода (`core/scope.py`, cookie с
+  номером пользователя, час — период); полоса «Бар и период» в общем меню, дашборд на ней; переход
+  между страницами без мигания; раздел «Файлы» и «Как подключить страницу».
 - **2026-11-01 (5)** — Ответы владельца на Р1–Р10: период помнится час, у каждого пользователя свой;
   без выбора — текущий период шага страницы (раздел 3 и таблица «Страницы»); тяжёлые страницы
   считают сразу.

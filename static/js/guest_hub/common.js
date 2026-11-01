@@ -305,15 +305,24 @@
     }
 
     // Общий фильтр бара: '' = все бары. Неизвестное значение читается как ''.
+    // Бар — один на весь сайт (план единого виджета): если общее меню подключило KScope
+    // (static/js/shared/period/scope.js, cookie kultura_bar), читаем и пишем через него — иначе
+    // выбор на «Маркетинге» не дошёл бы до дашборда. Без KScope — прежний localStorage.
     GH.getBar = function () {
-        var v = storageGet(BAR_STORAGE_KEY);
+        var v;
+        if (root.KScope) {
+            v = root.KScope.getBar();
+            return findBar(v) ? v : '';
+        }
+        v = storageGet(BAR_STORAGE_KEY);
         if (v === null) v = storageGet(LEGACY_BAR_KEY);
         return findBar(v) ? v : '';
     };
     // Сохраняет выбор и сам обновляет полосу «требует внимания».
     GH.setBar = function (key) {
         var v = findBar(key) ? key : '';
-        storageSet(BAR_STORAGE_KEY, v || 'all');
+        if (root.KScope) root.KScope.setBar(v, { url: false });
+        else storageSet(BAR_STORAGE_KEY, v || 'all');
         if (byId('ghAttention')) GH.loadAttention();
         return v;
     };

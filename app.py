@@ -1,6 +1,7 @@
 from flask import Flask, send_from_directory
 from routes import register_blueprints
 from core.auth_guard import init_auth
+from core.scope import init_scope
 import os
 import subprocess
 from datetime import datetime
@@ -33,6 +34,9 @@ register_blueprints(app)
 # под Caddy и глобальный гейт (всё закрыто, кроме /login, /static, манифеста и
 # Telegram-вебхука). Подключать ПОСЛЕ register_blueprints.
 init_auth(app)
+# Общий выбор бара и периода (полоса «Бар и период», docs/planning/period-widget-rollout.md):
+# шаблонам — kultura_strip(...) и kultura_scope.
+init_scope(app)
 
 
 # Ранняя проверка конфигурации: без iiko-кредов все iiko-фичи молча отвечают

@@ -1,5 +1,9 @@
 /* ===== kultura.os — Typewriter Logo ===== */
 (function () {
+    // Подключается и общим меню (shared/nav.html), и некоторыми страницами сами: второй запуск
+    // начал бы печатать логотип заново поверх первого.
+    if (window.__kulturaLogo) return;
+    window.__kulturaLogo = true;
     var FULL_TEXT = 'kultura.os';
     var CHAR_DELAY = 80;   // ms per character
     var START_DELAY = 300; // ms before typing starts

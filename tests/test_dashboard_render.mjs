@@ -501,44 +501,56 @@ test('нижняя таб-панель повторяет вкладки и со
     assert.ok(html.includes('id="bt-more"'), 'нет кнопки «Ещё»');
 });
 
-test('шапка фильтров: бар, общий элемент «Период», выгрузка', () => {
+test('полоса «Бар и период» — общая для сайта, старой шапки дашборда нет', () => {
     const html = read('templates/dashboard/base.html');
-    // Обязательные части полосы (макет 5a). Период — точка монтирования общего элемента.
-    for (const id of ['filter-bar', 'venue-trigger', 'venue-selector', 'cg-period',
-                      'venue-menu', 'export-menu', 'fb-backdrop']) {
+    // Дашборд объявляет полосу до общего меню (core/scope.build_strip), справа — выгрузка.
+    assert.ok(/kultura_strip\(mode='report', step='week'/.test(html), 'нет объявления полосы');
+    assert.ok(html.indexOf('kultura_strip(') < html.indexOf("include 'shared/nav.html'"), 'полоса объявлена после меню');
+    assert.ok(html.includes('{% set strip_actions %}'), 'выгрузка не в полосе');
+    for (const id of ['btn-export-excel', 'btn-export-pdf', 'export-trigger', 'export-menu']) {
         assert.ok(html.includes(`id="${id}"`), `нет элемента #${id}`);
     }
-    // Убранное не должно вернуться: сегменты, своя разметка периода, якорь Flatpickr.
-    for (const gone of ['data-granularity', 'period-today', 'period-sublabel',
-                        'dashboard-controls', 'control-group-period', 'period-menu',
-                        'period-preset-list', 'flexi-range-picker', 'period-trigger']) {
+    // Старая шапка ушла в общую полосу: своего списка заведений и точки монтирования периода нет.
+    for (const gone of ['id="filter-bar"', 'id="venue-trigger"', 'id="venue-selector"', 'id="cg-period"',
+                        'id="venue-menu"', 'data-granularity', 'flexi-range-picker', 'period-menu']) {
         assert.ok(!html.includes(gone), `в разметке осталось «${gone}»`);
     }
+    const nav = read('templates/shared/nav.html');
+    assert.ok(nav.includes("{% if strip %}{% include 'shared/scope_strip.html' %}{% endif %}"), 'меню не рисует полосу');
+    assert.ok(nav.includes('/static/js/shared/period/scope.js'), 'общий выбор не на всех страницах');
+    const strip = read('templates/shared/scope_strip.html');
+    for (const needle of ['id="kultura-strip"', 'id="ks-bar-trigger"', 'id="ks-bar-menu"', 'id="ks-period"',
+                          'id="ks-note"', 'Бар и период — общие для всех страниц',
+                          '/static/js/shared/period/period_core.js', '/static/js/shared/period/period_picker.js',
+                          '/static/js/shared/period/scope_strip.js', 'window.KULTURA_STRIP']) {
+        assert.ok(strip.includes(needle), `в полосе нет «${needle}»`);
+    }
+    // До запуска скрипта видно то же название, что нарисует элемент.
+    assert.ok(strip.includes('<span class="kp-title">{{ strip.title }}</span>'), 'название не рисует сервер');
 });
 
-test('стандарт периодов: даты страницы с сервера, общий элемент, без CDN-календаря', () => {
+test('стандарт периодов: даты с сервера, без своей копии элемента и CDN-календаря', () => {
     const page = read('templates/dashboard.html');
-    for (const needle of ['window.DASHBOARD_PERIOD = {{ period_config | tojson }}',
-                          '/static/shared/period.css', '/static/js/shared/period/period_core.js',
-                          '/static/js/shared/period/scope.js', '/static/js/shared/period/period_picker.js',
-                          'KPeriod.configure(window.DASHBOARD_PERIOD)']) {
-        assert.ok(page.includes(needle), `нет «${needle}»`);
+    assert.ok(page.includes('/static/shared/period.css'), 'нет стилей элемента');
+    // Скрипты элемента подключает общая полоса — своя копия дала бы второй экземпляр.
+    for (const gone of ['window.DASHBOARD_PERIOD', 'KPeriod.configure(window.DASHBOARD_PERIOD)',
+                        '/static/js/shared/period/period_picker.js']) {
+        assert.ok(!page.includes(gone), `шаблон снова подключает «${gone}»`);
     }
     assert.ok(!/flatpickr/i.test(page), 'календарь с CDN вернулся');
-    // Ядро — до модулей: модель дашборда читает window.KPeriod при импорте.
-    assert.ok(page.indexOf('period_core.js') < page.indexOf('type="module"'), 'ядро после модулей');
     // Экспорт подключает только main.js: второй адрес модуля давал двойную выгрузку.
     assert.ok(!page.includes('modules/export.js'), 'export.js снова грузится из шаблона');
-    const route = read('routes/pages.py');
-    assert.ok(route.includes('period_config=periods.page_config(live=True)'), 'нет дат страницы в маршруте');
     const state = read('static/js/dashboard/core/state.js');
-    assert.ok(state.includes('K.readUrlPeriod()') && state.includes('KScope.getBar()'),
-        'период не из адреса или бар не общий');
+    assert.ok(state.includes('window.KStrip.get().period') && state.includes('fromStrip'),
+        'состояние не берёт бар и период из полосы');
     const controls = read('static/js/dashboard/modules/period_controls.js');
-    assert.ok(controls.includes('KPeriodPicker.mount') && controls.includes('urlSync: true'),
-        'шапка не на общем элементе');
+    assert.ok(controls.includes('this.strip.onChange') && !controls.includes('KPeriodPicker.mount'),
+        'дашборд снова со своим элементом периода');
     assert.ok(controls.includes("'tab-plans': ['month', 'year']") && controls.includes('beforeSnap'),
         '«Планы» снова меняют период насовсем');
+    assert.ok(controls.includes('K.monthOf(period)') && controls.includes('showPeriod'),
+        '«Планы» не показывают месяц выбранного периода (ответ Р3) или меняют общий выбор');
+    assert.ok(!/quarter/.test(controls), 'кварталы вернулись');
     const cmp = read('static/js/dashboard/modules/comparison.js');
     assert.ok(cmp.includes('state.currentPeriod') && !cmp.includes('comparison-period-1'),
         '«Сравнение» снова со своими списками недель');
@@ -566,6 +578,8 @@ test('в разметке дашборда нет эмодзи', () => {
         'static/js/shared/period/period_core.js',
         'static/js/shared/period/period_picker.js',
         'static/js/shared/period/scope.js',
+        'static/js/shared/period/scope_strip.js',
+        'templates/shared/scope_strip.html',
         'static/shared/period.css',
         'templates/dashboard/comparison_tab.html'
     ];

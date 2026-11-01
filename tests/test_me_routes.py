@@ -28,6 +28,7 @@ import core.auth_manager as am  # noqa: E402
 import core.me_snapshot as ms  # noqa: E402
 import routes.me as rm  # noqa: E402
 from core.auth_guard import init_auth  # noqa: E402
+from core.scope import init_scope  # noqa: E402
 from core.me_identity import SNAPSHOT_SCHEMA  # noqa: E402
 from routes.auth import auth_bp  # noqa: E402
 from routes.me import me_bp  # noqa: E402
@@ -54,6 +55,9 @@ def _make_app():
     app.register_blueprint(auth_bp)
     app.register_blueprint(me_bp)
     init_auth(app)
+    # Как в app.py: общий выбор бара и периода (полоса «Бар и период», core/scope.py) — дашборд
+    # объявляет полосу через kultura_strip.
+    init_scope(app)
     return app
 
 
