@@ -136,7 +136,7 @@ window.Guests = (function () {
     function barList() {
         var s = strip();
         if (s && s.config && s.config.bars) return s.config.bars;
-        return window.GH ? window.GH.BARS : [];
+        return (window.GH && window.GH.BARS) || [];
     }
     function barName(key) {
         var row = barList().filter(function (b) { return b.key === key; })[0];
