@@ -155,6 +155,34 @@ class SalaryPageTest(PageRender):
         self.assertNotIn('const now = new Date();', src)
 
 
+class GoalsPageTest(PageRender):
+    def test_strip_monthly_with_future(self):
+        html = self.render('goals.html')
+        cfg = self.strip_config(html)
+        self.assertEqual((cfg['mode'], cfg['step'], cfg['barMode']), ('monthly', 'month', 'all'))
+        self.assertTrue(cfg['allowFuture'], 'цели скидывают заранее — будущие месяцы можно')
+        self.assertEqual(cfg['period']['step'], 'month')
+
+    def test_no_own_controls(self):
+        html = self.render('goals.html')
+        self.assert_no_own_period_controls(html, 'goals.html')
+        for needle in ('id="goal-month"', 'id="bar-tabs"', 'selectBar(', 'class="bar-tab'):
+            self.assertNotIn(needle, html)
+        strip_html = html[html.index('id="kultura-strip"'):html.index('window.KULTURA_STRIP')]
+        self.assertIn('window.print()', strip_html, '«Печать / PDF» — в полосе')
+
+    def test_wiring(self):
+        src = _read('templates/goals.html')
+        self.assertIn('loader = KStripRunner.create(', src)
+        self.assertIn('loader.now();', src)
+        self.assertIn("if (e.type === 'period') loader.schedule();", src)
+        self.assertIn("return (strip && strip.get().bar) || 'all';", src, 'все бары — все точки')
+        self.assertIn("BARS.filter(b => b.key === bar)", src)
+        self.assertIn('K.toISO(K.today())', src, '«сегодня» — рабочий день с сервера')
+        self.assertNotIn('new Date().toISOString()', src)
+        self.assertIn('.ks, .no-print', src, 'полоса не печатается')
+
+
 @unittest.skipIf(NODE is None, 'node не установлен')
 class NodeChecks(unittest.TestCase):
     def run_node(self, *args):
