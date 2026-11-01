@@ -81,7 +81,8 @@
     color: var(--accent);
 }
 
-.kp-title {
+.kp-title,
+.kp-title-c {
     overflow: hidden;
     font-size: 13.5px;
     font-weight: 600;
@@ -91,7 +92,8 @@
 }
 
 /* Вторая строка: «неделя 44», «идёт, по 29.10». Видна всегда, не только при наведении. */
-.kp-sub {
+.kp-sub,
+.kp-sub-c {
     min-width: 0;
     overflow: hidden;
     font-size: 11.5px;
@@ -100,8 +102,16 @@
     text-overflow: ellipsis;
 }
 
-.kp--partial .kp-sub {
+.kp--partial .kp-sub,
+.kp--partial .kp-sub-c {
     color: var(--warning);
+}
+
+/* Короткие подписи — только для полосы на телефоне (правило в конце файла). */
+.kp-title-c,
+.kp-sub-c,
+.ks-bar-short {
+    display: none;
 }
 
 .kp-caret {
@@ -550,6 +560,7 @@
 }
 
 .kp--disabled .kp-title,
+.kp--disabled .kp-title-c,
 .kp--disabled .kp-icon {
     color: var(--text-tertiary);
 }
@@ -743,5 +754,150 @@
         order: 4;
         flex: 1 1 100%;
         padding: 0 4px 6px;
+    }
+}
+
+/* ============================================================
+   Полоса на телефоне (до 480 px) — одна строка: бар | ‹ период › | действие страницы.
+   Макет утверждён владельцем 2026-11-01 («пиздец же интерфейс в мобильной версии»): полоса
+   занимала 2–3 строки (122 px, у страниц «на сейчас» — 154 px), а название периода обрезалось
+   («Октябрь 2…», «26 окт –…»). Теперь 60 px: бар — коротким именем (ВО, Лиг, Крем, Вар; вся сеть —
+   «Все бары»), период — коротким названием в две строки (periods.period_title_compact, вторая
+   строка — period_sub_compact), действие страницы — значком. Полные подписи — в меню и на
+   компьютере. У страницы «на сейчас» периода на телефоне нет (в нём нечего выбирать), бар —
+   полным именем на всю строку.
+   ============================================================ */
+@media (max-width: 480px) {
+    #kultura-strip {
+        flex-wrap: wrap;
+        gap: 6px;
+        padding: 6px;
+        margin-bottom: 12px;
+    }
+
+    #kultura-strip .fb-venue {
+        order: 1;
+        flex: 0 0 auto;
+        max-width: 124px;
+        height: 46px;
+        padding: 0 10px;
+        gap: 6px;
+    }
+
+    #kultura-strip .fb-venue #ks-bar-name,
+    #kultura-strip .fb-venue #ks-bar-hint,
+    #kultura-strip .fb-venue .fb-caret {
+        display: none;
+    }
+
+    #kultura-strip .ks-bar-short {
+        display: inline;
+        min-width: 0;
+        overflow: hidden;
+        font-size: 13px;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+    }
+
+    #kultura-strip .fb-period {
+        order: 2;
+        flex: 1 1 0;
+        min-width: 0;
+        height: 46px;
+        gap: 0;
+        padding: 0;
+    }
+
+    #kultura-strip .kp-arrow {
+        flex: none;
+        width: 30px;
+        height: 44px;
+    }
+
+    #kultura-strip .kp-trigger {
+        flex: 1 1 auto;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 1px;
+        min-width: 0;
+        min-height: 44px;
+        padding: 0 2px;
+    }
+
+    #kultura-strip .kp-trigger .kp-icon,
+    #kultura-strip .kp-trigger .kp-caret,
+    #kultura-strip .kp-trigger .kp-title,
+    #kultura-strip .kp-trigger .kp-sub {
+        display: none;
+    }
+
+    #kultura-strip .kp-title-c {
+        display: block;
+        max-width: 100%;
+        font-size: 13px;
+        line-height: 16px;
+    }
+
+    #kultura-strip .kp-sub-c {
+        display: block;
+        max-width: 100%;
+        font-size: 10.5px;
+        line-height: 12px;
+    }
+
+    #kultura-strip .kp-sub-c[hidden] {
+        display: none;
+    }
+
+    /* Действие страницы (выгрузка, обновить, печать) — один значок справа. */
+    #kultura-strip .fb-export-mobile,
+    #kultura-strip > .fb-ghost {
+        order: 3;
+        flex: none;
+        width: 46px;
+        height: 46px;
+        padding: 0;
+        justify-content: center;
+    }
+
+    #kultura-strip > .fb-ghost span {
+        display: none;
+    }
+
+    /* Подпись страницы («по месяцам — показан октябрь 2026») — тонкой строкой под полосой. */
+    #kultura-strip .ks-note {
+        order: 4;
+        flex: 1 1 100%;
+        padding: 0 6px 2px;
+        font-size: 11px;
+        line-height: 14px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    #kultura-strip[data-mode="now"] .fb-period {
+        display: none;
+    }
+
+    /* Страница на бары не делится (зарплата, «Я»): серая подпись бара на телефоне не нужна —
+       период на всю строку. У страницы «на сейчас» без баров (меню, приёмка) подпись остаётся:
+       кроме неё в полосе ничего нет. */
+    #kultura-strip[data-bar-mode="none"]:not([data-mode="now"]) .fb-venue {
+        display: none;
+    }
+
+    #kultura-strip[data-mode="now"] .fb-venue {
+        flex: 1 1 auto;
+        max-width: none;
+    }
+
+    #kultura-strip[data-mode="now"] .fb-venue #ks-bar-name {
+        display: inline;
+    }
+
+    #kultura-strip[data-mode="now"] .ks-bar-short {
+        display: none;
     }
 }

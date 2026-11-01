@@ -93,7 +93,9 @@
         this.root.innerHTML =
             '<button type="button" class="kp-arrow kp-prev" aria-label="Предыдущий период">' + ICON_PREV + '</button>' +
             '<button type="button" class="kp-trigger" aria-haspopup="dialog" aria-expanded="false">' + ICON_CAL +
-            '<span class="kp-title"></span><span class="kp-sub"></span>' + ICON_CARET + '</button>' +
+            '<span class="kp-title"></span><span class="kp-sub"></span>' +
+            // Короткие название и вторая строка — для полосы на телефоне (period.css, до 480 px).
+            '<span class="kp-title-c"></span><span class="kp-sub-c"></span>' + ICON_CARET + '</button>' +
             '<button type="button" class="kp-arrow kp-next" aria-label="Следующий период">' + ICON_NEXT + '</button>' +
             '<div class="kp-backdrop" hidden></div>' +
             '<div class="kp-panel" role="dialog" aria-label="Выбор периода" hidden></div>';
@@ -102,6 +104,8 @@
         this.trigger = this.root.querySelector('.kp-trigger');
         this.titleEl = this.root.querySelector('.kp-title');
         this.subEl = this.root.querySelector('.kp-sub');
+        this.titleCEl = this.root.querySelector('.kp-title-c');
+        this.subCEl = this.root.querySelector('.kp-sub-c');
         this.backdrop = this.root.querySelector('.kp-backdrop');
         this.panel = this.root.querySelector('.kp-panel');
         var self = this;
@@ -220,19 +224,26 @@
 
     Picker.prototype.render = function () {
         if (this.opts.disabled) {
-            this.titleEl.textContent = this.opts.disabledTitle || 'Сейчас';
-            this.subEl.textContent = this.opts.disabledSub || '';
-            this.subEl.hidden = !this.opts.disabledSub;
+            this.setTitle(this.opts.disabledTitle || 'Сейчас', this.opts.disabledSub || '',
+                          this.opts.disabledTitle || 'Сейчас');
             return;
         }
         var p = this.view;
-        this.titleEl.textContent = K.periodTitle(p);
-        var sub = K.periodSub(p);
-        this.subEl.textContent = sub;
-        this.subEl.hidden = !sub;
+        this.setTitle(K.periodTitle(p), K.periodSub(p), K.periodTitleCompact(p));
         this.root.classList.toggle('kp--partial', K.periodState(p) === 'partial');
         this.btnPrev.disabled = this.isDisabled(K.shiftPeriod(p, -1));
         this.btnNext.disabled = this.isDisabled(K.shiftPeriod(p, 1));
+    };
+
+    // Название и вторая строка — полные и короткие (полоса на телефоне показывает короткие).
+    Picker.prototype.setTitle = function (title, sub, titleCompact) {
+        this.titleEl.textContent = title;
+        this.subEl.textContent = sub;
+        this.subEl.hidden = !sub;
+        var subC = K.periodSubCompact(sub);
+        this.titleCEl.textContent = titleCompact;
+        this.subCEl.textContent = subC;
+        this.subCEl.hidden = !subC;
     };
 
     // ------------------------------------------------------------ панель

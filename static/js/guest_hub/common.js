@@ -1139,6 +1139,23 @@
         }
     }
 
+    // Значки на вкладках раздела (телефон, .gh-tab-n): сумма счётчиков из data-attn-badge,
+    // ноль и «нет данных» — без значка.
+    function fillBadges(data) {
+        var badges = doc && typeof doc.querySelectorAll === 'function'
+            ? doc.querySelectorAll('[data-attn-badge]') : [];
+        for (var i = 0; i < badges.length; i++) {
+            var keys = badges[i].getAttribute('data-attn-badge').split(' ');
+            var sum = 0;
+            for (var k = 0; k < keys.length; k++) {
+                var raw = data ? data[keys[k]] : null;
+                if (typeof raw === 'number' && isFinite(raw)) sum += raw;
+            }
+            badges[i].textContent = sum > 0 ? String(sum) : '';
+            badges[i].hidden = !(sum > 0);
+        }
+    }
+
     // Заполняет #ghAttention из /api/guest-hub/attention?bar=<GH.getBar()>.
     // Ошибку не показывает: полоса просто скрывается. -> Promise<data|null>.
     // Страницы раздела зовут её после каждого успешного изменения (ответ,
@@ -1155,6 +1172,7 @@
             function (data) {
                 if (my !== attnGen) return data;
                 fillAttention(node, data || {});
+                fillBadges(data || {});
                 node.classList.remove('is-loading');
                 node.hidden = false;
                 attnLast = { bar: bar, data: data || {} };
@@ -1164,6 +1182,7 @@
             function () {
                 if (my === attnGen) {
                     node.hidden = true;
+                    fillBadges(null);
                     attnLast = null;
                     notifyAttention();
                 }

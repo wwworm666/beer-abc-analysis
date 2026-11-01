@@ -66,18 +66,22 @@
                  переключает вид без перезагрузки (content_plan.js, setView). -->
             <div class="gh-filters-seg">
                 <nav class="gh-seg gh-cp-views" id="cpViewSeg" aria-label="Вид плана">
-                    <a class="gh-seg-btn{{ ' is-on' if cp_view != 'table' else '' }}" href="/content-plan" data-value="calendar"{{ ' aria-current="page"'|safe if cp_view != 'table' else '' }}>Календарь</a>
-                    <a class="gh-seg-btn{{ ' is-on' if cp_view == 'table' else '' }}" href="/content-plan/table" data-value="table"{{ ' aria-current="page"'|safe if cp_view == 'table' else '' }}>Таблица</a>
+                    <a class="gh-seg-btn{{ ' is-on' if cp_view != 'table' else '' }}" href="/content-plan" data-value="calendar" title="Календарь"{{ ' aria-current="page"'|safe if cp_view != 'table' else '' }}><svg class="gh-cp-ico" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><rect x="2" y="3" width="12" height="11" rx="2"/><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3"/></svg><span class="gh-cp-t">Календарь</span></a>
+                    <a class="gh-seg-btn{{ ' is-on' if cp_view == 'table' else '' }}" href="/content-plan/table" data-value="table" title="Таблица"{{ ' aria-current="page"'|safe if cp_view == 'table' else '' }}><svg class="gh-cp-ico" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M2.5 4h11M2.5 8h11M2.5 12h11"/></svg><span class="gh-cp-t">Таблица</span></a>
                 </nav>
             </div>
 
             <span class="gh-grow"></span>
 
             <div class="gh-filters-actions">
-                <button type="button" class="gh-btn gh-btn-primary gh-btn-outline" id="cpApproveBtn">Утвердить готовые</button>
-                <button type="button" class="gh-btn gh-btn-primary" id="cpAddBtn">
+                {#- На телефоне (до 480 px) — значками, подпись в aria-label (static/guest_hub/content_plan.css). -#}
+                <button type="button" class="gh-btn gh-btn-primary gh-btn-outline" id="cpApproveBtn" aria-label="Утвердить готовые">
+                    <svg class="gh-cp-ico" width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 7.5l3 3 6-7"/></svg>
+                    <span class="gh-cp-t">Утвердить готовые</span>
+                </button>
+                <button type="button" class="gh-btn gh-btn-primary" id="cpAddBtn" aria-label="Добавить материал">
                     <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M6 1.5v9M1.5 6h9" stroke-width="1.8" stroke-linecap="round"/></svg>
-                    Добавить материал
+                    <span class="gh-cp-t">Добавить материал</span>
                 </button>
             </div>
         </div>

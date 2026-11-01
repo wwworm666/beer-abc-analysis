@@ -123,6 +123,9 @@
 .churn-bucket-pick:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 /* Подсказка к порогу «Оттока» — сразу под переключателем; выбранный порог жирным. */
 .churn-hint { margin: -8px 0 0; }
+/* Копия подсказки внутри «Как считается» и единица «дней» в подписи порога — только на
+   телефоне (ниже). */
+.churn-hint-item, .sub-unit-l { display: none; }
 .churn-hint b { color: var(--text-secondary); }
 .churn-hint + .how-block { margin-bottom: 16px; }
 .churn-jump { margin-top: 12px; }
@@ -215,6 +218,25 @@
     .filter-bar #syncBtn { order: 2; flex: none; width: 44px; height: 44px; padding: 0;
         justify-content: center; border: 1px solid var(--border-color); border-radius: 12px; }
     .filter-bar #syncBtn span { display: none; }
+}
+
+/* Телефон (до 480 px) — макет мобильной версии, утверждён владельцем 2026-11-01: вкладки — одна
+   строка с прокруткой вбок (12 вкладок занимали пять рядов), порог — одной строкой, подсказка к
+   порогу — в «Как считается». */
+@media (max-width: 480px) {
+    .guests-tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 4px -20px 14px;
+        padding: 0 20px; -webkit-mask-image: linear-gradient(90deg, #000 88%, transparent);
+        mask-image: linear-gradient(90deg, #000 88%, transparent); }
+    .guests-tabs::-webkit-scrollbar { display: none; }
+    .guests-tabs .gtab-btn { flex: none; padding: 8px 14px; }
+    .sub-switch { flex-wrap: nowrap; align-items: center; }
+    /* Подпись сжимается и переносится, кнопки — всегда одной строкой и целиком. */
+    .sub-switch .sub-label { flex: 1 1 auto; min-width: 0; font-size: 0.72rem; line-height: 1.25; }
+    .sub-switch .sub-btn { flex: none; padding: 6px 10px; }
+    .sub-unit { display: none; }
+    .sub-unit-l { display: inline; }
+    .churn-hint { display: none; }
+    .churn-hint-item { display: block; }
 }
 
 @media (max-width: 700px) {

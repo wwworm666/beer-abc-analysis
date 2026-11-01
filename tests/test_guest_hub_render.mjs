@@ -146,7 +146,8 @@ test('полоса: вкладки раздела ведут на три стр�
                   ['reviews', '/reviews', 'Отзывы'],
                   ['guests', '/guests', 'Маркетинг']];
     for (const [key, href, label] of tabs) {
-        const re = new RegExp(`<a class="gh-tab\\{% if hub_active == '${key}' %\\} is-active\\{% endif %\\}" href="${href}"[^>]*>${label}</a>`);
+        // После подписи — значки счётчиков для телефона (<b class="gh-tab-n" data-attn-badge=…>).
+        const re = new RegExp(`<a class="gh-tab\\{% if hub_active == '${key}' %\\} is-active\\{% endif %\\}" href="${href}"[^>]*>${label}(<b class="gh-tab-n[^"]*" data-attn-badge="[a-z_ ]+" hidden></b>)*</a>`);
         assert.ok(re.test(strip), `вкладка ${label} (${key} -> ${href}) объявлена не так`);
     }
 });
@@ -177,6 +178,19 @@ function stripItems(src) {
     }
     return out;
 }
+
+test('телефон: счётчики — значками на вкладках, ключи значков — те же, что у полосы', () => {
+    const badges = [...strip.matchAll(/data-attn-badge="([a-z_ ]+)"/g)].map((m) => m[1]);
+    assert.deepEqual(badges, ['publications_today', 'delivery_errors overdue', 'reviews_unanswered'],
+        'значки: «Контент-план» — сегодня и (красным) ошибки + время вышло, «Отзывы» — без ответа');
+    for (const key of badges.join(' ').split(' ')) {
+        assert.ok(strip.includes(`data-attn="${key}"`), 'значок по ключу, которого нет у полосы: ' + key);
+    }
+    assert.ok(js.includes('function fillBadges') && js.includes('fillBadges(data || {})'),
+        'common.js не заполняет значки вместе со счётчиками');
+    assert.ok(/@media \(max-width: 480px\)[\s\S]*\.gh-embed \.gh-attn \{ display: none; \}/.test(css),
+        'на телефоне строка счётчиков не спрятана');
+});
 
 test('полоса «требует внимания»: #ghAttention, четыре счётчика со ссылками и подсказками', () => {
     assert.ok(strip.includes('id="ghAttention"'), 'нет #ghAttention');
