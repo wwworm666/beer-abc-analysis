@@ -14,6 +14,9 @@
 
 import { state } from '../core/state.js';
 
+// Кнопки списков этого модуля. Панель периода — отдельный общий элемент со своим закрытием.
+const OWN_TRIGGERS = '#venue-trigger, #export-trigger';
+
 class FilterMenus {
     constructor() {
         this.initialized = false;
@@ -68,7 +71,8 @@ class FilterMenus {
         document.addEventListener('click', (e) => {
             if (this.menu?.classList.contains('hidden') && this.exportMenu?.classList.contains('hidden')) return;
             if (e.target.closest('.fb-menu')) return;
-            if (e.target.closest('[aria-haspopup]')) return;
+            // Только свои кнопки: нажатие на «Период» (общий элемент) закрывает список баров.
+            if (e.target.closest(OWN_TRIGGERS)) return;
             this.closeAll();
         });
 
@@ -169,7 +173,7 @@ class FilterMenus {
 
     closeAll() {
         document.querySelectorAll('.fb-menu').forEach(m => m.classList.add('hidden'));
-        document.querySelectorAll('[aria-haspopup]').forEach(t => t.setAttribute('aria-expanded', 'false'));
+        document.querySelectorAll(OWN_TRIGGERS).forEach(t => t.setAttribute('aria-expanded', 'false'));
         this.backdrop?.classList.add('hidden');
     }
 }

@@ -164,13 +164,14 @@ export async function getAnalytics(venueKey, dateFrom, dateTo) {
 /**
  * Сравнить два периода
  */
-export async function comparePeriods(venueKey, period1, period2) {
+export async function comparePeriods(venueKey, period1Key, period2Key) {
+    // Сервер ждёт period1_key / period2_key ('YYYY-MM-DD_YYYY-MM-DD', routes/dashboard.py).
     return await fetchAPI(API.COMPARISON_PERIODS, {
         method: 'POST',
         body: JSON.stringify({
             venue_key: venueKey,
-            period1,
-            period2
+            period1_key: period1Key,
+            period2_key: period2Key
         })
     });
 }

@@ -1,0 +1,458 @@
+/* Элемент «Период» — один на сайте (docs/period-standard.md, раздел 4).
+   Разметку строит static/js/shared/period/period_picker.js. Цвета — переменные дизайн-системы
+   (static/dashboard/styles/variables.css), поэтому тёмная тема работает сама.
+   kp--strip — внутри полосы фильтров (дашборд): без своей рамки, как остальные контролы полосы.
+   На телефоне (до 768 px) панель — лист снизу, стрелки 44 px. */
+
+.kp {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    min-width: 0;
+    font-family: var(--font-family);
+}
+
+.kp:not(.kp--strip) {
+    padding: 4px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 14px;
+}
+
+.kp-arrow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    flex: none;
+    border: none;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.kp-arrow svg {
+    width: 13px;
+    height: 13px;
+}
+
+.kp-arrow:hover:not(:disabled) {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+/* Дальше границы данных листать некуда. */
+.kp-arrow:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.kp-trigger {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    min-width: 0;
+    padding: 8px 12px;
+    border: none;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--text-primary);
+    font-family: inherit;
+    cursor: pointer;
+    transition: background var(--transition-fast);
+}
+
+.kp-trigger:hover,
+.kp--open .kp-trigger {
+    background: var(--bg-tertiary);
+}
+
+.kp-icon {
+    width: 15px;
+    height: 15px;
+    flex: none;
+    color: var(--accent);
+}
+
+.kp-title {
+    overflow: hidden;
+    font-size: 13.5px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+/* Вторая строка: «неделя 44», «идёт, по 29.10». Видна всегда, не только при наведении. */
+.kp-sub {
+    min-width: 0;
+    overflow: hidden;
+    font-size: 11.5px;
+    color: var(--text-tertiary);
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.kp--partial .kp-sub {
+    color: var(--warning);
+}
+
+.kp-caret {
+    width: 10px;
+    height: 10px;
+    flex: none;
+    margin-left: 2px;
+    color: var(--text-tertiary);
+}
+
+.kp-trigger:focus-visible,
+.kp-arrow:focus-visible,
+.kp-panel button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+}
+
+/* --- Панель --- */
+
+.kp-backdrop {
+    display: none;
+}
+
+.kp-panel {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    z-index: 130;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 340px;
+    max-height: 70vh;
+    overflow-y: auto;
+    padding: 12px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 14px;
+    box-shadow: var(--shadow-lg);
+}
+
+.kp-panel[hidden],
+.kp-backdrop[hidden] {
+    display: none;
+}
+
+.kp-grab {
+    display: none;
+}
+
+.kp-steps {
+    display: flex;
+    gap: 2px;
+    padding: 3px;
+    background: var(--bg-tertiary);
+    border-radius: 10px;
+}
+
+.kp-step {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 7px 4px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-secondary);
+    font-family: inherit;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.kp-step.active {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    font-weight: 600;
+    box-shadow: var(--shadow-sm);
+}
+
+/* Причина, почему каких-то шагов нет на этой вкладке, — видимым текстом. */
+.kp-note {
+    padding: 8px 10px;
+    border-radius: 10px;
+    background: var(--warning-bg);
+    color: var(--text-secondary);
+    font-size: 11.5px;
+    line-height: 1.4;
+}
+
+.kp-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.kp-nav-btn {
+    width: 30px;
+    height: 30px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.kp-nav-btn:hover {
+    background: var(--bg-tertiary);
+}
+
+.kp-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.kp-grid {
+    display: grid;
+    gap: 4px;
+}
+
+.kp-grid--month { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.kp-grid--quarter { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.kp-grid--year { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+.kp-cell {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 9px 10px;
+    border: 1px solid transparent;
+    border-radius: 9px;
+    background: transparent;
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 12.5px;
+    text-align: left;
+    cursor: pointer;
+}
+
+.kp-grid .kp-cell {
+    justify-content: center;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+}
+
+.kp-cell small {
+    font-size: 10.5px;
+    color: var(--text-tertiary);
+}
+
+.kp-cell:hover:not(:disabled) {
+    background: var(--bg-tertiary);
+}
+
+.kp-cell.active {
+    border-color: var(--accent);
+    background: var(--accent-light);
+}
+
+.kp-cell.partial small {
+    color: var(--warning);
+}
+
+.kp-cell:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+
+.kp-quick {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border-light);
+}
+
+.kp-chip {
+    padding: 6px 11px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-pill);
+    background: transparent;
+    color: var(--text-secondary);
+    font-family: inherit;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.kp-chip:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.kp-chip.active {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: var(--text-on-accent);
+}
+
+.kp-custom {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 9px 10px;
+    border: none;
+    border-radius: 9px;
+    background: transparent;
+    color: var(--text-secondary);
+    font-family: inherit;
+    font-size: 12.5px;
+    cursor: pointer;
+}
+
+.kp-custom:hover {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+.kp-cal {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.kp-cal-hint {
+    font-size: 11.5px;
+    color: var(--text-tertiary);
+}
+
+.kp-cal-grid {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 2px;
+}
+
+.kp-cal-wd {
+    padding: 4px 0;
+    font-size: 10.5px;
+    text-align: center;
+    color: var(--text-tertiary);
+}
+
+.kp-day {
+    height: 34px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 12.5px;
+    cursor: pointer;
+}
+
+.kp-day.out {
+    color: var(--text-tertiary);
+}
+
+.kp-day.in {
+    background: var(--accent-light);
+}
+
+.kp-day.edge {
+    background: var(--accent);
+    color: var(--text-on-accent);
+}
+
+.kp-day:hover:not(:disabled):not(.edge) {
+    background: var(--bg-tertiary);
+}
+
+.kp-day:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.kp-cal-back {
+    justify-content: flex-start;
+}
+
+.kp-fresh {
+    padding-top: 8px;
+    border-top: 1px solid var(--border-light);
+    font-size: 11px;
+    color: var(--text-tertiary);
+}
+
+/* --- Телефон: лист снизу, крупные цели для пальца --- */
+
+@media (max-width: 768px) {
+    .kp-arrow {
+        width: 44px;
+        height: 44px;
+        border-radius: 11px;
+    }
+
+    .kp-arrow svg {
+        width: 15px;
+        height: 15px;
+    }
+
+    .kp-trigger {
+        flex: 1 1 auto;
+        justify-content: center;
+        min-height: 44px;
+    }
+
+    .kp-backdrop {
+        display: block;
+        position: fixed;
+        inset: 0;
+        z-index: 140;
+        background: var(--backdrop);
+    }
+
+    .kp-panel {
+        position: fixed;
+        top: auto;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 150;
+        width: auto;
+        max-height: 82vh;
+        padding: 10px 12px calc(16px + env(safe-area-inset-bottom, 0px));
+        border: none;
+        border-radius: 22px 22px 0 0;
+    }
+
+    .kp-grab {
+        display: block;
+        align-self: center;
+        width: 38px;
+        height: 4px;
+        border-radius: 999px;
+        background: var(--border-color);
+        flex: none;
+    }
+
+    .kp-step,
+    .kp-cell,
+    .kp-custom {
+        min-height: 44px;
+    }
+
+    .kp-day {
+        height: 42px;
+    }
+
+    .kp-chip {
+        padding: 9px 13px;
+    }
+}

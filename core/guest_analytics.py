@@ -411,6 +411,16 @@ def data_to(meta):
     return _last_full_day(meta.get('coverage_to'))
 
 
+def last_full_day(store):
+    """Последний полный день данных витрины (ISO) или None, если чеков нет.
+
+    По нему страница выбирает период при открытии (решение 2026-11-01): со «сегодня»
+    1-го числа открывался пустой месяц — данные в витрине только по вчерашний день, и
+    вкладки показывали «считать пока нечего».
+    """
+    return _last_full_day(store.coverage()['date_to'])
+
+
 def _cut_day(meta):
     """Последний полный день для дат среза, как в build_meta: без чеков — вчерашний рабочий."""
     return meta.get('data_to') or (msk_time.business_today() - timedelta(days=1)).isoformat()

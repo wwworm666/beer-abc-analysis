@@ -161,7 +161,8 @@ function loadGuests(opts) {
     };
     sandbox.window = sandbox;
     sandbox.globalThis = sandbox;
-    sandbox.GUESTS_CONFIG = { bars: ['Лиговский', 'Варшавская'] };
+    sandbox.GUESTS_CONFIG = Object.assign({ bars: ['Лиговский', 'Варшавская'] },
+                                          (opts && opts.config) || {});
     sandbox.window.GUESTS_CONFIG = sandbox.GUESTS_CONFIG;
     if (opts && opts.gh) sandbox.GH = opts.gh;
 
@@ -583,7 +584,7 @@ test('«Отток»: ущерб, подсказка к порогу и клик
             html.includes('всего 4, все с телефонами — в CSV') && html.includes('Другая группа'),
             'нет списка «Ушли»');
         // С баром: колонки «Любимая точка» нет (все визиты в нём), сравнения баров — тоже.
-        assert.ok(!html.includes('Любимая точка') && !html.includes('Бары рядом'),
+        assert.ok(!html.includes('<th>Любимая точка</th>') && !html.includes('<h3>Бары рядом'),
             'в режиме бара — колонка любимой точки или сравнение баров');
         assert.ok(html.includes('Сравнение баров — при выборе «Все бары».'), 'нет подсказки про «Все бары»');
         assert.ok(!html.includes('churn-more-btn'), '2 строки — без кнопки «Показать ещё»');
@@ -596,6 +597,13 @@ test('«Отток»: ущерб, подсказка к порогу и клик
         }
         assert.ok(html.includes('class="sub-btn active" data-range="24">2 года<'),
             'выбранная длина не подсвечена');
+        // Период выбирается вверху страницы; «Графики за» — у графиков, под «Динамикой».
+        const dyn = html.indexOf('Динамика по месяцам: июл 26 — авг 26');
+        assert.ok(dyn > 0, 'нет заголовка «Динамика» с периодами графиков');
+        assert.ok(html.indexOf('data-range=') > dyn && html.indexOf('data-range=') < html.indexOf('id="churnRateChart"'),
+            '«Графики за» не под заголовком «Динамика» над графиками');
+        assert.ok(html.indexOf('data-days=') < html.indexOf('class="metric-grid'),
+            'порог — вверху вкладки, над плитками');
         assert.ok(html.includes('/api/guests/churn-guests?period_type=month&anchor=2026-08-31' +
             '&store=ligovskiy&group=left&dead_days=30&export=csv'), 'нет выгрузки CSV по тем же условиям');
     });
@@ -762,8 +770,26 @@ test('«Отток»: будущий период — подпись вмест�
         assert.ok(!html.includes('pane-error'), 'вид упал на будущем периоде');
         assert.ok(html.includes('считать пока нечего'), 'нет подписи про будущий период');
         assert.ok(!html.includes('<h3>Кто уходит'), 'у будущего периода нечего разбирать');
-        assert.ok(!html.includes('Бары рядом'), 'у будущего периода нечего сравнивать');
+        assert.ok(!html.includes('<h3>Бары рядом'), 'у будущего периода нечего сравнивать');
+        assert.ok(!html.includes('id="churnRateChart"') && !html.includes('Динамика по'),
+            'у будущего периода графики с пустым концом спорят с подписью «считать нечего»');
+        assert.ok(html.includes('class="sync-btn churn-jump" data-day="2026-09-12">Открыть последний ' +
+            'период с данными (Июль 2026)<'), 'нет кнопки к последнему периоду с данными');
     });
+});
+
+test('страница открывается на периоде последнего полного дня, а не на сегодняшнем', () => {
+    const { sandbox, fetchCalls } = loadGuests({
+        views: ['static/js/guests/views-churn.js'], gh: makeGh('ligovskiy'), init: true,
+        config: { last_full_day: '2026-10-31' },
+        respond: churnRespond(Object.assign(metaOf('ligovskiy', 'Лиговский'), { period_type: 'month' }),
+                              churnData(churnRow())),
+    });
+    sandbox.Guests.activateTab('churn');
+    const first = fetchCalls.find((c) => String(c.url).startsWith('/api/guests/churn?'));
+    assert.equal(query(first.url).get('anchor'), '2026-10-31',
+        '1 ноября страница должна открыть октябрь (данные по 31.10), а не пустой ноябрь');
+    return later(() => {});
 });
 
 // ---------------------------------------------------------------- вкладка «LTV»

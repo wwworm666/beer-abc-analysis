@@ -1,43 +1,30 @@
 /**
  * Тесты модели периода дашборда (static/js/dashboard/core/period_model.js).
  *
- * Чистая арифметика дат, без DOM и без сети — запускается голым Node:
  *     node tests/test_period_model.mjs
  *
- * Что защищаем: границы гранулярностей, шаг стрелки, переход через границы
- * месяца/года, формат ключа периода и бейдж незавершённого периода.
+ * С 2026-11-01 модель дашборда — обёртка над общим ядром стандарта периодов
+ * (static/js/shared/period/period_core.js; его арифметика и подписи — tests/test_period_core.mjs).
+ * Здесь — то, что важно именно дашборду: обёртка отдаёт функции ядра, период по умолчанию —
+ * последняя закрытая неделя по учётному дню с СЕРВЕРА (не по часам устройства), месяц и год
+ * месячных вкладок, бейдж идущего периода, зажим числа при шаге по месяцам.
  */
 
 import assert from 'node:assert/strict';
-import {
-    CUSTOM,
-    PERIOD_PRESETS,
-    addDays,
-    addMonths,
-    changeGranularity,
-    customPeriod,
-    daysBetweenInclusive,
-    defaultPeriod,
-    detectGranularity,
-    formatSubLabel,
-    isoWeekNumber,
-    monthYearOf,
-    periodFor,
-    periodFromSelection,
-    periodHint,
-    periodProgress,
-    periodTitle,
-    pluralDays,
-    progressBadge,
-    matchPreset,
-    shiftPeriod,
-    startOfWeek,
-    toISO
-} from '../static/js/dashboard/core/period_model.js';
+import path from 'node:path';
+import { createRequire } from 'node:module';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+// Как на странице: ядро — обычным скриптом до модулей дашборда (window.KPeriod).
+globalThis.window = globalThis;
+const require = createRequire(import.meta.url);
+require(path.join(ROOT, 'static/js/shared/period/period_core.js'));
+const K = globalThis.KPeriod;
+const pm = await import(pathToFileURL(path.join(ROOT, 'static/js/dashboard/core/period_model.js')).href);
 
 let passed = 0;
 let failed = 0;
-
 function test(name, fn) {
     try {
         fn();
@@ -46,373 +33,55 @@ function test(name, fn) {
     } catch (e) {
         failed++;
         console.log(`FAIL  ${name}`);
-        console.log(`      ${e.message}`);
+        console.log(`      ${e && e.message}`);
     }
 }
+const d = (iso) => K.fromISO(iso);
 
-/** Локальная дата без сюрпризов таймзоны. */
-const D = (y, m, d) => new Date(y, m - 1, d);
-
-console.log('\n--- границы гранулярностей ---');
-
-test('день = сам себе период', () => {
-    const p = periodFor('day', D(2026, 8, 11));
-    assert.equal(p.start, '2026-08-11');
-    assert.equal(p.end, '2026-08-11');
-});
-
-test('неделя = понедельник..воскресенье', () => {
-    // 11.08.2026 — вторник
-    const p = periodFor('week', D(2026, 8, 11));
-    assert.equal(p.start, '2026-08-10');
-    assert.equal(p.end, '2026-08-16');
-});
-
-test('неделя от воскресенья берёт ПРЕДЫДУЩИЙ понедельник (ISO, не US)', () => {
-    // 16.08.2026 — воскресенье, оно закрывает неделю с 10.08
-    const p = periodFor('week', D(2026, 8, 16));
-    assert.equal(p.start, '2026-08-10');
-    assert.equal(p.end, '2026-08-16');
-});
-
-test('месяц = 1-е..последнее число', () => {
-    const p = periodFor('month', D(2026, 2, 17));
-    assert.equal(p.start, '2026-02-01');
-    assert.equal(p.end, '2026-02-28');
-});
-
-test('февраль високосного года = 29 дней', () => {
-    const p = periodFor('month', D(2028, 2, 5));
-    assert.equal(p.end, '2028-02-29');
-});
-
-test('год = 01.01..31.12', () => {
-    const p = periodFor('year', D(2026, 8, 11));
-    assert.equal(p.start, '2026-01-01');
-    assert.equal(p.end, '2026-12-31');
-});
-
-console.log('\n--- шаг стрелки ---');
-
-test('день назад', () => {
-    assert.equal(shiftPeriod(periodFor('day', D(2026, 8, 11)), -1).start, '2026-08-10');
-});
-
-test('день через границу месяца', () => {
-    const p = shiftPeriod(periodFor('day', D(2026, 9, 1)), -1);
-    assert.equal(p.start, '2026-08-31');
-});
-
-test('неделя назад = ровно 7 дней', () => {
-    const p = shiftPeriod(periodFor('week', D(2026, 8, 11)), -1);
-    assert.equal(p.start, '2026-08-03');
-    assert.equal(p.end, '2026-08-09');
-});
-
-test('месяц назад с 31-го не переполняет февраль', () => {
-    // Штатный Date.setMonth дал бы 03.03 — проверяем зажим числа.
-    const p = shiftPeriod(periodFor('month', D(2026, 3, 31)), -1);
-    assert.equal(p.start, '2026-02-01');
-    assert.equal(p.end, '2026-02-28');
-});
-
-test('addMonths зажимает число месяца', () => {
-    assert.equal(toISO(addMonths(D(2026, 1, 31), 1)), '2026-02-28');
-});
-
-test('месяц вперёд через границу года', () => {
-    const p = shiftPeriod(periodFor('month', D(2026, 12, 5)), 1);
-    assert.equal(p.start, '2027-01-01');
-    assert.equal(p.end, '2027-01-31');
-});
-
-test('год назад', () => {
-    const p = shiftPeriod(periodFor('year', D(2026, 5, 5)), -1);
-    assert.equal(p.start, '2025-01-01');
-    assert.equal(p.end, '2025-12-31');
-});
-
-test('произвольный период сдвигается на свою длину', () => {
-    const p = customPeriod(D(2026, 8, 1), D(2026, 8, 10)); // 10 дней
-    const back = shiftPeriod(p, -1);
-    assert.equal(back.start, '2026-07-22');
-    assert.equal(back.end, '2026-07-31');
-    assert.equal(daysBetweenInclusive(new Date(2026, 6, 22), new Date(2026, 6, 31)), 10);
-});
-
-test('шаг туда-обратно возвращает исходный период', () => {
-    for (const g of ['day', 'week', 'month', 'year']) {
-        const p = periodFor(g, D(2026, 8, 11));
-        const roundTrip = shiftPeriod(shiftPeriod(p, 1), -1);
-        assert.equal(roundTrip.start, p.start, `${g}: start`);
-        assert.equal(roundTrip.end, p.end, `${g}: end`);
+test('обёртка отдаёт функции общего ядра, а не свою копию', () => {
+    for (const name of ['periodFor', 'shiftPeriod', 'changeGranularity', 'periodTitle', 'toISO',
+                        'fromISO', 'monthYearOf', 'progressBadge', 'periodFromSelection']) {
+        assert.equal(pm[name], K[name], name);
     }
 });
 
-console.log('\n--- ключ периода ---');
-
-test('ключ = YYYY-MM-DD_YYYY-MM-DD для всех гранулярностей', () => {
-    for (const g of ['day', 'week', 'month', 'year']) {
-        const p = periodFor(g, D(2026, 8, 11));
-        assert.match(p.key, /^\d{4}-\d{2}-\d{2}_\d{4}-\d{2}-\d{2}$/, g);
-    }
+test('по умолчанию — последняя закрытая неделя по учётному дню с сервера', () => {
+    K.configure({ today: '2026-11-01', last_full_day: '2026-10-31', max_date: '2026-11-01' });
+    const p = pm.defaultPeriod();
+    assert.deepEqual([p.granularity, p.start, p.end], ['week', '2026-10-19', '2026-10-25'],
+        'воскресенье 1 ноября ещё идёт — неделя 26 окт – 1 ноя не закрыта');
+    K.configure({ today: '2026-11-02', last_full_day: '2026-11-01', max_date: '2026-11-02' });
+    assert.equal(pm.defaultPeriod().start, '2026-10-26', 'в понедельник закрыта прошлая неделя');
+    // Ночь на понедельник до 06:00 — ещё воскресенье: сервер отдаёт учётный день 1 ноября.
+    K.configure({ today: '2026-11-01', last_full_day: '2026-10-31', max_date: '2026-11-01' });
+    assert.equal(pm.defaultPeriod().start, '2026-10-19');
+    assert.equal(pm.toISO(pm.today()), '2026-11-01', '«сегодня» — с сервера');
 });
 
-test('ключ НЕ похож на ключ плана (YYYY-MM или venue_YYYY-MM)', () => {
-    // Иначе POST /api/comments/<venue>/<key> перезаписал бы боевой план.
-    for (const g of ['day', 'week', 'month', 'year']) {
-        const key = periodFor(g, D(2026, 8, 11)).key;
-        assert.ok(!/^\d{4}-\d{2}$/.test(key), `${g}: совпал с месячным ключом`);
-        assert.notEqual(key.length, 7, `${g}: длина 7 трактуется сервером как месяц`);
-    }
+test('название периода в шапке — с годом, неделя — датами', () => {
+    assert.equal(pm.periodTitle(pm.periodFor('week', d('2026-10-28'))), '26 окт – 1 ноя 2026');
+    assert.equal(pm.periodTitle(pm.periodFor('month', d('2026-10-28'))), 'Октябрь 2026');
 });
 
-test('ключ безопасен для имени файла экспорта', () => {
-    const key = periodFor('week', D(2026, 8, 11)).key;
-    assert.ok(!/[\\/:*?"<>|\s]/.test(key));
+test('месяц и год месячных вкладок — строка с ведущим нулём и число', () => {
+    assert.deepEqual(pm.monthYearOf(pm.periodFor('week', d('2026-03-04'))), { month: '03', year: 2026 });
 });
 
-console.log('\n--- дефолт и смена гранулярности ---');
-
-test('дефолт = последняя ЗАВЕРШЁННАЯ неделя', () => {
-    const now = D(2026, 8, 11);            // вторник
-    const p = defaultPeriod(now);
-    assert.equal(p.granularity, 'week');
-    assert.equal(p.start, '2026-08-03');   // пн предыдущей недели
-    assert.equal(p.end, '2026-08-09');     // вс предыдущей недели
-    assert.ok(new Date(p.end) < now, 'дефолтный период должен быть в прошлом');
+test('бейдж идущего периода — сколько дней прошло по последний доступный день', () => {
+    K.configure({ today: '2026-10-29', last_full_day: '2026-10-28', max_date: '2026-10-29' });
+    assert.equal(pm.progressBadge(pm.periodFor('month', d('2026-10-01'))), 'прошло 29 из 31 дня');
+    assert.equal(pm.progressBadge(pm.periodFor('month', d('2026-09-01'))), null, 'закрытый — без бейджа');
+    assert.equal(pm.progressBadge(pm.periodFor('month', d('2026-11-01'))), 'период ещё не начался');
 });
 
-test('дефолт в понедельник тоже даёт прошлую неделю', () => {
-    const p = defaultPeriod(D(2026, 8, 10));
-    assert.equal(p.start, '2026-08-03');
-    assert.equal(p.end, '2026-08-09');
+test('шаг по месяцам зажимает число: 31 января + 1 месяц = 28 февраля', () => {
+    assert.equal(pm.toISO(pm.addMonths(d('2026-01-31'), 1)), '2026-02-28');
+    assert.equal(pm.shiftPeriod(pm.periodFor('month', d('2026-01-31')), 1).end, '2026-02-28');
 });
 
-test('смена гранулярности вне текущего периода якорится на начало', () => {
-    const week = periodFor('week', D(2026, 3, 18));
-    const day = changeGranularity(week, 'day', D(2026, 8, 11));
-    assert.equal(day.start, '2026-03-16'); // понедельник той недели
+test('ключ периода — как у /api/weeks и комментариев: YYYY-MM-DD_YYYY-MM-DD', () => {
+    assert.equal(pm.periodFor('week', d('2026-10-28')).key, '2026-10-26_2026-11-01');
 });
 
-test('смена гранулярности внутри текущего периода якорится на сегодня', () => {
-    const now = D(2026, 8, 11);
-    const week = periodFor('week', now);
-    const day = changeGranularity(week, 'day', now);
-    assert.equal(day.start, '2026-08-11');
-});
-
-console.log('\n--- выбор в календаре ---');
-
-test('диапазон, совпавший с месяцем, распознаётся как месяц', () => {
-    assert.equal(detectGranularity(D(2026, 8, 1), D(2026, 8, 31)), 'month');
-});
-
-test('диапазон пн-вс распознаётся как неделя', () => {
-    assert.equal(detectGranularity(D(2026, 8, 10), D(2026, 8, 16)), 'week');
-});
-
-test('кривой диапазон остаётся произвольным', () => {
-    assert.equal(detectGranularity(D(2026, 8, 3), D(2026, 8, 20)), null);
-    const p = periodFromSelection(D(2026, 8, 3), D(2026, 8, 20), 'week');
-    assert.equal(p.granularity, CUSTOM);
-    assert.equal(p.start, '2026-08-03');
-    assert.equal(p.end, '2026-08-20');
-});
-
-test('одна дата при активном «Месяц» = весь месяц (якорь)', () => {
-    const p = periodFromSelection(D(2026, 8, 15), D(2026, 8, 15), 'month');
-    assert.equal(p.granularity, 'month');
-    assert.equal(p.start, '2026-08-01');
-    assert.equal(p.end, '2026-08-31');
-});
-
-test('одна дата при активном «День» = этот день', () => {
-    const p = periodFromSelection(D(2026, 8, 15), D(2026, 8, 15), 'day');
-    assert.equal(p.granularity, 'day');
-    assert.equal(p.start, '2026-08-15');
-});
-
-test('перевёрнутый диапазон нормализуется', () => {
-    const p = customPeriod(D(2026, 8, 20), D(2026, 8, 3));
-    assert.equal(p.start, '2026-08-03');
-    assert.equal(p.end, '2026-08-20');
-});
-
-console.log('\n--- незавершённый период ---');
-
-test('прошлый период считается завершённым, бейджа нет', () => {
-    const p = periodFor('week', D(2026, 8, 3));
-    assert.equal(progressBadge(p, D(2026, 8, 11)), null);
-    assert.equal(periodProgress(p, D(2026, 8, 11)).isComplete, true);
-});
-
-test('текущая неделя: прошло 2 из 7 дней', () => {
-    const p = periodFor('week', D(2026, 8, 11)); // 10..16 авг
-    const prog = periodProgress(p, D(2026, 8, 11));
-    assert.equal(prog.elapsed, 2);   // 10-е и 11-е
-    assert.equal(prog.total, 7);
-    assert.equal(prog.isComplete, false);
-    assert.equal(progressBadge(p, D(2026, 8, 11)), 'прошло 2 из 7 дней');
-});
-
-test('будущий период помечается как ещё не начавшийся', () => {
-    const p = periodFor('week', D(2026, 9, 1));
-    assert.equal(progressBadge(p, D(2026, 8, 11)), 'период ещё не начался');
-    assert.equal(periodProgress(p, D(2026, 8, 11)).isFuture, true);
-});
-
-test('сегодняшний день считается прошедшим целиком', () => {
-    const p = periodFor('day', D(2026, 8, 11));
-    assert.deepEqual(periodProgress(p, D(2026, 8, 11)), {
-        elapsed: 1, total: 1, isComplete: false, isFuture: false
-    });
-});
-
-console.log('\n--- подписи ---');
-
-test('склонение слова «день»', () => {
-    assert.equal(pluralDays(1), 'день');
-    assert.equal(pluralDays(2), 'дня');
-    assert.equal(pluralDays(5), 'дней');
-    assert.equal(pluralDays(11), 'дней');   // 11 — исключение
-    assert.equal(pluralDays(21), 'день');
-    assert.equal(pluralDays(365), 'дней');
-});
-
-test('подпись недели содержит её номер', () => {
-    const p = periodFor('week', D(2026, 8, 11));
-    assert.equal(formatSubLabel(p), `неделя ${isoWeekNumber(D(2026, 8, 11))} · 7 дней`);
-});
-
-test('номер ISO-недели: 4 января всегда в первой неделе', () => {
-    assert.equal(isoWeekNumber(D(2026, 1, 4)), 1);
-    assert.equal(isoWeekNumber(D(2025, 1, 4)), 1);
-});
-
-test('подпись месяца — именительный падеж с годом', () => {
-    assert.equal(periodFor('month', D(2026, 8, 11)).label, 'август 2026');
-});
-
-test('подпись года — просто год', () => {
-    assert.equal(periodFor('year', D(2026, 8, 11)).label, '2026');
-});
-
-test('подпись недели через границу месяца показывает оба месяца', () => {
-    const p = periodFor('week', D(2026, 7, 30)); // 27.07 - 02.08
-    assert.equal(p.label, '27 июл - 2 авг 2026');
-});
-
-test('произвольный период подписан как произвольный', () => {
-    const p = customPeriod(D(2026, 8, 3), D(2026, 8, 20));
-    assert.equal(formatSubLabel(p), 'произвольный · 18 дней');
-});
-
-console.log('\n--- месяц/год для месячных вкладок ---');
-
-test('месяц отдаётся строкой с ведущим нулём', () => {
-    // plans.js собирает ключ плана как `${year}-${month}`; '2026-8' даст 404.
-    const my = monthYearOf(periodFor('month', D(2026, 8, 11)));
-    assert.equal(my.month, '08');
-    assert.equal(typeof my.month, 'string');
-    assert.equal(my.year, 2026);
-    assert.equal(typeof my.year, 'number');
-});
-
-test('месяц берётся от НАЧАЛА периода', () => {
-    const p = periodFor('week', D(2026, 8, 1)); // 27.07 - 02.08
-    assert.equal(monthYearOf(p).month, '07');
-});
-
-console.log('\n--- вспомогательное ---');
-
-test('daysBetweenInclusive включает обе границы', () => {
-    assert.equal(daysBetweenInclusive(D(2026, 8, 1), D(2026, 8, 1)), 1);
-    assert.equal(daysBetweenInclusive(D(2026, 8, 1), D(2026, 8, 31)), 31);
-    assert.equal(daysBetweenInclusive(D(2026, 1, 1), D(2026, 12, 31)), 365);
-});
-
-test('startOfWeek идемпотентен', () => {
-    const mon = startOfWeek(D(2026, 8, 13));
-    assert.equal(toISO(startOfWeek(mon)), toISO(mon));
-});
-
-test('toISO не уезжает на день в положительной таймзоне', () => {
-    assert.equal(toISO(D(2026, 1, 1)), '2026-01-01');
-    assert.equal(toISO(D(2026, 12, 31)), '2026-12-31');
-});
-console.log('\n--- kvartal, podpisi shapki, presety ---');
-
-test('квартал = календарные три месяца', () => {
-    const q = periodFor('quarter', D(2026, 8, 11));
-    assert.equal(q.start, '2026-07-01');
-    assert.equal(q.end, '2026-09-30');
-    const q1 = periodFor('quarter', D(2026, 1, 15));
-    assert.equal(q1.start, '2026-01-01');
-    assert.equal(q1.end, '2026-03-31');
-});
-
-test('стрелка листает квартал на три месяца', () => {
-    const p = shiftPeriod(periodFor('quarter', D(2026, 8, 11)), -1);
-    assert.equal(p.start, '2026-04-01');
-    assert.equal(p.end, '2026-06-30');
-});
-
-test('квартальный диапазон распознаётся как квартал, а не произвольный', () => {
-    assert.equal(detectGranularity(D(2026, 7, 1), D(2026, 9, 30)), 'quarter');
-});
-
-test('шаг туда-обратно возвращает исходный период и для квартала', () => {
-    const p = periodFor('quarter', D(2026, 8, 11));
-    const rt = shiftPeriod(shiftPeriod(p, 1), -1);
-    assert.equal(rt.start, p.start);
-    assert.equal(rt.end, p.end);
-});
-
-test('название периода — как в макете', () => {
-    assert.equal(periodTitle(periodFor('month', D(2026, 8, 11))), 'Август 2026');
-    assert.equal(periodTitle(periodFor('week', D(2026, 8, 11))), 'Неделя 33');
-    assert.equal(periodTitle(periodFor('year', D(2026, 8, 11))), '2026');
-    assert.equal(periodTitle(periodFor('quarter', D(2026, 8, 11))), 'III квартал 2026');
-    assert.equal(periodTitle(periodFor('day', D(2026, 8, 11))), '11 августа 2026');
-});
-
-test('подсказка незавершённого месяца — прошедшая часть', () => {
-    assert.equal(periodHint(periodFor('month', D(2026, 8, 11)), D(2026, 8, 11)), '1—11 авг');
-});
-
-test('подсказка завершённого месяца — его имя', () => {
-    assert.equal(periodHint(periodFor('month', D(2026, 7, 5)), D(2026, 8, 11)), 'июль');
-});
-
-test('подсказка длинного периода — месяцами', () => {
-    assert.equal(periodHint(periodFor('year', D(2026, 8, 11)), D(2026, 8, 11)), 'янв—авг');
-    assert.equal(periodHint(periodFor('quarter', D(2026, 8, 11)), D(2026, 8, 11)), 'июл—авг');
-});
-
-test('подсказка дня: в списке дата, в шапке день недели', () => {
-    const day = periodFor('day', D(2026, 8, 11));
-    assert.equal(periodHint(day, D(2026, 8, 12), { dayAsDate: true }), '11 авг');
-    assert.equal(periodHint(day, D(2026, 8, 12)), 'вторник');
-});
-
-test('в списке восемь пресетов и все строят валидный период', () => {
-    assert.equal(PERIOD_PRESETS.length, 8);
-    const now = D(2026, 8, 11);
-    for (const preset of PERIOD_PRESETS) {
-        const period = preset.build(now);
-        assert.match(period.start, /^\d{4}-\d{2}-\d{2}$/, preset.id);
-        assert.ok(period.start <= period.end, preset.id);
-    }
-});
-
-test('активный пресет определяется по границам периода', () => {
-    const now = D(2026, 8, 11);
-    assert.equal(matchPreset(periodFor('week', addDays(now, -7)), now), 'prevWeek');
-    assert.equal(matchPreset(periodFor('month', now), now), 'month');
-    assert.equal(matchPreset(customPeriod(D(2026, 8, 3), D(2026, 8, 20)), now), null);
-});
-
-
-console.log(`\n${passed} passed, ${failed} failed\n`);
-process.exit(failed === 0 ? 0 : 1);
+console.log(`\n${passed} ok, ${failed} failed`);
+if (failed) process.exit(1);

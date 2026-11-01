@@ -4,8 +4,9 @@
    С 2026-10-30 (статья Unisender о churn rate): ущерб от оттока в рублях, «Стали ходить
    реже» (скрытый отток) и подсказка к порогу. Плитки с группами гостей и строки «Кто уходит»
    кликабельны: карточка списка показывает этих гостей поимённо (/api/guests/churn-guests).
-   Список — сразу под плитками; длина графиков — кнопки «Графики за» (до «всё время»); при
-   «Все бары» — «Бары рядом» и «Отток по барам»: тот же маршрут по каждому бару. */
+   Список — сразу под плитками; при «Все бары» — «Бары рядом» и «Отток по барам»: тот же
+   маршрут по каждому бару. Период выбирается в одном месте — вверху страницы; графики стоят
+   под заголовком «Динамика»: их конец — этот период, длина — кнопки «Графики за». */
 
 Guests.registerView('churn', function (pane) {
     var G = Guests;
@@ -109,6 +110,26 @@ Guests.registerView('churn', function (pane) {
                 return '<button class="sub-btn' + activeIf(x === current) +
                     '" data-days="' + x + '">' + x + ' дней</button>';
             }).join('') + '</div>';
+    }
+
+    // «Динамика» — заголовок над графиками: какие периоды они показывают. Конец — период,
+    // выбранный вверху страницы, длина — кнопки «Графики за» (владелец 2026-11-01: «выбор
+    // периода в двух местах — как они взаимодействуют?»).
+    var STEP_NAMES = { week: 'неделям', month: 'месяцам', quarter: 'кварталам', year: 'годам' };
+    function dynamicsHead(rows, type, range) {
+        var span = rows.length
+            ? ': ' + shortLabel(rows[0], type) + ' — ' + shortLabel(rows[rows.length - 1], type) : '';
+        return '<div class="churn-dyn-head"><h3 class="churn-dyn-title">Динамика по ' +
+            (STEP_NAMES[type] || STEP_NAMES.month) + span + G.helpIcon('churn_range') + '</h3>' +
+            rangeSwitcher(type, range) + '</div>';
+    }
+
+    // Название последнего периода с данными в ряду (для кнопки у периода без данных).
+    function lastWithData(rows) {
+        for (var i = rows.length - 1; i >= 0; i--) {
+            if (rows[i].state !== 'future') return rows[i].label;
+        }
+        return '';
     }
 
     function rangeSwitcher(type, current) {
@@ -513,16 +534,22 @@ Guests.registerView('churn', function (pane) {
                 return { key: b.key, name: b.name, data: answers[2 + i] };
             });
             var showBars = !meta.venue && perBar.length > 0 && p && p.state !== 'future';
-            var html = '<div class="churn-switches">' + switcher(d.dead_days, choices) +
-                rangeSwitcher(type, range) + '</div>';
+            var html = switcher(d.dead_days, choices);
 
             if (!p) {
                 html += '<div class="gcard"><div class="note-line">Данных для отчёта нет: ' +
                     'в витрине нет чеков за этот период.</div></div>';
             } else if (p.state === 'future') {
+                // Без графиков: у периода без данных их конец пустой, и страница спорила бы с
+                // подписью «считать нечего». Кнопка — к последнему периоду с данными.
+                var lastLabel = lastWithData(d.series);
                 html += '<div class="gcard"><div class="note-line">Период начался позже ' +
                     'последнего полного дня данных (' + G.fmtDate(d.data_to) + ') — считать ' +
-                    'пока нечего.</div></div>';
+                    'пока нечего.</div>' + (d.data_to
+                        ? '<button type="button" class="sync-btn churn-jump" data-day="' +
+                          G.esc(d.data_to) + '">Открыть последний период с данными' +
+                          (lastLabel ? ' (' + G.esc(lastLabel) + ')' : '') + '</button>'
+                        : '') + '</div>';
             } else {
                 html += thresholdHint(d.return_gaps, d.dead_days, meta);
                 html += tiles(d, type);
@@ -546,8 +573,9 @@ Guests.registerView('churn', function (pane) {
                 html += listCard(list, d.dead_days, meta);
             }
 
-            if (p) {
+            if (p && p.state !== 'future') {
                 var endsNote = lineEndsNote(d.series, d.data_to, type);
+                html += dynamicsHead(d.series, type, range);
                 html += '<div class="gcard"><h3>Отток по периодам' + G.helpIcon('churn_rate') +
                     '</h3><div class="chart-box"><canvas id="churnRateChart"></canvas></div>' +
                     endsNote +
@@ -579,9 +607,12 @@ Guests.registerView('churn', function (pane) {
                     rerender();
                 });
             });
+            pane.querySelectorAll('.churn-jump').forEach(function (b) {
+                b.addEventListener('click', function () { G.showPeriodOf(b.dataset.day); });
+            });
             bindPicks(meta);
             bindMore();
-            if (p) drawCharts(d.series, type);
+            if (p && p.state !== 'future') drawCharts(d.series, type);
             if (showBars) drawBarCharts(d.series, perBar, type);
         });
     }

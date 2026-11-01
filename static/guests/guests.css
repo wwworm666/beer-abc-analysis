@@ -163,8 +163,13 @@
 .churn-hint { margin: -8px 0 0; }
 .churn-hint b { color: var(--text-secondary); }
 .churn-hint + .how-block { margin-bottom: 16px; }
-/* «Отток»: два переключателя в ряд — порог и «Графики за». */
-.churn-switches { display: flex; flex-wrap: wrap; column-gap: 28px; }
+/* «Отток»: заголовок «Динамика» над графиками — какие периоды на них и кнопки «Графики за». */
+.churn-dyn-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 24px;
+    margin: 28px 0 14px; }
+.churn-dyn-title { margin: 0; font-size: 0.85rem; font-weight: 600; color: var(--text-primary);
+    text-transform: uppercase; letter-spacing: .05em; display: flex; align-items: center; gap: 8px; }
+.churn-dyn-head .sub-switch { margin-bottom: 0; }
+.churn-jump { margin-top: 12px; }
 /* Список гостей: первые строки сразу, остальные — по кнопке «Показать ещё». */
 .gtable tr.churn-more[hidden] { display: none; }
 .churn-more-btn { margin-top: 12px; }

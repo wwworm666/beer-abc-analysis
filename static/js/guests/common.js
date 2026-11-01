@@ -19,6 +19,17 @@ window.Guests = (function () {
     // живого OLAP. Ключи витрины сюда не кладём: витринные отчёты получают их
     // вместе с данными, и второй список разъезжался бы с первым.
     var config = window.GUESTS_CONFIG || { bars: [] };
+    // Период при открытии — тот, где последний полный день данных (GUESTS_CONFIG.last_full_day,
+    // решение 2026-11-01): со «сегодня» 1-го числа открывался пустой месяц — данные в витрине
+    // только по вчерашний день. Без витрины — сегодняшний период, как раньше.
+    var firstDay = isoToDate(config.last_full_day);
+    if (firstDay) state.anchor = firstDay;
+
+    // 'YYYY-MM-DD' -> Date (местная полночь) или null.
+    function isoToDate(iso) {
+        var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || ''));
+        return m ? new Date(+m[1], +m[2] - 1, +m[3]) : null;
+    }
 
     // ---------------- форматирование ----------------
     function fmtNum(n) {
@@ -87,6 +98,13 @@ window.Guests = (function () {
         else if (state.periodType === 'month') { d.setDate(1); d.setMonth(d.getMonth() + dir); }
         else if (state.periodType === 'quarter') { d.setDate(1); d.setMonth(d.getMonth() + 3 * dir); }
         else { d.setDate(1); d.setFullYear(d.getFullYear() + dir); }
+        state.anchor = d;
+        onPeriodChanged();
+    }
+    // Перейти к периоду того же типа, где лежит дата: кнопка «Открыть …» у периода без данных.
+    function showPeriodOf(iso) {
+        var d = isoToDate(iso);
+        if (!d) return;
         state.anchor = d;
         onPeriodChanged();
     }
@@ -361,6 +379,7 @@ window.Guests = (function () {
         setBar: setBar,
         barName: barName,
         bars: bars,
+        showPeriodOf: showPeriodOf,
         fmtNum: fmtNum, fmtMoney: fmtMoney, fmtPct: fmtPct,
         fmtDate: fmtDate, fmtMonth: fmtMonth, periodShort: periodShort, esc: esc,
         helpIcon: helpIcon, howBlock: howBlock, metricCard: metricCard,

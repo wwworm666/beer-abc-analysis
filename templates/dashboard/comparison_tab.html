@@ -1,41 +1,28 @@
 <!-- Вкладка "Сравнение периодов" — Modern Fintech Design -->
 
 <div class="comparison-container">
-    <!-- Режим сравнения -->
-    <div class="comparison-mode-tabs">
-        <button class="comparison-mode-tab active" data-mode="week">
-            Неделя к неделе
-        </button>
-        <button class="comparison-mode-tab" data-mode="month">
-            Месяц к месяцу
-        </button>
-        <button class="comparison-mode-tab" data-mode="year">
-            Год к году
-        </button>
-    </div>
-
-    <!-- Периоды — единый блок управления как у дашборда -->
-    <div class="dashboard-controls">
-        <div class="controls-row">
-            <div class="control-group">
-                <label for="comparison-period-1">Период 1</label>
-                <select id="comparison-period-1" class="control-input">
-                    <option value="">Загрузка...</option>
-                </select>
-            </div>
-            <div class="control-group">
-                <label for="comparison-period-2">Период 2</label>
-                <select id="comparison-period-2" class="control-input">
-                    <option value="">Загрузка...</option>
-                </select>
-            </div>
-            <div class="control-group control-group-button">
-                <label>&nbsp;</label>
-                <button id="btn-compare" class="btn">
-                    Сравнить периоды
-                </button>
+    <!-- Периоды сравнения (стандарт периодов, раздел 8): период 1 — из шапки страницы,
+         период 2 — прошлый период, тот же период год назад или свой. Сравнение запускается само. -->
+    <div class="cmp-controls">
+        <div class="cmp-line">
+            <span class="cmp-label">Период 1</span>
+            <span class="cmp-value" id="cmp-p1">—</span>
+            <span class="cmp-hint">выбирается в шапке страницы</span>
+        </div>
+        <div class="cmp-line">
+            <span class="cmp-label">Сравнить с</span>
+            <div class="comparison-mode-tabs">
+                <button type="button" class="comparison-mode-tab active" data-mode="prev">Прошлым периодом</button>
+                <button type="button" class="comparison-mode-tab" data-mode="year">Тем же периодом год назад</button>
+                <button type="button" class="comparison-mode-tab" data-mode="custom">Своим периодом</button>
             </div>
         </div>
+        <div class="cmp-line">
+            <span class="cmp-label">Период 2</span>
+            <span class="cmp-value" id="cmp-p2">—</span>
+            <div class="cmp-p2-picker" id="cmp-p2-picker" hidden></div>
+        </div>
+        <div class="cmp-note" id="cmp-note" hidden></div>
     </div>
 
     <!-- Loading State -->
@@ -51,8 +38,8 @@
             <line x1="12" y1="20" x2="12" y2="4"></line>
             <line x1="6" y1="20" x2="6" y2="14"></line>
         </svg>
-        <h3>Выберите периоды для сравнения</h3>
-        <p>Используйте селекторы выше или переключите режим сравнения</p>
+        <h3>Сравнение периодов</h3>
+        <p>Период 1 — из шапки страницы. Выберите, с чем сравнить.</p>
     </div>
 
     <!-- Results Container -->

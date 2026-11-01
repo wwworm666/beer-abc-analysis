@@ -15,6 +15,7 @@ class MeetingNotes {
         this.historyToggle = null;
         this.historyToggleText = null;
         this.saveTimeout = null;
+        this.pendingKey = null;       // бар и период, для которых набран несохранённый текст
         this.currentKey = null;
         this.historyOpen = false;
         this.saving = false;
@@ -29,11 +30,13 @@ class MeetingNotes {
         this.historyToggleText = document.getElementById('notes-history-toggle-text');
         if (!this.textarea || !this.container) return;
 
-        // Autosave on input (debounce 1s)
+        // Autosave on input (debounce 1s). Ключ запоминается при наборе: если период сменят
+        // раньше, чем пройдёт секунда, текст уйдёт под старый период, а не под новый.
         this.textarea.addEventListener('input', () => {
             this.setStatus('saving');
             clearTimeout(this.saveTimeout);
-            this.saveTimeout = setTimeout(() => this.save(), 1000);
+            this.pendingKey = this.getKey();
+            this.saveTimeout = setTimeout(() => this.flush(), 1000);
         });
 
         // History toggle
@@ -41,9 +44,11 @@ class MeetingNotes {
             this.historyToggle.addEventListener('click', () => this.toggleHistory());
         }
 
-        // Subscribe to state changes (venue/period)
+        // Subscribe to state changes (venue/period). Сначала сохранить набранное для старого
+        // периода (до 2026-11-01 текст терялся, а заметка нового периода затиралась пустой).
         state.subscribe((event) => {
             if (event === 'venueChanged' || event === 'periodChanged') {
+                this.flush();
                 this.load();
                 this.closeHistory();
             }
@@ -84,8 +89,17 @@ class MeetingNotes {
         }
     }
 
-    async save() {
-        const key = this.getKey();
+    /** Сохранить отложенный текст под ключом, для которого его набирали. */
+    flush() {
+        if (!this.saveTimeout && !this.pendingKey) return;
+        clearTimeout(this.saveTimeout);
+        this.saveTimeout = null;
+        const key = this.pendingKey;
+        this.pendingKey = null;
+        if (key) this.save(key, this.textarea.value);
+    }
+
+    async save(key = this.getKey(), text = this.textarea.value) {
         if (!key) return;
 
         this.saving = true;
@@ -93,7 +107,7 @@ class MeetingNotes {
             await fetch('/api/meeting-notes', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ...key, text: this.textarea.value })
+                body: JSON.stringify({ ...key, text })
             });
             this.setStatus('saved');
         } catch (e) {

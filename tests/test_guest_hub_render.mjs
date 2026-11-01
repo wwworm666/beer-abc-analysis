@@ -584,15 +584,20 @@ test('esc: экранирует пять символов HTML', () => {
     assert.equal(GH.esc(0), '0');
 });
 
-test('getBar / setBar: общий фильтр в localStorage gh.bar, мусор и сбои -> «все бары»', () => {
+test('getBar / setBar: бар один на весь сайт (kultura.bar), мусор и сбои -> «все бары»', () => {
+    // Стандарт периодов, раздел 6: ключ общий с дашбордом (static/js/shared/period/scope.js).
     const { GH, store } = loadCommon();
     assert.equal(GH.getBar(), '');
     assert.equal(GH.setBar('ligovskiy'), 'ligovskiy');
-    assert.equal(store['gh.bar'], 'ligovskiy', 'ключ localStorage не gh.bar');
+    assert.equal(store['kultura.bar'], 'ligovskiy', 'ключ localStorage не kultura.bar');
     assert.equal(GH.getBar(), 'ligovskiy');
     assert.equal(GH.setBar('all'), '', "'all' — не фильтр, а размещение на сеть");
-    assert.ok(!('gh.bar' in store), 'пустой выбор должен удалять ключ');
-    store['gh.bar'] = 'hacked';
+    assert.equal(store['kultura.bar'], 'all', 'вся сеть пишется явно, чтобы не поднять старый ключ');
+    store['gh.bar'] = 'bolshoy';
+    assert.equal(GH.getBar(), '', 'новый ключ сильнее старого gh.bar');
+    delete store['kultura.bar'];
+    assert.equal(GH.getBar(), 'bolshoy', 'старый gh.bar читается, пока новый не записан');
+    store['kultura.bar'] = 'hacked';
     assert.equal(GH.getBar(), '', 'неизвестное значение читается как «все бары»');
     const broken = loadCommon({ storage: 'throws' }).GH;
     assert.equal(broken.getBar(), '');

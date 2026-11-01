@@ -107,8 +107,9 @@
     <script>
         /* Имена точек из iiko — для живого OLAP на вкладке «Акции».
            Ключи витрины сюда НЕ дублируются: витринные отчёты получают их
-           вместе с данными (см. routes/guests.py). */
-        window.GUESTS_CONFIG = { bars: {{ bars | tojson }} };
+           вместе с данными (см. routes/guests.py). last_full_day — последний
+           полный день данных: период при открытии страницы. */
+        window.GUESTS_CONFIG = { bars: {{ bars | tojson }}, last_full_day: {{ last_full_day | tojson }} };
     </script>
     <script src="/static/js/guests/formulas.js?v={{ app_version }}"></script>
     <script src="/static/js/guests/common.js?v={{ app_version }}"></script>

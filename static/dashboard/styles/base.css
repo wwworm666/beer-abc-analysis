@@ -524,16 +524,6 @@ input:focus, select:focus, textarea:focus {
     cursor: not-allowed;
 }
 
-.fb-period-trigger {
-    padding: 8px 12px;
-    border-radius: 10px;
-    min-width: 0;
-}
-
-.fb-period-trigger:hover {
-    background: var(--bg-tertiary);
-}
-
 /* --- Экспорт: второстепенное действие, без рамок --- */
 
 .fb-export {
@@ -573,21 +563,6 @@ input:focus, select:focus, textarea:focus {
 /* Иконка выгрузки вместо двух кнопок — только на телефоне. */
 .fb-export-mobile {
     display: none;
-}
-
-/* Якорь календаря: Flatpickr позиционируется по подписи периода.
-   Не display:none — по скрытому инпуту он не смог бы спозиционироваться. */
-.filter-bar .period-picker-anchor {
-    position: absolute;
-    left: 0;
-    bottom: 0;
-    width: 1px;
-    height: 1px;
-    min-width: 0;
-    padding: 0;
-    border: 0;
-    opacity: 0;
-    pointer-events: none;
 }
 
 /* ============================================================
@@ -703,9 +678,11 @@ input:focus, select:focus, textarea:focus {
     outline-offset: -2px;
 }
 
-/* --- Календарь Flatpickr под тему дашборда ---
+/* --- Календарь Flatpickr под тему сайта ---
    Библиотека и её CSS тянутся с CDN и знают только светлую тему: без этих правил
-   календарь в тёмной теме оставался белым. */
+   календарь в тёмной теме оставался белым. С 2026-11-01 дашборд Flatpickr не грузит
+   (свой календарь в общем элементе «Период», static/shared/period.css); правила нужны
+   страницам, которые ещё не перешли на стандарт периодов (/employee). */
 
 .flatpickr-calendar {
     font-family: var(--font-family);
@@ -937,12 +914,6 @@ input:focus, select:focus, textarea:focus {
     .fb-arrow svg {
         width: 14px;
         height: 14px;
-    }
-
-    .fb-period-trigger {
-        flex: 1 1 auto;
-        justify-content: center;
-        min-width: 0;
     }
 
     /* Разделители и десктопный экспорт на телефоне не нужны. */
