@@ -183,6 +183,45 @@ class GoalsPageTest(PageRender):
         self.assertIn('.ks, .no-print', src, 'полоса не печатается')
 
 
+class SchedulePageTest(PageRender):
+    def test_strip_monthly_with_future(self):
+        html = self.render('schedule.html')
+        cfg = self.strip_config(html)
+        self.assertEqual((cfg['mode'], cfg['step'], cfg['barMode']), ('monthly', 'month', 'all'))
+        self.assertTrue(cfg['allowFuture'], 'график планируют вперёд')
+
+    def test_no_month_buttons(self):
+        html = self.render('schedule.html')
+        self.assert_no_own_period_controls(html, 'schedule.html')
+        for needle in ('id="prevMonth"', 'id="nextMonth"', 'id="currentMonth"', 'class="month-nav"'):
+            self.assertNotIn(needle, html)
+        # Загрузка — вверху страницы, с подписью «что грузится».
+        self.assertIn('<span class="loading-text">', html)
+        self.assertLess(html.index('id="loading"'), html.index('class="sc-mobile"'))
+        self.assertLess(html.index('strip_runner.js'), html.index('schedule/view.js'))
+
+    def test_ics_link_in_strip_for_linked_account(self):
+        with self.app.test_request_context('/schedule'):
+            html = render_template('schedule.html', current_user={'employee_iiko_id': 'g1'})
+        strip_html = html[html.index('id="kultura-strip"'):html.index('window.KULTURA_STRIP')]
+        self.assertIn('href="/schedule/cal.ics"', strip_html)
+
+    def test_wiring(self):
+        common = _read('static/js/schedule/common.js')
+        view = _read('static/js/schedule/view.js')
+        css = _read('static/schedule/schedule.css')
+        self.assertNotIn('new Date().getMonth()', common, 'месяц — не с часов устройства')
+        self.assertIn('function syncMonthFromStrip()', common)
+        self.assertIn("state.locations[i].venue_key === bar", common, 'точка бара — по venue_key')
+        self.assertIn('strip.onChange(onStripChange)', view)
+        self.assertIn('monthLoader = KStripRunner.create(', view)
+        self.assertIn('monthLoader.schedule();', view)
+        self.assertNotIn('shiftMonth', view + common)
+        self.assertIn('все точки — выбранный бар выделен', view)
+        self.assertNotIn('.month-nav', css)
+        self.assertIn('.tb-card.is-focus', css)
+
+
 @unittest.skipIf(NODE is None, 'node не установлен')
 class NodeChecks(unittest.TestCase):
     def run_node(self, *args):
@@ -193,8 +232,17 @@ class NodeChecks(unittest.TestCase):
         run = self.run_node('tests/test_strip_runner.mjs')
         self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
 
+    def test_schedule_runtime(self):
+        run = self.run_node('tests/test_schedule_strip_runtime.mjs')
+        self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
+
+    def test_me_calendar_runtime(self):
+        run = self.run_node('tests/test_me_calendar_runtime.mjs')
+        self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
+
     def test_changed_scripts_syntax(self):
-        for rel in ('static/js/shared/strip_runner.js',):
+        for rel in ('static/js/shared/strip_runner.js', 'static/js/schedule/common.js',
+                    'static/js/schedule/screens.js', 'static/js/schedule/view.js'):
             run = self.run_node('--check', rel)
             self.assertEqual(run.returncode, 0, rel + ': ' + run.stderr)
 
