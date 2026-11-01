@@ -1167,7 +1167,16 @@
     function boot() {
         installGlobals();
         GH.initHeader();
-        if (byId('ghAttention')) GH.loadAttention();
+        if (byId('ghAttention')) {
+            GH.loadAttention();
+            // Бар выбирают в общей полосе сайта (window.KStrip, общее меню): счётчики раздела
+            // считаются по нему же — после смены бара (здесь или в другой вкладке) обновляются.
+            if (root.KStrip && typeof root.KStrip.onChange === 'function') {
+                root.KStrip.onChange(function (e) {
+                    if (e && e.type === 'bar') GH.loadAttention();
+                });
+            }
+        }
     }
 
     root.GH = GH;

@@ -12,6 +12,9 @@
  * Здесь виды по-настоящему исполняются: подставляем document/window/fetch,
  * прогоняем formulas -> common -> charts -> вид, дёргаем Guests.activateTab и
  * проверяем, что в пейне появилась разметка, а не исключение.
+ *
+ * С 2026-11-01 бар и период страницы — из общей полосы сайта (window.KStrip,
+ * templates/shared/scope_strip.html): здесь её заменяет заглушка makeStrip.
  */
 
 import assert from 'node:assert/strict';
@@ -73,13 +76,10 @@ function makeEl(tag) {
 function makeDom() {
     const byId = {};
     // Элементы, которые ищет common.js при инициализации и виды при рендере.
-    for (const id of ['periodPrev', 'periodNext', 'periodLabel', 'coverageBanner',
-                      'pane-summary', 'pane-growth', 'pane-churn', 'pane-activity', 'pane-cohorts',
+    for (const id of ['pane-summary', 'pane-growth', 'pane-churn', 'pane-activity', 'pane-cohorts',
                       'pane-rfm', 'pane-ltv', 'pane-promo', 'pane-products', 'pane-venues',
                       'pane-never', 'pane-guest',
-                      'barPick', 'barPickBtn', 'barPickMenu', 'barPickLabel',
-                      'promoFrom', 'promoTo', 'promoBar',
-                      'promoName', 'promoLoad', 'promoStale', 'promoGuestRows',
+                      'promoName', 'promoLoad', 'promoGuestRows',
                       'promoGuestNote', 'promoFilter', 'rfmFilter', 'rfmTbody',
                       'rfmMore', 'rfmScatterNote']) {
         byId[id] = makeEl(id.startsWith('pane') ? 'div' : 'input');
@@ -97,31 +97,33 @@ function makeDom() {
     return { document, byId, ready };
 }
 
-// Заглушка window.GH (static/js/guest_hub/common.js): общий фильтр бара раздела.
-function makeGh(initialBar) {
-    const gh = {
-        bar: initialBar || '',
+// Заглушка общей полосы сайта (window.KStrip, static/js/shared/period/scope_strip.js): бар и
+// период, их смена (setBar / setPeriod — как выбор владельца) и таблица баров сайта.
+const AUGUST = { start: '2026-08-01', end: '2026-08-31', granularity: 'month', key: '2026-08-01_2026-08-31' };
+function makeStrip(initial) {
+    const o = initial || {};
+    const strip = {
+        bar: o.bar || '',
+        period: o.period || AUGUST,
+        listeners: [],
         setCalls: [],
-        menuToggles: 0,
-        BARS: [
-            { key: 'bolshoy', name: 'Большой пр. В.О', short: 'ВО' },
-            { key: 'ligovskiy', name: 'Лиговский', short: 'Лиг' },
-            { key: 'kremenchugskaya', name: 'Кременчугская', short: 'Крем' },
-            { key: 'varshavskaya', name: 'Варшавская', short: 'Вар' },
-        ],
-        getBar() { return gh.bar; },
-        setBar(key) {
-            gh.setCalls.push(key);
-            gh.bar = gh.BARS.some((b) => b.key === key) ? key : '';
-            return gh.bar;
+        periodCalls: [],
+        config: { bars: [
+            { key: 'bolshoy', name: 'Большой пр. В.О', short: 'ВО', iiko_name: 'Большой пр. В.О' },
+            { key: 'ligovskiy', name: 'Лиговский', short: 'Лиг', iiko_name: 'Лиговский' },
+            { key: 'kremenchugskaya', name: 'Кременчугская', short: 'Крем', iiko_name: 'Кременчугская' },
+            { key: 'varshavskaya', name: 'Варшавская', short: 'Вар', iiko_name: 'Варшавская' },
+        ] },
+        get() { return { bar: strip.bar, period: strip.period }; },
+        onChange(fn) { strip.listeners.push(fn); },
+        emit(type) {
+            strip.listeners.forEach((fn) => fn({ type, bar: strip.bar, period: strip.period, cause: 'user' }));
         },
-        barName(key) {
-            const b = gh.BARS.find((x) => x.key === key);
-            return b ? b.name : 'Все бары';
-        },
-        toggleMenu() { gh.menuToggles++; return true; },
+        setBar(key) { strip.setCalls.push(key); strip.bar = key || ''; strip.emit('bar'); },
+        setPeriod(period) { strip.periodCalls.push(period); strip.period = period; strip.emit('period'); },
+        barInfo(key) { return strip.config.bars.find((b) => b.key === key) || null; },
     };
-    return gh;
+    return strip;
 }
 
 function loadGuests(opts) {
@@ -164,10 +166,11 @@ function loadGuests(opts) {
     sandbox.GUESTS_CONFIG = Object.assign({ bars: ['Лиговский', 'Варшавская'] },
                                           (opts && opts.config) || {});
     sandbox.window.GUESTS_CONFIG = sandbox.GUESTS_CONFIG;
-    if (opts && opts.gh) sandbox.GH = opts.gh;
+    if (opts && opts.strip) sandbox.KStrip = opts.strip;
 
     const ctx = vm.createContext(sandbox);
-    for (const f of ['static/js/guests/formulas.js',
+    for (const f of ['static/js/shared/period/period_core.js',
+                     'static/js/guests/formulas.js',
                      'static/js/guests/common.js',
                      'static/js/guests/charts.js',
                      ...(opts && opts.views ? opts.views : [])]) {
@@ -185,92 +188,127 @@ function query(url) {
 
 // Ответ витрины с meta: venue — бар, по которому сервер посчитал отчёт.
 function metaOf(venue, venueName) {
-    return { period_label: 'Август 2026', p_end: '2026-08-31', asof: '2026-08-13',
+    return { period_label: 'Август 2026', p_start: '2026-08-01', p_end: '2026-08-31', asof: '2026-08-13',
              coverage_from: '2017-12-18', coverage_to: '2026-08-12',
              last_synced_at: '2026-08-13T05:10:00',
              venue: venue || null, venue_name: venueName || null };
 }
 
 // ---------------------------------------------------------------- вкладка «Акции»
-test('вкладка «Акции» открывается без исключения и НЕ ходит в iiko', () => {
-    const { sandbox, byId, fetchCalls } = loadGuests({
-        views: ['static/js/guests/views-promo.js'],
-    });
-    sandbox.Guests.activateTab('promo');
-    const pane = byId['pane-promo'];
-    assert.ok(pane.innerHTML.length > 0, 'пейн пустой — вид не отрисовался');
-    assert.ok(pane.innerHTML.includes('Анализировать'), 'нет кнопки загрузки');
-    assert.ok(pane.innerHTML.includes('promo-controls'), 'нет панели контролов');
-    assert.equal(fetchCalls.length, 0,
-        'при открытии вкладки был запрос: ' + fetchCalls.map((c) => c.url).join(', '));
-});
-
-test('«Акции»: контролы получили значения по умолчанию', () => {
-    const { sandbox, byId } = loadGuests({ views: ['static/js/guests/views-promo.js'] });
-    sandbox.Guests.activateTab('promo');
-    const html = byId['pane-promo'].innerHTML;
-    assert.ok(/id="promoFrom" value="\d{4}-\d{2}-\d{2}"/.test(html),
-        'дата начала не подставлена');
-    assert.ok(/id="promoTo" value="\d{4}-\d{2}-\d{2}"/.test(html),
-        'дата конца не подставлена');
-    assert.ok(html.includes('Лиговский'), 'точки из конфига не попали в селект');
-});
-
-test('«Акции»: нажатие «Анализировать» отправляет POST и рисует отчёт', () => {
-    const answer = {
-        discount_names: ['Часы'],
-        total_rows: 2,
-        stores_summary: {
-            'Часы': [{ store: 'Лиговский', orders_count: 1, guests_count: 1,
-                       sum_with_discount: 900, discount_sum: 100 }],
-            '__all__': [{ store: 'Лиговский', orders_count: 1, guests_count: 1,
-                          sum_with_discount: 900, discount_sum: 100 }],
-        },
-        discounts: {
-            'Часы': [{ card_number: '2001', customer_name: 'Гость', visits: 1,
-                       orders: 1, visit_dates: ['2026-07-01'], last_visit: '2026-07-01',
-                       first_visit: '2026-07-01', recency_days: 0,
-                       frequency_per_week: 1, avg_check: 900,
-                       sum_with_discount: 900, discount_sum: 100,
-                       stores: ['Лиговский'],
-                       dishes: [{ name: 'Пиво', sum_with_discount: 900,
-                                  discount_sum: 100, store: 'Лиговский',
-                                  order_num: '1', date: '2026-07-01' }] }],
-            '__all__': [{ card_number: '2001', customer_name: 'Гость', visits: 1,
-                          orders: 1, visit_dates: ['2026-07-01'],
-                          last_visit: '2026-07-01', first_visit: '2026-07-01',
-                          recency_days: 0, frequency_per_week: 1, avg_check: 900,
-                          sum_with_discount: 900, discount_sum: 100,
-                          stores: ['Лиговский'], dishes: [] }],
-        },
-    };
-    const { sandbox, byId, fetchCalls } = loadGuests({
-        views: ['static/js/guests/views-promo.js'],
-        respond: () => answer,
-    });
-    sandbox.Guests.activateTab('promo');
-    // Кнопка появилась после первого рендера — жмём её.
-    byId.promoLoad.click();
+// Ответ /api/discount-analyze: одна акция «Часы» в Лиговском.
+const PROMO_ANSWER = {
+    discount_names: ['Часы'],
+    total_rows: 2,
+    stores_summary: {
+        'Часы': [{ store: 'Лиговский', orders_count: 1, guests_count: 1,
+                   sum_with_discount: 900, discount_sum: 100 }],
+        '__all__': [{ store: 'Лиговский', orders_count: 1, guests_count: 1,
+                      sum_with_discount: 900, discount_sum: 100 }],
+    },
+    discounts: {
+        'Часы': [{ card_number: '2001', customer_name: 'Гость', visits: 1,
+                   orders: 1, visit_dates: ['2026-07-01'], last_visit: '2026-07-01',
+                   first_visit: '2026-07-01', recency_days: 0,
+                   frequency_per_week: 1, avg_check: 900,
+                   sum_with_discount: 900, discount_sum: 100,
+                   stores: ['Лиговский'],
+                   dishes: [{ name: 'Пиво', sum_with_discount: 900,
+                              discount_sum: 100, store: 'Лиговский',
+                              order_num: '1', date: '2026-07-01' }] }],
+        '__all__': [{ card_number: '2001', customer_name: 'Гость', visits: 1,
+                      orders: 1, visit_dates: ['2026-07-01'],
+                      last_visit: '2026-07-01', first_visit: '2026-07-01',
+                      recency_days: 0, frequency_per_week: 1, avg_check: 900,
+                      sum_with_discount: 900, discount_sum: 100,
+                      stores: ['Лиговский'], dishes: [] }],
+    },
+};
+function promoAfter(fn, tag) {
     return new Promise((resolve) => setTimeout(() => {
-        try {
-            assert.equal(fetchCalls.length, 1, 'ожидался один запрос');
-            assert.ok(fetchCalls[0].url.includes('/api/discount-analyze'),
-                'запрос ушёл не туда: ' + fetchCalls[0].url);
-            assert.equal(fetchCalls[0].init.method, 'POST', 'должен быть POST');
-            const body = JSON.parse(fetchCalls[0].init.body);
-            assert.ok(body.date_from && body.date_to, 'в теле нет диапазона');
-            const html = byId['pane-promo'].innerHTML;
-            assert.ok(html.includes('Выручка без скидки'), 'нет метрик');
-            assert.ok(html.includes('По точкам'), 'нет разбивки по точкам');
-            assert.ok(html.includes('Гости акции'), 'нет таблицы гостей');
-            resolve();
-        } catch (e) {
+        try { fn(); } catch (e) {
             failed++;
             passed--;
-            console.log('      (после клика) ' + e.message);
-            resolve();
+            console.log('      (' + tag + ') ' + e.message);
         }
+        resolve();
     }, 30));
+}
+
+test('«Акции»: считаются сразу — за период и бар полосы (имя точки iiko), без своих полей', () => {
+    const { sandbox, byId, fetchCalls } = loadGuests({
+        views: ['static/js/guests/views-promo.js'], strip: makeStrip({ bar: 'ligovskiy' }), init: true,
+        respond: () => PROMO_ANSWER,
+    });
+    sandbox.Guests.activateTab('promo');
+    assert.equal(fetchCalls.length, 1, 'вкладка не пошла в iiko сразу (ответ Р5)');
+    assert.ok(fetchCalls[0].url.includes('/api/discount-analyze'), 'запрос ушёл не туда: ' + fetchCalls[0].url);
+    assert.equal(fetchCalls[0].init.method, 'POST', 'должен быть POST');
+    assert.deepEqual(JSON.parse(fetchCalls[0].init.body),
+        { bar: 'Лиговский', date_from: '2026-08-01', date_to: '2026-08-31' },
+        'период и точка — из полосы, имя точки — iiko');
+    const loading = byId['pane-promo'].innerHTML;
+    assert.ok(loading.includes('Запрашиваю iiko за 01.08.2026 — 31.08.2026'), 'нет подписи загрузки');
+    for (const gone of ['promoFrom', 'promoTo', 'promoBar', 'Анализировать']) {
+        assert.ok(!loading.includes(gone), 'у вкладки снова своё поле: ' + gone);
+    }
+    return promoAfter(() => {
+        const html = byId['pane-promo'].innerHTML;
+        assert.ok(html.includes('Выручка без скидки'), 'нет метрик');
+        assert.ok(html.includes('По точкам'), 'нет разбивки по точкам');
+        assert.ok(html.includes('Гости акции'), 'нет таблицы гостей');
+        assert.ok(html.includes('точка: Лиговский'), 'не подписано, по какой точке');
+        assert.ok(html.includes('<option value="Часы">Часы</option>'), 'список акций не заполнен');
+    }, 'Акции');
+});
+
+test('«Акции»: тот же период и бар — из памяти, смена периода в полосе — новый запрос', () => {
+    const strip = makeStrip();
+    const { sandbox, fetchCalls } = loadGuests({
+        views: ['static/js/guests/views-promo.js', 'static/js/guests/views-rfm.js'], strip, init: true,
+        respond: (url) => (String(url).includes('discount-analyze') ? PROMO_ANSWER : { meta: metaOf(), data: {} }),
+    });
+    sandbox.Guests.activateTab('promo');
+    return promoAfter(() => {
+        sandbox.Guests.activateTab('rfm');
+        sandbox.Guests.activateTab('promo');
+        const promoCalls = () => fetchCalls.filter((c) => String(c.url).includes('discount-analyze'));
+        assert.equal(promoCalls().length, 1, 'возврат на вкладку с тем же выбором снова пошёл в iiko');
+        strip.setPeriod({ start: '2026-07-01', end: '2026-07-31', granularity: 'month',
+                          key: '2026-07-01_2026-07-31' });
+        assert.equal(promoCalls().length, 2, 'смена периода в полосе не пересчитала «Акции»');
+        assert.equal(JSON.parse(promoCalls()[1].init.body).date_from, '2026-07-01');
+        assert.equal(JSON.parse(promoCalls()[1].init.body).bar, null, '«Все бары» — все точки');
+    }, 'Акции, память');
+});
+
+test('«Акции»: период длиннее года — не сам, а по кнопке с числом дней', () => {
+    const strip = makeStrip({ period: { start: '2024-01-01', end: '2026-08-31', granularity: 'custom',
+                                        key: '2024-01-01_2026-08-31' } });
+    const { sandbox, byId, fetchCalls } = loadGuests({
+        views: ['static/js/guests/views-promo.js'], strip, init: true, respond: () => PROMO_ANSWER,
+    });
+    sandbox.Guests.activateTab('promo');
+    assert.equal(fetchCalls.length, 0, 'многоминутный запрос в iiko ушёл без кнопки');
+    const html = byId['pane-promo'].innerHTML.replace(/[\u2009\u00a0]/g, ' ');
+    assert.ok(html.includes('сразу — за период до 366 дней') && html.includes('Посчитать за 974 дней'),
+        'нет объяснения и кнопки: ' + html.slice(0, 300));
+    byId.promoLoad.click();
+    assert.equal(fetchCalls.length, 1, 'кнопка не отправила запрос');
+    assert.equal(JSON.parse(fetchCalls[0].init.body).date_from, '2024-01-01');
+});
+
+test('«Акции»: бар не из списка точек iiko — все точки и подпись об этом', () => {
+    const { sandbox, byId, fetchCalls } = loadGuests({
+        views: ['static/js/guests/views-promo.js'], strip: makeStrip({ bar: 'bolshoy' }), init: true,
+        respond: () => PROMO_ANSWER,
+    });
+    sandbox.Guests.activateTab('promo');
+    // config.bars теста — только Лиговский и Варшавская: имя Большого iiko не знает.
+    assert.equal(JSON.parse(fetchCalls[0].init.body).bar, null, 'подставлено имя, которого нет в списке точек');
+    return promoAfter(() => {
+        assert.ok(byId['pane-promo'].innerHTML.includes('все точки: бар не найден среди точек iiko'),
+            'не подписано, что посчитано по всем точкам');
+    }, 'Акции, чужой бар');
 });
 
 // ---------------------------------------------------------------- вкладка RFM
@@ -330,27 +368,9 @@ test('вкладка RFM открывается, запрашивает витр
     }, 30));
 });
 
-// ---------------------------------------------------------------- панель периода
-test('панель периода скрывается на «Акциях» и возвращается на других вкладках', () => {
-    const { sandbox, byId } = loadGuests({
-        views: ['static/js/guests/views-promo.js', 'static/js/guests/views-rfm.js'],
-    });
-    // querySelector('.guests-controls') должен отдавать один и тот же элемент,
-    // иначе класс проверять негде.
-    const controls = makeEl('div');
-    sandbox.document.querySelector = (sel) =>
-        (sel === '.guests-controls' ? controls : makeEl());
-    sandbox.Guests.activateTab('promo');
-    assert.ok(controls.classList.contains('own-period'),
-        'на «Акциях» глобальный период не скрыт');
-    sandbox.Guests.activateTab('rfm');
-    assert.ok(!controls.classList.contains('own-period'),
-        'класс залип после уход с «Акций»');
-});
-
-// ---------------------------------------------------------------- общий бар (2026-09-29)
-// Бар — общий фильтр раздела «Гости» (GH.getBar / GH.setBar). Страница берёт его
-// при init, показывает в кнопке «Бар» и шлёт параметром store во все отчёты.
+// ---------------------------------------------------------------- общая полоса (2026-11-01)
+// Бар и период — из общей полосы сайта (KStrip). Страница берёт их при init, шлёт периодом
+// (date_from/date_to) и параметром store во все отчёты и пересчитывается при смене в полосе.
 
 const SUMMARY = {
     base_size: 100, active_guests: 10, registrations: 5, registrations_ytd: 50,
@@ -376,14 +396,13 @@ function later(fn) {
     }, 30));
 }
 
-test('общий бар: кнопка и меню из фильтра раздела, store уходит в запросы', () => {
-    const gh = makeGh('ligovskiy');
+test('полоса: период датами и бар в запросах, смена в полосе пересчитывает вкладку', () => {
+    const strip = makeStrip({ bar: 'ligovskiy' });
     const { sandbox, byId, fetchCalls } = loadGuests({
-        views: ['static/js/guests/views-summary.js'],
-        gh, init: true,
+        views: ['static/js/guests/views-summary.js'], strip, init: true,
         respond: (url) => {
             const store = query(url).get('store');
-            const name = store ? gh.barName(store) : null;
+            const name = store ? strip.barInfo(store).name : null;
             // Сервер с баром отдаёт пустое сравнение баров и never с reason=venue.
             const data = store
                 ? Object.assign({}, SUMMARY, { registrations_by_store: [],
@@ -392,45 +411,41 @@ test('общий бар: кнопка и меню из фильтра разде
             return { meta: metaOf(store, name), data };
         },
     });
-    assert.equal(byId.barPickLabel.textContent, 'Лиговский', 'кнопка не показывает бар раздела');
-    assert.ok(byId.barPick.classList.contains('is-set'), 'выбранный бар не подсвечен');
-    assert.equal(query(fetchCalls[0].url).get('store'), 'ligovskiy',
-        'первая загрузка ушла без бара: ' + fetchCalls[0].url);
+    const first = query(fetchCalls[0].url);
+    assert.deepEqual([first.get('date_from'), first.get('date_to'), first.get('store')],
+        ['2026-08-01', '2026-08-31', 'ligovskiy'], 'первая загрузка — не по выбору полосы: ' + fetchCalls[0].url);
+    assert.ok(!first.has('period_type') && !first.has('anchor'), 'старые параметры периода в запросе');
     return later(() => {
         const html = byId['pane-summary'].innerHTML;
         assert.ok(html.includes('за баром первой покупки'), 'у регистраций нет подписи бара');
         assert.ok(html.includes('по барам не делится'), 'Orderia не помечена «по барам не делится»');
         assert.ok(!html.includes('Регистраций на точку'), 'сравнение баров показано в режиме бара');
         assert.ok(html.includes('Выбран бар'), 'в «Как считается» нет правила бара');
-        // Меню: пункты раздела и пояснение; открывает его общий GH.toggleMenu.
-        byId.barPickBtn.click();
-        assert.equal(gh.menuToggles, 1, 'меню не открывается через GH.toggleMenu');
-        const menu = byId.barPickMenu.innerHTML;
-        for (const needle of ['data-bar=""', 'data-bar="varshavskaya"', 'Все бары', 'gh-menu-note']) {
-            assert.ok(menu.includes(needle), 'в меню нет ' + needle);
-        }
-        const pick = (key) => byId.barPickMenu.listeners.click[0]({
-            target: { closest: () => ({ getAttribute: () => key }) },
-        });
-        pick('varshavskaya');
-        assert.deepEqual(gh.setCalls, ['varshavskaya'], 'выбор не записан в общий фильтр');
-        assert.equal(byId.barPickLabel.textContent, 'Варшавская');
-        const last = fetchCalls[fetchCalls.length - 1];
-        assert.equal(query(last.url).get('store'), 'varshavskaya', 'вкладка не перезагрузилась по бару');
-        pick('');
-        const all = fetchCalls[fetchCalls.length - 1];
-        assert.ok(!query(all.url).has('store'), '«Все бары» отправили store');
-        assert.ok(!byId.barPick.classList.contains('is-set'), 'подсветка осталась на «Все бары»');
+        strip.setBar('varshavskaya');
+        let last = query(fetchCalls[fetchCalls.length - 1].url);
+        assert.equal(last.get('store'), 'varshavskaya', 'вкладка не перезагрузилась по бару');
+        strip.setBar('');
+        last = query(fetchCalls[fetchCalls.length - 1].url);
+        assert.ok(!last.has('store'), '«Все бары» отправили store');
+        strip.setPeriod({ start: '2025-03-01', end: '2026-08-31', granularity: 'custom',
+                          key: '2025-03-01_2026-08-31' });
+        last = query(fetchCalls[fetchCalls.length - 1].url);
+        assert.deepEqual([last.get('date_from'), last.get('date_to')], ['2025-03-01', '2026-08-31'],
+            'свой период полосы не ушёл в запрос');
     });
 });
 
-test('без модуля раздела (GH) страница работает по всей сети', () => {
+test('без полосы страница работает по всей сети — за месяц последнего полного дня', () => {
     const { sandbox, fetchCalls } = loadGuests({
         views: ['static/js/guests/views-summary.js'], init: true,
+        config: { last_full_day: '2026-10-31' },
         respond: () => ({ meta: metaOf(null), data: SUMMARY }),
     });
     assert.equal(sandbox.Guests.state.bar, '');
-    assert.ok(!query(fetchCalls[0].url).has('store'));
+    const q = query(fetchCalls[0].url);
+    assert.ok(!q.has('store'));
+    assert.deepEqual([q.get('date_from'), q.get('date_to')], ['2026-10-01', '2026-10-31'],
+        '1 ноября страница должна открыть октябрь (данные по 31.10), а не пустой ноябрь');
 });
 
 test('«Не купившие» при выбранном баре подписаны «по всей сети»', () => {
@@ -444,7 +459,7 @@ test('«Не купившие» при выбранном баре подпис�
         by_month: [], by_balance: [], false_positives: [],
     };
     const { sandbox, byId } = loadGuests({
-        views: ['static/js/guests/views-never.js'], gh: makeGh('bolshoy'), init: true,
+        views: ['static/js/guests/views-never.js'], strip: makeStrip({ bar: 'bolshoy' }), init: true,
         // Сервер ?store= у этого отчёта не читает: meta.venue = null.
         respond: () => ({ meta: metaOf(null), data: never }),
     });
@@ -466,11 +481,24 @@ function churnRow(over) {
         damage_month: 2500, damage_year: 30000, slowing: 4, slowing_base: 40, slowing_pct: 10.0,
     }, over || {});
 }
+// Выбранный период — август 2026, ряд по неделям (data.step): 01–02.08 (сб–вс) и 31.08 (пн) —
+// недели, обрезанные границами месяца (clipped).
+const AUG_WEEKS = [['2026-08-01', '2026-08-02', true], ['2026-08-03', '2026-08-09', false],
+                   ['2026-08-10', '2026-08-16', false], ['2026-08-17', '2026-08-23', false],
+                   ['2026-08-24', '2026-08-30', false], ['2026-08-31', '2026-08-31', true]];
+function weekRows(over) {
+    return AUG_WEEKS.map(([start, end, clipped], i) => churnRow(Object.assign({
+        p_start: start, p_end: end, clipped: clipped, label: start, churn_pct: 3 + i,
+        start_alive: 100 + i, died: 2, new: 3, reactivated: 1, end_alive: 102 + i,
+    }, over || {})));
+}
 function churnData(period) {
     return {
-        dead_days: 30, choices: [30, 60, 90, 180], data_to: '2026-09-12',
-        series: [churnRow({ p_start: '2026-07-01', p_end: '2026-07-31', label: 'Июль 2026',
-                            churn_pct: 10.0, new: 18, reactivated: 6 }), period],
+        dead_days: 30, choices: [30, 60, 90, 180], data_to: '2026-09-12', step: 'week',
+        // Прошлый период — июль (у месяца — прошлый месяц): сравнение в плитках.
+        prev: churnRow({ p_start: '2026-07-01', p_end: '2026-07-31', label: 'Июль 2026',
+                         churn_pct: 10.0, new: 18, reactivated: 6 }),
+        series: weekRows(),
         period: period,
         leavers: { total: 12, damage_month: 2500, damage_year: 30000, buckets: [
             { segment: '1', visits_from: 1, visits_to: 1, count: 7, share_pct: 58.3, avg_ltv: 1500,
@@ -515,7 +543,7 @@ function churnRespond(meta, data) {
 
 test('«Отток»: открывается, просит порог 30 и бар страницы, рисует плитки и «Кто уходит»', () => {
     const { sandbox, byId, fetchCalls } = loadGuests({
-        views: ['static/js/guests/views-churn.js'], gh: makeGh('ligovskiy'), init: true,
+        views: ['static/js/guests/views-churn.js'], strip: makeStrip({ bar: 'ligovskiy' }), init: true,
         respond: churnRespond(Object.assign(metaOf('ligovskiy', 'Лиговский'),
                                             { period_type: 'month' }),
                               churnData(churnRow())),
@@ -544,7 +572,7 @@ test('«Отток»: открывается, просит порог 30 и ба
 
 test('«Отток»: ущерб, подсказка к порогу и кликабельные плитки со списком гостей', () => {
     const { sandbox, byId, fetchCalls } = loadGuests({
-        views: ['static/js/guests/views-churn.js'], gh: makeGh('ligovskiy'), init: true,
+        views: ['static/js/guests/views-churn.js'], strip: makeStrip({ bar: 'ligovskiy' }), init: true,
         respond: churnRespond(Object.assign(metaOf('ligovskiy', 'Лиговский'),
                                             { period_type: 'month', p_end: '2026-08-31' }),
                               churnData(churnRow())),
@@ -589,22 +617,19 @@ test('«Отток»: ущерб, подсказка к порогу и клик
         assert.ok(html.includes('Сравнение баров — при выборе «Все бары».'), 'нет подсказки про «Все бары»');
         assert.ok(!html.includes('churn-more-btn'), '2 строки — без кнопки «Показать ещё»');
         assert.ok(!html.includes('Последняя точка'), 'обе линии до конца — подпись не нужна');
-        // Длина графиков: месяц — 1 год · 2 года (по умолчанию) · 5 лет · всё время.
+        // Период — из полосы, шаг ряда выбирает сервер: своих кнопок периода у вкладки нет.
         const main = fetchCalls.find((c) => String(c.url).startsWith('/api/guests/churn?'));
-        assert.equal(query(main.url).get('periods'), '24', 'по умолчанию два года месяцев');
-        for (const [v, label] of [['12', '1 год'], ['60', '5 лет'], ['all', 'всё время']]) {
-            assert.ok(html.includes('data-range="' + v + '">' + label + '<'), 'нет кнопки ' + label);
-        }
-        assert.ok(html.includes('class="sub-btn active" data-range="24">2 года<'),
-            'выбранная длина не подсвечена');
-        // Период выбирается вверху страницы; «Графики за» — у графиков, под «Динамикой».
-        const dyn = html.indexOf('Динамика по месяцам: июл 26 — авг 26');
-        assert.ok(dyn > 0, 'нет заголовка «Динамика» с периодами графиков');
-        assert.ok(html.indexOf('data-range=') > dyn && html.indexOf('data-range=') < html.indexOf('id="churnRateChart"'),
-            '«Графики за» не под заголовком «Динамика» над графиками');
+        const mq = query(main.url);
+        assert.deepEqual([mq.get('date_from'), mq.get('date_to'), mq.get('periods'), mq.get('step')],
+            ['2026-08-01', '2026-08-31', null, null], 'период — датами полосы, без длины ряда');
+        assert.ok(!html.includes('data-range=') && !html.includes('Графики за'), '«Графики за» вернулись');
+        assert.ok(html.includes('<h3>Отток по неделям'), 'график не называет шаг ряда');
+        assert.ok(html.includes('Неполная неделя по краю периода (01.08–02.08.26, 31.08.26) на линии ' +
+            'оттока не показана'), 'нет подписи про обрезанные недели');
+        assert.ok(html.includes('01.08–02.08.26 · неполная неделя'), 'в таблице обрезанная неделя не помечена');
         assert.ok(html.indexOf('data-days=') < html.indexOf('class="metric-grid'),
             'порог — вверху вкладки, над плитками');
-        assert.ok(html.includes('/api/guests/churn-guests?period_type=month&anchor=2026-08-31' +
+        assert.ok(html.includes('/api/guests/churn-guests?date_from=2026-08-01&date_to=2026-08-31' +
             '&store=ligovskiy&group=left&dead_days=30&export=csv'), 'нет выгрузки CSV по тем же условиям');
     });
 });
@@ -622,7 +647,7 @@ const BAR_PERIODS = {
 test('«Отток» во всей сети: «Бары рядом», «Отток по барам» и любимая точка в списке', () => {
     const net = churnRow({ p_start: '2026-08-01', p_end: '2026-08-31' });
     const { sandbox, byId, fetchCalls } = loadGuests({
-        views: ['static/js/guests/views-churn.js'], gh: makeGh(''), init: true,
+        views: ['static/js/guests/views-churn.js'], strip: makeStrip(), init: true,
         respond: (url) => {
             const q = query(url);
             const meta = Object.assign(metaOf(q.get('store')), { period_type: 'month',
@@ -636,8 +661,7 @@ test('«Отток» во всей сети: «Бары рядом», «Отто
             const store = q.get('store');
             if (store === 'varshavskaya') return { error: 'TypeError: boom' };
             const period = store ? BAR_PERIODS[store] : net;
-            return { meta: meta, data: Object.assign(churnData(period),
-                { series: [barRow({ p_start: '2026-07-01', p_end: '2026-07-31' }), period] }) };
+            return { meta: meta, data: churnData(period) };
         },
     });
     sandbox.Guests.activateTab('churn');
@@ -647,8 +671,9 @@ test('«Отток» во всей сети: «Бары рядом», «Отто
             [null, 'bolshoy', 'ligovskiy', 'kremenchugskaya', 'varshavskaya'],
             'сеть и каждый бар — тем же маршрутом');
         for (const c of churnCalls) {
-            assert.deepEqual([query(c.url).get('dead_days'), query(c.url).get('periods')], ['30', '24'],
-                'у баров тот же порог и та же длина графиков');
+            assert.deepEqual([query(c.url).get('dead_days'), query(c.url).get('date_from'),
+                              query(c.url).get('date_to')], ['30', '2026-08-01', '2026-08-31'],
+                'у баров тот же порог и тот же период');
         }
         const html = byId['pane-churn'].innerHTML.replace(/[\u2009\u00a0]/g, ' ');
         assert.ok(!html.includes('pane-error'), 'вкладка упала из-за бара без ответа');
@@ -668,9 +693,10 @@ test('«Отток» во всей сети: «Бары рядом», «Отто
         }
         assert.ok(html.includes('<th>Любимая точка</th>') && html.includes('<td>Лиговский</td>'),
             'в списке по сети нет любимой точки гостя');
-        // Порядок: плитки, бары рядом, кто уходит, список, графики по периодам, по барам, баланс.
-        const order = ['class="metric-grid', '<h3>Бары рядом', '<h3>Кто уходит', 'id="churnList"',
-                       '<h3>Отток по периодам', '<h3>Отток по барам', '<h3>Баланс базы']
+        // Порядок (владелец 2026-11-01): плитки, сразу под ними графики (отток, по барам, баланс),
+        // потом бары рядом, кто уходит и список.
+        const order = ['class="metric-grid', '<h3>Отток по неделям', '<h3>Отток по барам',
+                       '<h3>Баланс базы', '<h3>Бары рядом', '<h3>Кто уходит', 'id="churnList"']
             .map((t) => html.indexOf(t));
         assert.ok(order.every((v, i) => v >= 0 && (i === 0 || v > order[i - 1])),
             'карточки не в том порядке: ' + order.join(', '));
@@ -687,7 +713,7 @@ test('«Отток»: список — первые 10 гостей, остал�
         return list;
     };
     const { sandbox, byId } = loadGuests({
-        views: ['static/js/guests/views-churn.js'], gh: makeGh('ligovskiy'), init: true,
+        views: ['static/js/guests/views-churn.js'], strip: makeStrip({ bar: 'ligovskiy' }), init: true,
         respond: (url) => {
             const meta = Object.assign(metaOf('ligovskiy', 'Лиговский'), { period_type: 'month' });
             const q = query(url);
@@ -711,9 +737,10 @@ test('«Отток»: список — первые 10 гостей, остал�
 // новички августа созреют 30.09.
 function endsNoteHtml(series) {
     const { sandbox, byId } = loadGuests({
-        views: ['static/js/guests/views-churn.js'], gh: makeGh('ligovskiy'), init: true,
-        respond: churnRespond(Object.assign(metaOf('ligovskiy', 'Лиговский'), { period_type: 'month' }),
-                              Object.assign(churnData(series[series.length - 1]), { series: series })),
+        views: ['static/js/guests/views-churn.js'], strip: makeStrip({ bar: 'ligovskiy' }), init: true,
+        respond: churnRespond(Object.assign(metaOf('ligovskiy', 'Лиговский'), { period_type: 'custom' }),
+                              Object.assign(churnData(series[series.length - 1]),
+                                            { series: series, step: 'month' })),
     });
     sandbox.Guests.activateTab('churn');
     return byId;
@@ -734,7 +761,7 @@ test('«Отток»: подпись «Последняя точка» — гд�
         assert.ok(html.includes(note), 'нет подписи под графиком: ' +
             (html.match(/Последняя точка[^<]*/) || ['—'])[0]);
         assert.ok(html.indexOf(note) > html.indexOf('id="churnRateChart"') &&
-            html.indexOf(note) < html.indexOf('<h3>Баланс базы'), 'подпись не под «Отток по периодам»');
+            html.indexOf(note) < html.indexOf('<h3>Баланс базы'), 'подпись не под «Отток по месяцам»');
     });
 });
 
@@ -771,25 +798,21 @@ test('«Отток»: будущий период — подпись вмест�
         assert.ok(html.includes('считать пока нечего'), 'нет подписи про будущий период');
         assert.ok(!html.includes('<h3>Кто уходит'), 'у будущего периода нечего разбирать');
         assert.ok(!html.includes('<h3>Бары рядом'), 'у будущего периода нечего сравнивать');
-        assert.ok(!html.includes('id="churnRateChart"') && !html.includes('Динамика по'),
+        assert.ok(!html.includes('id="churnRateChart"'),
             'у будущего периода графики с пустым концом спорят с подписью «считать нечего»');
         assert.ok(html.includes('class="sync-btn churn-jump" data-day="2026-09-12">Открыть последний ' +
-            'период с данными (Июль 2026)<'), 'нет кнопки к последнему периоду с данными');
+            'период с данными<'), 'нет кнопки к последнему периоду с данными');
     });
 });
 
-test('страница открывается на периоде последнего полного дня, а не на сегодняшнем', () => {
-    const { sandbox, fetchCalls } = loadGuests({
-        views: ['static/js/guests/views-churn.js'], gh: makeGh('ligovskiy'), init: true,
-        config: { last_full_day: '2026-10-31' },
-        respond: churnRespond(Object.assign(metaOf('ligovskiy', 'Лиговский'), { period_type: 'month' }),
-                              churnData(churnRow())),
-    });
-    sandbox.Guests.activateTab('churn');
-    const first = fetchCalls.find((c) => String(c.url).startsWith('/api/guests/churn?'));
-    assert.equal(query(first.url).get('anchor'), '2026-10-31',
-        '1 ноября страница должна открыть октябрь (данные по 31.10), а не пустой ноябрь');
-    return later(() => {});
+test('«Открыть последний период с данными» выбирает в полосе период того же шага', () => {
+    const strip = makeStrip();
+    const { sandbox } = loadGuests({ views: [], strip, init: true });
+    sandbox.Guests.showPeriodOf('2026-09-12');
+    assert.equal(strip.periodCalls.length, 1, 'выбор не ушёл в полосу');
+    const p = strip.periodCalls[0];
+    assert.deepEqual([p.start, p.end, p.granularity], ['2026-09-01', '2026-09-30', 'month'],
+        'у месяца — месяц, где лежит последний полный день данных');
 });
 
 // ---------------------------------------------------------------- вкладка «LTV»
@@ -802,7 +825,7 @@ function ltvRow(over) {
 }
 function ltvData(byVenue) {
     return {
-        asof: '2026-08-31',
+        asof: '2026-08-31', step: 'month',
         lifetime: { guests: 10, revenue: 50000, avg_ltv: 5000, checks: 40, avg_check: 1250,
                     checks_per_guest: 4.0 },
         ytd: { guests: 5, revenue: 10000, avg_revenue_per_guest: 2000 },
@@ -840,7 +863,7 @@ test('LTV: дата среза, из чего состоит и ряд с раз
 
 test('LTV при выбранном баре не рисует сравнение баров', () => {
     const { sandbox, byId } = loadGuests({
-        views: ['static/js/guests/views-ltv.js'], gh: makeGh('ligovskiy'), init: true,
+        views: ['static/js/guests/views-ltv.js'], strip: makeStrip({ bar: 'ligovskiy' }), init: true,
         respond: () => ({ meta: metaOf('ligovskiy', 'Лиговский'), data: ltvData([]) }),
     });
     sandbox.Guests.activateTab('ltv');
@@ -849,24 +872,6 @@ test('LTV при выбранном баре не рисует сравнени�
         assert.ok(!html.includes('LTV по точкам'), 'сравнение баров показано в режиме бара');
         assert.ok(html.includes('при выборе «Все бары»'), 'нет подсказки, где сравнение');
     });
-});
-
-test('«Акции»: бар страницы — начальное значение «Точки», чужое имя — все точки', () => {
-    const first = loadGuests({
-        views: ['static/js/guests/views-promo.js'], gh: makeGh('ligovskiy'), init: true,
-    });
-    first.sandbox.Guests.activateTab('promo');
-    const html = first.byId['pane-promo'].innerHTML;
-    assert.ok(html.includes('<option value="Лиговский" selected>'), 'точка не взята из бара страницы');
-    assert.equal(first.fetchCalls.length, 0, 'вкладка «Акции» сама пошла в iiko');
-    // Бара нет среди вариантов селекта (config.bars) — не выдумываем имя для iiko.
-    const second = loadGuests({
-        views: ['static/js/guests/views-promo.js'], gh: makeGh('bolshoy'), init: true,
-    });
-    second.sandbox.Guests.activateTab('promo');
-    assert.ok(!second.byId['pane-promo'].innerHTML.includes(' selected>Большой'),
-        'подставлено имя, которого нет в списке точек');
-    assert.ok(second.byId['pane-promo'].innerHTML.includes('<option value="">Все точки</option>'));
 });
 
 // Итог печатаем после того, как отработают асинхронные проверки.

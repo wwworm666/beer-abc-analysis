@@ -95,8 +95,8 @@ Guests.registerView('never', function (pane) {
 
         // --- выгрузка для реактивации ---
         html += '<div class="gcard"><h3>Выгрузка для реактивации</h3>' +
-            '<div class="guest-search"><a class="sync-btn" href="/api/guests/never?period_type=' +
-            G.state.periodType + '&anchor=' + resp.meta.p_end + '&export=csv">Скачать CSV</a></div>' +
+            '<div class="guest-search"><a class="sync-btn" href="/api/guests/never?date_from=' +
+            resp.meta.p_start + '&date_to=' + resp.meta.p_end + '&export=csv">Скачать CSV</a></div>' +
             '<div class="note-line">В файл попадут только подтверждённые витриной карты (' +
             G.fmtNum(t.confirmed) + ') — без мусорных записей и без тех, кто на самом деле покупает. ' +
             'Колонки: карта, имя, телефон, Telegram ID, дата регистрации, бонусный баланс.</div></div>';

@@ -119,8 +119,17 @@ def guests_page():
         coverage_from = get_store().coverage().get('date_from')
     except Exception:
         coverage_from = None
+    last_full = _page_last_full_day()
+    # Подпись в панели периода: откуда данные и по какой день (дата — ДД.ММ.ГГГГ).
+    freshness = None
+    if coverage_from and last_full:
+        def ru(iso):
+            return iso[8:10] + '.' + iso[5:7] + '.' + iso[:4]
+        freshness = ('Витрина гостей с картой: чеки с ' + ru(coverage_from) + ' по ' + ru(last_full)
+                     + ', загрузка ночью')
     return render_template('guests.html', app_version=APP_VERSION, bars=BARS,
-                           last_full_day=_page_last_full_day(), coverage_from=coverage_from)
+                           last_full_day=last_full, coverage_from=coverage_from,
+                           freshness=freshness)
 
 
 def _page_last_full_day():

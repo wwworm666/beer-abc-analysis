@@ -19,6 +19,22 @@
     <link rel="stylesheet" href="/static/guests/guests.css?v={{ app_version }}">
 </head>
 <body class="guests-page">
+    {#- Бар и период — общая полоса сайта (shared/nav.html -> shared/scope_strip.html, план единого
+        виджета docs/planning/period-widget-rollout.md, этап 2): выбор один на весь сайт. Шаг
+        страницы — месяц (без выбора — текущий месяц по последнему полному дню витрины, ответ
+        владельца Р2); витрина с ночной загрузкой, поэтому выбрать можно только по последний полный
+        день; «Всё время» — с первого дня данных. Кнопка синка (админ) — справа в полосе. -#}
+    {% set strip = kultura_strip(mode='report', step='month', live=False,
+                                 last_full_day=last_full_day, data_start=coverage_from,
+                                 freshness=freshness) %}
+    {% if current_user and current_user.is_admin %}
+    {% set strip_actions %}
+        <button type="button" class="fb-ghost" id="syncBtn" title="Дозагрузить свежие чеки из iiko (текущий месяц)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+            <span>Обновить данные</span>
+        </button>
+    {% endset %}
+    {% endif %}
     <div class="container">
         {% set page_title = "Маркетинг" %}
         {% set page_subtitle = "Гости, программа лояльности и эффективность акций" %}
@@ -34,41 +50,6 @@
         {% set hub_active = 'guests' %}
         <div class="gh-scope gh-embed">
             {% include 'shared/guest_hub_strip.html' %}
-        </div>
-
-        <!-- Бар + период: тип и навигация стрелками -->
-        <div class="guests-controls">
-            {#- Бар — общий фильтр раздела «Гости» (GH.getBar / GH.setBar), тот же,
-                что на контент-плане и отзывах: по нему считаются и отчёты, и
-                счётчики полосы выше. Меню — .gh-menu раздела (на телефоне — лист
-                снизу), поэтому обёртка несёт свой .gh-scope с токенами цвета.
-                Наполняет bindBar в common.js страницы. -#}
-            <div class="bar-pick gh-scope" id="barPick">
-                <button type="button" class="bar-pick-btn" id="barPickBtn"
-                        aria-haspopup="menu" aria-expanded="false">
-                    <span class="bar-pick-cap">Бар</span>
-                    <span class="bar-pick-val" id="barPickLabel">Все бары</span>
-                    <svg class="bar-pick-chev" width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
-                        <path d="M2 3.5 5 6.5 8 3.5" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
-                </button>
-                <div class="gh-menu" id="barPickMenu" role="menu" hidden></div>
-            </div>
-            <div class="period-types" id="periodTypes">
-                <button class="ptype-btn" data-ptype="week">Неделя</button>
-                <button class="ptype-btn active" data-ptype="month">Месяц</button>
-                <button class="ptype-btn" data-ptype="quarter">Квартал</button>
-                <button class="ptype-btn" data-ptype="year">Год</button>
-            </div>
-            <div class="period-nav">
-                <button class="pnav-btn" id="periodPrev" title="Предыдущий период">&larr;</button>
-                <span class="period-label" id="periodLabel">&nbsp;</span>
-                <button class="pnav-btn" id="periodNext" title="Следующий период">&rarr;</button>
-            </div>
-            <div class="coverage-banner" id="coverageBanner" title="Диапазон загруженных чеков программы лояльности"></div>
-            {% if current_user and current_user.is_admin %}
-            <button class="sync-btn" id="syncBtn" title="Дозагрузить свежие чеки из iiko (текущий месяц)">Обновить данные</button>
-            {% endif %}
         </div>
 
         <!-- Вкладки разделов -->
@@ -108,7 +89,7 @@
         /* Имена точек из iiko — для живого OLAP на вкладке «Акции».
            Ключи витрины сюда НЕ дублируются: витринные отчёты получают их
            вместе с данными (см. routes/guests.py). last_full_day — последний
-           полный день данных: период при открытии страницы. */
+           полный день данных: период страницы, если полоса не загрузилась. */
         window.GUESTS_CONFIG = { bars: {{ bars | tojson }}, last_full_day: {{ last_full_day | tojson }} };
     </script>
     <script src="/static/js/guests/formulas.js?v={{ app_version }}"></script>

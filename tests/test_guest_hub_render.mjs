@@ -191,7 +191,9 @@ test('/guests: полоса в своём .gh-scope в начале .guests-wrap
     assert.ok(wrapAt > 0, 'нет .guests-wrap');
     const inc = guests.indexOf("{% include 'shared/guest_hub_strip.html' %}");
     assert.ok(inc > wrapAt, 'полоса не подключена внутри .guests-wrap');
-    assert.ok(inc < guests.indexOf('class="guests-controls"'), 'полоса должна стоять до панели периода');
+    assert.ok(inc < guests.indexOf('id="guestsTabs"'), 'полоса раздела должна стоять до вкладок страницы');
+    // Бар и период — общая полоса сайта в общем меню (до .guests-wrap), своей панели нет.
+    assert.ok(!guests.includes('class="guests-controls"'), 'у страницы снова своя панель периода');
     const before = guests.slice(wrapAt, inc);
     assert.ok(/\{% set hub_active = 'guests' %\}/.test(before), 'нет hub_active = guests');
     // Обёртка с gh-scope открыта перед include и ещё не закрыта.

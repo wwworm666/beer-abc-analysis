@@ -4,9 +4,14 @@
    С 2026-10-30 (статья Unisender о churn rate): ущерб от оттока в рублях, «Стали ходить
    реже» (скрытый отток) и подсказка к порогу. Плитки с группами гостей и строки «Кто уходит»
    кликабельны: карточка списка показывает этих гостей поимённо (/api/guests/churn-guests).
-   Список — сразу под плитками; при «Все бары» — «Бары рядом» и «Отток по барам»: тот же
-   маршрут по каждому бару. Период выбирается в одном месте — вверху страницы; графики стоят
-   под заголовком «Динамика»: их конец — этот период, длина — кнопки «Графики за». */
+   При «Все бары» — «Отток по барам» и «Бары рядом»: тот же маршрут по каждому бару.
+
+   Период и бар — из общей полосы сайта (решение владельца 2026-11-01: «почему я не могу
+   посмотреть график в выбранном собой периоде»). Плитки — итог за весь выбранный период,
+   графики — он же по шагам (data.step: до 7 дней — дни, до 92 — недели, до 5 лет — месяцы,
+   дальше — годы); своих кнопок периода («Графики за») у вкладки нет. Порядок блоков: плитки,
+   сразу под ними графики («Отток», «Отток по барам», «Баланс базы»), потом «Бары рядом»,
+   «Кто уходит» и список гостей. */
 
 Guests.registerView('churn', function (pane) {
     var G = Guests;
@@ -16,16 +21,12 @@ Guests.registerView('churn', function (pane) {
     // по кнопке; весь список — CSV.
     var LIST_LIMIT = 50;
     var LIST_SHOW = 10;
-    // «Графики за»: подпись во времени -> periods маршрута. Значение по умолчанию у типа —
-    // зеркало CHURN_SERIES_DEFAULT; 'all' — вся история (ряд обрезается по первому чеку сети
-    // или бара). Плитки и списки от этой кнопки не зависят.
-    var RANGES = {
-        week: [['26', 'полгода'], ['52', '1 год'], ['104', '2 года'], ['all', 'всё время']],
-        month: [['12', '1 год'], ['24', '2 года'], ['60', '5 лет'], ['all', 'всё время']],
-        quarter: [['8', '2 года'], ['12', '3 года'], ['20', '5 лет'], ['all', 'всё время']],
-        year: [['5', '5 лет'], ['8', '8 лет'], ['all', 'всё время']]
-    };
-    var RANGE_DEFAULT = { week: '26', month: '24', quarter: '12', year: '8' };
+    // Шаг ряда (data.step) -> подписи: заголовок графика и неполный крайний шаг в таблице.
+    var STEP_NAMES = { day: 'дням', week: 'неделям', month: 'месяцам', year: 'годам' };
+    var STEP_PART = { day: 'неполный день', week: 'неполная неделя', month: 'неполный месяц',
+                      year: 'неполный год' };
+    // «В среднем за месяц» под оттоком — только у ряда по месяцам и от двух полных месяцев.
+    var AVG_MIN_STEPS = 2;
     var DEFAULT_GROUP = 'left';
     var OTHER_LIST = 'Другая группа — плитка вверху или строка «Кто уходит».';
     // Колонки списка: заголовок, число ли, ячейка.
@@ -83,21 +84,23 @@ Guests.registerView('churn', function (pane) {
             html + '</div>';
     }
 
-    // Длина графиков: выбранная кнопка, пока тип периода тот же; иначе — по умолчанию для типа.
-    function currentRange(type) {
-        var list = RANGES[type] || RANGES.month;
-        var v = pane.dataset.rangeType === type ? pane.dataset.range : '';
-        var ok = list.some(function (r) { return r[0] === v; });
-        return ok ? v : (RANGE_DEFAULT[type] || RANGE_DEFAULT.month);
-    }
-
     function deadDays() {
         var v = parseInt(pane.dataset.deadDays || String(DEFAULT_DAYS), 10);
         return CHOICES.indexOf(v) >= 0 ? v : DEFAULT_DAYS;
     }
 
+    // Подпись точки ряда на оси: «16.03», «мар 26», «2026» (type — шаг ряда, data.step).
     function shortLabel(row, type) {
         return G.periodShort(row.p_start, type);
+    }
+    // Подпись строки таблицы: неделя и обрезанный границей периода шаг — датами.
+    function rowLabel(row, type) {
+        return (type === 'week' || row.clipped) ? G.rangeLabel(row.p_start, row.p_end) : shortLabel(row, type);
+    }
+    // Точка линии оттока: только полный шаг — у неполного (идёт или обрезан границей периода)
+    // смертей меньше, и отток занижен.
+    function churnPoint(row) {
+        return row.state === 'complete' && !row.clipped ? row.churn_pct : null;
     }
 
     function activeIf(on) {
@@ -112,32 +115,15 @@ Guests.registerView('churn', function (pane) {
             }).join('') + '</div>';
     }
 
-    // «Динамика» — заголовок над графиками: какие периоды они показывают. Конец — период,
-    // выбранный вверху страницы, длина — кнопки «Графики за» (владелец 2026-11-01: «выбор
-    // периода в двух местах — как они взаимодействуют?»).
-    var STEP_NAMES = { week: 'неделям', month: 'месяцам', quarter: 'кварталам', year: 'годам' };
-    function dynamicsHead(rows, type, range) {
-        var span = rows.length
-            ? ': ' + shortLabel(rows[0], type) + ' — ' + shortLabel(rows[rows.length - 1], type) : '';
-        return '<div class="churn-dyn-head"><h3 class="churn-dyn-title">Динамика по ' +
-            (STEP_NAMES[type] || STEP_NAMES.month) + span + G.helpIcon('churn_range') + '</h3>' +
-            rangeSwitcher(type, range) + '</div>';
-    }
-
-    // Название последнего периода с данными в ряду (для кнопки у периода без данных).
-    function lastWithData(rows) {
-        for (var i = rows.length - 1; i >= 0; i--) {
-            if (rows[i].state !== 'future') return rows[i].label;
-        }
-        return '';
-    }
-
-    function rangeSwitcher(type, current) {
-        return '<div class="sub-switch"><span class="sub-label">Графики за:</span>' +
-            (RANGES[type] || RANGES.month).map(function (r) {
-                return '<button class="sub-btn' + activeIf(r[0] === current) +
-                    '" data-range="' + r[0] + '">' + r[1] + '</button>';
-            }).join('') + '</div>';
+    // Подпись под графиком: неполные шаги по краям периода на линии оттока не показаны.
+    function clippedNote(rows, type) {
+        var cut = rows.filter(function (r) { return r.clipped && r.state !== 'future'; });
+        if (!cut.length) return '';
+        return '<div class="note-line">' + (STEP_PART[type] || 'неполный шаг').replace(/^./, function (c) {
+            return c.toUpperCase();
+        }) + ' по краю периода (' + cut.map(function (r) { return G.rangeLabel(r.p_start, r.p_end); })
+            .join(', ') + ') на линии оттока не показана: её отток не сравним с полным шагом; ' +
+            'числа — в таблице «Баланс базы».</div>';
     }
 
     // Подсказка к порогу: какая доля возвратов за год случилась позже каждого порога —
@@ -162,7 +148,8 @@ Guests.registerView('churn', function (pane) {
     function lineEndsNote(rows, dataTo, type) {
         var lastChurn = -1, lastNewbie = -1;
         rows.forEach(function (r, i) {
-            if (r.state === 'complete' && r.churn_pct !== null) lastChurn = i;
+            // Обрезанный последний шаг объясняет clippedNote — здесь он не «обрыв».
+            if (churnPoint(r) !== null || (r.clipped && r.state === 'complete')) lastChurn = i;
             if (r.newbie_no_return_pct !== null) lastNewbie = i;
         });
         var end = rows.length - 1;
@@ -194,19 +181,31 @@ Guests.registerView('churn', function (pane) {
         return row.died + row.new_died;
     }
 
+    // Средний отток за месяц: среднее арифметическое оттока полных месяцев ряда (1 знак) — у
+    // длинного периода отток за весь период несравним с привычным месячным. null — ряд не по
+    // месяцам или полных месяцев меньше AVG_MIN_STEPS.
+    function monthlyAverage(rows, type) {
+        if (type !== 'month') return null;
+        var vals = rows.map(churnPoint).filter(function (v) { return v !== null; });
+        if (vals.length < AVG_MIN_STEPS) return null;
+        var sum = vals.reduce(function (a, b) { return a + b; }, 0);
+        return Math.round(sum / vals.length * 10) / 10;
+    }
+
     function tiles(d, type) {
         var p = d.period;
-        var prev = null;
-        for (var i = d.series.length - 2; i >= 0; i--) {
-            if (d.series[i].state === 'complete') { prev = d.series[i]; break; }
-        }
+        // Прошлый период — той же длины перед выбранным (у недели, месяца, года — прошлый такой же).
+        var prev = d.prev && d.prev.state !== 'future' ? d.prev : null;
+        var prevName = prev ? G.rangeLabel(prev.p_start, prev.p_end) : '';
         function prevNum(key) {
-            return prev ? shortLabel(prev, type) + ': ' + G.fmtNum(prev[key]) : '';
+            return prev ? prevName + ': ' + G.fmtNum(prev[key]) : '';
         }
         var one = d.leavers.buckets.length ? d.leavers.buckets[0].count : 0;
+        var avg = monthlyAverage(d.series, type);
         var churnSub = 'ушли ' + G.fmtNum(p.died) + ' из ' + G.fmtNum(p.start_alive) +
             ' живых на начало' +
-            (prev ? ' · ' + shortLabel(prev, type) + ': ' + G.fmtPct(prev.churn_pct) : '');
+            (avg !== null ? ' · в среднем за месяц ' + G.fmtPct(avg)
+                : (prev ? ' · ' + prevName + ': ' + G.fmtPct(prev.churn_pct) : ''));
         var slowingSub = p.slowing_base
             ? 'из ' + G.fmtNum(p.slowing_base) + ' ходивших раз в месяц и чаще (' +
               G.fmtPct(p.slowing_pct) + ')'
@@ -252,8 +251,9 @@ Guests.registerView('churn', function (pane) {
         rows.slice().reverse().forEach(function (r) {
             if (r.state === 'future') return;
             var partial = r.state === 'partial';
-            html += '<tr' + (partial ? ' class="row-partial"' : '') + '><td>' +
-                shortLabel(r, type) + (partial ? ' · по ' + G.fmtDate(r.asof).slice(0, 5) : '') +
+            html += '<tr' + (partial || r.clipped ? ' class="row-partial"' : '') + '><td>' +
+                rowLabel(r, type) + (partial ? ' · по ' + G.fmtDate(r.asof).slice(0, 5) : '') +
+                (r.clipped && !partial ? ' · ' + (STEP_PART[type] || '') : '') +
                 '</td>' +
                 '<td class="num">' + G.fmtNum(r.start_alive) + '</td>' +
                 '<td class="num delta-up">+' + G.fmtNum(r.new) + '</td>' +
@@ -300,8 +300,8 @@ Guests.registerView('churn', function (pane) {
         } else if (!list.total) {
             html += '<div class="note-line">Таких гостей нет. ' + OTHER_LIST + '</div>';
         } else {
-            var csvUrl = '/api/guests/churn-guests?period_type=' + G.state.periodType +
-                '&anchor=' + meta.p_end + (meta.venue ? '&store=' + encodeURIComponent(meta.venue) : '') +
+            var csvUrl = '/api/guests/churn-guests?date_from=' + meta.p_start + '&date_to=' +
+                meta.p_end + (meta.venue ? '&store=' + encodeURIComponent(meta.venue) : '') +
                 '&group=' + list.group + '&dead_days=' + days +
                 (list.bucket ? '&bucket=' + encodeURIComponent(list.bucket) : '') + '&export=csv';
             var more = list.guests.length - LIST_SHOW;
@@ -394,7 +394,7 @@ Guests.registerView('churn', function (pane) {
         // снимок на дату среза, неполный период его не занижает: точка есть.
         GCharts.line('churnRateChart', labels, [
             { label: 'Отток базы, %',
-              data: rows.map(function (r) { return r.state === 'complete' ? r.churn_pct : null; }),
+              data: rows.map(churnPoint),
               borderColor: pal.danger, backgroundColor: pal.danger, tension: 0.3, pointRadius: 2 },
             { label: 'Не вернулись после первого визита, %',
               data: rows.map(function (r) { return r.newbie_no_return_pct; }),
@@ -434,7 +434,7 @@ Guests.registerView('churn', function (pane) {
                 cells.map(function (c) { return '<td class="num">' + c + '</td>'; }).join('') +
                 '</tr>';
         }
-        var html = '<div class="gcard"><h3>Бары рядом · ' + shortLabel(net.period, type) +
+        var html = '<div class="gcard"><h3>Бары рядом · ' + G.rangeLabel(net.period.p_start, net.period.p_end) +
             G.helpIcon('churn_bars') + '</h3><div class="gtable-wrap"><table class="gtable churn-bars-table">' +
             '<thead><tr><th>Бар</th><th class="num">Отток</th><th class="num">Ушли</th>' +
             '<th class="num">Ущерб в месяц</th><th class="num">Стали ходить реже</th>' +
@@ -488,7 +488,7 @@ Guests.registerView('churn', function (pane) {
             ((b.data && b.data.series) || []).forEach(function (r) { byStart[r.p_start] = r; });
             var churn = rows.map(function (r) {
                 var q = byStart[r.p_start];
-                return q && q.state === 'complete' ? q.churn_pct : null;
+                return q ? churnPoint(q) : null;
             });
             var newbie = rows.map(function (r) {
                 var q = byStart[r.p_start];
@@ -512,22 +512,21 @@ Guests.registerView('churn', function (pane) {
 
     function render() {
         var days = deadDays();
-        var range = currentRange(G.state.periodType);
-        // «Все бары»: тот же отчёт по каждому бару — для «Бары рядом» и «Отток по барам».
+        // «Все бары»: тот же отчёт по каждому бару — для «Отток по барам» и «Бары рядом».
         var barList = G.state.bar ? [] : G.bars();
         var calls = [
-            G.api('/api/guests/churn', { dead_days: days, periods: range }),
+            G.api('/api/guests/churn', { dead_days: days }),
             G.api('/api/guests/churn-guests', listParams(days))
         ].concat(barList.map(function (b) {
             // Бар без ответа не роняет вкладку: в его строке прочерки.
-            return G.api('/api/guests/churn', { dead_days: days, periods: range, store: b.key })
+            return G.api('/api/guests/churn', { dead_days: days, store: b.key })
                 .then(function (r) { return r.data; }, function () { return null; });
         }));
         return Promise.all(calls).then(function (answers) {
             var resp = answers[0];
             var list = answers[1].data;
             var d = resp.data, meta = resp.meta;
-            var type = meta.period_type;
+            var type = d.step;
             var choices = d.choices && d.choices.length ? d.choices : CHOICES;
             var p = d.period;
             var perBar = barList.map(function (b, i) {
@@ -540,15 +539,13 @@ Guests.registerView('churn', function (pane) {
                 html += '<div class="gcard"><div class="note-line">Данных для отчёта нет: ' +
                     'в витрине нет чеков за этот период.</div></div>';
             } else if (p.state === 'future') {
-                // Без графиков: у периода без данных их конец пустой, и страница спорила бы с
-                // подписью «считать нечего». Кнопка — к последнему периоду с данными.
-                var lastLabel = lastWithData(d.series);
+                // Без графиков: у периода без данных считать нечего. Кнопка выбирает в полосе
+                // период того же шага, где лежит последний полный день данных.
                 html += '<div class="gcard"><div class="note-line">Период начался позже ' +
                     'последнего полного дня данных (' + G.fmtDate(d.data_to) + ') — считать ' +
                     'пока нечего.</div>' + (d.data_to
                         ? '<button type="button" class="sync-btn churn-jump" data-day="' +
-                          G.esc(d.data_to) + '">Открыть последний период с данными' +
-                          (lastLabel ? ' (' + G.esc(lastLabel) + ')' : '') + '</button>'
+                          G.esc(d.data_to) + '">Открыть последний период с данными</button>'
                         : '') + '</div>';
             } else {
                 html += thresholdHint(d.return_gaps, d.dead_days, meta);
@@ -558,27 +555,11 @@ Guests.registerView('churn', function (pane) {
                         G.fmtDate(p.asof) + ' — последний полный день, витрина обновляется ' +
                         'ночью.</div>';
                 }
-            }
-
-            // Сначала — числа по барам и люди (кого вернуть), потом — графики по периодам.
-            if (p && p.state !== 'future') {
-                if (showBars) {
-                    html += barsCard(d, perBar, type, meta);
-                } else if (meta.venue) {
-                    html += '<div class="note-line">Сравнение баров — при выборе «Все бары».</div>';
-                }
-                html += '<div class="gcard"><h3>Кто уходит · ' + shortLabel(p, type) +
-                    G.helpIcon('churn_leavers') + '</h3>' + leaversTable(d.leavers) +
-                    G.howBlock(['churn_leavers', 'churn_damage'], meta) + '</div>';
-                html += listCard(list, d.dead_days, meta);
-            }
-
-            if (p && p.state !== 'future') {
+                // Графики — сразу под плитками (владелец 2026-11-01): выбранный период по шагам.
                 var endsNote = lineEndsNote(d.series, d.data_to, type);
-                html += dynamicsHead(d.series, type, range);
-                html += '<div class="gcard"><h3>Отток по периодам' + G.helpIcon('churn_rate') +
-                    '</h3><div class="chart-box"><canvas id="churnRateChart"></canvas></div>' +
-                    endsNote +
+                html += '<div class="gcard"><h3>Отток по ' + (STEP_NAMES[type] || STEP_NAMES.month) +
+                    G.helpIcon('churn_rate') + '</h3><div class="chart-box"><canvas id="churnRateChart">' +
+                    '</canvas></div>' + endsNote + clippedNote(d.series, type) +
                     G.howBlock(['churn_alive', 'churn_rate', 'churn_newbie', 'churn_slowing',
                                 'churn_range'], meta) + '</div>';
                 if (showBars) html += barsTrendCard(perBar, meta, endsNote);
@@ -586,25 +567,25 @@ Guests.registerView('churn', function (pane) {
                     '</h3><div class="chart-box tall"><canvas id="churnFlowChart"></canvas></div>' +
                     balanceTable(d.series, type) +
                     G.howBlock(['churn_balance', 'churn_range'], meta) + '</div>';
+                // Потом — бары рядом и люди (кого вернуть).
+                if (showBars) {
+                    html += barsCard(d, perBar, type, meta);
+                } else if (meta.venue) {
+                    html += '<div class="note-line">Сравнение баров — при выборе «Все бары».</div>';
+                }
+                html += '<div class="gcard"><h3>Кто уходит · ' + G.rangeLabel(p.p_start, p.p_end) +
+                    G.helpIcon('churn_leavers') + '</h3>' + leaversTable(d.leavers) +
+                    G.howBlock(['churn_leavers', 'churn_damage'], meta) + '</div>';
+                html += listCard(list, d.dead_days, meta);
             }
 
             pane.innerHTML = html;
-            function rerender() {
-                render().catch(function (e) {
-                    pane.innerHTML = '<div class="pane-error">Ошибка: ' + G.esc(e.message) + '</div>';
-                });
-            }
             pane.querySelectorAll('.sub-btn[data-days]').forEach(function (b) {
                 b.addEventListener('click', function () {
                     pane.dataset.deadDays = b.dataset.days;
-                    rerender();
-                });
-            });
-            pane.querySelectorAll('.sub-btn[data-range]').forEach(function (b) {
-                b.addEventListener('click', function () {
-                    pane.dataset.range = b.dataset.range;
-                    pane.dataset.rangeType = type;
-                    rerender();
+                    render().catch(function (e) {
+                        pane.innerHTML = '<div class="pane-error">Ошибка: ' + G.esc(e.message) + '</div>';
+                    });
                 });
             });
             pane.querySelectorAll('.churn-jump').forEach(function (b) {

@@ -5,13 +5,15 @@
    сумма скидки, измерения ItemSaleEventDiscountType нет), поэтому отчёт по
    конкретной акции из неё не собрать.
 
-   Отсюда три отличия от остальных вкладок:
-   1. Свой период — произвольный диапазон дат, а не Неделя/Месяц/Квартал/Год.
-      Вкладка объявлена ownPeriod, глобальная панель периода на ней скрывается.
-   2. Загрузка только по кнопке. Запрос в iiko идёт десятки секунд, поэтому клик
-      по вкладке ничего не грузит — иначе каждое открытие било бы по iiko.
-   3. Свой кэш: загруженный ответ живёт в модульной переменной, и возврат на
-      вкладку перерисовывает его из памяти без повторного запроса.
+   Период и бар — из общей полосы сайта, как у остальных вкладок (решение владельца
+   2026-11-01; своих полей дат и «Точки» больше нет). Имя точки для iiko — по таблице баров
+   сайта (KStrip.barInfo(ключ).iiko_name). Отличия от остальных вкладок:
+   1. Считается сразу при открытии и при смене периода или бара (ответ Р5: «без нажатия
+      кнопки ничего не показывается»), но только за период до PROMO_AUTO_MAX_DAYS дней:
+      живой запрос в iiko за год идёт десятки секунд, а «Всё время», выбранное на другой
+      странице, запустило бы многоминутный запрос. Длиннее — по кнопке.
+   2. Свой кэш: загруженный ответ живёт в модульной переменной вместе с периодом и точкой, и
+      возврат на вкладку с тем же выбором перерисовывает его из памяти без нового запроса.
 
    Что сюда сознательно НЕ перенесено со старой страницы (см. docs/discounts.md
    и запись в CHANGELOG): вторая таксономия сегментов по числу визитов и «доунат»
@@ -28,114 +30,59 @@ Guests.registerView('promo', function (pane) {
         window.__promoState = { data: null, params: null, names: null, error: null };
     }
     var S = window.__promoState;
+    // Сразу считается период не длиннее года (366 дней — с високосным); длиннее — по кнопке.
+    var PROMO_AUTO_MAX_DAYS = 366;
 
     // --------------------------------------------------------- параметры
-    function defaults() {
-        var now = new Date();
-        var from = new Date(now.getFullYear(), 0, 1);   // с 1 января, как было
-        return { from: iso(from), to: iso(now), bar: pageBar(), promo: '' };
-    }
-    // Бар страницы (общий фильтр раздела) — начальное значение «Точки», пока её
-    // не трогали. Живой OLAP ждёт русское имя бара iiko, поэтому имя берётся из
-    // того же списка, что варианты селекта (config.bars): нет совпадения — все
-    // точки, а не запрос с именем, которого iiko не знает.
+    // Живой OLAP ждёт имя точки iiko: оно берётся из таблицы баров сайта (полоса) и сверяется со
+    // списком точек страницы (config.bars). Нет совпадения — все точки и подпись об этом, а не
+    // запрос с именем, которого iiko не знает.
     function pageBar() {
-        var name = G.state.bar ? G.barName(G.state.bar) : '';
-        return (G.config.bars || []).indexOf(name) >= 0 ? name : '';
-    }
-    function iso(d) {
-        return d.getFullYear() + '-' +
-            String(d.getMonth() + 1).padStart(2, '0') + '-' +
-            String(d.getDate()).padStart(2, '0');
+        if (!G.state.bar) return { name: '', unknown: false };
+        var strip = window.KStrip;
+        var info = strip && strip.barInfo ? strip.barInfo(G.state.bar) : null;
+        var name = info ? info.iiko_name : G.barName(G.state.bar);
+        var known = (G.config.bars || []).indexOf(name) >= 0;
+        return { name: known ? name : '', unknown: !known };
     }
     function current() {
-        var d = pane.dataset;
-        var def = defaults();
-        return {
-            from: d.pfrom || def.from,
-            to: d.pto || def.to,
-            // undefined — «Точку» ещё не трогали; '' — выбраны все точки.
-            bar: d.pbar !== undefined ? d.pbar : def.bar,
-            promo: d.ppromo || ''
-        };
+        var bar = pageBar();
+        return { from: G.state.period.start, to: G.state.period.end, bar: bar.name,
+                 barUnknown: bar.unknown, promo: pane.dataset.ppromo || '' };
     }
-    function store(p) {
-        pane.dataset.pfrom = p.from;
-        pane.dataset.pto = p.to;
-        pane.dataset.pbar = p.bar;
-        pane.dataset.ppromo = p.promo;
+    function days(p) {
+        var a = new Date(p.from + 'T00:00:00'), b = new Date(p.to + 'T00:00:00');
+        return Math.round((b - a) / 86400000) + 1;
+    }
+    function sameScope(a, b) {
+        return !!a && !!b && a.from === b.from && a.to === b.to && a.bar === b.bar;
     }
 
     // --------------------------------------------------------- контролы
-    // busy — идёт запрос: кнопка и поля блокируются, чтобы второй клик не
-    // отправил ещё один тяжёлый запрос в iiko.
+    // Акция — фильтр загруженного ответа (в запрос не уходит). busy — идёт запрос: выбор акции
+    // заблокирован, список ещё не пришёл.
     function controls(p, busy) {
         var dis = busy ? ' disabled' : '';
-        var bars = (G.config.bars || []).map(function (b) {
-            return '<option value="' + G.esc(b) + '"' +
-                (p.bar === b ? ' selected' : '') + '>' + G.esc(b) + '</option>';
-        }).join('');
         var promos = (S.names || []).map(function (n) {
             return '<option value="' + G.esc(n) + '"' +
                 (p.promo === n ? ' selected' : '') + '>' + G.esc(n) + '</option>';
         }).join('');
         return '<div class="gcard promo-panel">' +
             '<div class="promo-controls">' +
-              '<label class="promo-field"><span>С даты</span>' +
-                '<input type="date" id="promoFrom" value="' + G.esc(p.from) + '"' + dis + '></label>' +
-              '<label class="promo-field"><span>По дату</span>' +
-                '<input type="date" id="promoTo" value="' + G.esc(p.to) + '"' + dis + '></label>' +
-              '<label class="promo-field"><span>Точка</span><select id="promoBar"' + dis + '>' +
-                '<option value="">Все точки</option>' + bars + '</select></label>' +
               '<label class="promo-field"><span>Акция</span><select id="promoName"' + dis + '>' +
                 '<option value="">Все акции</option>' + promos + '</select></label>' +
-              '<button class="sync-btn" id="promoLoad"' + dis + '>' +
-                (busy ? 'Запрашиваю…' : 'Анализировать') + '</button>' +
             '</div>' +
-            '<div class="note-line">Данные живые из iiko за выбранный диапазон, ' +
-            'не из витрины — запрос занимает десятки секунд. Остальные вкладки ' +
-            'считаются по витрине и обновляются мгновенно.</div>' +
-            '<div class="note-line" id="promoStale"></div>' +
             '</div>';
     }
 
     function bind() {
-        var byId = function (id) { return document.getElementById(id); };
-        var apply = function () {
-            var p = current();
-            p.from = byId('promoFrom').value || p.from;
-            p.to = byId('promoTo').value || p.to;
-            p.bar = byId('promoBar').value;
-            p.promo = byId('promoName').value;
-            store(p);
-            return p;
-        };
-        // Акция — фильтр уже загруженного ответа, запрос не нужен.
-        var promoSel = byId('promoName');
+        var promoSel = document.getElementById('promoName');
         if (promoSel) promoSel.addEventListener('change', function () {
-            var p = apply();
+            pane.dataset.ppromo = promoSel.value;
             if (S.data) render();
         });
-        // Точка и даты уходят в запрос к iiko, поэтому их смена требует загрузки.
-        // Раньше здесь был один обработчик на оба селекта с проверкой «диапазон
-        // не менялся»: при смене точки условие всегда было ложным, и клик по
-        // селекту молча не делал НИЧЕГО — ни запроса, ни перерисовки.
-        ['promoBar', 'promoFrom', 'promoTo'].forEach(function (id) {
-            var el = byId(id);
-            if (el) el.addEventListener('change', function () {
-                var p = apply();
-                if (S.data || id === 'promoBar') load(p);
-                else markStale();
-            });
-        });
-        var btn = byId('promoLoad');
-        if (btn) btn.addEventListener('click', function () { load(apply()); });
-    }
-
-    // Диапазон изменили, но данных ещё нет — подсказываем, что делать.
-    function markStale() {
-        var hint = document.getElementById('promoStale');
-        if (hint) hint.textContent = 'Диапазон изменён — нажмите «Анализировать».';
+        var btn = document.getElementById('promoLoad');
+        if (btn) btn.addEventListener('click', function () { load(current()); });
     }
 
     // --------------------------------------------------------- загрузка
@@ -146,9 +93,9 @@ Guests.registerView('promo', function (pane) {
     // загрузки бессмысленно — а лишний вызов лез бы в iiko при открытии вкладки,
     // ровно то, чего эта вкладка обязана не делать.
 
-    // Поколение запроса: побеждает последний нажатый «Анализировать», а не
-    // последний ответивший. Без этого два клика подряд могли показать данные
-    // не того диапазона, который выбран в полях.
+    // Поколение запроса: побеждает последний запущенный запрос, а не последний
+    // ответивший. Без этого быстрая смена периода в полосе могла показать данные
+    // не того периода, который выбран.
     var gen = 0;
 
     function load(p) {
@@ -156,21 +103,19 @@ Guests.registerView('promo', function (pane) {
         S.error = null;
         pane.innerHTML = controls(p, true) +
             '<div class="gcard"><div class="pane-loading">Запрашиваю iiko за ' +
-            G.fmtDate(p.from) + ' — ' + G.fmtDate(p.to) + '…</div></div>';
+            G.fmtDate(p.from) + ' — ' + G.fmtDate(p.to) + ' (живой запрос, не витрина: ' +
+            'десятки секунд)…</div></div>';
         bind();
         return G.post('/api/discount-analyze',
                       { bar: p.bar || null, date_from: p.from, date_to: p.to })
             .then(function (j) {
                 if (my !== gen) return;            // ответ устаревшего запроса
                 S.data = j;
-                S.params = { from: p.from, to: p.to, bar: p.bar };
+                S.params = { from: p.from, to: p.to, bar: p.bar, barUnknown: p.barUnknown };
                 if (j.discount_names) S.names = j.discount_names;
                 // Выбранная акция могла исчезнуть из списка (сузили период или
                 // выбрали другую точку) — иначе экран пустой, а в селекте выбор.
-                if (p.promo && S.names.indexOf(p.promo) < 0) {
-                    p.promo = '';
-                    store(p);
-                }
+                if (p.promo && S.names.indexOf(p.promo) < 0) pane.dataset.ppromo = '';
                 render();
             })
             .catch(function (e) {
@@ -281,11 +226,6 @@ Guests.registerView('promo', function (pane) {
                 G.esc(S.error) + '</div></div>';
         }
         if (!S.data) {
-            html += '<div class="gcard"><div class="note-line">Выберите диапазон ' +
-                'и нажмите «Анализировать». Данные приходят из iiko по запросу, ' +
-                'поэтому вкладка не грузит их сама при открытии. Список акций ' +
-                'заполнится после анализа — теми, что реально были в этом ' +
-                'диапазоне.</div></div>';
             pane.innerHTML = html; bind(); return;
         }
 
@@ -297,7 +237,8 @@ Guests.registerView('promo', function (pane) {
         t.noCard = split.noCard;
         var rangeNote = 'Период: ' + G.fmtDate(S.params.from) + ' — ' +
             G.fmtDate(S.params.to) +
-            (S.params.bar ? ' · точка: ' + G.esc(S.params.bar) : ' · все точки') +
+            (S.params.bar ? ' · точка: ' + G.esc(S.params.bar)
+                : (S.params.barUnknown ? ' · все точки: бар не найден среди точек iiko' : ' · все точки')) +
             (p.promo ? ' · акция: ' + G.esc(p.promo) : ' · все акции');
 
         html += '<div class="metric-grid">' +
@@ -483,11 +424,9 @@ Guests.registerView('promo', function (pane) {
     function bindStoreDrill() {
         pane.querySelectorAll('.promo-drill').forEach(function (b) {
             b.addEventListener('click', function () {
-                var p = current();
-                p.bar = b.dataset.store;
-                store(p);
-                // Точка — параметр запроса в iiko, поэтому нужен новый запрос.
-                load(p);
+                // Точка — общий выбор бара сайта: её смена в полосе пересчитывает вкладку.
+                var row = G.bars().filter(function (x) { return x.iiko_name === b.dataset.store; })[0];
+                if (row) G.setBar(row.key);
             });
         });
     }
@@ -536,8 +475,26 @@ Guests.registerView('promo', function (pane) {
             '</tbody></table></div></div>';
     }
 
+    // Период длиннее PROMO_AUTO_MAX_DAYS: не считаем сами — кнопка с числом дней.
+    function renderLong(p) {
+        pane.innerHTML = controls(p) + '<div class="gcard"><div class="note-line">Акции считаются ' +
+            'живым запросом в iiko: сразу — за период до ' + PROMO_AUTO_MAX_DAYS + ' дней. Выбран ' +
+            'период ' + G.fmtNum(days(p)) + ' дней (' + G.fmtDate(p.from) + ' — ' + G.fmtDate(p.to) +
+            ') — запрос займёт несколько минут.</div>' +
+            '<button type="button" class="sync-btn" id="promoLoad">Посчитать за ' +
+            G.fmtNum(days(p)) + ' дней</button></div>';
+        bind();
+    }
+
     // --------------------------------------------------------- вход
-    // Никаких запросов при открытии вкладки: рисуем контролы и подсказку.
-    // Данные приходят только по кнопке «Анализировать».
-    render();
-}, { ownPeriod: true });
+    // Тот же период и точка, что у загруженного ответа, — из памяти; иначе — запрос сразу
+    // (период до PROMO_AUTO_MAX_DAYS дней) или кнопка (длиннее).
+    var start = current();
+    if (S.data && sameScope(S.params, start)) {
+        render();
+    } else if (days(start) > PROMO_AUTO_MAX_DAYS) {
+        renderLong(start);
+    } else {
+        return load(start);
+    }
+});

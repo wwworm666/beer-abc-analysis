@@ -71,7 +71,7 @@ Guests.registerView('rfm', function (pane) {
 
             html += '<div class="note-line">Окно — 12 месяцев на дату среза (' +
                 G.fmtDate(d.window_start) + ' — ' + G.fmtDate(d.asof) + '). ' +
-                'Переключатель периода вверху сдвигает дату среза, длину окна он ' +
+                'Период в полосе сдвигает дату среза (конец периода), длину окна он ' +
                 'не меняет.</div>';
 
             html += '<div class="gcard-grid-2">';
@@ -84,8 +84,8 @@ Guests.registerView('rfm', function (pane) {
                 '<div class="note-line" id="rfmScatterNote"></div></div>';
             html += '</div>';
 
-            var csvUrl = '/api/guests/rfm?period_type=' + G.state.periodType +
-                '&anchor=' + resp.meta.p_end + (d.venue ? '&store=' + encodeURIComponent(d.venue) : '') +
+            var csvUrl = '/api/guests/rfm?date_from=' + resp.meta.p_start + '&date_to=' +
+                resp.meta.p_end + (d.venue ? '&store=' + encodeURIComponent(d.venue) : '') +
                 '&export=csv';
             html += '<div class="gcard"><h3>Гости в окне 12 месяцев (' +
                 G.fmtNum(d.total_guests) + ')' + G.helpIcon('rfm') +
