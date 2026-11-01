@@ -59,7 +59,10 @@
     --on-warning: #1C1917;
 
     /* Типографика */
-    --font-family: 'IBM Plex Mono', 'Courier New', monospace;
+    /* Запасные шрифты — без «Courier New»: Android подставляет вместо него «печатную
+       машинку» Cutive Mono без кириллицы, и цифры шли машинкой, а буквы — системным
+       шрифтом (2026-11-01). Обычный monospace на Android — Droid Sans Mono с кириллицей. */
+    --font-family: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, 'Liberation Mono', monospace;
     --font-size-base: 15px;
     --line-height-base: 1.6;
 

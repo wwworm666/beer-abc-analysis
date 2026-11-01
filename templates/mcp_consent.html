@@ -23,9 +23,10 @@
             } catch (e) { /* хранилище недоступно — остаётся светлая */ }
         })();
     </script>
-    <link rel="stylesheet" href="/static/dashboard/styles/fonts.css">
-    <link rel="stylesheet" href="/static/dashboard/styles/variables.css">
-    <link rel="stylesheet" href="/static/dashboard/styles/base.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/fonts.css?v={{ app_version }}">
+    <link rel="preload" href="/static/fonts/ibm-plex-mono/IBMPlexMono-Regular.site.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="/static/dashboard/styles/variables.css?v={{ app_version }}">
+    <link rel="stylesheet" href="/static/dashboard/styles/base.css?v={{ app_version }}">
     <style>
         body {
             min-height: 100vh; display: flex; align-items: flex-start; justify-content: center;

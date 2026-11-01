@@ -88,8 +88,16 @@ static/dashboard/styles/
 ### Шрифт
 
 ```css
-font-family: 'IBM Plex Mono', 'Courier New', monospace;
+--font-family: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, 'Liberation Mono', monospace;
 ```
+
+- Файлы — woff2 с нужными сайту символами (~19 КБ на начертание, 400/500/600/700:
+  `static/fonts/ibm-plex-mono/IBMPlexMono-*.site.woff2`, сборка `scripts/build_site_fonts.py`),
+  TTF — только запасной источник. Подключает `static/dashboard/styles/fonts.css`; Regular
+  предзагружается в `<head>` каждой страницы.
+- В запасном списке нет «Courier New»: Android подставляет вместо него «печатную машинку»
+  Cutive Mono без кириллицы — цифры шли машинкой, а буквы системным шрифтом (2026-11-01).
+  Если IBM Plex Mono не загрузится, телефон покажет обычный моноширинный (Droid Sans Mono).
 
 ### Иерархия
 
@@ -599,6 +607,14 @@ transform: scale(1.02);
 ---
 
 ## Changelog
+
+### 2026-11-01 — Шрифт на телефоне
+
+**Что:** запасной список шрифтов без «Courier New», IBM Plex Mono — из woff2 по ~19 КБ вместо TTF
+по ~135 КБ, предзагрузка Regular. **Почему:** на телефоне владельца сайт шёл «печатной машинкой»
+(Cutive Mono, которой Android подменяет Courier New) вперемешку с системным шрифтом.
+**Файлы:** `static/dashboard/styles/variables.css`, `static/dashboard/styles/fonts.css`,
+`scripts/build_site_fonts.py`, шаблоны.
 
 ### 2026-09-27 — Область `gh-` раздела «Гости»
 

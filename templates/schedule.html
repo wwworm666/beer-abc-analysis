@@ -6,12 +6,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>График смен — Пивная культура</title>
     <!-- Shared CSS -->
-    <link rel="stylesheet" href="/static/dashboard/styles/fonts.css">
-    <link rel="stylesheet" href="/static/dashboard/styles/variables.css">
-    <link rel="stylesheet" href="/static/dashboard/styles/base.css">
-    <link rel="stylesheet" href="/static/dashboard/styles/sidebar.css">
-    <link rel="stylesheet" href="/static/dashboard/styles/mobile.css">
-    <link rel="stylesheet" href="/static/logo.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/fonts.css?v={{ app_version }}">
+    <link rel="preload" href="/static/fonts/ibm-plex-mono/IBMPlexMono-Regular.site.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="/static/dashboard/styles/variables.css?v={{ app_version }}">
+    <link rel="stylesheet" href="/static/dashboard/styles/base.css?v={{ app_version }}">
+    <link rel="stylesheet" href="/static/dashboard/styles/sidebar.css?v={{ app_version }}">
+    <link rel="stylesheet" href="/static/dashboard/styles/mobile.css?v={{ app_version }}">
+    <link rel="stylesheet" href="/static/logo.css?v={{ app_version }}">
     <link rel="stylesheet" href="/static/schedule/schedule.css?v={{ app_version }}">
     <style>
         /* Компактная лента «Последние изменения» — кто что менял в графике */
@@ -364,6 +365,6 @@
     <script src="/static/js/schedule/screens.js?v={{ app_version }}"></script>
     <script src="/static/js/schedule/fact_modal.js?v={{ app_version }}"></script>
     <script src="/static/js/schedule/view.js?v={{ app_version }}"></script>
-    <script src="/static/logo.js"></script>
+    <script src="/static/logo.js?v={{ app_version }}"></script>
 </body>
 </html>

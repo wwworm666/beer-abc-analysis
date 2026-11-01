@@ -8,12 +8,13 @@
     <!-- Порядок важен: свой me.css последним, чтобы наши правила побеждали при
          равной специфичности. schedule.css нужен целиком: личный экран смен
          (.ms-*) и сворачиваемые блоки (.sc-fold*) живут там. -->
-    <link rel="stylesheet" href="/static/dashboard/styles/fonts.css">
-    <link rel="stylesheet" href="/static/dashboard/styles/variables.css">
-    <link rel="stylesheet" href="/static/dashboard/styles/base.css">
-    <link rel="stylesheet" href="/static/dashboard/styles/sidebar.css">
-    <link rel="stylesheet" href="/static/dashboard/styles/mobile.css">
-    <link rel="stylesheet" href="/static/logo.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/fonts.css?v={{ app_version }}">
+    <link rel="preload" href="/static/fonts/ibm-plex-mono/IBMPlexMono-Regular.site.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="/static/dashboard/styles/variables.css?v={{ app_version }}">
+    <link rel="stylesheet" href="/static/dashboard/styles/base.css?v={{ app_version }}">
+    <link rel="stylesheet" href="/static/dashboard/styles/sidebar.css?v={{ app_version }}">
+    <link rel="stylesheet" href="/static/dashboard/styles/mobile.css?v={{ app_version }}">
+    <link rel="stylesheet" href="/static/logo.css?v={{ app_version }}">
     <link rel="stylesheet" href="/static/schedule/schedule.css?v={{ app_version }}">
     <link rel="stylesheet" href="/static/shared/kpi_breakdown.css?v={{ app_version }}">
     <link rel="stylesheet" href="/static/me/me.css?v={{ app_version }}">
@@ -157,6 +158,6 @@
     <script src="/static/js/me/snapshot.js?v={{ app_version }}"></script>
     <script src="/static/js/me/acceptance.js?v={{ app_version }}"></script>
     <script src="/static/js/me/view.js?v={{ app_version }}"></script>
-    <script src="/static/logo.js"></script>
+    <script src="/static/logo.js?v={{ app_version }}"></script>
 </body>
 </html>

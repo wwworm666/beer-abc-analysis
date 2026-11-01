@@ -7,19 +7,20 @@
     <title>Дашборд - Аналитика план vs факт</title>
 
     <!-- IBM Plex Mono шрифты -->
-    <link rel="stylesheet" href="/static/dashboard/styles/fonts.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/fonts.css?v={{ app_version }}">
+    <link rel="preload" href="/static/fonts/ibm-plex-mono/IBMPlexMono-Regular.site.woff2" as="font" type="font/woff2" crossorigin>
 
     <!-- CSS Стили (модульный подход) -->
-    <link rel="stylesheet" href="/static/dashboard/styles/variables.css">
-    <link rel="stylesheet" href="/static/dashboard/styles/base.css">
-    <link rel="stylesheet" href="/static/dashboard/styles/tabs.css">
-    <link rel="stylesheet" href="/static/dashboard/styles/cards.css">
-    <link rel="stylesheet" href="/static/dashboard/styles/charts.css">
-    <link rel="stylesheet" href="/static/dashboard/styles/animations.css">
-    <link rel="stylesheet" href="/static/dashboard/styles/sidebar.css">
-    <link rel="stylesheet" href="/static/dashboard/styles/comparison.css">
-    <link rel="stylesheet" href="/static/dashboard/styles/mobile.css">
-    <link rel="stylesheet" href="/static/logo.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/variables.css?v={{ app_version }}">
+    <link rel="stylesheet" href="/static/dashboard/styles/base.css?v={{ app_version }}">
+    <link rel="stylesheet" href="/static/dashboard/styles/tabs.css?v={{ app_version }}">
+    <link rel="stylesheet" href="/static/dashboard/styles/cards.css?v={{ app_version }}">
+    <link rel="stylesheet" href="/static/dashboard/styles/charts.css?v={{ app_version }}">
+    <link rel="stylesheet" href="/static/dashboard/styles/animations.css?v={{ app_version }}">
+    <link rel="stylesheet" href="/static/dashboard/styles/sidebar.css?v={{ app_version }}">
+    <link rel="stylesheet" href="/static/dashboard/styles/comparison.css?v={{ app_version }}">
+    <link rel="stylesheet" href="/static/dashboard/styles/mobile.css?v={{ app_version }}">
+    <link rel="stylesheet" href="/static/logo.css?v={{ app_version }}">
 
     <!-- Preload критических JavaScript модулей -->
     <link rel="modulepreload" href="/static/js/dashboard/main.js?v={{ app_version }}">
@@ -65,6 +66,6 @@
         alert('Ваш браузер не поддерживает ES6 модули. Используйте современный браузер.');
     </script>
 
-    <script src="/static/logo.js"></script>
+    <script src="/static/logo.js?v={{ app_version }}"></script>
 </body>
 </html>

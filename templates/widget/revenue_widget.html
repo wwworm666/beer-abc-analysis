@@ -50,9 +50,9 @@
     </style>
 
     <!-- Основные стили с preload -->
-    <link rel="preload" href="/static/dashboard/styles/widget.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
-    <link rel="stylesheet" href="/static/dashboard/styles/widget.css" media="print" onload="this.media='all'">
-    <noscript><link rel="stylesheet" href="/static/dashboard/styles/widget.css"></noscript>
+    <link rel="preload" href="/static/dashboard/styles/widget.css?v={{ app_version }}" as="style" onload="this.onload=null;this.rel='stylesheet'">
+    <link rel="stylesheet" href="/static/dashboard/styles/widget.css?v={{ app_version }}" media="print" onload="this.media='all'">
+    <noscript><link rel="stylesheet" href="/static/dashboard/styles/widget.css?v={{ app_version }}"></noscript>
 </head>
 <body class="widget-body">
 
@@ -135,6 +135,6 @@
         </main>
     </div>
 
-    <script type="module" src="/static/js/widget/revenue_widget.js"></script>
+    <script type="module" src="/static/js/widget/revenue_widget.js?v={{ app_version }}"></script>
 </body>
 </html>

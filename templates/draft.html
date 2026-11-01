@@ -7,12 +7,13 @@
     <title>Розлив — ABC/XYZ и потери — Пивная культура</title>
     <!-- Порядок важен: свой draft.css последним, чтобы наши правила побеждали при
          равной специфичности с общими стилями дашборда. -->
-    <link rel="stylesheet" href="/static/dashboard/styles/fonts.css">
-    <link rel="stylesheet" href="/static/dashboard/styles/variables.css">
-    <link rel="stylesheet" href="/static/dashboard/styles/base.css">
-    <link rel="stylesheet" href="/static/dashboard/styles/sidebar.css">
-    <link rel="stylesheet" href="/static/dashboard/styles/mobile.css">
-    <link rel="stylesheet" href="/static/logo.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/fonts.css?v={{ app_version }}">
+    <link rel="preload" href="/static/fonts/ibm-plex-mono/IBMPlexMono-Regular.site.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="/static/dashboard/styles/variables.css?v={{ app_version }}">
+    <link rel="stylesheet" href="/static/dashboard/styles/base.css?v={{ app_version }}">
+    <link rel="stylesheet" href="/static/dashboard/styles/sidebar.css?v={{ app_version }}">
+    <link rel="stylesheet" href="/static/dashboard/styles/mobile.css?v={{ app_version }}">
+    <link rel="stylesheet" href="/static/logo.css?v={{ app_version }}">
     <link rel="stylesheet" href="/static/draft/draft.css?v={{ app_version }}">
     <link rel="stylesheet" href="/static/shared/abc_view.css?v={{ app_version }}">
 </head>

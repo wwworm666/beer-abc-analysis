@@ -5,12 +5,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Вики — KULT Analytics</title>
-    <link rel="stylesheet" href="/static/dashboard/styles/fonts.css">
-    <link rel="stylesheet" href="/static/dashboard/styles/variables.css">
-    <link rel="stylesheet" href="/static/dashboard/styles/base.css">
-    <link rel="stylesheet" href="/static/dashboard/styles/sidebar.css">
-    <link rel="stylesheet" href="/static/dashboard/styles/mobile.css">
-    <link rel="stylesheet" href="/static/logo.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/fonts.css?v={{ app_version }}">
+    <link rel="preload" href="/static/fonts/ibm-plex-mono/IBMPlexMono-Regular.site.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="/static/dashboard/styles/variables.css?v={{ app_version }}">
+    <link rel="stylesheet" href="/static/dashboard/styles/base.css?v={{ app_version }}">
+    <link rel="stylesheet" href="/static/dashboard/styles/sidebar.css?v={{ app_version }}">
+    <link rel="stylesheet" href="/static/dashboard/styles/mobile.css?v={{ app_version }}">
+    <link rel="stylesheet" href="/static/logo.css?v={{ app_version }}">
     <style>
         /* Wiki layout */
         .wiki-layout {
@@ -79,7 +80,8 @@
         .wiki-section tr:hover td { background: var(--bg-tertiary); }
 
         /* Code blocks */
-        .wiki-section code { background: var(--bg-tertiary); padding: 2px 6px; border-radius: 4px; font-size: 0.88em; color: var(--accent); }
+        /* Длинный путь в строке переносится, а не растягивает страницу на телефоне (2026-11-01). */
+        .wiki-section code { background: var(--bg-tertiary); padding: 2px 6px; border-radius: 4px; font-size: 0.88em; color: var(--accent); overflow-wrap: anywhere; }
         .wiki-section pre { background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 8px; padding: 16px 20px; overflow-x: auto; margin: 16px 0; font-size: 0.85rem; line-height: 1.5; }
         .wiki-section pre code { background: none; padding: 0; color: var(--text-primary); }
 
@@ -134,6 +136,8 @@
             .wiki-toc-toggle { display: flex; }
             .wiki-content { padding: 16px 20px 80px; }
             .wiki-section h1 { font-size: 1.4rem; }
+            /* Широкая таблица прокручивается внутри себя, а не вся страница (2026-11-01). */
+            .wiki-section table { display: block; overflow-x: auto; }
         }
     </style>
 </head>
@@ -229,7 +233,7 @@ document.addEventListener('DOMContentLoaded', function() { window.dashboardCheck
     document.addEventListener('keydown', function(e) { if (e.key === 'Escape' && toc.classList.contains('open')) closeToc(); });
 })();
 </script>
-<script src="/static/logo.js"></script>
+<script src="/static/logo.js?v={{ app_version }}"></script>
 
 </body>
 </html>

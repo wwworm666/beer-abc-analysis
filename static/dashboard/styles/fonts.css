@@ -1,8 +1,14 @@
-/* IBM Plex Mono Font Family */
+/* IBM Plex Mono — шрифт сайта (docs/frontend.md, «Шрифт сайта»).
+   Сначала woff2 с нужными сайту символами (~19 КБ на начертание, scripts/build_site_fonts.py),
+   TTF (~135 КБ) — только для браузера без woff2. Раньше были одни TTF: четыре начертания —
+   ~540 КБ, и пока они грузились, телефон показывал запасной шрифт (2026-11-01).
+   Пересобрал woff2 — дай файлам новое имя: сервер разрешает браузеру 30 дней не
+   перепроверять файлы /static/ (Caddyfile). */
 
 @font-face {
     font-family: 'IBM Plex Mono';
-    src: url('/static/fonts/ibm-plex-mono/IBMPlexMono-Regular.ttf') format('truetype');
+    src: url('/static/fonts/ibm-plex-mono/IBMPlexMono-Regular.site.woff2') format('woff2'),
+         url('/static/fonts/ibm-plex-mono/IBMPlexMono-Regular.ttf') format('truetype');
     font-weight: 400;
     font-style: normal;
     font-display: swap;
@@ -10,7 +16,8 @@
 
 @font-face {
     font-family: 'IBM Plex Mono';
-    src: url('/static/fonts/ibm-plex-mono/IBMPlexMono-Medium.ttf') format('truetype');
+    src: url('/static/fonts/ibm-plex-mono/IBMPlexMono-Medium.site.woff2') format('woff2'),
+         url('/static/fonts/ibm-plex-mono/IBMPlexMono-Medium.ttf') format('truetype');
     font-weight: 500;
     font-style: normal;
     font-display: swap;
@@ -18,7 +25,8 @@
 
 @font-face {
     font-family: 'IBM Plex Mono';
-    src: url('/static/fonts/ibm-plex-mono/IBMPlexMono-SemiBold.ttf') format('truetype');
+    src: url('/static/fonts/ibm-plex-mono/IBMPlexMono-SemiBold.site.woff2') format('woff2'),
+         url('/static/fonts/ibm-plex-mono/IBMPlexMono-SemiBold.ttf') format('truetype');
     font-weight: 600;
     font-style: normal;
     font-display: swap;
@@ -26,7 +34,8 @@
 
 @font-face {
     font-family: 'IBM Plex Mono';
-    src: url('/static/fonts/ibm-plex-mono/IBMPlexMono-Bold.ttf') format('truetype');
+    src: url('/static/fonts/ibm-plex-mono/IBMPlexMono-Bold.site.woff2') format('woff2'),
+         url('/static/fonts/ibm-plex-mono/IBMPlexMono-Bold.ttf') format('truetype');
     font-weight: 700;
     font-style: normal;
     font-display: swap;

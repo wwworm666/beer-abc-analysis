@@ -445,6 +445,18 @@ body {
 }
 ```
 
+### Шрифт сайта и метки версии у статики
+
+| Что | Как | Где |
+|---|---|---|
+| Шрифт | IBM Plex Mono, начертания 400/500/600/700 — woff2 с нужными сайту символами (латиница, кириллица, ₽, №, тире, кавычки, стрелки; ~19 КБ на начертание); TTF (~135 КБ) — запасной источник для браузера без woff2. Regular предзагружается в `<head>` (`<link rel="preload" … as="font" crossorigin>`) | `static/dashboard/styles/fonts.css`, `static/fonts/ibm-plex-mono/*.site.woff2`, сборка — `scripts/build_site_fonts.py` |
+| Запасной список | `'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, 'Liberation Mono', monospace` — без «Courier New»: на Android это «печатная машинка» Cutive Mono без кириллицы | `--font-family` в `static/dashboard/styles/variables.css` |
+| Метки версии | у каждой ссылки шаблона на свои CSS и JS в `/static/` — `?v={{ app_version }}`: Caddy отдаёт `/static/` с `Cache-Control: max-age=2592000`, и без метки браузер до 30 дней не перепроверяет файл — после выпуска телефон жил бы со старыми стилями. Исключения — библиотеки `/static/libs/` (не меняются) и `/static/menu/*.css` (их встраивает `routes/menu_editor._inline_assets` по адресу без метки) | шаблоны `templates/*.html`; проверяет `tests/test_site_fonts.py` |
+
+Что метки не покрывают: модули, которые страница импортирует (`import … from './core/state.js'`),
+грузятся по адресу без метки и тоже живут в кэше до 30 дней. Лечится правилом Caddy (долгий кэш —
+только адресам с `?v=`), см. CHANGELOG 2026-11-01 (15), «Не вошло».
+
 ### Мобильная версия (телефон, до 480 px)
 
 Правила утверждены владельцем 2026-11-01 по макету (снимки настоящих страниц на 390 px). Цель —
@@ -459,6 +471,7 @@ body {
 | Переключатель — одна строка: единица измерения — в подписи, на кнопках только числа | `.sub-unit`, `.sub-unit-l` | `static/guests/guests.css` |
 | Подсказка под переключателем — первым пунктом в «Как считается» | `.churn-hint-item` | `static/js/guests/views-churn.js` |
 | Панель действий — значки вместо подписей; подпись остаётся в `aria-label` и `title` | `.gh-cp-ico`, `.gh-cp-t` | `static/guest_hub/content_plan.css`, [content-plan.md](content-plan.md) |
+| Широкая таблица и длинная строка кода не растягивают страницу: таблица прокручивается внутри себя или своей карточки, код переносится | `overflow-x: auto` у обёртки (`.users-scroll`) или у таблицы, `overflow-wrap: anywhere` у `code` | `templates/admin_users.html`, `templates/wiki.html` |
 
 Правила пишутся в CSS своего модуля внутри `@media (max-width: 480px)`; полные подписи — на
 компьютере и в меню. Проверка в настоящем браузере — `tests/test_mobile_layout_browser.py`
@@ -484,6 +497,8 @@ body {
 
 ## Changelog
 
+- **2026-11-01 (4)** — Раздел «Шрифт сайта и метки версии у статики»: woff2 вместо TTF, запасной список
+  без «Courier New», `?v={{ app_version }}` у всех своих CSS и JS в шаблонах.
 - **2026-11-01 (3)** — Раздел «Мобильная версия (телефон, до 480 px)»: правила утверждённого
   владельцем макета и где они лежат.
 - **2026-11-01 (2)** — Бар и период дашборда — общая полоса сайта (этап 1 плана единого виджета).
