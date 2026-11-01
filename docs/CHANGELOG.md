@@ -1,5 +1,19 @@
 ﻿# Changelog
 
+### 2026-11-01 (11) — Этап 3: аналитика на общей полосе
+
+План — `docs/planning/period-widget-rollout.md`, этап 3 (что не сделано — там же).
+
+| Что | Почему | Где | Что сломается при неверной правке |
+|---|---|---|---|
+| Розлив, фасовка, кухня — на полосе: без своих меню и «Запустить анализ», без выбора — последние 30 полных дней, расчёт сразу и после паузы, «XYZ не считается» до ответа, «iiko не успел ответить — сократите период»; вся сеть — «Все бары»; маршруты принимают бар и ключом | Один выбор; ответ Р5 | `templates/{draft,packaging,kitchen}.html`, `static/js/{draft,packaging,kitchen}/*.js`, `static/js/shared/abc_view.js`, `routes/analysis.py` | Три копии кода пресетов снова разъедутся — общая обвязка в `abc_view.js` |
+| Конструктор — на полосе: период из полосы, отчёт строится сам (без «Построить», после ошибки — «Повторить»), сохранённый отчёт делает свой период общим выбором, бар — фильтр по полю бара типа отчёта | Один выбор; Р5 | `templates/explorer.html`, `static/js/explorer/page.js`, `static/explorer/explorer.css`, `routes/explorer.py`, `core/olap_catalog.py` | Свой период в черновике отчёта спорил бы с полосой |
+| Ежемесячный отчёт — помесячная полоса: год и месяц ТОП-10 из периода (только закрытые месяцы, в январе — прошлый год), бар — общий вместо списков у каждого графика | Один выбор бара | `templates/monthly_report.html`, `templates/dashboard/monthly_tab.html`, `static/js/dashboard/modules/monthly_report.js` | — |
+| Форма планов: годы по правилу вместо зашитых 2025–2027, месяц и бар — из общего выбора | С 2028 года форма не дала бы выбрать год | `static/js/dashboard/modules/plans.js`, `templates/dashboard/plans_tab.html` | — |
+| Агенты: `days` без дат у розлива, фасовки и кухни — последние N полных рабочих дней по вчера, как у страницы (было «с сегодня − N по сегодня» с неполным сегодняшним днём); `days` < 1 — 400 | Инструмент = страница | `routes/analysis.py` (`_days_window`), `core/mcp/tools/analytics.py` | Окно с сегодняшним неполным днём занижало бы дневные показатели |
+| Длинный заголовок страницы на телефоне обрезается многоточием | Наезжал на логотип | `static/dashboard/styles/sidebar.css` | — |
+| Тесты и документация | Правило проекта | `tests/test_analytics_strip.py`, `tests/test_explorer_runtime.mjs`, `tests/test_monthly_report_scope.mjs`, `tests/abc_strip_stub.mjs`, `tests/test_msk_today_routes.py`, `tests/test_plans_form.mjs`, `tests/test_abc_view.mjs`; `docs/draft.md`, `kitchen.md`, `abc-xyz-analysis.md`, `explorer.md`, `monthly-report.md`, `venues-plans.md` | — |
+
 ### 2026-11-01 (10) — Этапы 4–5: сотрудники, зарплата, цели, график, «Мои смены», чистота на полосе
 
 План — `docs/planning/period-widget-rollout.md`, этапы 4 и 5 (контент-план и отзывы — отдельно).
