@@ -402,8 +402,13 @@
     view-transition-name: kultura-header;
 }
 
+/* view-transition-name делает полосу отдельным слоем: её панели и листы (z-index внутри) не
+   поднимаются выше нижней панели вкладок телефона (.bottom-tabs, 90), пока у самой полосы нет
+   слоя выше. Ниже бокового меню (900/950) — оно открывается поверх. */
 #kultura-strip {
     view-transition-name: kultura-strip;
+    position: relative;
+    z-index: 100;
 }
 
 ::view-transition-old(root),

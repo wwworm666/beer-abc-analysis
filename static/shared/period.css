@@ -390,6 +390,12 @@
 .kp-panel--wide {
     width: 600px;
     max-width: calc(100vw - 32px);
+    /* Поля и два месяца целиком помещаются на экране ноутбука: шаги вверху не уезжают. */
+    max-height: calc(100vh - 160px);
+}
+
+.kp-panel--wide .kp-day {
+    height: 30px;
 }
 
 .kp-typed {
