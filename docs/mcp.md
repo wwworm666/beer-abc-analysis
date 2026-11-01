@@ -1333,6 +1333,17 @@ py -3 scripts/mcp_eval.py          # сухой план эталонного п
 
 ## Changelog
 
+- **2026-11-01 (общая полоса «Бар и период», этап 2)** — [guests.md](guests.md): все гостевые
+  инструменты (`analytics_guests_*`) и `analytics_guest_card` принимают свой период
+  `date_from` + `date_to` (обе даты включительно, любой длины) — так выбирает период страница;
+  `period_type` + `anchor` остаются, `quarter` убран из enum (квартал — своим отрезком; старые
+  ссылки с ним маршрут понимает). У `analytics_guests_churn` и `analytics_guests_ltv` вместо
+  `periods` (длина ряда назад) — `step` (`day` / `week` / `month` / `year`): ряд — выбранный
+  период по шагам, по умолчанию шаг по длине периода; больше 120 точек — ошибка 400. В ответе
+  оттока новые строки `prev` (прошлый период для сравнения) и `step`, у строк ряда — `clipped`.
+  `CHURN_SERIES_AGENT_MAX` удалён; константы `GUEST_SERIES_STEPS`, `GUEST_SERIES_STEPS_MAX`.
+  `INSTRUCTIONS`: «Маркетинг: date_from + date_to или period_type + anchor», без квартала. Новых
+  маршрутов и инструментов нет, числа охвата прежние.
 - **2026-10-30 («Бары рядом» и «всё время»)** — [guests.md](guests.md), §17: маршрут
   `/api/guests/churn` принимает `periods` до 1040 и `all` (кнопка вкладки «Графики за»), а у
   `analytics_guests_churn` и `analytics_guests_ltv` потолок остаётся 60 — теперь константой
