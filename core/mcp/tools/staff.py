@@ -930,7 +930,8 @@ _OTHER_TOOLS = [
         'Страница «Чистота» (/cleanliness): строка на каждую открывающую смену месяца — точка, '
         'бармен, ответ (Чисто / Замечания / Плохо), «что не так», имя фото, автор и время, '
         'пометка «изменено»; проблема not_marked — день прошёл без ответа (с 24.08.2026); итоги '
-        'и подписи. Фото — staff_cleanliness_photo по имени.',
+        '(totals), итоги по точкам (totals_by_location, ключ — id точки) и подписи. Фото — '
+        'staff_cleanliness_photo по имени.',
         'GET', '/api/cleanliness/month/<int:year>/<int:month>',
         _schema({'year': _year(), 'month': _month_num()}, ('year', 'month')),
         path_params=('year', 'month'), idempotent=True,

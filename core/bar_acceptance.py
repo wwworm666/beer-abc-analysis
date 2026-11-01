@@ -210,8 +210,11 @@ def build_journal(shifts, acceptances, today, rule_from=RULE_FROM) -> Dict:
                     пробел, смена могла не начаться;
       rule_from   — ISO-дата начала действия правила.
 
-    Возвращает {'rows': [...], 'totals': {...}, 'locations': [...]}.
-    Строки — по возрастанию даты, внутри дня по точке.
+    Возвращает {'rows': [...], 'totals': {...}, 'totals_by_location': {id: {...}},
+    'locations': [...]}. Строки — по возрастанию даты, внутри дня по точке.
+    totals_by_location — те же итоги по каждой точке: страница «Чистота» показывает плитки
+    выбранного в полосе «Бар и период» бара, а считать их заново на клиенте значило бы завести
+    вторую версию правила (что такое «отвечено», «не отмечено»).
     """
     by_shift = {a.get('shift_id'): a for a in (acceptances or [])}
     opening_ids = set(opening_shifts(shifts).values())
@@ -253,15 +256,7 @@ def build_journal(shifts, acceptances, today, rule_from=RULE_FROM) -> Dict:
 
     rows.sort(key=lambda r: (r['date'], r['location_short'], r['shift_id'] or 0))
 
-    totals = {
-        'shifts': len(rows),
-        'answered': sum(1 for r in rows if r['status']),
-        STATUS_CLEAN: sum(1 for r in rows if r['status'] == STATUS_CLEAN),
-        STATUS_ISSUES: sum(1 for r in rows if r['status'] == STATUS_ISSUES),
-        STATUS_BAD: sum(1 for r in rows if r['status'] == STATUS_BAD),
-        PROBLEM_NOT_MARKED: sum(1 for r in rows if PROBLEM_NOT_MARKED in r['problems']),
-        'with_photo': sum(1 for r in rows if r['photo']),
-    }
+    totals = _totals(rows)
 
     # Точки — в порядке id (как в графике), только те, что есть в периоде.
     seen, locations = set(), []
@@ -272,4 +267,23 @@ def build_journal(shifts, acceptances, today, rule_from=RULE_FROM) -> Dict:
         locations.append({'id': r['location_id'], 'short': r['location_short'],
                           'name': r['location_name']})
 
-    return {'rows': rows, 'totals': totals, 'locations': locations}
+    # Ключ — строка: так его увидит страница в JSON (ключи объекта всегда строки).
+    totals_by_location = {
+        str(loc['id']): _totals([r for r in rows if r['location_id'] == loc['id']])
+        for loc in locations
+    }
+    return {'rows': rows, 'totals': totals, 'totals_by_location': totals_by_location,
+            'locations': locations}
+
+
+def _totals(rows) -> Dict:
+    """Итоги журнала по строкам: смены, отвеченные, по ответам, пробелы, с фото."""
+    return {
+        'shifts': len(rows),
+        'answered': sum(1 for r in rows if r['status']),
+        STATUS_CLEAN: sum(1 for r in rows if r['status'] == STATUS_CLEAN),
+        STATUS_ISSUES: sum(1 for r in rows if r['status'] == STATUS_ISSUES),
+        STATUS_BAD: sum(1 for r in rows if r['status'] == STATUS_BAD),
+        PROBLEM_NOT_MARKED: sum(1 for r in rows if PROBLEM_NOT_MARKED in r['problems']),
+        'with_photo': sum(1 for r in rows if r['photo']),
+    }

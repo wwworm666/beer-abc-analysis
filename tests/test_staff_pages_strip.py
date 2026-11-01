@@ -250,6 +250,31 @@ class MePageTest(PageRender):
         self.assertIn("document.querySelector('.header-bar-sub')", src, 'роль и точки — в общий заголовок')
 
 
+class CleanlinessPageTest(PageRender):
+    def test_strip_monthly_from_rule_start(self):
+        html = self.render('cleanliness.html')
+        cfg = self.strip_config(html)
+        self.assertEqual((cfg['mode'], cfg['step'], cfg['barMode']), ('monthly', 'month', 'all'))
+        self.assertEqual(cfg['clock']['data_start'], '2026-08-24', 'журнал ведётся с 24.08.2026')
+        self.assertFalse(cfg['allowFuture'])
+
+    def test_no_month_arrows_and_point_select(self):
+        html = self.render('cleanliness.html')
+        self.assert_no_own_period_controls(html, 'cleanliness.html')
+        for needle in ('id="clPrev"', 'id="clNext"', 'id="clMonthLabel"', 'id="clVenue"', 'Все точки'):
+            self.assertNotIn(needle, html)
+        self.assertIn('id="clStatus"', html, 'фильтр ответа — вид журнала, он остаётся')
+        self.assertIn('id="clSearch"', html)
+
+    def test_wiring(self):
+        src = _read('static/js/cleanliness/view.js')
+        self.assertIn("api('/api/schedule/locations')", src, 'точки графика — для ключа бара')
+        self.assertIn('places[i].venue_key === bar', src)
+        self.assertIn('totals_by_location', src, 'плитки бара — итоги точки с сервера')
+        self.assertIn('if (seq !== loadSeq) return;', src, 'ответ за прежний месяц отбрасывается')
+        self.assertNotIn('new Date()', src, 'месяц — не с часов устройства')
+
+
 @unittest.skipIf(NODE is None, 'node не установлен')
 class NodeChecks(unittest.TestCase):
     def run_node(self, *args):
@@ -264,6 +289,10 @@ class NodeChecks(unittest.TestCase):
         run = self.run_node('tests/test_schedule_strip_runtime.mjs')
         self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
 
+    def test_cleanliness_runtime(self):
+        run = self.run_node('tests/test_cleanliness_strip_runtime.mjs')
+        self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
+
     def test_me_calendar_runtime(self):
         run = self.run_node('tests/test_me_calendar_runtime.mjs')
         self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
@@ -271,7 +300,7 @@ class NodeChecks(unittest.TestCase):
     def test_changed_scripts_syntax(self):
         for rel in ('static/js/shared/strip_runner.js', 'static/js/schedule/common.js',
                     'static/js/schedule/screens.js', 'static/js/schedule/view.js',
-                    'static/js/me/view.js'):
+                    'static/js/me/view.js', 'static/js/cleanliness/view.js'):
             run = self.run_node('--check', rel)
             self.assertEqual(run.returncode, 0, rel + ': ' + run.stderr)
 
