@@ -222,6 +222,34 @@ class SchedulePageTest(PageRender):
         self.assertIn('.tb-card.is-focus', css)
 
 
+class MePageTest(PageRender):
+    def test_strip_monthly_personal(self):
+        html = self.render('me.html')
+        cfg = self.strip_config(html)
+        self.assertEqual((cfg['mode'], cfg['step'], cfg['barMode']), ('monthly', 'month', 'none'))
+        self.assertFalse(cfg['allowFuture'])
+        self.assertIn('id="ks-bar-name">Личная страница<', html)
+        self.assertIn('id="ks-bar-hint"></span>', html, 'подсказки под личной страницей нет')
+
+    def test_common_header_instead_of_own(self):
+        html = self.render('me.html', current_user={'display_name': 'Анна Смирнова'})
+        self.assertNotIn('class="me-head"', html)
+        self.assertNotIn('id="meBurger"', html)
+        self.assertIn('<span class="header-bar-page">Я</span>', html)
+        self.assertIn('<span class="header-bar-sub">Анна Смирнова</span>', html)
+        css = _read('static/me/me.css')
+        self.assertNotRegex(css, r'body\.me-page \.header-bar\s*\{\s*display:\s*none',
+                            'общий заголовок не прячется')
+
+    def test_wiring(self):
+        src = _read('static/js/me/view.js')
+        self.assertIn("S.api('/api/me?month=' + monthKey())", src, 'снимок — за месяц полосы')
+        self.assertIn("if (e.type !== 'period' || !S.syncMonthFromStrip()) return;", src)
+        self.assertIn('if (seq !== snapSeq) return;', src, 'устаревший снимок отбрасывается')
+        self.assertIn('if (seq !== liveSeq) return;', src)
+        self.assertIn("document.querySelector('.header-bar-sub')", src, 'роль и точки — в общий заголовок')
+
+
 @unittest.skipIf(NODE is None, 'node не установлен')
 class NodeChecks(unittest.TestCase):
     def run_node(self, *args):
@@ -242,7 +270,8 @@ class NodeChecks(unittest.TestCase):
 
     def test_changed_scripts_syntax(self):
         for rel in ('static/js/shared/strip_runner.js', 'static/js/schedule/common.js',
-                    'static/js/schedule/screens.js', 'static/js/schedule/view.js'):
+                    'static/js/schedule/screens.js', 'static/js/schedule/view.js',
+                    'static/js/me/view.js'):
             run = self.run_node('--check', rel)
             self.assertEqual(run.returncode, 0, rel + ': ' + run.stderr)
 

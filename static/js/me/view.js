@@ -13,6 +13,11 @@
 
    Ширину экрана этот файл НЕ читает нигде — вся адаптивность в me.css.
 
+   Месяц — из полосы «Бар и период» (window.KStrip, помесячный режим; с 2026-11-01): common.js
+   ставит S.state.year/month (syncMonthFromStrip), снимок берётся за тот же месяц
+   (/api/me?month=). Стрелка назад в полосе — прошлый, зарплатный месяц. Смена месяца
+   перезагружает обе части; ответ за прежний месяц отбрасывается (номер запроса).
+
    Подключать ПОСЛЕ common.js, screens.js, fact_modal.js, snapshot.js. */
 (function () {
     'use strict';
@@ -20,9 +25,20 @@
     if (!S) return;
 
     var EMP_IIKO = (document.body.dataset.empIiko || '').trim();
+    var strip = window.KStrip || null;
     var me = null;            // последний ответ /api/me
     var summary = null;       // сводка месяца из renderMyShifts
-    var loadingLive = false;
+    // Номера последних запросов: ответ за прежний месяц (сменили в полосе, пока он шёл) не
+    // рисуется поверх нового.
+    var liveSeq = 0;
+    var snapSeq = 0;
+    // Подзаголовок общего заголовка — имя человека (сервер); роль и точки дописывает fillHeader.
+    var headerSub = document.querySelector('.header-bar-sub');
+    var headerName = headerSub ? headerSub.textContent : '';
+
+    function monthKey() {
+        return S.state.year + '-' + (S.state.month < 10 ? '0' : '') + S.state.month;
+    }
 
     // ==================== Живая часть ====================
 
@@ -51,27 +67,19 @@
         setLiveStamp();
     }
 
-    // Подпись в шапке: роль и точки, где человек работает в этом месяце.
+    // Подзаголовок общего заголовка: имя, роль и точки, где человек работает в месяце.
     // У непривязанного аккаунта роли нет — писать ему «бармен» значит спорить
     // с текстом на этой же странице, где сказано «скорее всего, вы не бармен».
     function fillHeader() {
-        var sub = document.getElementById('meWhoSub');
-        if (!sub) return;
+        if (!headerSub) return;
         var venues = (summary && summary.venues) || [];
         var unlinked = me && me.identity && me.identity.status === 'not_linked';
-        sub.textContent = unlinked
+        var role = unlinked
             ? ''
             : (venues.length
                 ? 'бармен · ' + venues.map(function (v) { return v.name; }).join(' · ')
                 : 'бармен');
-        var ava = document.getElementById('meAva');
-        if (ava && !ava.textContent.trim() && summary && summary.label) {
-            ava.textContent = summary.label;
-        }
-        // Кружок аватара красим цветом первой точки — тот же язык, что у смен.
-        if (ava && venues.length) {
-            ava.style.setProperty('--me-ava-bg', venues[0].color);
-        }
+        headerSub.textContent = [headerName, role].filter(Boolean).join(' · ');
     }
 
     function setLiveStamp() {
@@ -89,14 +97,18 @@
     }
 
     function reloadLive() {
-        if (loadingLive) return Promise.resolve();
-        loadingLive = true;
-        return S.loadMonthData()
-            .then(function () { renderLive(); })
-            .catch(function (err) {
-                showBlockError('meNotice', 'Не удалось загрузить график смен.', reloadLive, err);
+        var seq = ++liveSeq;
+        return S.fetchMonthData(S.state.year, S.state.month)
+            .then(function (data) {
+                if (seq !== liveSeq) return;
+                S.state.shifts = data.shifts;
+                S.state.dayOffs = data.dayOffs;
+                renderLive();
             })
-            .then(function () { loadingLive = false; });
+            .catch(function (err) {
+                if (seq !== liveSeq) return;
+                showBlockError('meNotice', 'Не удалось загрузить график смен.', reloadLive, err);
+            });
     }
 
     // Заявка на выходной: смену не трогаем, конфликт разруливает владелец.
@@ -126,13 +138,16 @@
     // ==================== Снимок ====================
 
     function loadSnapshot() {
-        return S.api('/api/me')
+        var seq = ++snapSeq;
+        return S.api('/api/me?month=' + monthKey())
             .then(function (data) {
+                if (seq !== snapSeq) return;
                 me = data;
                 renderSnapshot();
                 renderLive();      // нормы приходят вместе со снимком
             })
             .catch(function (err) {
+                if (seq !== snapSeq) return;
                 showBlockError('meSnapNotice', 'Не удалось загрузить личные показатели.',
                                loadSnapshot, err);
             });
@@ -170,9 +185,12 @@
         }
         col.hidden = false;
 
+        // Месяц, который ночной расчёт уже не пересчитывает (стрелкой назад дальше прошлого),
+        // — «снимка нет», а не «ещё не собран»: он и не соберётся (routes/me.py).
+        var frozen = me.refresh && me.refresh.month_buildable === false;
         ts.textContent = snap.refreshed_at
             ? 'данные на ' + (Snap ? Snap.fmtStamp(snap.refreshed_at) : '')
-            : 'за ' + (me.month_label || me.month) + ' ещё не собран';
+            : 'за ' + (me.month_label || me.month) + (frozen ? ' снимка нет' : ' ещё не собран');
         renderRefreshBtn(btn, me.refresh || {});
 
         if (snap.status !== 'ok' || !me.money) {
@@ -340,22 +358,23 @@
         var refreshBtn = document.getElementById('meRefresh');
         if (refreshBtn) refreshBtn.addEventListener('click', onRefreshClick);
 
-        // Гамбургер шапки открывает общий сайдбар: пробрасываем клик на скрытую
-        // кнопку из shared/nav.html, чтобы не дублировать её обработчик.
-        var burger = document.getElementById('meBurger');
-        var navToggle = document.getElementById('sidebar-toggle');
-        if (burger && navToggle) {
-            burger.addEventListener('click', function () { navToggle.click(); });
-        }
-
         S.showLoading(true);
         S.loadDictionaries()
-            .then(function () { return S.loadMonthData(); })
-            .then(function () { renderLive(); })
+            .then(function () { return reloadLive(); })
             .catch(function (err) {
                 showBlockError('meNotice', 'Не удалось загрузить график смен.', reloadLive, err);
             })
             .then(function () { S.showLoading(false); });
+
+        // Месяц в полосе — общий выбор сайта: другой месяц — смены и снимок за него.
+        if (strip) {
+            strip.onChange(function (e) {
+                if (e.type !== 'period' || !S.syncMonthFromStrip()) return;
+                document.getElementById('meNotice').innerHTML = '';
+                reloadLive();
+                loadSnapshot();
+            });
+        }
 
         // Независимо от живой части: сбой одной не гасит другую.
         loadSnapshot();
