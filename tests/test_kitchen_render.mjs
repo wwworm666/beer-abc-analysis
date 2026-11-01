@@ -60,15 +60,22 @@ test('шаблон подключает общие стили фасовки, р
         'общий модуль не подключён до kitchen.js');
     assert.ok(!/packaging\.js/.test(html), 'шаблон тянет скрипт фасовки');
     assert.match(html, /<title>Кухня — ABC\/XYZ и потери — Пивная культура<\/title>/);
-    assert.match(html, /pk-title-n">Кухня — ABC\/XYZ и потери</);
+    // Заголовок — общая карточка (page_title), своей шапки у страницы нет (с 2026-11-01).
+    assert.match(html, /\{% set page_title = "Кухня" %\}/);
+    assert.match(html, /\{% set page_subtitle = "ABC\/XYZ и потери: /);
+    // Бар и период — общая полоса сайта; своих меню и кнопки запуска нет (с 2026-11-01).
+    assert.match(html, /\{% set strip = kultura_strip\(mode='report', step='last30', live=True,/,
+        'полоса не объявлена или не на последних 30 днях');
+    for (const gone of ['pk-head', 'pk-filters', 'ktBarBtn', 'ktPerBtn', 'ktRun', 'type="date"']) {
+        assert.ok(!html.includes(gone), 'в шаблоне осталось: ' + gone);
+    }
+    assert.match(js, /AbcView\.connect\(/, 'страница не слушает полосу');
 });
 
 test('все id, которые ищет JS, объявлены в шаблоне, и чужих id фасовки нет', () => {
     const wanted = new Set();
     for (const m of js.matchAll(/getElementById\('([^']+)'\)/g)) wanted.add(m[1]);
     wanted.delete('sidebar-toggle');
-    wanted.delete('ktFrom');
-    wanted.delete('ktTo');
     const missing = [...wanted].filter((id) => !html.includes(`id="${id}"`));
     assert.deepEqual(missing, [], `нет узлов в шаблоне: ${missing.join(', ')}`);
     assert.ok(!/id="pk[A-Z]/.test(html), 'в шаблоне остались id фасовки');
@@ -76,8 +83,8 @@ test('все id, которые ищет JS, объявлены в шаблон�
 });
 
 test('страница берёт данные из /api/kitchen и только оттуда', () => {
-    assert.match(js, /fetch\('\/api\/kitchen'/, 'нет запроса к эндпоинту кухни');
-    assert.equal([...js.matchAll(/fetch\(/g)].length, 1);
+    assert.match(js, /postJson\('\/api\/kitchen'/, 'нет запроса к эндпоинту кухни');
+    assert.equal([...js.matchAll(/postJson\(|fetch\(/g)].length, 1);
     assert.ok(!/\/api\/packaging/.test(js), 'остался запрос фасовки');
     assert.match(js, /AbcView\.fromKitchen\(data\)/, 'модель раскладки не кухонная');
     assert.match(view, /function fromKitchen\(d\)/, 'в общем модуле нет fromKitchen');

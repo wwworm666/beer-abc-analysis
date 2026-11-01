@@ -173,5 +173,65 @@ test('в plans.js и plans_tab.html нет эмодзи', () => {
     }
 });
 
+console.log('\n--- годы и значения по умолчанию (с 2026-11-01) ---');
+
+test('в шаблоне нет зашитых годов: список строит plans.js', () => {
+    const m = HTML.match(/<select id="plan-year-select"[^>]*>([\s\S]*?)<\/select>/);
+    assert.ok(m, 'нет select#plan-year-select');
+    assert.ok(!/<option/.test(m[1]), 'в списке годов остались зашитые option');
+    assert.ok(!/2025|2026|2027/.test(m[1]));
+});
+
+test('форма плана не берёт месяц и год с часов устройства', () => {
+    const start = JS.indexOf('openCreateModal() {');
+    const fn = JS.slice(start, JS.indexOf('\n    }\n', start));
+    assert.ok(!/new Date\(/.test(fn), 'openCreateModal читает часы устройства');
+    assert.ok(fn.includes('planFormDefaults(state'), 'значения по умолчанию не из общего периода');
+});
+
+// Модуль целиком: настоящее ядро периодов (часы страницы — 01.11.2026) и пустой DOM.
+const { createRequire } = await import('node:module');
+const { pathToFileURL } = await import('node:url');
+const requireCjs = createRequire(import.meta.url);
+globalThis.window = globalThis;
+requireCjs(path.join(ROOT, 'static/js/shared/period/period_core.js'));
+globalThis.KPeriod.configure({ today: '2026-11-01', last_full_day: '2026-10-31', max_date: '2026-11-01' });
+globalThis.document = { getElementById: () => null, querySelector: () => null, querySelectorAll: () => [] };
+const plansMod = await import(pathToFileURL(path.join(ROOT, 'static/js/dashboard/modules/plans.js')).href);
+const { state } = await import(pathToFileURL(path.join(ROOT, 'static/js/dashboard/core/state.js')).href);
+
+test('годы: текущий −1…+1, плюс год периода и годы заведённых планов', () => {
+    assert.deepEqual(plansMod.planYears(2026, []), [2025, 2026, 2027]);
+    assert.deepEqual(plansMod.planYears(2026, [2024, '2031', 'x', 1999, 2026]), [2024, 2025, 2026, 2027, 2031]);
+    assert.deepEqual(plansMod.planYears(2027, null), [2026, 2027, 2028], 'с 2027 года список сдвигается сам');
+});
+
+test('по умолчанию — месяц общего периода и общий бар; «Все бары» — первый бар списка', () => {
+    const keys = ['bolshoy', 'ligovskiy', 'kremenchugskaya', 'varshavskaya'];
+    assert.deepEqual({ ...plansMod.planFormDefaults({ currentMonth: '10', currentYear: 2026, currentVenue: 'all' }, keys) },
+        { month: '10', year: '2026', venue: 'bolshoy' });
+    assert.equal(plansMod.planFormDefaults({ currentMonth: '03', currentYear: 2027, currentVenue: 'ligovskiy' }, keys).venue,
+        'ligovskiy');
+    assert.equal(plansMod.planFormDefaults({ currentMonth: '12', currentYear: 2024, currentVenue: '' }, keys).year, '2024');
+});
+
+test('список годов формы держит год общего периода, даже вне текущего −1…+1', () => {
+    const select = { innerHTML: '', value: '' };
+    plansMod.plansViewer.planYearSelect = select;
+    const keep = state.currentYear;
+    try {
+        state.currentYear = 2023;
+        plansMod.plansViewer.knownPlanYears = [2028];
+        plansMod.plansViewer.fillYearSelect('2023');
+        const years = [...select.innerHTML.matchAll(/value="(\d{4})"/g)].map((m) => Number(m[1]));
+        assert.deepEqual(years, [2023, 2025, 2026, 2027, 2028]);
+        assert.equal(select.value, '2023');
+    } finally {
+        state.currentYear = keep;
+        plansMod.plansViewer.knownPlanYears = [];
+        plansMod.plansViewer.planYearSelect = null;
+    }
+});
+
 console.log(`\n${passed} passed, ${failed} failed\n`);
 process.exit(failed === 0 ? 0 : 1);

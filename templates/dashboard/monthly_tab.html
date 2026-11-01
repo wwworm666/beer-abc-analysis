@@ -7,7 +7,7 @@
         </div>
     </div>
     <div class="mr-controls-right">
-        <select id="mr-year" class="control-input mr-year-select" title="Год"></select>
+        <!-- Год, месяц ТОП-10 и бар — из полосы «Бар и период» (с 2026-11-01). -->
         <span class="mr-refreshed" id="mr-refreshed" title="Данные обновляются автоматически 1-го числа каждого месяца"></span>
     </div>
 </div>
@@ -41,7 +41,6 @@
                 <h3>Выручка по категориям</h3>
                 <p class="chart-subtitle">Стопкой за месяц: Кухня + Фасовка + Розлив = общая выручка месяца</p>
             </div>
-            <select class="control-input mr-bar-select" data-chart="mr-revenue-stacked" title="Бар"></select>
             <div class="chart-wrapper"><canvas id="mr-revenue-stacked"></canvas></div>
         </div>
 
@@ -56,9 +55,8 @@
         <div class="chart-card">
             <div class="chart-header">
                 <h3>Наценка по категориям, %</h3>
-                <p class="chart-subtitle">Розлив / Фасовка / Кухня — взвешенная наценка по каждой (выбор бара)</p>
+                <p class="chart-subtitle">Розлив / Фасовка / Кухня — взвешенная наценка по каждой</p>
             </div>
-            <select class="control-input mr-bar-select" data-chart="mr-markup-cat" title="Бар"></select>
             <div class="chart-wrapper"><canvas id="mr-markup-cat"></canvas></div>
         </div>
 
@@ -95,21 +93,19 @@
                 <h3>Доли категорий, %</h3>
                 <p class="chart-subtitle">Кухня / Фасовка / Розлив, нормировано к 100% за месяц</p>
             </div>
-            <select class="control-input mr-bar-select" data-chart="mr-shares" title="Бар"></select>
             <div class="chart-wrapper"><canvas id="mr-shares"></canvas></div>
         </div>
 
         <div class="chart-card">
             <div class="chart-header">
                 <h3>Расход розлива и фасовки</h3>
-                <p class="chart-subtitle">Розлив / Фасовка за месяц. Деньги (₽), либо кол-во: розлив в литрах, фасовка в штуках. Выбор бара</p>
+                <p class="chart-subtitle">Розлив / Фасовка за месяц. Деньги (₽), либо кол-во: розлив в литрах, фасовка в штуках</p>
             </div>
             <div class="mr-toggle-row">
                 <div class="mr-toggle" id="mr-consumption-toggle">
                     <button class="mr-toggle-btn active" data-mode="money">Деньги</button>
                     <button class="mr-toggle-btn" data-mode="units">Кол-во</button>
                 </div>
-                <select class="control-input mr-bar-select" data-chart="mr-consumption" title="Бар"></select>
             </div>
             <div class="chart-wrapper"><canvas id="mr-consumption"></canvas></div>
         </div>
@@ -119,7 +115,6 @@
                 <h3>Проливы в литрах по стилям</h3>
                 <p class="chart-subtitle">Стопкой по стилям за месяц. Литры = порции × объём порции (оценка из названия)</p>
             </div>
-            <select class="control-input mr-bar-select" data-chart="mr-liters" title="Бар"></select>
             <div class="chart-wrapper"><canvas id="mr-liters"></canvas></div>
         </div>
 
@@ -128,7 +123,6 @@
                 <h3>Локал / импорт — фасовка</h3>
                 <p class="chart-subtitle">Доля выручки. Локал = Россия (поле страны), импорт = прочие страны</p>
             </div>
-            <select class="control-input mr-bar-select" data-chart="mr-li-packaged" title="Бар"></select>
             <div class="chart-wrapper"><canvas id="mr-li-packaged"></canvas></div>
         </div>
 
@@ -137,7 +131,6 @@
                 <h3>Локал / импорт — розлив</h3>
                 <p class="chart-subtitle">Доля выручки. Локал = Россия, импорт = прочие страны</p>
             </div>
-            <select class="control-input mr-bar-select" data-chart="mr-li-draft" title="Бар"></select>
             <div class="chart-wrapper"><canvas id="mr-li-draft"></canvas></div>
         </div>
     </div>
@@ -158,7 +151,6 @@
                 <h3>Выручка: по картам / без карт</h3>
                 <p class="chart-subtitle">Стопкой за месяц: разбивка по наличию карты лояльности в чеке</p>
             </div>
-            <select class="control-input mr-bar-select" data-chart="mr-revenue-card" title="Бар"></select>
             <div class="chart-wrapper"><canvas id="mr-revenue-card"></canvas></div>
         </div>
 
@@ -174,13 +166,9 @@
             <div class="chart-header mr-top-guests-header">
                 <div>
                     <h3>ТОП-10 гостей по тратам</h3>
-                    <p class="chart-subtitle">Держатели карт лояльности за выбранный месяц</p>
-                </div>
-                <div class="mr-top-selects">
-                    <select class="control-input mr-bar-select" data-chart="mr-top-guests" title="Бар"></select>
-                    <select id="mr-top-month" class="control-input mr-month-select">
-                        <!-- Месяцы добавляются через JS -->
-                    </select>
+                    <!-- Месяц и бар — из полосы: показанный месяц, если он закрыт (monthly_report.js). -->
+                    <p class="chart-subtitle" id="mr-top-guests-sub">Держатели карт лояльности за месяц</p>
+                    <p class="mr-top-note" id="mr-top-note" hidden></p>
                 </div>
             </div>
             <div class="mr-top-guests-body">
@@ -249,23 +237,6 @@
     color: var(--text-tertiary);
 }
 
-.mr-year-select {
-    max-width: 110px;
-    padding: 8px 12px;
-}
-
-/* Выпадающий выбор бара на столбчатых графиках */
-.mr-bar-select {
-    max-width: 140px;
-    padding: 6px 10px;
-    margin-bottom: var(--spacing-sm);
-}
-
-.mr-top-selects {
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-sm);
-}
 
 /* Легенда баров (цвет -> бар), сверху; все бары показываются всегда */
 .mr-bar-buttons {
@@ -351,8 +322,14 @@
     gap: var(--spacing-md);
 }
 
-.mr-month-select {
-    max-width: 160px;
+/* Месяц ТОП-10 не тот, что показан в полосе (показанный ещё идёт) — подпись почему. */
+.mr-top-note {
+    margin: 4px 0 0;
+    font-size: 0.8rem;
+    color: var(--warning);
+}
+.mr-top-note[hidden] {
+    display: none;
 }
 
 .mr-top-table {

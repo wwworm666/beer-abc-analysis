@@ -301,5 +301,114 @@ test('без эмодзи в модуле и стилях', () => {
     assert.ok(!emoji.test(css), 'эмодзи в abc_view.css');
 });
 
+// ---------------------------------------------------------------- бар и период из полосы
+// С 2026-11-01 у розлива, фасовки и кухни нет своих меню: бар и период — общая полоса сайта.
+
+test('полные недели и подпись «XYZ не считается» — как сервер (дни // 7, нужно от 3)', () => {
+    assert.match(thresholds, /MIN_XYZ_WEEKS = 3\b/, 'порог XYZ в ядре сменился');
+    assert.equal(V.XYZ_MIN_WEEKS, 3);
+    assert.equal(V.fullWeeks('2026-10-19', '2026-10-25'), 1);
+    assert.equal(V.fullWeeks('2026-10-02', '2026-10-31'), 4);   // 30 дней — 4 полные недели
+    assert.equal(V.fullWeeks('2026-10-11', '2026-10-31'), 3);   // 21 день
+    assert.equal(V.fullWeeks('2026-10-12', '2026-10-31'), 2);   // 20 дней
+    assert.equal(V.fullWeeks('2026-03-29', '2026-04-04'), 1, 'переход на летнее время ломает счёт дней');
+    assert.equal(V.noXyzText('2026-10-11', '2026-10-31'), '', 'три полные недели — XYZ считается');
+    assert.equal(V.noXyzText('2026-10-12', '2026-10-31'),
+        'XYZ не считается: в периоде 2 полные недели, нужно от 3; ABC показан');
+    assert.equal(V.noXyzText('2026-10-31', '2026-10-31'),
+        'XYZ не считается: в периоде 0 полных недель, нужно от 3; ABC показан');
+    assert.equal(V.noXyzText(null, null), '', 'без периода подписи нет');
+});
+
+test('вся сеть подписана «Все бары», даже если сервер зовёт её «Общая»', () => {
+    assert.equal(V.barText(''), 'Все бары');
+    assert.equal(V.barText('Общая'), 'Все бары');
+    assert.equal(V.barText('Лиговский'), 'Лиговский');
+});
+
+test('ошибка запроса: iiko не успел — просьба сократить период, остальное — причина сервера', () => {
+    const T = 'iiko не успел ответить — сократите период';
+    assert.equal(V.TIMEOUT_TEXT, T);
+    assert.equal(V.failText(502, { error: 'Не удалось получить данные из iiko API' }), T);
+    assert.equal(V.failText(504, null), T, 'страница прокси без JSON');
+    assert.equal(V.failText(503, null), T);
+    assert.equal(V.failText(0, null), T, 'соединение оборвалось');
+    assert.equal(V.failText(500, null), T, '500 без JSON — тоже прокси');
+    assert.equal(V.failText(404, { error: 'Нет данных за выбранный период' }), 'Нет данных за выбранный период');
+    assert.equal(V.failText(500, { error: 'KeyError: x' }), 'KeyError: x');
+    assert.equal(V.failText(418, null), 'Ошибка сервера: HTTP 418');
+});
+
+test('строка расчёта называет, что, за какой период и по какому бару считается', () => {
+    assert.equal(V.progressText('розлив', { title: '2 – 31 окт 2026', label: 'Все бары' }),
+        'Считаю розлив за 2 – 31 окт 2026, Все бары…');
+    assert.equal(V.progressText('кухню', {}), 'Считаю кухню…');
+});
+
+test('память ответов: тот же ключ — тот же ответ, не дольше 10 минут и не больше 8 ответов', () => {
+    const m = V.memo();
+    m.put('a', { n: 1 });
+    assert.deepEqual(m.get('a'), { n: 1 });
+    assert.equal(m.get('b'), null);
+    for (let i = 0; i < 8; i++) m.put('k' + i, i);
+    assert.equal(m.get('a'), null, 'девятый ответ не вытеснил самый старый');
+    assert.equal(m.get('k7'), 7);
+    // Часы песочницы — свой Date контекста vm, а не Date этого файла.
+    const SandboxDate = vm.runInContext('Date', sandbox);
+    const realNow = SandboxDate.now;
+    try {
+        const t0 = realNow();
+        SandboxDate.now = () => t0 + 10 * 60 * 1000 + 1;
+        assert.equal(m.get('k7'), null, 'ответ старше 10 минут отдан из памяти');
+    } finally {
+        SandboxDate.now = realNow;
+    }
+});
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+async function asyncTest(name, fn) {
+    try {
+        await fn();
+        passed++;
+        console.log(`  ok  ${name}`);
+    } catch (e) {
+        failed++;
+        console.log(`FAIL  ${name}`);
+        console.log(`      ${e && e.message}`);
+    }
+}
+
+await asyncTest('связка с полосой: бар — имя iiko, серия выборов — один вызов после паузы', async () => {
+    const listeners = [];
+    const st = { bar: '', period: { start: '2026-10-02', end: '2026-10-31', granularity: 'custom' } };
+    const strip = {
+        get: () => ({ bar: st.bar, period: st.period }),
+        onChange: (fn) => listeners.push(fn),
+        barInfo: (key) => (key === 'bolshoy'
+            ? { key: 'bolshoy', name: 'Большой пр. В.О', iiko_name: 'Большой пр. В.О', bar_id: 'bar1' } : null),
+        config: { allLabel: 'Все бары' }
+    };
+    sandbox.setTimeout = setTimeout;
+    sandbox.clearTimeout = clearTimeout;
+    const seen = [];
+    const link = V.connect((sel) => seen.push(sel), { strip, pause: 30 });
+    const first = link.get();
+    assert.equal(first.bar, '');
+    assert.equal(first.label, 'Все бары');
+    assert.deepEqual([first.from, first.to], ['2026-10-02', '2026-10-31']);
+    st.bar = 'bolshoy';
+    listeners.forEach((fn) => fn({ type: 'bar' }));
+    st.period = { start: '2026-10-19', end: '2026-10-25', granularity: 'week' };
+    listeners.forEach((fn) => fn({ type: 'period' }));
+    assert.equal(seen.length, 0, 'вызов без паузы');
+    await sleep(60);
+    assert.equal(seen.length, 1, 'серия из двух выборов дала ' + seen.length + ' вызова');
+    assert.equal(seen[0].bar, 'Большой пр. В.О', 'бар для запроса — не имя iiko');
+    assert.equal(seen[0].barKey, 'bolshoy');
+    assert.equal(seen[0].label, 'Большой пр. В.О');
+    assert.deepEqual([seen[0].from, seen[0].to], ['2026-10-19', '2026-10-25']);
+    assert.equal(V.connect(null, { strip: null }).get().bar, '', 'без полосы — вся сеть');
+});
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed === 0 ? 0 : 1);

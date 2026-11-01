@@ -10,7 +10,11 @@
  * Здесь настоящий draft.js исполняется на настоящем ответе API
  * (tests/fixtures/draft_kegs_sample.json — снят с боевого iiko за неделю
  * 03-09.08.2026) и проверяется, что в узлы легла ожидаемая разметка: «Обзор» и вкладки,
- * таблицы с итогами, баланс, расхождения, карточки кега и бармена;
+ * таблицы с итогами, баланс, расхождения, карточки кега и бармена.
+ *
+ * Бар и период — общая полоса сайта (с 2026-11-01): в песочнице настоящее ядро периодов
+ * (period_core.js, часы страницы — 01.11.2026) и подменённая полоса window.KStrip с теми
+ * же get / onChange / barInfo, что у static/js/shared/period/scope_strip.js.
  */
 
 import assert from 'node:assert/strict';
@@ -18,6 +22,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
+import { bootStrip, stripChecks } from './abc_strip_stub.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
@@ -70,9 +75,9 @@ function makeEl(id) {
     };
 }
 
-const IDS = ['drBurger', 'drBarBtn', 'drBarMenu', 'drBarLabel', 'drPerBtn', 'drPerMenu',
-             'drPerLabel', 'drPerHint', 'drCatch', 'drRun', 'drRunLabel', 'drSpin',
-             'drContext', 'drXyzChip', 'drUpdated', 'drMsg', 'drBody',
+// Своих меню бара и периода и кнопки запуска у страницы нет: узлов drBarBtn, drPerBtn,
+// drRun в шаблоне больше нет (проверяет и test_draft_render.mjs).
+const IDS = ['drContext', 'drXyzChip', 'drUpdated', 'drMsg', 'drBody',
              'drTabs', 'drOverview', 'drPrices', 'drPeople', 'drFilter',
              'drPanelItems', 'drPanelCats', 'drPanelLosses', 'drPanelPeople',
              'drCatCount', 'drCats', 'drKegCount',
@@ -87,7 +92,7 @@ function boot() {
     const fetchCalls = [];
     const sandbox = {
         console, Intl, Math, Number, String, Object, Array, JSON, Date, isNaN, Promise,
-        setTimeout, module: undefined,
+        setTimeout, clearTimeout, module: undefined,
         document: {
             readyState: 'complete',
             getElementById: (id) => byId[id] || null,
@@ -108,9 +113,11 @@ function boot() {
     };
     sandbox.window = sandbox;
     vm.createContext(sandbox);
+    // Полоса «Бар и период» и ядро периодов (часы страницы — 01.11.2026): tests/abc_strip_stub.mjs.
+    const strip = bootStrip(sandbox);
     new vm.Script(viewJs, { filename: 'abc_view.js' }).runInContext(sandbox);
     new vm.Script(js, { filename: 'draft.js' }).runInContext(sandbox);
-    return { sandbox, byId, fetchCalls };
+    return { sandbox, byId, fetchCalls, strip };
 }
 
 const env = boot();
@@ -125,36 +132,30 @@ test('скрипт исполняется и сам запрашивает да�
     assert.equal(body.bar, '', 'по умолчанию должен быть сводный разрез');
 });
 
-test('период по умолчанию — последние 30 дней, на них считается спрос', () => {
-    // До 2026-09-26 страница открывалась на прошлой неделе, где третья буква
-    // кода (спрос, XYZ) не считается ни у одного кега. Теперь как на /packaging.
+test('период и бар — из полосы: даты запроса = период полосы, вся сеть — пустой бар', () => {
+    // Своего правила открытия у страницы нет: последние 30 полных дней ставит сервер полосы
+    // (core/scope.page_default, шаг last30 — проверяет tests/test_analytics_strip.py).
     const body = env.fetchCalls[0].body;
-    const dapi = env.sandbox.window.__draft;
-    const days = Math.round((new Date(body.date_to) - new Date(body.date_from)) / 86400000) + 1;
-    assert.equal(days, 30, `в периоде по умолчанию ${days} дней`);
-    assert.ok(dapi.weeksIn(body.date_from, body.date_to) >= 3, 'на периоде по умолчанию нет XYZ');
-    assert.equal(dapi.state.preset, 'd30');
+    const period = env.strip.get().period;
+    assert.deepEqual([body.date_from, body.date_to], [period.start, period.end]);
+    assert.deepEqual([body.date_from, body.date_to], ['2026-10-02', '2026-10-31']);
+    assert.equal(body.bar, '');
+    assert.equal(env.strip.listeners.length, 1, 'страница не подписалась на смену бара и периода');
 });
 
-test('меню периодов: короткие пресеты подписаны «без XYZ»', () => {
-    env.byId.drPerMenu.hidden = true;          // в стабе узлы по умолчанию видимы
-    env.byId.drPerBtn.listeners.click[0]({});
-    assert.equal(env.byId.drPerMenu.hidden, false, 'меню периодов не открылось');
-    const html = env.byId.drPerMenu.innerHTML;
-    const items = [...html.matchAll(/data-preset="([^"]+)"><span>[^<]*<\/span><span>([^<]*)<\/span>/g)];
-    assert.ok(items.length >= 8, `пресетов в меню ${items.length}`);
-    assert.equal(items[0][1], 'd30', 'первым в меню стоит не «Последние 30 дней»');
-    const short = items.filter((m) => ['week', 'prev_week', 'yesterday', 'today'].includes(m[1]));
-    assert.ok(short.every((m) => m[2] === 'без XYZ'), 'неделя и дни не помечены «без XYZ»');
-    const long = items.filter((m) => ['d30', 'd90', 'prev_month'].includes(m[1]));
-    assert.ok(long.every((m) => m[2] !== 'без XYZ'), 'длинный период помечен «без XYZ»');
-    env.byId.drCatch.listeners.click[0]({});
+test('своих меню бара и периода и кнопки запуска в коде страницы нет', () => {
+    for (const gone of ['presetRange', 'PRESETS', 'buildPerMenu', 'buildBarMenu', 'drRun', 'drPerBtn',
+                        'drBarBtn', 'new Date()', "'Запустить анализ'"]) {
+        assert.ok(!js.includes(gone), 'в draft.js осталось: ' + gone);
+    }
+    assert.match(js, /AbcView\.connect\(/, 'страница не подключена к полосе');
 });
 
 test('после ответа тело страницы показано, сообщение убрано', () => {
     assert.equal(env.byId.drBody.hidden, false, 'тело страницы осталось скрытым');
     assert.equal(env.byId.drMsg.hidden, true, 'сообщение о загрузке не убрано');
-    assert.match(env.byId.drContext.textContent, /разрез: Общая/, 'нет строки разреза');
+    assert.match(env.byId.drContext.textContent, /разрез: Все бары/, 'нет строки разреза');
+    assert.ok(!/Общая/.test(env.byId.drContext.textContent), 'вся сеть подписана не «Все бары»');
     assert.match(env.byId.drUpdated.textContent, /обновлено \d\d:\d\d/, 'нет времени расчёта');
 });
 
@@ -763,24 +764,6 @@ test('наценка округляется вниз и не спорит с б�
     dapi.render();
 });
 
-test('скользящие пресеты заканчиваются вчера, «сегодня» и текущие — сегодня', () => {
-    const f = env.sandbox.window.__draft;
-    const iso = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') +
-        '-' + String(d.getDate()).padStart(2, '0');
-    const today = new Date();
-    const yesterday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1);
-    for (const [key, days] of [['d30', 30], ['d90', 90]]) {
-        const range = f.presetRange(key);
-        assert.equal(range.to, iso(yesterday), `${key} кончается не вчера`);
-        const span = Math.round((new Date(range.to) - new Date(range.from)) / 86400000) + 1;
-        assert.equal(span, days, `${key}: ${span} дней`);
-    }
-    assert.equal(f.presetRange('today').to, iso(today));
-    assert.equal(f.presetRange('week').to, iso(today));
-    assert.equal(f.presetRange('month').to, iso(today));
-    assert.equal(env.fetchCalls[0].body.date_to, iso(yesterday), 'по умолчанию уходит не по вчера');
-});
-
 test('карточка кега: литры в неделю на кране и формула маржи по Парето', () => {
     const dapi = env.sandbox.window.__draft;
     const keg = BLOCK.kegs[0];
@@ -851,37 +834,14 @@ async function asyncTest(name, fn) {
         console.log(`      ${e && e.message}`);
     }
 }
-const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
-await asyncTest('смена бара во время загрузки: старый ответ выброшен, новый запрос ушёл', async () => {
-    // До 2026-09-26 run() молча выходил, пока шёл запрос: страница показывала
-    // данные «Общей» под подписью выбранного бара.
-    const calls = [];
-    const pending = [];
-    env.sandbox.fetch = (url, opts) => {
-        calls.push(JSON.parse(opts.body));
-        let resolve;
-        const promise = new Promise((r) => { resolve = r; });
-        pending.push(resolve);
-        return promise;
-    };
-    const reply = (bar) => ({ ok: true, status: 200,
-                              json: () => Promise.resolve({ [bar]: BLOCK }) });
-    const pick = (bar) => env.byId.drBarMenu.listeners.click[0](
-        { target: { closest: () => ({ dataset: { bar } }) } });
-    pick('Лиговский');
-    pick('Варшавская');
-    assert.equal(calls.length, 1, 'второй запрос ушёл, не дождавшись первого');
-    pending[0](reply('Лиговский'));
-    for (let i = 0; i < 5; i++) await flush();
-    assert.equal(calls.length, 2, 'новый выбор потерян: запрос по нему не ушёл');
-    assert.equal(calls[1].bar, 'Варшавская');
-    assert.equal(env.byId.drBody.hidden, true, 'устаревший ответ лёг на экран');
-    pending[1](reply('Варшавская'));
-    for (let i = 0; i < 5; i++) await flush();
-    assert.equal(env.byId.drBody.hidden, false, 'ответ по новому выбору не показан');
-    assert.match(env.byId.drContext.textContent, /разрез: Варшавская/);
-    assert.equal(env.byId.drBarLabel.textContent, 'Варшавская');
+// Связка с полосой «Бар и период» — общие проверки трёх ABC-страниц (tests/abc_strip_stub.mjs).
+await stripChecks({
+    env, asyncTest, url: '/api/draft-kegs', what: 'розлив',
+    ids: { msg: 'drMsg', body: 'drBody', chip: 'drXyzChip', context: 'drContext' },
+    // /api/draft-kegs отвечает {<бар или «Общая»>: блок}.
+    reply: (bar) => ({ ok: true, status: 200, json: () => Promise.resolve({ [bar || 'Общая']: BLOCK }) }),
+    contextLabel: (bar) => bar
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

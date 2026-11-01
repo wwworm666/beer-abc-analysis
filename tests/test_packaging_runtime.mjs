@@ -21,6 +21,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
+import { bootStrip, stripChecks } from './abc_strip_stub.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
@@ -72,9 +73,9 @@ function makeEl(id) {
     };
 }
 
-const IDS = ['pkBurger', 'pkBarBtn', 'pkBarMenu', 'pkBarLabel', 'pkPerBtn', 'pkPerMenu',
-             'pkPerLabel', 'pkPerHint', 'pkCatch', 'pkRun', 'pkRunLabel', 'pkSpin',
-             'pkContext', 'pkXyzChip', 'pkMsg', 'pkBody',
+// Своих меню бара и периода и кнопки запуска у страницы нет (с 2026-11-01): бар и
+// период — полоса «Бар и период» (tests/abc_strip_stub.mjs).
+const IDS = ['pkContext', 'pkXyzChip', 'pkMsg', 'pkBody',
              'pkTabs', 'pkOverview', 'pkPrices', 'pkFilter',
              'pkPanelItems', 'pkPanelCats', 'pkPanelLosses', 'pkPanelBars',
              'pkCatCount', 'pkCats', 'pkPosCount', 'pkSearch', 'pkPos',
@@ -89,7 +90,7 @@ function boot() {
     const fetchCalls = [];
     const sandbox = {
         console, Intl, Math, Number, String, Object, Array, JSON, Date, isNaN, Promise,
-        setTimeout, module: undefined,
+        setTimeout, clearTimeout, module: undefined,
         document: {
             readyState: 'complete',
             getElementById: (id) => byId[id] || null,
@@ -110,9 +111,11 @@ function boot() {
     };
     sandbox.window = sandbox;
     vm.createContext(sandbox);
+    // Полоса «Бар и период» и ядро периодов (часы страницы — 01.11.2026): tests/abc_strip_stub.mjs.
+    const strip = bootStrip(sandbox);
     new vm.Script(viewJs, { filename: 'abc_view.js' }).runInContext(sandbox);
     new vm.Script(js, { filename: 'packaging.js' }).runInContext(sandbox);
-    return { sandbox, byId, fetchCalls };
+    return { sandbox, byId, fetchCalls, strip };
 }
 
 const env = boot();
@@ -126,21 +129,27 @@ test('скрипт исполняется и сам запрашивает да�
     assert.equal(env.fetchCalls[0].url, '/api/packaging');
     const body = env.fetchCalls[0].body;
     assert.ok(body.date_from && body.date_to, 'период не передан в запрос');
-    assert.equal(body.bar, '', 'по умолчанию должен быть сводный разрез «Общая»');
+    assert.equal(body.bar, '', 'по умолчанию — вся сеть («Все бары»)');
 });
 
-test('период по умолчанию достаточен для XYZ', () => {
-    // Прежняя страница открывалась на одной неделе, где третья буква не
-    // считается ни у кого, и молча показывала анализ без XYZ.
+test('период и бар — из полосы: даты запроса = период полосы, без своего правила открытия', () => {
+    // Последние 30 полных дней без выбора ставит сервер полосы (core/scope.page_default,
+    // шаг last30 — tests/test_analytics_strip.py); на них XYZ считается (нужно от трёх недель).
     const body = env.fetchCalls[0].body;
-    const weeks = api.weeksIn(body.date_from, body.date_to);
-    assert.ok(weeks >= 3, `в периоде по умолчанию ${weeks} полных недель, нужно от 3`);
+    const period = env.strip.get().period;
+    assert.deepEqual([body.date_from, body.date_to], [period.start, period.end]);
+    assert.ok(env.sandbox.AbcView.fullWeeks(body.date_from, body.date_to) >= 3, 'на периоде полосы нет XYZ');
+    assert.equal(env.strip.listeners.length, 1, 'страница не подписалась на смену бара и периода');
+    for (const gone of ['presetRange', 'PRESETS', 'buildPerMenu', 'buildBarMenu', 'pkRun', 'pkPerBtn',
+                        'new Date()', "'Запустить анализ'"]) {
+        assert.ok(!js.includes(gone), 'в packaging.js осталось: ' + gone);
+    }
 });
 
 test('после ответа тело страницы показано, сообщение убрано', () => {
     assert.equal(env.byId.pkBody.hidden, false, 'тело страницы осталось скрытым');
     assert.equal(env.byId.pkMsg.hidden, true, 'сообщение о загрузке не убрано');
-    assert.match(env.byId.pkContext.textContent, /разрез: Общая/, 'нет строки разреза');
+    assert.match(env.byId.pkContext.textContent, /разрез: Все бары/, 'нет строки разреза');
     assert.match(env.byId.pkContext.textContent, /полных недель|полные недели/,
         'не показано, сколько недель в периоде');
 });
@@ -676,14 +685,16 @@ test('карточка позиции называет её группу реш�
 // синхронно.
 const failing = boot();
 // Сначала ДОЖДАТЬСЯ стартовой загрузки: init() сам зовёт run(), и пока её промис
-// не разрешился, state.loading === true — повторный клик молча игнорируется
+// не разрешился, state.loading === true — новый выбор ждёт его конца
 // (`if (state.loading) return`), а потом стартовый ответ дорисовывает страницу.
 await new Promise((resolve) => setTimeout(resolve, 0));
 failing.sandbox.fetch = () => Promise.resolve({
     ok: false, status: 404,
     json: () => Promise.resolve({ error: 'Нет данных за выбранный период' })
 });
-failing.byId.pkRun.click();
+// Другой период в полосе: страница считает сама после паузы (кнопки запуска нет).
+failing.strip.choose({ period: failing.sandbox.KPeriod.lastDays(60) });
+await new Promise((resolve) => setTimeout(resolve, failing.sandbox.AbcView.CHANGE_PAUSE_MS + 60));
 await new Promise((resolve) => setTimeout(resolve, 0));
 
 test('ошибка сервера показывается словами, а не молчанием', () => {
@@ -814,25 +825,7 @@ test('карточка категории: «N позиций», формула 
         'выручка / база не даёт напечатанную долю');
 });
 
-test('скользящие пресеты заканчиваются вчера, текущие — сегодня', () => {
-    const iso = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') +
-        '-' + String(d.getDate()).padStart(2, '0');
-    const today = new Date();
-    const yesterday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1);
-    const mod = env.sandbox.window.__packaging;
-    for (const [key, days] of [['d30', 30], ['d90', 90], ['d180', 180]]) {
-        const range = mod.presetRange ? mod.presetRange(key) : null;
-        assert.ok(range, 'presetRange не экспортирован');
-        assert.equal(range.to, iso(yesterday), `${key} кончается не вчера`);
-        const span = Math.round((new Date(range.to) - new Date(range.from)) / 86400000) + 1;
-        assert.equal(span, days, `${key}: ${span} дней`);
-    }
-    assert.equal(mod.presetRange('week').to, iso(today));
-    assert.equal(mod.presetRange('month').to, iso(today));
-    assert.equal(env.fetchCalls[0].body.date_to, iso(yesterday), 'по умолчанию уходит не по вчера');
-});
-
-test('расхождения в «Общей»: недостача одного бара не гасится излишком другого', () => {
+test('расхождения при «Все бары»: недостача одного бара не гасится излишком другого', () => {
     const data = JSON.parse(JSON.stringify(BLOCK));
     const row = data.losses.by_item.find((r) => r.PositionId !== null);
     Object.assign(row, { InventoryNetQty: 0, InventoryShortQty: 5, InventorySurplusQty: 5,
@@ -866,35 +859,15 @@ async function asyncTest(name, fn) {
         console.log(`      ${e && e.message}`);
     }
 }
-const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
-await asyncTest('смена бара во время загрузки: старый ответ выброшен, новый запрос ушёл', async () => {
-    const calls = [];
-    const pending = [];
-    env.sandbox.fetch = (url, opts) => {
-        calls.push(JSON.parse(opts.body));
-        let resolve;
-        const promise = new Promise((r) => { resolve = r; });
-        pending.push(resolve);
-        return promise;
-    };
-    const reply = (label) => ({ ok: true, status: 200, json: () =>
-        Promise.resolve(Object.assign({}, BLOCK, { scope: 'bar', bar_label: label })) });
-    const pick = (bar) => env.byId.pkBarMenu.listeners.click[0](
-        { target: { closest: () => ({ dataset: { bar } }) } });
-    pick('Лиговский');
-    pick('Варшавская');
-    assert.equal(calls.length, 1, 'второй запрос ушёл, не дождавшись первого');
-    pending[0](reply('Лиговский'));
-    for (let i = 0; i < 5; i++) await flush();
-    assert.equal(calls.length, 2, 'новый выбор потерян: запрос по нему не ушёл');
-    assert.equal(calls[1].bar, 'Варшавская');
-    assert.equal(env.byId.pkBody.hidden, true, 'устаревший ответ лёг на экран');
-    pending[1](reply('Варшавская'));
-    for (let i = 0; i < 5; i++) await flush();
-    assert.equal(env.byId.pkBody.hidden, false, 'ответ по новому выбору не показан');
-    assert.match(env.byId.pkContext.textContent, /разрез: Варшавская/);
-    assert.equal(env.byId.pkBarLabel.textContent, 'Варшавская');
+// Связка с полосой «Бар и период» — общие проверки трёх ABC-страниц (tests/abc_strip_stub.mjs).
+await stripChecks({
+    env, asyncTest, url: '/api/packaging', what: 'фасовку',
+    ids: { msg: 'pkMsg', body: 'pkBody', chip: 'pkXyzChip', context: 'pkContext' },
+    // /api/packaging отвечает блоком; у бара — scope 'bar' и bar_label = имя бара.
+    reply: (bar) => ({ ok: true, status: 200, json: () => Promise.resolve(bar
+        ? Object.assign({}, BLOCK, { scope: 'bar', bar_label: bar }) : BLOCK) }),
+    contextLabel: (bar) => bar
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

@@ -1,11 +1,23 @@
 /* Конструктор отчётов (/explorer) — конструктор OLAP-отчётов iiko в сервисе.
 
    Что делает страница: пользователь собирает отчёт как в iikoOffice — тип отчёта,
-   период, поля в «Строки», «Столбцы», «Показатели» и «Фильтры» (перетаскиванием или
-   кнопками), — жмёт «Построить», и сервер строит сводную по данным iiko
-   (POST /api/explorer/report, format=pivot). Каталог полей — живой список iiko
-   (GET /api/explorer/columns). Отчёт можно выгрузить в Excel, сохранить в сервисе и
-   открыть снова, а также открыть отчёт, сохранённый в iikoOffice.
+   поля в «Строки», «Столбцы», «Показатели» и «Фильтры» (перетаскиванием или кнопками), —
+   и сервер строит сводную по данным iiko (POST /api/explorer/report, format=pivot).
+   Отчёт строится сам (с 2026-11-01, ответ владельца Р5): сразу при открытии, через
+   секунду после правки полей и фильтров, через 350 мс после смены бара или периода.
+   Кнопки «Построить» нет; после ошибки в карточке сообщения — «Повторить».
+
+   Бар и период — общая полоса сайта «Бар и период» (window.KStrip, план единого
+   виджета docs/planning/period-widget-rollout.md, этап 3): своего меню периода нет,
+   в запрос идут date_from/date_to полосы. Бар из полосы становится фильтром отчёта
+   по полю бара его типа (boot.bar_fields = core/olap_catalog.BAR_FIELD: Store.Name у
+   продаж, Account.Name у проводок); свой фильтр отчёта по этому полю сильнее; у типа
+   без поля бара отчёт строится по всей сети, и это подписано. Открытый сохранённый
+   отчёт делает свой период общим выбором (KStrip.setPeriod).
+
+   Каталог полей — живой список iiko (GET /api/explorer/columns). Отчёт можно выгрузить
+   в Excel, сохранить в сервисе и открыть снова, а также открыть отчёт, сохранённый в
+   iikoOffice.
 
    Числа на клиенте не считаются (см. static/js/explorer/grid.js): итоги приходят с
    сервера. Страница всегда шлёт include_deleted=true, а фильтры «не удалено» показывает
@@ -13,7 +25,8 @@
    так видно, что именно отфильтровано, и фильтр можно снять.
 
    Черновик отчёта (последняя раскладка) помнится в localStorage этого браузера —
-   только удобство: без него страница открывается с отчётом по умолчанию.
+   только удобство: без него страница открывается с отчётом по умолчанию. Периода в
+   черновике нет (с 2026-11-01): период — общий выбор полосы.
 */
 (function () {
     'use strict';
@@ -33,18 +46,29 @@
     var OPEN_ALL_MAX_LEAVES = 1500;
     // Строк таблицы за раз: DOM на десятках тысяч строк заметно тормозит.
     var ROWS_STEP = 2000;
+    // Пауза перед построением (ответ владельца Р5 — «считать сразу, без кнопок»): серия правок
+    // полей и фильтров — одно построение через секунду; смена бара или периода — через 350 мс.
+    var EDIT_PAUSE_MS = 1000;
+    var STRIP_PAUSE_MS = 350;
+    // Пресеты сервера «текущего» периода: у сервера они по сегодня (this_week — пн..сегодня), у
+    // полосы — целые неделя, месяц, год с пометкой «идёт». Совпадают по началу и шагу.
+    var CURRENT_PRESETS = { this_week: 'week', this_month: 'month', this_year: 'year' };
+    // Без полосы (её скрипты не загрузились) — прошлая неделя пресетом сервера, как раньше.
+    var FALLBACK_PRESET = 'last_week';
+    var K = window.KPeriod || null;
+    var Strip = window.KStrip || null;
 
     var state = {
         type: 'SALES',
         catalogs: {},
         rows: [], columns: [], measures: [], filters: [],
-        period: { preset: 'last_week' },
         saved: null,             // {id, name} — открытый сохранённый отчёт
         origin: null,            // подпись «откуда отчёт» (iikoOffice)
         result: null,
         resultKey: null,
         building: false,
         rebuild: false,          // построить заново сразу после текущего построения
+        buildTimer: null,        // отложенное построение (пауза после правки или выбора в полосе)
         unfold: false,           // свежий ответ: строки таблицы «ложатся» из куба
         shares: 'none',
         sort: null,
@@ -78,11 +102,6 @@
         if (!iso) return '';
         var p = String(iso).split('-');
         return p[2] + '.' + p[1] + '.' + p[0];
-    }
-    function shortDate(iso) {
-        if (!iso) return '';
-        var p = String(iso).split('-');
-        return p[2] + '.' + p[1];
     }
     function isNarrow() { return window.matchMedia('(max-width: 900px)').matches; }
 
@@ -150,44 +169,123 @@
         return JSON.parse(JSON.stringify(boot.guard_filters || []));
     }
 
+    // ---- период: общий выбор полосы «Бар и период» ----
+
+    function presetRow(id) {
+        return (boot.periods || []).filter(function (p) { return p.id === id; })[0] || null;
+    }
+    // Период запроса: {from, to, title, period}. Полоса есть — её период; нет — запасной пресет.
     function periodDates() {
-        if (state.period.preset) {
-            var found = (boot.periods || []).filter(function (p) { return p.id === state.period.preset; })[0];
-            return found ? { from: found.date_from, to: found.date_to, title: found.title } : null;
+        var p = Strip ? Strip.get().period : null;
+        if (p) return { from: p.start, to: p.end, period: p, title: K ? K.periodTitle(p) : ruDate(p.start) + ' — ' + ruDate(p.end) };
+        var row = presetRow(FALLBACK_PRESET);
+        return row ? { from: row.date_from, to: row.date_to, title: row.title, preset: FALLBACK_PRESET } : null;
+    }
+    // Пресет сервера с теми же датами: так сохранённый отчёт «Прошлая неделя» остаётся
+    // относительным — при открытии даты пересчитаются (пресеты — синонимы быстрого выбора).
+    function presetOf(dates) {
+        if (!dates) return null;
+        if (dates.preset) return dates.preset;
+        var rows = boot.periods || [];
+        for (var i = 0; i < rows.length; i++) {
+            var row = rows[i];
+            if (row.date_from !== dates.from) continue;
+            // Те же даты — тот же пресет («С начала года» = this_year); «текущий» пресет — ещё и
+            // целая неделя, месяц или год полосы с тем же началом.
+            var step = CURRENT_PRESETS[row.id];
+            if (row.date_to === dates.to || (step && dates.period && dates.period.granularity === step)) return row.id;
         }
-        return { from: state.period.from, to: state.period.to, title: 'Свой период' };
+        return null;
+    }
+    // Период сохранённого отчёта -> период полосы. Пресет — даты на сегодня из таблицы сервера;
+    // «текущий» пресет — целый период шага (неделя пн–вс «идёт, по …»), как его рисует полоса.
+    function stripPeriodOf(p) {
+        if (!p || !K) return null;
+        if (p.preset) {
+            var row = presetRow(p.preset);
+            if (!row) return null;
+            if (CURRENT_PRESETS[p.preset]) return K.currentPeriod(CURRENT_PRESETS[p.preset]);
+            return K.fromBounds(K.fromISO(row.date_from), K.fromISO(row.date_to));
+        }
+        var from = K.fromISO(String(p.from || '').slice(0, 10)), to = K.fromISO(String(p.to || '').slice(0, 10));
+        return from && to && from <= to ? K.fromBounds(from, to) : null;
+    }
+    // Открыт сохранённый отчёт (или отчёт iikoOffice со своим периодом): его период становится
+    // общим выбором сайта — как выбор в полосе (сохраняется на час и пишется в адрес).
+    function applyReportPeriod(p) {
+        var next = stripPeriodOf(p);
+        if (!next || !Strip || !Strip.setPeriod) return;
+        var cur = Strip.get().period;
+        if (cur && cur.start === next.start && cur.end === next.end) return;
+        Strip.setPeriod(next);
     }
 
-    function currentConfig() {
+    // ---- бар: фильтр отчёта по полю бара его типа ----
+
+    // {state: 'all' | 'applied' | 'own' | 'network', label, field, fieldName, value}
+    //   all — в полосе «Все бары»; applied — фильтр бара уйдёт в запрос; own — в отчёте свой
+    //   фильтр по полю бара (он сильнее полосы); network — у типа отчёта поля бара нет.
+    function barScope() {
+        var bar = Strip ? Strip.get().bar : '';
+        if (!bar) return { state: 'all' };
+        var info = (Strip.barInfo && Strip.barInfo(bar)) || {};
+        var label = info.name || bar;
+        var field = (boot.bar_fields || {})[state.type] || null;
+        var cat = catalog();
+        var f = field && cat ? cat.byId[field] : null;
+        if (!field || (cat && (!f || f.blocked || f.filter_op !== 'values'))) return { state: 'network', label: label };
+        var fieldName = f ? f.name : field;
+        if (state.filters.some(function (flt) { return flt.field === field; })) {
+            return { state: 'own', label: label, field: field, fieldName: fieldName };
+        }
+        return { state: 'applied', label: label, field: field, fieldName: fieldName, value: info.iiko_name || label };
+    }
+
+    // Раскладка отчёта без периода: её помнит черновик (период — общий выбор полосы).
+    function layoutConfig() {
         return {
             report_type: state.type,
             rows: state.rows.slice(),
             columns: state.columns.slice(),
             measures: state.measures.slice(),
             filters: JSON.parse(JSON.stringify(state.filters)),
-            include_deleted: true,
-            period: state.period.preset ? { preset: state.period.preset }
-                : { from: state.period.from, to: state.period.to }
+            include_deleted: true
         };
     }
+    // Заявка для сохранения отчёта: раскладка и период полосы — пресетом, если даты совпали с
+    // пресетом сервера, иначе датами. Бар полосы не сохраняется: он общий выбор сайта.
+    function currentConfig() {
+        var config = layoutConfig();
+        var dates = periodDates() || {};
+        var preset = presetOf(dates);
+        config.period = preset ? { preset: preset } : { from: dates.from, to: dates.to };
+        return config;
+    }
 
-    function configKey() { return JSON.stringify(currentConfig()); }
-
+    // Заявка запроса: фильтр бара из полосы добавляется к фильтрам отчёта (в черновик и
+    // сохранённый отчёт он не попадает), период — даты полосы.
     function requestPayload(format) {
+        var bar = barScope();
+        var filters = state.filters.slice();
+        if (bar.state === 'applied') filters.push({ field: bar.field, op: 'in', values: [bar.value] });
         var payload = {
             report_type: state.type,
             rows: state.rows, columns: state.columns, measures: state.measures,
-            filters: state.filters, include_deleted: true
+            filters: filters, include_deleted: true
         };
         if (format) payload.format = format;
-        if (state.period.preset) payload.period = state.period.preset;
-        else { payload.date_from = state.period.from; payload.date_to = state.period.to; }
+        var dates = periodDates() || {};
+        if (dates.preset) payload.period = dates.preset;
+        else { payload.date_from = dates.from; payload.date_to = dates.to; }
         return payload;
     }
 
+    // Что построено: раскладка, период и бар. Сменилось — отчёт устарел и перестроится.
+    function configKey() { return JSON.stringify(requestPayload('pivot')); }
+
     function persist() {
         try {
-            localStorage.setItem(LS_KEY, JSON.stringify({ config: currentConfig(), saved: state.saved }));
+            localStorage.setItem(LS_KEY, JSON.stringify({ config: layoutConfig(), saved: state.saved }));
         } catch (e) { /* приватный режим или запрет хранилища: черновик просто не запомнится */ }
     }
     function restoreDraft() {
@@ -240,11 +338,8 @@
                     if (!own[guard.field] && cat.byId[guard.field]) state.filters.push(guard);
                 });
             }
-            if (config.period && config.period.preset) {
-                state.period = { preset: config.period.preset };
-            } else if (config.period && config.period.from && config.period.to) {
-                state.period = { from: config.period.from, to: config.period.to };
-            }
+            // Период отчёта сюда не относится: сохранённый отчёт делает его общим выбором
+            // (applyReportPeriod), черновик периода не хранит.
             state.saved = meta && meta.saved ? meta.saved : null;
             state.origin = meta && meta.origin ? meta.origin : null;
             state.search = '';
@@ -373,9 +468,6 @@
 
     function renderBar() {
         el.typeLabel.textContent = typeTitle(state.type);
-        var dates = periodDates();
-        el.perLabel.textContent = dates ? dates.title : 'Период';
-        el.perHint.textContent = dates ? shortDate(dates.from) + ' — ' + shortDate(dates.to) : '';
     }
 
     function renderContext() {
@@ -383,8 +475,18 @@
         if (state.saved) parts.push('<span class="ex-tag">Отчёт: <b>' + esc(state.saved.name) + '</b></span>');
         else if (state.origin) parts.push('<span class="ex-tag">' + esc(state.origin) + '</span>');
         else parts.push('<span class="ex-tag">Новый отчёт</span>');
+        // Бар из полосы: каким фильтром он стал или почему не применён.
+        var bar = barScope();
+        if (bar.state === 'applied') {
+            parts.push('<span class="ex-tag">Бар: <b>' + esc(bar.label) + '</b> — фильтр «' + esc(bar.fieldName) + '»</span>');
+        } else if (bar.state === 'own') {
+            parts.push('<span class="ex-tag is-warn">Бар из полосы (' + esc(bar.label) + ') не применён: в отчёте свой фильтр «' +
+                esc(bar.fieldName) + '»</span>');
+        } else if (bar.state === 'network') {
+            parts.push('<span class="ex-tag is-warn">«' + esc(typeTitle(state.type)) + '» — по всей сети: поля бара у этого отчёта нет</span>');
+        }
         var stale = state.result && state.resultKey !== configKey();
-        if (stale) parts.push('<span class="ex-tag is-warn">Параметры изменились — нажмите «Построить»</span>');
+        if (stale) parts.push('<span class="ex-tag is-warn">Параметры изменились — перестраиваю</span>');
         if (state.result && state.result.meta) {
             var meta = state.result.meta;
             parts.push('<span class="ex-tag">Данные iiko на ' + esc(meta.fetched_at || '—') +
@@ -410,6 +512,7 @@
         renderCube();
         persist();
         if (!state.result) showIdle();
+        scheduleBuild(EDIT_PAUSE_MS);
     }
 
     // Куб OLAP повторяет раскладку зон (правила — в static/js/explorer/cube.js). Поле
@@ -441,7 +544,6 @@
 
     function closeMenus() {
         el.typeMenu.hidden = true;
-        el.perMenu.hidden = true;
         el.catcher.hidden = true;
     }
     function openMenu(menu) {
@@ -457,20 +559,6 @@
                 esc(t.id) + '"><span class="ex-mi-t">' + esc(t.title) + '<span class="ex-mi-sub">' +
                 esc(t.hint) + '</span></span></button>';
         }).join('');
-    }
-
-    function buildPeriodMenu() {
-        var html = (boot.periods || []).map(function (p) {
-            return '<button type="button" class="ex-mi' + (state.period.preset === p.id ? ' is-on' : '') +
-                '" data-preset="' + esc(p.id) + '"><span class="ex-mi-t">' + esc(p.title) + '</span>' +
-                '<span class="ex-mi-s">' + esc(shortDate(p.date_from)) + ' — ' + esc(shortDate(p.date_to)) + '</span></button>';
-        }).join('');
-        var dates = periodDates() || {};
-        html += '<div class="ex-menu-cap">СВОЙ ПЕРИОД</div><div class="ex-menu-dates">' +
-            '<input type="date" class="ex-input" id="exPerFrom" value="' + esc(dates.from || '') + '" aria-label="С">' +
-            '<input type="date" class="ex-input" id="exPerTo" value="' + esc(dates.to || '') + '" aria-label="По"></div>' +
-            '<div class="ex-menu-dates"><button type="button" class="ex-btn" id="exPerApply">Применить даты</button></div>';
-        el.perMenu.innerHTML = html;
     }
 
     function changeType(type) {
@@ -723,8 +811,8 @@
             }
         }
         var params = 'report_type=' + encodeURIComponent(state.type) + '&field=' + encodeURIComponent(f.id);
-        if (state.period.preset) params += '&period=' + encodeURIComponent(state.period.preset);
-        else params += '&date_from=' + encodeURIComponent(state.period.from) + '&date_to=' + encodeURIComponent(state.period.to);
+        if (dates.preset) params += '&period=' + encodeURIComponent(dates.preset);
+        else params += '&date_from=' + encodeURIComponent(dates.from) + '&date_to=' + encodeURIComponent(dates.to);
         api('GET', '/api/explorer/values?' + params).then(function (data) {
             if (data.has_empty) addValue(null, '(пусто)');
             data.values.forEach(function (item) {
@@ -838,20 +926,27 @@
 
     function setBuilding(on) {
         state.building = on;
-        el.run.disabled = on;
-        el.spin.hidden = !on;
-        el.runLabel.textContent = on ? 'Строю…' : 'Построить';
+    }
+
+    function ready() {
+        return (state.rows.length || state.columns.length) && state.measures.length;
     }
 
     function showIdle() {
         if (state.building) return;
-        var empty = !state.rows.length && !state.columns.length;
-        setMsg('cube', empty || !state.measures.length
-            ? '<span class="ex-msg-t">Соберите отчёт</span>Перетащите поля из списка слева в «Строки», «Столбцы» и ' +
-              '«Показатели» или нажмите на поле. Затем — «Построить».'
-            : '<span class="ex-msg-t">Отчёт готов к построению</span>Нажмите «Построить» — сервер запросит данные ' +
-              'у iiko (обычно 1–20 секунд).');
+        setMsg('cube', '<span class="ex-msg-t">Соберите отчёт</span>Перетащите поля из списка слева в «Строки», ' +
+            '«Столбцы» и «Показатели» или нажмите на поле. Отчёт построится сам, как только в нём будут поле и ' +
+            'показатель.');
         if (el.cube) el.cube.setMode('idle');
+    }
+
+    // Текст ошибки: сервер прислал причину — она (тайм-аут iiko сервер называет сам: «iiko не
+    // ответил за 120 с. Сузьте период…», core/olap_client.py); ответа нет совсем или прокси не
+    // дождался сервера (5xx без JSON) — просьба сократить период.
+    function errorText(err) {
+        if (err.data && err.data.error) return err.data.error;
+        if (!err.status || err.status >= 500) return 'iiko не успел ответить — сократите период';
+        return err.message;
     }
 
     function showError(err) {
@@ -860,23 +955,50 @@
             extra = '<br><button type="button" class="ex-btn" data-export>Выгрузить в Excel</button>';
         } else if (err.status === 401) {
             extra = '<br><a class="ex-btn" href="/login?next=/explorer">Войти заново</a>';
+        } else if (err.status !== 400) {
+            // Кнопки «Построить» нет: после сбоя (iiko не ответил, сеть) — повтор того же отчёта.
+            extra = '<br><button type="button" class="ex-btn" data-retry>Повторить</button>';
         }
-        setMsg('error', '<span class="ex-msg-t">Отчёт не построен</span>' + esc(err.message) + extra);
+        setMsg('error', '<span class="ex-msg-t">Отчёт не построен</span>' + esc(errorText(err)) + extra);
     }
 
-    function build() {
+    // Построить через паузу: серия правок или шагов полосы — одно построение (Р5). Отчёт без поля
+    // или показателя не строится — на его месте подсказка «Соберите отчёт».
+    function scheduleBuild(ms) {
+        clearTimeout(state.buildTimer);
+        state.buildTimer = null;
+        if (!ready()) {
+            if (!state.building) { state.result = null; state.resultKey = null; el.result.hidden = true; showIdle(); }
+            return;
+        }
+        if (state.result && state.resultKey === configKey() && !state.building) return;   // уже построен
+        state.buildTimer = setTimeout(function () { state.buildTimer = null; build(); }, ms || 0);
+    }
+
+    function build(manual) {
+        clearTimeout(state.buildTimer);
+        state.buildTimer = null;
         if (state.building) {
-            // Отчёт открыли, пока строился прошлый: построить его сразу после, а ответ
+            // Отчёт поменяли, пока строился прошлый: построить новый сразу после, а ответ
             // прошлого не показывать — он уже не про то, что на экране.
             state.rebuild = true;
             return;
         }
-        if (!state.rows.length && !state.columns.length) { toast('Добавьте хотя бы одно поле в строки или столбцы.'); return; }
-        if (!state.measures.length) { toast('Добавьте хотя бы один показатель.'); return; }
+        if (!state.rows.length && !state.columns.length) {
+            if (manual) toast('Добавьте хотя бы одно поле в строки или столбцы.');
+            showIdle();
+            return;
+        }
+        if (!state.measures.length) {
+            if (manual) toast('Добавьте хотя бы один показатель.');
+            showIdle();
+            return;
+        }
         var key = configKey();
         setBuilding(true);
-        setMsg('cube', '<span class="ex-msg-t">Строю отчёт в iiko…</span>Период ' +
-            esc((periodDates() || {}).title || '') + '. Большие отчёты за год строятся до минуты.');
+        renderContext();
+        setMsg('cube', '<span class="ex-msg-t">Строю отчёт за ' + esc((periodDates() || {}).title || 'период') +
+            '…</span>Сервер запрашивает данные у iiko. Большие отчёты за год строятся до минуты.');
         if (el.cube) el.cube.setMode('building');
         api('POST', '/api/explorer/report', requestPayload('pivot')).then(function (data) {
             if (state.rebuild) return;
@@ -900,7 +1022,6 @@
             setBuilding(false);
             if (state.rebuild) {
                 state.rebuild = false;
-                showIdle();
                 build();
             }
         });
@@ -1041,14 +1162,18 @@
             return;
         }
         var saved = state.saved;
+        var saveDates = periodDates() || {};
+        var savePreset = presetOf(saveDates);
         var body = '<input type="text" class="ex-input" data-name maxlength="120" value="' +
             esc(saved ? saved.name : suggestName()) + '" aria-label="Название отчёта">' +
             (saved ? '<label class="ex-check"><input type="checkbox" data-new><span>Сохранить как новый отчёт ' +
                 '(«' + esc(saved.name) + '» не изменится)</span></label>' : '') +
-            '<p class="ex-note">Сохраняются поля, фильтры и период' + (state.period.preset
-                ? ' — как «' + esc((periodDates() || {}).title) + '»: при открытии даты пересчитаются.'
-                : ' — как даты ' + esc(ruDate(state.period.from)) + ' — ' + esc(ruDate(state.period.to)) + '.') +
-            ' Данные при открытии строятся заново из iiko.</p><p class="ex-note is-error" data-err></p>';
+            '<p class="ex-note">Сохраняются поля, фильтры и период полосы' + (savePreset
+                ? ' — как «' + esc((presetRow(savePreset) || {}).title || savePreset) + '»: при открытии даты пересчитаются.'
+                : ' — как даты ' + esc(ruDate(saveDates.from)) + ' — ' + esc(ruDate(saveDates.to)) + '.') +
+            ' При открытии период отчёта станет общим выбором сайта; бар не сохраняется — отчёт строится по ' +
+            'бару, выбранному в полосе. Данные при открытии строятся заново из iiko.</p>' +
+            '<p class="ex-note is-error" data-err></p>';
         var foot = '<span class="ex-grow"></span><button type="button" class="ex-btn" data-close>Отмена</button>' +
             '<button type="button" class="ex-run" data-ok>Сохранить</button>';
         var modal = openModal(saved ? 'Сохранить отчёт' : 'Сохранить новый отчёт', '', body, foot);
@@ -1163,7 +1288,10 @@
                 closeModal();
                 resetResult();
                 applyConfig(report.config, { saved: { id: report.id, name: report.name } }).then(function (ok) {
-                    if (ok) { setUrlReport(report.id); build(); }
+                    if (!ok) return;
+                    setUrlReport(report.id);
+                    applyReportPeriod(report.config.period);
+                    scheduleBuild(0);
                 });
                 return;
             }
@@ -1185,10 +1313,12 @@
                 closeModal();
                 resetResult();
                 var config = JSON.parse(JSON.stringify(preset.config));
-                if (!config.period) config.period = currentConfig().period;
                 applyConfig(config, { origin: 'Из iikoOffice: «' + preset.name + '»' }).then(function (ok) {
                     if (!ok) return;
                     setUrlReport(null);
+                    // Период отчёта iikoOffice, если он в нём есть, — общий выбор; нет — период полосы.
+                    if (config.period) applyReportPeriod(config.period);
+                    scheduleBuild(0);
                     if (preset.notes.length) toast('Перенесено не всё: ' + preset.notes.join('; ') + '.', 7000);
                 });
             }
@@ -1291,11 +1421,6 @@
     // ==================== события ====================
 
     function bind() {
-        el.burger.addEventListener('click', function () {
-            // Тот же сайдбар, что на остальных страницах (кнопка из shared/nav.html).
-            var toggle = document.getElementById('sidebar-toggle');
-            if (toggle) toggle.click();
-        });
         el.catcher.addEventListener('click', closeMenus);
         el.typeBtn.addEventListener('click', function () {
             if (!el.typeMenu.hidden) { closeMenus(); return; }
@@ -1306,32 +1431,6 @@
             var btn = event.target.closest('[data-type]');
             if (btn) changeType(btn.dataset.type);
         });
-        el.perBtn.addEventListener('click', function () {
-            if (!el.perMenu.hidden) { closeMenus(); return; }
-            buildPeriodMenu();
-            openMenu(el.perMenu);
-        });
-        el.perMenu.addEventListener('click', function (event) {
-            var btn = event.target.closest('[data-preset]');
-            if (btn) {
-                state.period = { preset: btn.dataset.preset };
-                closeMenus();
-                renderBar();
-                changed();
-                return;
-            }
-            if (event.target.closest('#exPerApply')) {
-                var from = $('exPerFrom').value;
-                var to = $('exPerTo').value;
-                if (!from || !to) { toast('Укажите обе даты.'); return; }
-                if (to < from) { toast('Конец периода раньше начала.'); return; }
-                state.period = { from: from, to: to };
-                closeMenus();
-                renderBar();
-                changed();
-            }
-        });
-        el.run.addEventListener('click', build);
         el.excel.addEventListener('click', exportExcel);
         el.save.addEventListener('click', openSave);
         el.open.addEventListener('click', openOpen);
@@ -1441,6 +1540,7 @@
         });
         el.msg.addEventListener('click', function (event) {
             if (event.target.closest('[data-export]')) exportExcel();
+            else if (event.target.closest('[data-retry]')) build(true);
         });
         el.modalBack.addEventListener('click', function () { closeModal(); });
         el.modal.addEventListener('click', function (event) {
@@ -1459,7 +1559,7 @@
                     el.fields.classList.remove('is-open');
                 }
             } else if (event.key === 'Enter' && (event.ctrlKey || event.metaKey) && el.modal.hidden) {
-                build();
+                build(true);   // построить сейчас, не дожидаясь паузы
             }
         });
         bindDrag();
@@ -1469,11 +1569,9 @@
 
     function init() {
         el = {
-            burger: $('exBurger'), catcher: $('exCatch'),
+            catcher: $('exCatch'),
             typeBtn: $('exTypeBtn'), typeLabel: $('exTypeLabel'), typeMenu: $('exTypeMenu'),
-            perBtn: $('exPerBtn'), perLabel: $('exPerLabel'), perHint: $('exPerHint'), perMenu: $('exPerMenu'),
             open: $('exOpenBtn'), save: $('exSaveBtn'), excel: $('exExcelBtn'),
-            run: $('exRun'), spin: $('exSpin'), runLabel: $('exRunLabel'),
             context: $('exContext'), fields: $('exFields'), fieldsSrc: $('exFieldsSrc'),
             fieldsClose: $('exFieldsClose'), fieldSearch: $('exFieldSearch'), fieldList: $('exFieldList'),
             msg: $('exMsg'), msgBody: $('exMsgBody'),
@@ -1503,8 +1601,10 @@
                     setUrlReport(null);
                     return applyConfig(boot.default, null);
                 }
+                // Ссылка на отчёт: его период — общий выбор, если в адресе нет своего периода.
                 return applyConfig(report.config, { saved: { id: report.id, name: report.name } }).then(function (ok) {
-                    if (ok) build();
+                    if (ok && !hasUrlPeriod()) applyReportPeriod(report.config.period);
+                    return ok;
                 });
             });
         } else if (draft && draft.config) {
@@ -1512,12 +1612,37 @@
         } else {
             start = applyConfig(boot.default, null);
         }
-        Promise.resolve(start).catch(function (err) {
+        // Тяжёлая страница считает сразу при открытии (Р5); смена бара или периода в полосе —
+        // новое построение после паузы.
+        Promise.resolve(start).then(function () {
+            scheduleBuild(0);
+        }).catch(function (err) {
             el.fieldList.innerHTML = '<div class="ex-empty-list">Список полей не загрузился: ' + esc(err.message) + '</div>';
             showError(err);
         });
+        if (Strip && Strip.onChange) {
+            Strip.onChange(function () {
+                renderContext();
+                renderCube();
+                scheduleBuild(STRIP_PAUSE_MS);
+            });
+        }
         renderBar();
     }
+
+    function hasUrlPeriod() {
+        try {
+            var q = new URL(window.location.href).searchParams;
+            return !!(q.get('date_from') && q.get('date_to'));
+        } catch (e) { return false; }
+    }
+
+    // Для теста исполнения (tests/test_explorer_runtime.mjs): связка с полосой и построение.
+    window.__explorer = {
+        state: state, periodDates: periodDates, presetOf: presetOf, stripPeriodOf: stripPeriodOf,
+        applyReportPeriod: applyReportPeriod, barScope: barScope, requestPayload: requestPayload,
+        currentConfig: currentConfig, layoutConfig: layoutConfig, changed: changed
+    };
 
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
     else init();

@@ -900,6 +900,123 @@
     }
     function hideTip() { if (tipEl) tipEl.hidden = true; }
 
+    // ======================= бар и период — общая полоса сайта =======================
+    // Своих меню бара и периода у розлива, фасовки и кухни нет (план единого виджета,
+    // docs/planning/period-widget-rollout.md, этап 3): бар и период — полоса «Бар и период»
+    // (window.KStrip, templates/shared/scope_strip.html). Здесь общая связка трёх страниц:
+    // что выбрано, пауза перед запросом, подпись «без XYZ», текст ошибки iiko и память
+    // ответов на время страницы. Страница считает сразу при открытии и при любой смене —
+    // кнопки «Запустить анализ» нет (ответ владельца Р5).
+    var ALL_BARS = 'Все бары';             // подпись всей сети — одна на сайт (ответ Р6)
+    var TOTAL_LABEL = 'Общая';             // так всю сеть называет сервер (core/abc_thresholds.py)
+    var CHANGE_PAUSE_MS = 350;             // серия выборов в полосе — один запрос после паузы
+    var XYZ_MIN_WEEKS = 3;                 // MIN_XYZ_WEEKS в core/abc_thresholds.py и core/draft_kegs.py
+    var MEMO_TTL_MS = 10 * 60 * 1000;      // столько же живёт кэш сервера (extensions.cached_olap)
+    var MEMO_MAX = 8;                      // ответов в памяти страницы: ответ розлива — до 1 МБ
+    var TIMEOUT_TEXT = 'iiko не успел ответить — сократите период';
+    var WEEK_WORDS = ['полная неделя', 'полные недели', 'полных недель'];
+
+    // Полных недель в периоде (даты включительно): дни // 7 — так сервер режет период на
+    // недели для XYZ (core/draft_kegs.py, full_buckets).
+    function fullWeeks(from, to) {
+        var a = String(from || '').split('-'), b = String(to || '').split('-');
+        if (a.length !== 3 || b.length !== 3) return 0;
+        var days = Math.round((Date.UTC(+b[0], +b[1] - 1, +b[2]) - Date.UTC(+a[0], +a[1] - 1, +a[2])) / 86400000) + 1;
+        return days > 0 ? Math.floor(days / 7) : 0;
+    }
+    // Подпись «без XYZ» для периода короче трёх полных недель: спрос (третья буква кода)
+    // не считается, ABC по выручке и наценке — как обычно. '' — XYZ считается.
+    function noXyzText(from, to) {
+        if (!from || !to) return '';
+        var w = fullWeeks(from, to);
+        if (w >= XYZ_MIN_WEEKS) return '';
+        return 'XYZ не считается: в периоде ' + w + ' ' + plural(w, WEEK_WORDS) + ', нужно от ' +
+            XYZ_MIN_WEEKS + '; ABC показан';
+    }
+    // Подпись бара: «Все бары» для всей сети (сервер зовёт её «Общая»), иначе имя бара.
+    function barText(name) {
+        return !name || name === TOTAL_LABEL ? ALL_BARS : String(name);
+    }
+    // Текст ошибки запроса страницы (status 0 — соединение оборвалось, ответа нет).
+    // «iiko не успел ответить»: тайм-аут запроса к iiko — 502 сервера; воркер, остановленный
+    // по тайм-ауту, — 502/504 прокси без JSON; оборванное соединение. Остальное — причина с
+    // сервера («Нет данных за выбранный период», «Начало периода позже конца»).
+    function failText(status, payload) {
+        if (status === 502 || status === 503 || status === 504) return TIMEOUT_TEXT;
+        if (payload && payload.error) return String(payload.error);
+        if (!status || (status >= 500 && !payload)) return TIMEOUT_TEXT;
+        return 'Ошибка сервера: HTTP ' + status;
+    }
+    // «Считаю розлив за 2 – 31 окт 2026, Все бары…» — пока идёт расчёт, видно, что и за что.
+    function progressText(what, sel) {
+        return 'Считаю ' + what + (sel && sel.title ? ' за ' + sel.title : '') +
+            (sel && sel.label ? ', ' + sel.label : '') + '…';
+    }
+    // POST JSON -> {ok, status, payload}; тело не JSON (страница ошибки прокси) — payload null.
+    function postJson(url, body) {
+        return fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        }).then(function (response) {
+            var read = typeof response.text === 'function'
+                ? response.text().then(function (text) {
+                    try { return text ? JSON.parse(text) : null; } catch (e) { return null; }
+                })
+                : response.json().catch(function () { return null; });
+            return read.then(function (payload) {
+                return { ok: response.ok, status: response.status, payload: payload };
+            });
+        });
+    }
+    // Память ответов на время страницы: тот же бар и период повторно — без запроса в iiko.
+    function memo() {
+        var store = {}, order = [];
+        return {
+            get: function (key) {
+                var hit = store[key];
+                return hit && Date.now() - hit.at <= MEMO_TTL_MS ? hit.value : null;
+            },
+            put: function (key, value) {
+                if (!store[key]) order.push(key);
+                store[key] = { at: Date.now(), value: value };
+                while (order.length > MEMO_MAX) delete store[order.shift()];
+            }
+        };
+    }
+    // Связка с полосой. get() -> {barKey, bar (имя бара в iiko для запроса, '' — вся сеть),
+    // label, from, to, title, period}; onChange(sel) — после паузы в смене бара или периода
+    // (серия шагов стрелкой — один вызов). Без полосы (тесты отрисовки) — вся сеть, без периода.
+    function connect(onChange, opts) {
+        opts = opts || {};
+        var strip = opts.strip || window.KStrip || null;
+        var K = window.KPeriod || null;
+        var pause = opts.pause === undefined ? CHANGE_PAUSE_MS : opts.pause;
+        var timer = null;
+        function get() {
+            var now = strip ? strip.get() : { bar: '', period: null };
+            var info = now.bar && strip.barInfo ? strip.barInfo(now.bar) : null;
+            var p = now.period || null;
+            var all = (strip && strip.config && strip.config.allLabel) || ALL_BARS;
+            return {
+                barKey: info ? info.key : '',
+                bar: info ? (info.iiko_name || info.name) : '',
+                label: info ? info.name : all,
+                from: p ? p.start : null,
+                to: p ? p.end : null,
+                title: p ? (K && K.periodTitle ? K.periodTitle(p) : p.start + ' – ' + p.end) : '',
+                period: p
+            };
+        }
+        if (strip && typeof strip.onChange === 'function' && typeof onChange === 'function') {
+            strip.onChange(function () {
+                clearTimeout(timer);
+                timer = setTimeout(function () { timer = null; onChange(get()); }, pause);
+            });
+        }
+        return { get: get, strip: strip };
+    }
+
     window.AbcView = {
         MIN_SALES: MIN_SALES, fromKitchen: fromKitchen, BUCKET_ORDER: BUCKET_ORDER,
         fromDraft: fromDraft, fromPackaging: fromPackaging,
@@ -907,6 +1024,11 @@
         priceCost: priceCost, barProfile: barProfile,
         overviewHtml: overviewHtml, pricesHtml: pricesHtml, peopleHtml: peopleHtml, barsHtml: barsHtml,
         scatterSvg: scatterSvg, chipsHtml: chipsHtml, tabsFor: tabsFor, tabsHtml: tabsHtml,
-        shortageLineHtml: shortageLineHtml, how: how, mount: mount, rub: rub
+        shortageLineHtml: shortageLineHtml, how: how, mount: mount, rub: rub,
+        // бар и период из полосы
+        ALL_BARS: ALL_BARS, CHANGE_PAUSE_MS: CHANGE_PAUSE_MS, XYZ_MIN_WEEKS: XYZ_MIN_WEEKS,
+        TIMEOUT_TEXT: TIMEOUT_TEXT, connect: connect, memo: memo, postJson: postJson,
+        fullWeeks: fullWeeks, noXyzText: noXyzText, barText: barText, failText: failText,
+        progressText: progressText
     };
 })();

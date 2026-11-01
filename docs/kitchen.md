@@ -36,11 +36,11 @@
 | [core/olap_reports.py](../core/olap_reports.py) | `get_kitchen_page_sales_report` (продажи «ЕДА» с `DishType`, `SecondParent`, `ThirdParent`, `DishId`), `get_kitchen_writeoff_report` (проводки «ЕДА» с `Sum.Outgoing` и `Sum.Incoming`) |
 | [core/abc_thresholds.py](../core/abc_thresholds.py) | `KITCHEN_MARKUP_A_MIN = 1.8`, `KITCHEN_MARKUP_B_MIN = 1.5`, `UNCATEGORIZED_KITCHEN` |
 | [core/packaging_analysis.py](../core/packaging_analysis.py) | Общий расчёт; точки расширения `A_MIN`, `B_MIN`, `UNCATEGORIZED_LABEL`, `_category_of`, `_skip_row`, `_losses` |
-| [routes/analysis.py](../routes/analysis.py) | `POST /api/kitchen` — вход и коды ответа как у `/api/packaging` |
+| [routes/analysis.py](../routes/analysis.py) | `POST /api/kitchen` — вход и коды ответа как у `/api/packaging`; бар — имя iiko или ключ бара (`_abc_bar`, с 2026-11-01) |
 | [routes/pages.py](../routes/pages.py), [templates/shared/nav.html](../templates/shared/nav.html) | Страница `/kitchen` и пункт меню «Кухня» |
-| [templates/kitchen.html](../templates/kitchen.html) | Клон `packaging.html`: классы `pk-*` и `packaging.css` общие, id узлов `kt*` |
+| [templates/kitchen.html](../templates/kitchen.html) | Клон `packaging.html`: классы `pk-*` и `packaging.css` общие, id узлов `kt*`; полоса «Бар и период» (`kultura_strip`, с 2026-11-01) |
 | [static/js/kitchen/kitchen.js](../static/js/kitchen/kitchen.js) | Клон `packaging.js`: порции, пороги 180/150, баланс и расхождения в рублях, диагностика |
-| [static/js/shared/abc_view.js](../static/js/shared/abc_view.js) | `AbcView.fromKitchen` — модель общей раскладки для кухни |
+| [static/js/shared/abc_view.js](../static/js/shared/abc_view.js) | `AbcView.fromKitchen` — модель общей раскладки для кухни; `AbcView.connect` — бар и период из полосы |
 | [tests/test_kitchen_analysis.py](../tests/test_kitchen_analysis.py) | 11 проверок расчёта: пороги, модификаторы, категории, рубли, недостача по барам, детерминизм |
 | [tests/test_kitchen_routes.py](../tests/test_kitchen_routes.py) | 9 проверок эндпоинта и формы запросов к iiko |
 | [tests/test_kitchen_render.mjs](../tests/test_kitchen_render.mjs) | 12 текстовых проверок: шаблон, JS, CSS, пороги, меню |
@@ -159,9 +159,14 @@ A — от 180%, B — от 150% до 180%, C — ниже 150%
 ## Страница
 
 Разметка и стили — от фасовки: `body.packaging-page.kitchen-page`, классы `pk-*`,
-токены `--pk-*`, `packaging.css`. Своих правил CSS у страницы нет. Шапка, фильтры (бар и
-период, по умолчанию последние 30 дней), вкладки и выдвижные карточки работают так же,
-как у фасовки. Отличия:
+токены `--pk-*`, `packaging.css`. Своих правил CSS у страницы нет. Карточка заголовка
+(«Кухня», подпись «ABC/XYZ и потери: …») и полоса «Бар и период» — общие для сайта
+(с 2026-11-01, план единого виджета, этап 3): своих меню бара и периода и кнопки
+«Запустить анализ» нет, без выбора — последние 30 полных дней (шаг `last30`), расчёт
+сразу при открытии и после паузы в выборе, «Считаю кухню за …» на время расчёта, при
+тайм-ауте iiko — «iiko не успел ответить — сократите период». Правила — как у фасовки
+([abc-xyz-analysis.md](abc-xyz-analysis.md), «Бар и период — общая полоса сайта»).
+Вкладки и выдвижные карточки работают так же, как у фасовки. Отличия:
 
 - единица продаж — порции («ПОРЦИЙ», «ЦЕНА ПОРЦИИ»); доли в таблицах — «ДОЛЯ
   ВЫРУЧКИ», «ДОЛЯ ПОРЦИЙ», «ДОЛЯ МАРЖИ» (с 2026-09-29, формулы как у фасовки);
@@ -182,6 +187,13 @@ python3 tests/fixtures/build_kitchen_sample.py   # пересобрать фик
 ```
 
 ## Changelog
+
+- **2026-11-01** — Бар и период — общая полоса сайта, как у фасовки и розлива: своя шапка,
+  меню «БАР» и «ПЕРИОД» и «Запустить анализ» убраны, заголовок — общая карточка («Кухня»).
+  Без выбора — последние 30 полных дней; расчёт сразу и после паузы; «Все бары» вместо
+  «Общая» в строке разреза; `/api/kitchen` принимает бар и ключом. Файлы:
+  `templates/kitchen.html`, `static/js/kitchen/kitchen.js`; тесты
+  `test_kitchen_runtime.mjs` (22), `test_kitchen_render.mjs`, `tests/test_analytics_strip.py`.
 
 - **2026-09-29** — Третья доля в таблицах позиций и категорий — «ДОЛЯ МАРЖИ», как у
   фасовки ([abc-xyz-analysis.md](abc-xyz-analysis.md)). Доля категории в марже
