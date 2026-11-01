@@ -12,10 +12,11 @@
     <link rel="stylesheet" href="/static/dashboard/styles/mobile.css">
     <link rel="stylesheet" href="/static/logo.css">
     <style>
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 32px 20px 64px;
+        /* Карточка заголовка и полоса — на том же месте, что у всех страниц (base.css .container:
+           1400 px, отступ сверху 40 px; на телефоне — правила base.css и mobile.css). До 2026-11-01
+           здесь было 32 px сверху: заголовок стоял на 8 px выше, чем на дашборде. */
+        @media (min-width: 769px) {
+            .container { padding-bottom: 64px; }
         }
 
         .toolbar {
@@ -38,7 +39,7 @@
             text-transform: uppercase;
             letter-spacing: 0.05em;
         }
-        select, button.toolbar-btn {
+        button.toolbar-btn {
             padding: 10px 16px;
             background: var(--bg-tertiary);
             border: 1px solid var(--border-color);
@@ -48,7 +49,6 @@
             font-family: inherit;
             cursor: pointer;
         }
-        select:focus { outline: none; border-color: var(--accent); }
         button.toolbar-btn { background: var(--accent); color: white; border: none; font-weight: 600; }
         button.toolbar-btn:hover { background: var(--accent-hover); }
 
@@ -470,19 +470,12 @@
     <div class="container">
         {% set page_title = "Сроки годности" %}
         {% set page_subtitle = "Cockpit FEFO" %}
+        {#- Полоса «Бар и период» (план единого виджета, этап 6): страница «на сейчас», бар — общий
+            выбор сайта («Все бары» — все четыре склада). Своего выбора бара у страницы нет. -#}
+        {% set strip = kultura_strip(mode='now') %}
         {% include 'shared/nav.html' %}
 
         <div class="toolbar">
-            <div class="form-group">
-                <label for="bar-select">Бар</label>
-                <select id="bar-select" onchange="loadBoard()">
-                    <option value="all">Все бары</option>
-                    <option value="bar1">Большой пр. В.О</option>
-                    <option value="bar2">Лиговский</option>
-                    <option value="bar3">Кременчугская</option>
-                    <option value="bar4">Варшавская</option>
-                </select>
-            </div>
             <div class="form-group">
                 <label>Режим</label>
                 <div class="view-switch">
@@ -558,8 +551,32 @@ function fmtDateTime(iso) {
     return `${p(d.getDate())}.${p(d.getMonth() + 1)}.${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
+// Бар — общая полоса «Бар и период» (templates/shared/scope_strip.html, план единого виджета):
+// ключ бара -> bar1…bar4 по таблице баров (KStrip.barInfo), «Все бары» -> all (все четыре склада).
+function stripBar() {
+    const strip = window.KStrip;
+    const key = strip ? strip.get().bar : '';
+    const info = key && strip ? strip.barInfo(key) : null;
+    return info ? { param: info.bar_id, name: info.name } : { param: 'all', name: 'Все бары' };
+}
+
+// Окно расхода — датами с сервера (window_from / window_to ответа), название — общим KPeriod,
+// как в полосе: «расход за 30 дней: 2 окт – 1 ноя 2026». Без дат — «за 30 дней».
+function windowLabel(days, fromIso, toIso) {
+    const K = window.KPeriod;
+    const n = Number(days);
+    if (!n) return '';
+    const head = 'за ' + n + ' ' + (K ? K.pluralDays(n) : 'дн.');
+    const start = K && fromIso ? K.fromISO(fromIso) : null;
+    const end = K && toIso ? K.fromISO(toIso) : null;
+    return start && end ? head + ': ' + K.customPeriod(start, end).label : head;
+}
+
+let boardSeq = 0;   // поздний ответ прошлого бара не перерисовывает страницу
+
 async function loadBoard(force = false) {
-    const bar = document.getElementById('bar-select').value || 'all';
+    const bar = stripBar().param;
+    const seq = ++boardSeq;
     const content = document.getElementById('content');
     content.innerHTML = `
         <div class="loading">
@@ -576,6 +593,7 @@ async function loadBoard(force = false) {
     try {
         const url = `/api/expiration/board?bars=${encodeURIComponent(bar)}${force ? '&force=1' : ''}`;
         const r = await fetch(url);
+        if (seq !== boardSeq) return;
 
         const stages = document.getElementById('stages');
         if (stages) {
@@ -586,13 +604,17 @@ async function loadBoard(force = false) {
 
         if (!r.ok) {
             const err = await r.json().catch(() => ({error: 'неизвестная ошибка'}));
+            if (seq !== boardSeq) return;
             content.innerHTML = `<div class="empty">Ошибка: ${err.error || r.statusText}</div>`;
             return;
         }
-        STATE.raw = await r.json();
+        const data = await r.json();
+        if (seq !== boardSeq) return;
+        STATE.raw = data;
         STATE.loadMs = Math.round(performance.now() - t0);
         renderAll();
     } catch (e) {
+        if (seq !== boardSeq) return;
         content.innerHTML = `<div class="empty">Ошибка: ${e.message}</div>`;
     }
 }
@@ -607,7 +629,8 @@ function renderAll() {
     const cacheTag = data.cache && data.cache.hit
         ? `<span class="cache-badge" title="Из кеша, возраст ${data.cache.age_sec}с">кеш ${data.cache.age_sec}с</span>`
         : (STATE.loadMs ? `<span class="cache-badge" title="Время ответа ${STATE.loadMs} мс">${(STATE.loadMs/1000).toFixed(1)}с</span>` : '');
-    meta.innerHTML = `Данные ЧЗ: ${chzDate}${cacheTag}`;
+    const windowText = windowLabel(data.window_days, data.window_from, data.window_to);
+    meta.innerHTML = `Данные ЧЗ: ${chzDate}${windowText ? ' · расход ' + windowText : ''}${cacheTag}`;
 
     const isList = STATE.view === 'list';
     document.getElementById('kpi-strip').style.display = isList ? 'none' : '';
@@ -728,8 +751,7 @@ function chzCoverage() {
 
 function renderPrintHeader() {
     const data = STATE.raw;
-    const sel = document.getElementById('bar-select');
-    const barName = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : '';
+    const barName = stripBar().name;
     const printedAt = fmtDateTime(new Date());
     const chzDate = data.chz_updated_at ? fmtDateTime(data.chz_updated_at) : 'нет';
     const cov = chzCoverage();
@@ -869,6 +891,8 @@ function renderCard(it) {
     `;
 }
 
+// Смена бара в полосе — новый board; выбор периода странице «на сейчас» не нужен.
+if (window.KStrip) KStrip.onChange(e => { if (e.type === 'bar') loadBoard(); });
 loadBoard();
 </script>
 </body>

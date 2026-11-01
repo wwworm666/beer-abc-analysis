@@ -2,7 +2,10 @@
    Разметку строит static/js/shared/period/period_picker.js. Цвета — переменные дизайн-системы
    (static/dashboard/styles/variables.css), поэтому тёмная тема работает сама.
    kp--strip — внутри полосы фильтров (дашборд): без своей рамки, как остальные контролы полосы.
-   На телефоне (до 768 px) панель — лист снизу, стрелки 44 px. */
+   kp--disabled — страница «на сейчас»: серая надпись вместо периода, без стрелок и панели.
+   «Свой период» — поля для ввода цифрами, календарь на два месяца (на компьютере), сетка
+   месяцев и лет по названию месяца (план единого виджета, раздел 3.4).
+   На телефоне (до 768 px) панель — лист снизу, стрелки и поля 44 px. */
 
 .kp {
     position: relative;
@@ -140,6 +143,7 @@
     box-shadow: var(--shadow-lg);
 }
 
+.kp-arrow[hidden],
 .kp-panel[hidden],
 .kp-backdrop[hidden] {
     display: none;
@@ -224,7 +228,6 @@
 }
 
 .kp-grid--month { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.kp-grid--quarter { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .kp-grid--year { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 
 .kp-cell {
@@ -383,11 +386,207 @@
     justify-content: flex-start;
 }
 
-.kp-fresh {
-    padding-top: 8px;
-    border-top: 1px solid var(--border-light);
+/* --- Свой период: поля для ввода цифрами --- */
+
+.kp-panel--wide {
+    width: 600px;
+    max-width: calc(100vw - 32px);
+    /* Поля и два месяца целиком помещаются на экране ноутбука: шаги вверху не уезжают. */
+    max-height: calc(100vh - 160px);
+}
+
+.kp-panel--wide .kp-day {
+    height: 30px;
+}
+
+.kp-typed {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.kp-in-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
     font-size: 11px;
     color: var(--text-tertiary);
+}
+
+.kp-in {
+    box-sizing: border-box;
+    width: 118px;
+    padding: 8px 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 9px;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
+}
+
+.kp-in::placeholder {
+    color: var(--text-tertiary);
+}
+
+.kp-in:focus {
+    border-color: var(--accent);
+    outline: 2px solid var(--accent-light);
+}
+
+.kp-apply {
+    padding: 9px 16px;
+    border: none;
+    border-radius: 9px;
+    background: var(--accent);
+    color: var(--text-on-accent);
+    font-family: inherit;
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.kp-apply:hover {
+    background: var(--accent-hover);
+}
+
+/* Ошибка своего периода — текстом под полями (role="alert"). */
+.kp-error {
+    min-height: 16px;
+    font-size: 11.5px;
+    line-height: 1.4;
+    color: var(--danger);
+}
+
+.kp-error:empty {
+    min-height: 0;
+}
+
+.kp-nav-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.kp-nav-title:hover {
+    background: var(--bg-tertiary);
+}
+
+.kp-nav-caret {
+    font-size: 10px;
+    color: var(--text-tertiary);
+}
+
+.kp-cals--two {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+}
+
+.kp-month-name {
+    margin-bottom: 4px;
+    font-size: 11.5px;
+    font-weight: 600;
+    text-align: center;
+    color: var(--text-secondary);
+}
+
+.kp-jump {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.kp-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border-light);
+}
+
+.kp-fresh {
+    font-size: 11px;
+    color: var(--text-tertiary);
+}
+
+.kp-reset {
+    flex: none;
+    padding: 4px 0;
+    border: none;
+    background: transparent;
+    color: var(--accent);
+    font-family: inherit;
+    font-size: 11.5px;
+    cursor: pointer;
+}
+
+.kp-reset:hover {
+    text-decoration: underline;
+}
+
+/* --- Страница «на сейчас»: период не выбирается --- */
+
+.kp--disabled .kp-trigger {
+    cursor: default;
+}
+
+.kp--disabled .kp-trigger:hover {
+    background: transparent;
+}
+
+.kp--disabled .kp-title,
+.kp--disabled .kp-icon {
+    color: var(--text-tertiary);
+}
+
+.kp--disabled .kp-caret {
+    display: none;
+}
+
+/* --- Шаг стрелкой: название едет в сторону стрелки --- */
+
+@keyframes kp-slide-next {
+    from { opacity: 0.25; transform: translateX(10px); }
+    to { opacity: 1; transform: none; }
+}
+
+@keyframes kp-slide-prev {
+    from { opacity: 0.25; transform: translateX(-10px); }
+    to { opacity: 1; transform: none; }
+}
+
+.kp--slide-next .kp-title,
+.kp--slide-next .kp-sub {
+    animation: kp-slide-next 0.2s ease-out;
+}
+
+.kp--slide-prev .kp-title,
+.kp--slide-prev .kp-sub {
+    animation: kp-slide-prev 0.2s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .kp--slide-next .kp-title,
+    .kp--slide-next .kp-sub,
+    .kp--slide-prev .kp-title,
+    .kp--slide-prev .kp-sub {
+        animation: none;
+    }
 }
 
 /* --- Телефон: лист снизу, крупные цели для пальца --- */
@@ -454,5 +653,95 @@
 
     .kp-chip {
         padding: 9px 13px;
+    }
+
+    /* Поля своего периода — в две колонки, кнопка под ними; 16 px — iPhone не увеличивает экран. */
+    .kp-typed {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .kp-in {
+        width: 100%;
+        min-height: 44px;
+        font-size: 16px;
+    }
+
+    .kp-apply {
+        grid-column: 1 / -1;
+        min-height: 44px;
+    }
+
+    .kp-nav-title,
+    .kp-reset {
+        min-height: 44px;
+    }
+}
+
+/* ============================================================
+   Полоса «Бар и период» (templates/shared/scope_strip.html) — та же шапка фильтров
+   дашборда (.filter-bar, .fb-*), плюс подпись страницы и подсветка выбора.
+   ============================================================ */
+
+/* «по месяцам — показан октябрь 2026», «Период из ссылки не распознан…». */
+.ks-note {
+    align-self: center;
+    padding: 0 12px;
+    font-size: 11.5px;
+    color: var(--warning);
+}
+
+.ks-menu-note {
+    padding: 8px 12px 4px;
+    border-top: 1px solid var(--border-light);
+    margin-top: 4px;
+    font-size: 11px;
+    color: var(--text-tertiary);
+}
+
+/* Страница на бары не делится: бар серый, меню нет. */
+.ks .fb-venue:disabled {
+    cursor: default;
+    opacity: 0.6;
+}
+
+.ks .fb-venue:disabled:hover {
+    background: transparent;
+}
+
+/* Кнопки страницы в полосе (выгрузка, синк, печать), пока действие недоступно — результат
+   ещё считается или идёт синк: видно, что нажать нельзя. */
+.ks .fb-ghost:disabled,
+.ks .fb-menu-item:disabled {
+    opacity: 0.45;
+    cursor: default;
+}
+
+.ks .fb-ghost:disabled:hover {
+    background: transparent;
+    color: var(--text-secondary);
+}
+
+/* Выбор применён ко всему сайту: короткая подсветка рамки полосы. */
+@keyframes ks-applied {
+    0% { box-shadow: 0 0 0 0 var(--accent-light), var(--shadow-sm); border-color: var(--accent); }
+    100% { box-shadow: 0 0 0 6px transparent, var(--shadow-sm); border-color: var(--border-color); }
+}
+
+.ks--applied {
+    animation: ks-applied 0.7s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ks--applied {
+        animation: none;
+    }
+}
+
+@media (max-width: 768px) {
+    .ks-note {
+        order: 4;
+        flex: 1 1 100%;
+        padding: 0 4px 6px;
     }
 }

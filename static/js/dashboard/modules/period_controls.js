@@ -1,25 +1,28 @@
 /**
- * Период в шапке дашборда — общий элемент сайта (стандарт docs/period-standard.md).
+ * Бар и период дашборда — общая полоса сайта (templates/shared/scope_strip.html,
+ * static/js/shared/period/scope_strip.js; план единого виджета — docs/planning/period-widget-rollout.md).
  *
- *   [ Все заведения ▾ | ‹  26 окт – 1 ноя 2026  неделя 44 · идёт, по 01.11 ▾  › |  Excel  PDF ]
+ *   [ Все бары ▾ | ‹  26 окт – 1 ноя 2026  неделя 44 · идёт, по 01.11 ▾  › |  Excel  PDF ]
  *
- * Элемент (static/js/shared/period/period_picker.js) рисует стрелки, название и панель: шаг,
- * сетку периодов, быстрый выбор, свой период. Этот модуль — связка с состоянием дашборда:
- * какие шаги доступны на вкладке, что делать со сменой периода и вкладки.
+ * Полоса сама рисует бар и период, хранит выбор для всего сайта (час — период, бар — пока не
+ * сменишь) и пишет адрес. Этот модуль — связка с состоянием дашборда:
+ *   - выбор в полосе -> state.setPeriod / state.setVenue (отсюда расходятся события вкладкам);
+ *   - какие шаги доступны на вкладке.
  *
  * Правила вкладок:
  *   - «Аналитика», «Выручка», «Сравнение» — все шаги и свой период; «Сравнение» берёт период 1
- *     из шапки (раньше у него были свои списки недель);
- *   - «Планы» — только месяц и год (планы хранятся помесячно). Если смотрел неделю, «Планы»
- *     показывают её месяц — видно в шапке, — а при возврате на другую вкладку неделя
- *     возвращается, если период не меняли (раньше «Планы» молча оставляли месяц навсегда).
+ *     из полосы;
+ *   - «Планы» — только месяц и год (планы хранятся помесячно). Если выбрана неделя, «Планы»
+ *     ПОКАЗЫВАЮТ месяц выбранного периода (ответ владельца Р3: месяц четверга недели) — общий
+ *     выбор при этом не меняется (показ — не выбор); при возврате на другую вкладку неделя
+ *     возвращается, если месяц на «Планах» не меняли.
  */
 
 import { state } from '../core/state.js';
 
 const K = window.KPeriod;
 
-const ALL_STEPS = ['day', 'week', 'month', 'quarter', 'year', 'custom'];
+const ALL_STEPS = ['day', 'week', 'month', 'year', 'custom'];   // кварталов нет (2026-11-01)
 const TAB_STEPS = {
     'tab-analytics': ALL_STEPS,
     'analytics': ALL_STEPS,
@@ -30,44 +33,35 @@ const TAB_STEPS = {
 const STEP_NOTES = {
     'tab-plans': 'Планы задаются на месяц — здесь доступны месяц и год'
 };
-// Быстрый выбор дашборда — тот же набор, что был в списке до 2026-11-01.
-const QUICK = ['today', 'yesterday', 'current_week', 'last_closed_week', 'current_month',
-    'last_closed_month', 'current_quarter', 'current_year'];
 
 class PeriodControls {
     constructor() {
         this.initialized = false;
-        this.picker = null;
+        this.strip = null;
         this.beforeSnap = null;   // период до перехода на вкладку с другими шагами
-        this.snapped = null;      // период, которым его заменили
+        this.snapped = null;      // месяц, который вкладка показала вместо него
     }
 
     init() {
         if (this.initialized) return;
         this.initialized = true;
-        const mount = document.getElementById('cg-period');
-        if (!mount || !window.KPeriodPicker) return;   // не дашбордная страница
+        this.strip = window.KStrip || null;
+        if (!this.strip) return;   // не дашбордная страница или полоса не загрузилась
 
-        this.picker = window.KPeriodPicker.mount(mount, {
-            variant: 'strip',
-            steps: this.stepsFor(state.activeTab),
-            quick: QUICK,
-            value: state.currentPeriod,
-            urlSync: true,
-            freshness: 'Данные iiko — по сегодня, обновляются не реже раза в 10 минут',
-            onChange: (period) => this.apply(period)
+        this.strip.setSteps(this.stepsFor(state.activeTab), STEP_NOTES[state.activeTab] || '');
+        this.strip.onChange((e) => {
+            if (e.type === 'period') this.apply(e.period);
+            else if (e.type === 'bar') state.setVenue(e.bar || 'all', { fromStrip: true });
         });
-        // Адрес сразу показывает открытый период: ссылку можно скопировать с первой секунды.
-        this.picker.set(state.currentPeriod, { silent: true });
 
         state.subscribe((event, data) => {
             if (event === 'tabChanged') {
                 this.onTab(data);
             } else if (event === 'periodChanged') {
-                // Период мог смениться не через шапку — держим её в согласии с состоянием.
-                const shown = this.picker.get();
+                // Период мог смениться не через полосу — держим её в согласии с состоянием.
+                const shown = this.strip.get().period;
                 if (!shown || shown.start !== data.start || shown.end !== data.end) {
-                    this.picker.set(data, { silent: true });
+                    this.strip.showPeriod(data);
                 }
             }
         });
@@ -77,7 +71,7 @@ class PeriodControls {
         return TAB_STEPS[tab] || ALL_STEPS;
     }
 
-    /** Период из шапки — в состояние (отсюда расходятся periodChanged / monthChanged). */
+    /** Период из полосы — в состояние (отсюда расходятся periodChanged / monthChanged). */
     apply(period) {
         const cur = state.currentPeriod;
         if (cur && cur.start === period.start && cur.end === period.end) {
@@ -90,7 +84,7 @@ class PeriodControls {
 
     onTab(tab) {
         const steps = this.stepsFor(tab);
-        this.picker.setSteps(steps, STEP_NOTES[tab] || '');
+        this.strip.setSteps(steps, STEP_NOTES[tab] || '');
         const period = state.currentPeriod;
 
         // Вернулись с «Планов»: неделя возвращается, если месяц на «Планах» не меняли.
@@ -99,15 +93,18 @@ class PeriodControls {
             const restore = this.beforeSnap;
             this.beforeSnap = null;
             this.snapped = null;
-            if (untouched) this.picker.set(restore);
+            if (untouched) {
+                this.strip.showPeriod(restore);
+                state.setPeriod(restore);
+            }
             return;
         }
 
         if (period && !steps.includes(period.granularity)) {
-            const target = steps.includes('month') ? 'month' : steps[0];
             this.beforeSnap = period;
-            this.snapped = K.changeGranularity(period, target);
-            this.picker.set(this.snapped);
+            this.snapped = K.monthOf(period);
+            this.strip.showPeriod(this.snapped);
+            state.setPeriod(this.snapped);
         }
     }
 }

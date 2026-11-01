@@ -323,10 +323,14 @@ def test_pages_and_routes():
     try:
         with tpub._client(env) as c:
             assert c.get('/content-plan').status_code == 200
-            assert c.get('/content-plan/table?month=2026-10').status_code == 200
+            # Месяц — из полосы «Бар и период» (с 2026-11-01): старый ?month= -> даты месяца.
+            month = c.get('/content-plan/table?month=2026-10')
+            assert month.status_code == 302
+            assert month.headers['Location'].endswith('/content-plan/table?date_from=2026-10-01&date_to=2026-10-31')
+            assert c.get('/content-plan/table?date_from=2026-10-01&date_to=2026-10-31').status_code == 200
             old = c.get('/content-plan?view=table&month=2026-10&state=failed')
             assert old.status_code == 302
-            assert old.headers['Location'].endswith('/content-plan/table?month=2026-10&state=failed')
+            assert old.headers['Location'].endswith('/content-plan/table?state=failed&date_from=2026-10-01&date_to=2026-10-31')
             assert c.get('/content-plan?view=calendar').status_code == 200
     finally:
         tpub.rcp.render_template = saved_render

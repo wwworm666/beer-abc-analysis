@@ -21,72 +21,20 @@
     <link rel="stylesheet" href="/static/shared/abc_view.css?v={{ app_version }}">
 </head>
 <body class="packaging-page">
+    {#- Заголовок — имя пункта меню: длинное «Фасовка — ABC/XYZ и потери» не помещалось в
+        карточку заголовка на телефоне (подпись там скрыта). -#}
+    {% set page_title = "Фасовка" %}
+    {% set page_subtitle = "ABC/XYZ и потери: что держать, где поднять цену, где теряются штуки" %}
+    {#- Полоса «Бар и период» — общая для сайта (templates/shared/scope_strip.html, план единого
+        виджета docs/planning/period-widget-rollout.md, этап 3): своих меню бара и периода у
+        страницы нет. Без выбора за последний час — последние 30 полных дней: XYZ нужно не
+        меньше трёх недель (ответ владельца Р2). Шаги — день, неделя, месяц, год, свой. -#}
+    {% set strip = kultura_strip(mode='report', step='last30', live=True,
+                                 freshness='Данные iiko — по сегодня; тот же бар и период 10 минут берутся из кэша') %}
     <div class="container">
-        {% set page_title = "Фасовка — ABC/XYZ и потери" %}
-        {% set page_subtitle = "Ассортимент фасовки и баланс склада в штуках" %}
         {% include 'shared/nav.html' %}
-    </div>
 
     <div class="pk-wrap">
-
-      <!-- Шапка страницы вместо общей .header-bar (та скрыта на .packaging-page).
-           Гамбургер открывает тот же сайдбар: клик пробрасывается на скрытую
-           кнопку #sidebar-toggle из shared/nav.html — тот же приём, что на /draft. -->
-      <header class="pk-head">
-        <button type="button" class="pk-burger" id="pkBurger" aria-label="Меню">
-          <span></span><span></span><span></span>
-        </button>
-        <span class="pk-title">
-          <span class="pk-title-n">Фасовка — ABC/XYZ и потери</span>
-          <span class="pk-title-s">что держать, где поднять цену, где теряются штуки</span>
-        </span>
-        <span class="pk-logo"><i>&gt;&nbsp;</i>k<span class="pk-logo-tail">ultura.os</span><b>_</b></span>
-      </header>
-
-      <!-- Перехватчик клика мимо открытого меню бара или периода. -->
-      <div class="pk-catch" id="pkCatch" hidden></div>
-
-      <div class="pk-filters">
-        <div class="pk-pick">
-          <button type="button" class="pk-pick-btn" id="pkBarBtn" aria-haspopup="listbox">
-            <span class="pk-pick-cap">БАР</span>
-            <span class="pk-pick-val">
-              <span id="pkBarLabel">Общая</span>
-              <svg class="pk-chev" width="9" height="9" viewBox="0 0 10 10" aria-hidden="true">
-                <path d="M2 3.5 5 6.5 8 3.5" stroke-width="1.6" fill="none"
-                      stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-            </span>
-          </button>
-          <div class="pk-menu" id="pkBarMenu" role="listbox" hidden></div>
-        </div>
-
-        <span class="pk-sep"></span>
-
-        <div class="pk-pick">
-          <button type="button" class="pk-pick-btn" id="pkPerBtn" aria-haspopup="listbox">
-            <span class="pk-pick-cap">ПЕРИОД</span>
-            <span class="pk-pick-val">
-              <span id="pkPerLabel">Последние 30 дней</span>
-              <span class="pk-pick-hint" id="pkPerHint"></span>
-              <svg class="pk-chev" width="9" height="9" viewBox="0 0 10 10" aria-hidden="true">
-                <path d="M2 3.5 5 6.5 8 3.5" stroke-width="1.6" fill="none"
-                      stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-            </span>
-          </button>
-          <div class="pk-menu" id="pkPerMenu" role="listbox" hidden></div>
-        </div>
-
-        <span class="pk-grow"></span>
-
-        <div class="pk-run-wrap">
-          <button type="button" class="pk-run" id="pkRun">
-            <span class="pk-spin" id="pkSpin" hidden></span>
-            <span id="pkRunLabel">Запустить анализ</span>
-          </button>
-        </div>
-      </div>
 
       <div class="pk-context">
         <span class="pk-grow"></span>
@@ -157,7 +105,7 @@
             позиция продавалась.
             «?» вместо буквы означает, что данных не хватило, а не «плохо»; отдельной
             колонки XYZ нет — спрос и есть третья буква кода.
-            В разрезе «Общая» бары складываются в одну сеть: количества и деньги
+            При «Все бары» бары складываются в одну сеть: количества и деньги
             суммируются, наценка и буквы пересчитываются от сумм заново. Три доли в
             таблице — выручка, штуки и маржа позиции к итогу разреза; доли выручки и
             маржи считаются от суммы положительных значений (убыточная позиция — 0%,
@@ -209,19 +157,19 @@
           </div></details>
         </section>
 
-        <!-- Профиль баров: вкладка есть только в разрезе «Общая» (AbcView.barProfile). -->
+        <!-- Профиль баров: вкладка есть только при «Все бары» (AbcView.barProfile). -->
         <section class="av-panel" id="pkPanelBars" data-panel="bars" hidden></section>
       </div>
+    </div>
     </div>
 
     <div class="pk-backdrop" id="pkBackdrop" hidden></div>
     <aside class="pk-drawer" id="pkDrawer" hidden aria-label="Карточка"></aside>
 
-    <!-- Список баров отдаёт сервер: меню фильтра строит JS, а BARS живут в
-         extensions.py и на клиенте иначе взяться неоткуда. -->
+    <!-- Список баров отдаёт сервер (extensions.BARS). Выбор бара — общая полоса сайта,
+         своего меню у страницы нет. -->
     <script type="application/json" id="pkBars">{{ bars | tojson }}</script>
     <script src="/static/js/shared/abc_view.js?v={{ app_version }}"></script>
     <script src="/static/js/packaging/packaging.js?v={{ app_version }}"></script>
-    <script src="/static/logo.js"></script>
 </body>
 </html>

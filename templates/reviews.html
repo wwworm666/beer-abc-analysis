@@ -17,6 +17,12 @@
     <link rel="stylesheet" href="/static/guest_hub/reviews.css?v={{ app_version }}">
 </head>
 <body class="gh-page gh-scope" data-is-admin="{{ 'true' if current_user and current_user.is_admin else 'false' }}">
+    {#- Бар и период — общая полоса сайта «Бар и период» (shared/nav.html -> shared/scope_strip.html,
+        план единого виджета docs/planning/period-widget-rollout.md, этап 5): выбор один на весь
+        сайт, своих стрелок, меню периода и меню бара у страницы нет. Список — за любой период
+        полосы (по дате отзыва); без выбора — этот месяц. data_start — дата самого раннего отзыва:
+        с неё начинается быстрый выбор «Всё время» (routes/reviews.py, _data_start). -#}
+    {% set strip = kultura_strip(mode='report', step='month', live=True, data_start=data_start) %}
     <div class="container">
         {% set page_title = "Отзывы" %}
         {% set page_subtitle = "Яндекс Карты: ответы гостям" %}
@@ -24,55 +30,16 @@
     </div>
 
     <div class="gh-wrap">
+      {#- Раздел «Гости»: вкладки Контент-план / Отзывы / Маркетинг и счётчики «требует внимания»
+          (shared/guest_hub_strip.html) — так же, как на /guests. -#}
       {% set hub_active = 'reviews' %}
-      {% set hub_title = 'Отзывы' %}
-      {% set hub_subtitle = 'Яндекс Карты: ответы гостям' %}
-      {% include 'shared/guest_hub_head.html' %}
+      <div class="gh-scope gh-embed">
+        {% include 'shared/guest_hub_strip.html' %}
+      </div>
 
-      <!-- Фильтры. Период — по дате отзыва; бар — общий фильтр раздела
-           (GH.getBar/GH.setBar, тот же, что на контент-плане). -->
+      <!-- Фильтры страницы: источник, оценка, статус. Бар и период выбираются в общей
+           полосе «Бар и период» над разделом. -->
       <div class="gh-filters">
-        <div class="gh-month">
-          <button type="button" class="gh-month-nav" id="rvPrev" aria-label="Предыдущий месяц">
-            <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
-              <path d="M8.5 3 4.5 7l4 4" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          </button>
-          <button type="button" class="gh-month-val" id="rvMonthBtn" aria-haspopup="menu" aria-expanded="false"
-                  data-tip="Период — по дате отзыва, границы включительно, время московское. «За всё время» — без ограничения по дате.">
-            <span class="gh-pick-cap">Период</span>
-            <span class="gh-pick-val">
-              <span class="gh-month-label" id="rvMonthLabel">&nbsp;</span>
-              <svg class="gh-chev" width="9" height="9" viewBox="0 0 10 10" aria-hidden="true">
-                <path d="M2 3.5 5 6.5 8 3.5" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-            </span>
-          </button>
-          <button type="button" class="gh-month-nav" id="rvNext" aria-label="Следующий месяц">
-            <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
-              <path d="M5.5 3l4 4-4 4" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          </button>
-          <div class="gh-menu" id="rvMonthMenu" role="menu" hidden></div>
-        </div>
-
-        <span class="gh-sep"></span>
-
-        <div class="gh-pick">
-          <button type="button" class="gh-pick-btn" id="rvBarBtn" aria-haspopup="menu" aria-expanded="false">
-            <span class="gh-pick-cap">Бар</span>
-            <span class="gh-pick-val">
-              <span id="rvBarLabel">Все бары</span>
-              <svg class="gh-chev" width="9" height="9" viewBox="0 0 10 10" aria-hidden="true">
-                <path d="M2 3.5 5 6.5 8 3.5" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-            </span>
-          </button>
-          <div class="gh-menu" id="rvBarMenu" role="menu" hidden></div>
-        </div>
-
-        <span class="gh-sep"></span>
-
         <div class="gh-pick">
           <button type="button" class="gh-pick-btn" id="rvSourceBtn" aria-haspopup="menu" aria-expanded="false">
             <span class="gh-pick-cap">Источник</span>
@@ -164,9 +131,9 @@
         <span class="gh-band-s" id="rvCount">&nbsp;</span>
       </div>
 
-      <!-- Отзывы без ответа за другими месяцами: счётчик полосы берёт любую дату,
-           список — только выбранный месяц. Число и правило — reviews.js, elsewhereCount;
-           при нуле строка скрыта. -->
+      <!-- Отзывы без ответа вне выбранного периода: счётчик полосы «требует внимания»
+           берёт любую дату, список — только период полосы «Бар и период». Число и правило —
+           reviews.js, elsewhereCount; при нуле строка скрыта. -->
       <div class="gh-rv-elsewhere" id="rvElsewhere" hidden>
         <span class="gh-rv-elsewhere-t" id="rvElsewhereText"></span>
         <button type="button" class="gh-link gh-rv-elsewhere-a" id="rvElsewhereShow">Показать все без ответа</button>
@@ -275,6 +242,5 @@
 
     <script src="/static/js/guest_hub/common.js?v={{ app_version }}"></script>
     <script src="/static/js/guest_hub/reviews.js?v={{ app_version }}"></script>
-    <script src="/static/logo.js"></script>
 </body>
 </html>

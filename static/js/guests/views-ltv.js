@@ -1,5 +1,6 @@
 /* Вкладка «LTV» (ТЗ §8): LTV на дату конца периода, из чего он состоит (средний чек ×
-   чеков на гостя), ряд по периодам с разложением изменения, YTD и LTV по точкам. */
+   чеков на гостя), ряд по шагам выбранного периода с разложением изменения, YTD и LTV по
+   точкам. Период — из общей полосы сайта; шаг ряда — data.step (как у «Оттока»). */
 
 Guests.registerView('ltv', function (pane) {
     var G = Guests;
@@ -16,9 +17,16 @@ Guests.registerView('ltv', function (pane) {
         return G.fmtMoney(0);
     }
 
+    var STEP_NAMES = { day: 'дням', week: 'неделям', month: 'месяцам', year: 'годам' };
+
+    // Подпись строки: неделя и обрезанный границей периода шаг — датами.
+    function rowLabel(r, type) {
+        return (type === 'week' || r.clipped) ? G.rangeLabel(r.p_start, r.p_end) : G.periodShort(r.p_start, type);
+    }
+
     function seriesTable(rows, type) {
         var html = '<div class="gtable-wrap"><table class="gtable"><thead><tr>' +
-            '<th>На конец периода</th><th class="num">LTV</th><th class="num">Изменение</th>' +
+            '<th>На конец</th><th class="num">LTV</th><th class="num">Изменение</th>' +
             '<th class="num">от чека</th><th class="num">от чеков на гостя</th>' +
             '<th class="num">Средний чек</th><th class="num">Чеков на гостя</th>' +
             '<th class="num">Гостей</th></tr></thead><tbody>';
@@ -26,7 +34,7 @@ Guests.registerView('ltv', function (pane) {
             if (r.state === 'future') return;
             var partial = r.state === 'partial';
             html += '<tr' + (partial ? ' class="row-partial"' : '') + '><td>' +
-                G.periodShort(r.p_start, type) +
+                rowLabel(r, type) +
                 (partial ? ' · по ' + G.fmtDate(r.asof).slice(0, 5) : '') + '</td>' +
                 '<td class="num"><b>' + G.fmtMoney(r.ltv) + '</b></td>' +
                 '<td class="num">' + fmtSigned(r.delta) + '</td>' +
@@ -41,7 +49,7 @@ Guests.registerView('ltv', function (pane) {
 
     return G.api('/api/guests/ltv').then(function (resp) {
         var d = resp.data, meta = resp.meta;
-        var type = meta.period_type;
+        var type = d.step;
         var life = d.lifetime;
         var series = d.series || [];
         // Посчитано по бару: LTV гостя в этом баре. Сравнение баров между собой
@@ -62,7 +70,8 @@ Guests.registerView('ltv', function (pane) {
             G.howBlock(['ltv', 'ltv_structure', 'ytd_ltv'], meta);
 
         if (series.length) {
-            html += '<div class="gcard"><h3>LTV по периодам' + G.helpIcon('ltv_change') +
+            html += '<div class="gcard"><h3>LTV по ' + (STEP_NAMES[type] || STEP_NAMES.month) +
+                G.helpIcon('ltv_change') +
                 '</h3><div class="chart-box"><canvas id="ltvTrendChart"></canvas></div>' +
                 seriesTable(series, type) + G.howBlock(['ltv_change'], meta) + '</div>';
         }

@@ -17,6 +17,9 @@
     <div class="container">
         {% set page_title = "Краны" %}
         {% set page_subtitle = "Связи кег с карточками Untappd" %}
+        {#- Полоса «Бар и период» (план единого виджета, этап 6): связи кег с Untappd — общие на всю
+            сеть, бар в полосе серый («Все бары · вся сеть»), период — «сейчас». -#}
+        {% set strip = kultura_strip(mode='now', bar_mode='none', bar_hint='вся сеть') %}
         {% include 'shared/nav.html' %}
 
         <div class="tp" id="tp-links">

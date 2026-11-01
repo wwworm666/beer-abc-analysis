@@ -74,3 +74,64 @@ KEY_TO_IIKO_NAME = {
     'varshavskaya': 'Варшавская',
     'all': None  # Для "all" запрашиваем все бары
 }
+
+
+# ---------------------------------------------------------------- таблица баров сайта
+#
+# Одна таблица для общего выбора бара (план единого виджета, раздел 4.2): ключ, имя, короткое
+# имя, имя iiko и его варианты написания, номер bar1…bar4 (краны, фиды, сроки). Страница
+# получает её в настройках полосы и передаёт ключ; старые значения сводятся к ключу через
+# bar_key(). Номер точки графика берётся из базы смен по locations.venue_key, поэтому здесь
+# его нет.
+
+# Подпись всей сети — одна на сайт (ответ владельца Р6, 2026-11-01).
+ALL_BARS_LABEL = 'Все бары'
+ALL_BARS_HINT = 'вся сеть'
+
+SITE_BARS = [
+    {'key': 'bolshoy', 'name': 'Большой пр. В.О', 'short': 'ВО', 'bar_id': 'bar1',
+     # «Большой пр В.О.» — цели KPI, «Большой пр. В.О.» — примеры бота.
+     'iiko_name': 'Большой пр. В.О', 'aliases': ['Большой пр В.О.', 'Большой пр. В.О.']},
+    {'key': 'ligovskiy', 'name': 'Лиговский', 'short': 'Лиг', 'bar_id': 'bar2',
+     'iiko_name': 'Лиговский', 'aliases': []},
+    {'key': 'kremenchugskaya', 'name': 'Кременчугская', 'short': 'Крем', 'bar_id': 'bar3',
+     'iiko_name': 'Кременчугская', 'aliases': []},
+    {'key': 'varshavskaya', 'name': 'Варшавская', 'short': 'Вар', 'bar_id': 'bar4',
+     'iiko_name': 'Варшавская', 'aliases': []},
+]
+
+# Все написания «всей сети» на сайте (опись 2026-11-01): ключ дашборда, «Общая» склада и
+# розлива, пустое значение раздела «Гости».
+_ALL_SPELLINGS = {'', 'all', 'total', 'общая', 'все бары', 'вся сеть', 'все заведения', 'все точки'}
+
+
+def _norm(text):
+    return ' '.join(str(text).strip().lower().replace('ё', 'е').split())
+
+
+_BAR_BY_SPELLING = {}
+for _bar in SITE_BARS:
+    for _spelling in [_bar['key'], _bar['name'], _bar['iiko_name'], _bar['bar_id']] + _bar['aliases']:
+        _BAR_BY_SPELLING[_norm(_spelling)] = _bar['key']
+
+
+def bar_key(raw):
+    """Любое написание бара -> ключ ('bolshoy'…); вся сеть -> ''; неизвестное -> None.
+
+    Понимает ключи, имена iiko и их варианты («Большой пр В.О.»), bar1…bar4 и все подписи
+    всей сети («all», «Общая», «Все бары»…). Регистр и лишние пробелы не важны.
+    """
+    if raw is None:
+        return ''
+    text = _norm(raw)
+    if text in _ALL_SPELLINGS:
+        return ''
+    return _BAR_BY_SPELLING.get(text)
+
+
+def site_bar(key):
+    """Строка таблицы баров по ключу или None."""
+    for bar in SITE_BARS:
+        if bar['key'] == key:
+            return bar
+    return None

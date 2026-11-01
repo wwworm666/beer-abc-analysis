@@ -470,6 +470,7 @@ def test_fasovka_by_parent_name_and_guid():
 
 ORDER_BOARD_KEYS = {
     'bar', 'updated_at', 'chz_updated_at', 'consumption_scope', 'window_days',
+    'window_from', 'window_to',                                  # окно расхода датами для подписи
     'safety_days', 'near_expiry_block_days', 'slow_mover_weekly_sales',
     'fast_mover_weekly_sales', 'total_items', 'critical_count', 'high_count',
     'medium_count', 'active_count', 'slow_count', 'dead_count',
@@ -501,6 +502,8 @@ def test_order_board_shape_and_totals():
         assert d['updated_at'] == FETCHED_AT
         assert d['chz_updated_at'] is None
         assert d['window_days'] == WINDOW
+        # окно расхода датами (сегодня − 30 … сегодня) — подпись «за 30 дней: 6 окт – 5 ноя 2025»
+        assert (d['window_from'], d['window_to']) == ('2025-10-06', TODAY)
         assert d['safety_days'] == rs.SAFETY_DAYS
         assert d['near_expiry_block_days'] == rs.NEAR_EXPIRY_BLOCK_DAYS
         assert d['slow_mover_weekly_sales'] == rs.SLOW_MOVER_WEEKLY_SALES
@@ -568,6 +571,7 @@ def test_stock_tabs_shape():
             assert d['updated_at'] == FETCHED_AT, ep
             assert d['consumption_scope'] == 'store'
             assert d['window_days'] == WINDOW
+            assert (d['window_from'], d['window_to']) == ('2025-10-06', TODAY), ep
             assert d['total_items'] == len(d['items'])
             assert d['low_stock_count'] == sum(1 for it in d['items'] if it['stock_level'] == 'low')
             for it in d['items']:

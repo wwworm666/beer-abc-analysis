@@ -28,6 +28,7 @@ import core.auth_manager as am  # noqa: E402
 import core.me_snapshot as ms  # noqa: E402
 import routes.me as rm  # noqa: E402
 from core.auth_guard import init_auth  # noqa: E402
+from core.scope import init_scope  # noqa: E402
 from core.me_identity import SNAPSHOT_SCHEMA  # noqa: E402
 from routes.auth import auth_bp  # noqa: E402
 from routes.me import me_bp  # noqa: E402
@@ -54,6 +55,9 @@ def _make_app():
     app.register_blueprint(auth_bp)
     app.register_blueprint(me_bp)
     init_auth(app)
+    # Как в app.py: общий выбор бара и периода (полоса «Бар и период», core/scope.py) — дашборд
+    # объявляет полосу через kultura_strip.
+    init_scope(app)
     return app
 
 
@@ -280,6 +284,38 @@ def test_api_me_ok_path_returns_my_row():
         assert d['month'] == month
         assert month in d['months_available']
         assert d['notes']['accrued_to_date']
+    finally:
+        restore_reg()
+        restore_dir()
+
+
+def test_api_me_old_month_without_snapshot_is_explained():
+    """Месяц из полосы «Бар и период» (2026-11-01): стрелка назад уводит дальше прошлого месяца.
+
+    Снимка за такой месяц нет и ночь его не пересчитает — подпись говорит это прямо, а не
+    «снимок ещё не собран, появится после ночного расчёта»; кнопки «Обновить» нет. У текущего
+    месяца без файла — прежний текст и кнопка.
+    """
+    mgr = _fresh_manager()
+    uid = mgr.create_user('anna', 'Анна Смирнова', 'passpass')
+    mgr.set_employee_link(uid, ID_A)
+    path, restore_dir = _tmp_snapshot_dir()
+    restore_reg = _fake_registry([(ID_A, 'Анна Смирнова')])
+    try:
+        c = _login(_make_app(), 'anna', 'passpass')
+        old = c.get('/api/me?month=2020-01').get_json()
+        assert old['identity']['status'] == 'no_snapshot', old['identity']
+        msg = old['identity']['message']
+        assert msg.startswith('Снимка за январь 2020 нет'), msg
+        assert 'ещё не собран' not in msg, msg
+        assert old['refresh']['month_buildable'] is False
+        assert old['refresh']['can_refresh'] is False, 'кнопка «Обновить» не пересчитает старый месяц'
+        assert old['money'] is None
+
+        cur = c.get('/api/me?month=' + ms.current_month()).get_json()
+        assert cur['identity']['status'] == 'no_snapshot'
+        assert 'ещё не собран' in cur['identity']['message']
+        assert cur['refresh']['month_buildable'] is True
     finally:
         restore_reg()
         restore_dir()

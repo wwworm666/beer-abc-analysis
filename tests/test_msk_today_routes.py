@@ -106,14 +106,41 @@ class TodayIsMoscow(unittest.TestCase):
     @patch('routes.analysis.OlapReports', RecordingOlap)
     def test_draft_analyze_last_days_by_moscow_date(self):
         self.client.post('/api/draft-analyze', json={'bar': '', 'days': 7})
-        # Последние 7 дней до «сегодня» МСК включительно; правая граница iiko +1 день.
-        self.assertEqual([('draft', '2020-01-08', '2020-01-16')], RecordingOlap.calls)
+        # Последние 7 ПОЛНЫХ рабочих дней по вчера (как «Последние 30 дней» полосы, 2026-11-01):
+        # 15.01 01:00 МСК — ещё рабочие сутки 14.01 (до 06:00), вчера — 13.01; окно 07.01–13.01,
+        # правая граница iiko +1 день. Наивная дата UTC (14.01) или календарная (15.01) дала бы
+        # другие даты.
+        self.assertEqual([('draft', '2020-01-07', '2020-01-14')], RecordingOlap.calls)
 
     def test_revenue_metrics_calculator_expected(self):
         expected = RevenueMetricsCalculator()._calculate_expected_revenue(
             900.0, 0.0, '2020-01-01', '2020-01-31')
         # Прошло 15 дней (с 1-го по «сегодня» 15-е): 900 + 60 × 16 = 1860.
         self.assertEqual(1860.0, expected)
+
+
+class DaysWindowIsLastFullDays(unittest.TestCase):
+    """?days= у розлива, фасовки и кухни без дат — последние N полных рабочих дней по вчера
+    (routes/analysis._days_window), как «Последние 30 дней» полосы (2026-11-01)."""
+
+    def window(self, now, raw):
+        from routes.analysis import _days_window
+        with patch.object(msk_time, 'now', lambda: now):
+            return _days_window(raw)
+
+    def test_before_and_after_six_in_the_morning(self):
+        night = datetime(2020, 1, 15, 1, 0, tzinfo=msk_time.MOSCOW_TZ)    # ещё рабочие сутки 14.01
+        morning = datetime(2020, 1, 15, 7, 0, tzinfo=msk_time.MOSCOW_TZ)  # уже 15.01
+        self.assertEqual(self.window(night, 30), ('2019-12-15', '2020-01-13'), 'вчера — 13.01, 30 дат')
+        self.assertEqual(self.window(morning, 30), ('2019-12-16', '2020-01-14'), 'вчера — 14.01')
+        self.assertEqual(self.window(morning, 1), ('2020-01-14', '2020-01-14'), 'один день — вчера')
+        self.assertEqual(self.window(morning, None), self.window(morning, 30), 'по умолчанию 30')
+
+    def test_bad_days_is_a_request_error(self):
+        now = datetime(2020, 1, 15, 7, 0, tzinfo=msk_time.MOSCOW_TZ)
+        for raw in ('много', 0, -5, '1.5'):
+            with self.assertRaises(ValueError):
+                self.window(now, raw)
 
 
 # ---------------------------------------------------------------- недели и месячный отчёт

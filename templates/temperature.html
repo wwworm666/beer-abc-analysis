@@ -12,7 +12,13 @@
     <link rel="stylesheet" href="/static/dashboard/styles/mobile.css">
     <link rel="stylesheet" href="/static/logo.css">
     <style>
-        .container { max-width: 1200px; margin: 0 auto; padding: 32px 20px 64px; }
+        /* Карточка заголовка и полоса — на том же месте и той же ширины, что у всех страниц
+           (base.css .container: 1400 px, отступ сверху 40 px; на телефоне — base.css и mobile.css).
+           До 2026-11-01 здесь был свой контейнер 1200 px с отступом 32 px: заголовок стоял
+           правее, выше и уже, чем на дашборде. */
+        @media (min-width: 769px) {
+            .container { padding-bottom: 64px; }
+        }
 
         .toolbar {
             display: flex; gap: 16px; align-items: center; flex-wrap: wrap;
@@ -35,6 +41,8 @@
             display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
             gap: 16px; margin-bottom: 24px;
         }
+        /* Выбран один бар (полоса «Бар и период», ответ Р9): карточка обычной ширины, не во всю строку. */
+        .temp-grid.is-single { grid-template-columns: minmax(250px, 360px); }
         .temp-card {
             position: relative; background: var(--bg-secondary);
             border: 1px solid var(--border-color); border-radius: 16px;
@@ -120,6 +128,10 @@
     <div class="container">
         {% set page_title = "Температура" %}
         {% set page_subtitle = "Датчики по барам" %}
+        {#- Полоса «Бар и период» (план единого виджета, этап 6): страница «на сейчас»; выбран бар —
+            только его карточка и его линия в истории, «Все бары» — все (ответ владельца Р9).
+            Кнопки 24 ч / 3 дня / 7 дней у истории остаются: это вид окна, а не период. -#}
+        {% set strip = kultura_strip(mode='now') %}
         {% include 'shared/nav.html' %}
 
         <div class="toolbar">
@@ -164,7 +176,19 @@
     </div>
 
 <script>
-const STATE = { bands: [], history: {}, names: {}, timer: null, histLoaded: false, histHours: 168 };
+const STATE = { bands: [], history: {}, names: {}, bars: [], timer: null, histLoaded: false, histHours: 168 };
+
+// Бар — общая полоса «Бар и период» (templates/shared/scope_strip.html): ключ заведения, как
+// venue_key датчиков; '' — «Все бары». Выбран бар — только его карточка и линия (ответ Р9).
+function shownBar() { return window.KStrip ? KStrip.get().bar : ''; }
+function barVisible(venueKey) { const bar = shownBar(); return !bar || bar === venueKey; }
+
+function renderGrid() {
+    const grid = document.getElementById('grid');
+    const bars = STATE.bars.filter(b => barVisible(b.venue_key));
+    grid.classList.toggle('is-single', bars.length === 1);
+    grid.innerHTML = bars.map(b => renderCard(b)).join('');
+}
 const POLL_MS = 60000;
 
 function escapeHtml(s) {
@@ -309,8 +333,8 @@ async function loadCurrent(force) {
         if (!data.success) throw new Error(data.error || 'Ошибка API');
         STATE.bands = (data.meta && data.meta.bands) || [];
         (data.bars || []).forEach(b => { STATE.names[b.venue_key] = b.venue_name; });
-        document.getElementById('grid').innerHTML =
-            (data.bars || []).map(b => renderCard(b)).join('');
+        STATE.bars = data.bars || [];
+        renderGrid();
         renderLegend();
         renderMeta(data);
         err.style.display = 'none';
@@ -337,11 +361,12 @@ function histFull(ts) {
 
 const HIST_ORDER = ['bolshoy', 'ligovskiy', 'kremenchugskaya', 'varshavskaya'];
 const HIST_COLORS = { bolshoy: '#2563eb', ligovskiy: '#16a34a', kremenchugskaya: '#f59e0b', varshavskaya: '#db2777' };
-const HIST = { series: [], hours: 168, geo: null };
+const HIST = { series: [], hours: 168, geo: null, raw: null };
 
 function renderHistory(bars, hours, source) {
     HIST.hours = hours;
-    HIST.series = HIST_ORDER.map(vk => ({
+    HIST.raw = { bars: bars, hours: hours, source: source };   // перерисовка при смене бара
+    HIST.series = HIST_ORDER.filter(barVisible).map(vk => ({
         key: vk, name: STATE.names[vk] || vk, color: HIST_COLORS[vk],
         points: (bars[vk] || []).filter(p => p.temperature != null).sort((a, b) => a.ts - b.ts)
     }));
@@ -486,6 +511,8 @@ function setupHistory() {
             toggle.setAttribute('aria-expanded', 'true');
             chev.style.transform = 'rotate(180deg)';
             if (!STATE.histLoaded) { STATE.histLoaded = true; loadHistoryView(STATE.histHours); }
+            // Уже загружена (бар могли сменить, пока история была свёрнута) — по ширине открытой секции.
+            else if (HIST.raw) drawHistory();
         } else {
             body.setAttribute('hidden', '');
             toggle.setAttribute('aria-expanded', 'false');
@@ -533,6 +560,15 @@ function setupAutoRefresh() {
     }
     toggle.addEventListener('change', arm);
     arm();
+}
+
+// Смена бара в полосе: те же показания, другой набор карточек и линий — без нового запроса.
+if (window.KStrip) {
+    KStrip.onChange(e => {
+        if (e.type !== 'bar') return;
+        renderGrid();
+        if (HIST.raw) renderHistory(HIST.raw.bars, HIST.raw.hours, HIST.raw.source);
+    });
 }
 
 (async function init() {

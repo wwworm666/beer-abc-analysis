@@ -18,24 +18,20 @@
     <link rel="stylesheet" href="/static/explorer/explorer.css?v={{ app_version }}">
 </head>
 <body class="explorer-page">
+    {#- Заголовок короче пункта меню («Конструктор отчётов»): длинный не помещался в карточку
+        заголовка на телефоне рядом с логотипом (подпись там скрыта). -#}
+    {% set page_title = "Конструктор" %}
+    {% set page_subtitle = "OLAP-отчёты iiko: любые поля в строки и столбцы, фильтры, итоги" %}
+    {#- Полоса «Бар и период» — общая для сайта (templates/shared/scope_strip.html, план единого
+        виджета docs/planning/period-widget-rollout.md, этап 3): своего меню периода у страницы
+        нет. Без выбора за последний час — эта неделя (ответ владельца Р2). Бар из полосы
+        становится фильтром отчёта по полю бара его типа (core/olap_catalog.BAR_FIELD). -#}
+    {% set strip = kultura_strip(mode='report', step='week', live=True,
+                                 freshness='Данные iiko — до минуты; тот же отчёт 10 минут берётся из кэша сервера') %}
     <div class="container">
-        {% set page_title = "Конструктор отчётов" %}
-        {% set page_subtitle = "OLAP-отчёты iiko" %}
         {% include 'shared/nav.html' %}
-    </div>
 
     <div class="ex-wrap">
-
-      <header class="ex-head">
-        <button type="button" class="ex-burger" id="exBurger" aria-label="Меню">
-          <span></span><span></span><span></span>
-        </button>
-        <span class="ex-title">
-          <span class="ex-title-n">Конструктор отчётов</span>
-          <span class="ex-title-s">OLAP-отчёты iiko: любые поля в строки и столбцы, фильтры, итоги</span>
-        </span>
-        <span class="ex-logo"><i>&gt;&nbsp;</i>k<span class="ex-logo-tail">ultura.os</span><b>_</b></span>
-      </header>
 
       <!-- Перехватчик клика мимо открытого меню. -->
       <div class="ex-catch" id="exCatch" hidden></div>
@@ -54,34 +50,12 @@
           <div class="ex-menu" id="exTypeMenu" role="listbox" hidden></div>
         </div>
 
-        <span class="ex-sep"></span>
-
-        <div class="ex-pick">
-          <button type="button" class="ex-pick-btn" id="exPerBtn" aria-haspopup="listbox">
-            <span class="ex-pick-cap">ПЕРИОД</span>
-            <span class="ex-pick-val">
-              <span id="exPerLabel">Прошлая неделя</span>
-              <span class="ex-pick-hint" id="exPerHint"></span>
-              <svg class="ex-chev" width="9" height="9" viewBox="0 0 10 10" aria-hidden="true">
-                <path d="M2 3.5 5 6.5 8 3.5" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-            </span>
-          </button>
-          <div class="ex-menu" id="exPerMenu" role="listbox" hidden></div>
-        </div>
-
         <span class="ex-grow"></span>
 
         <div class="ex-actions">
           <button type="button" class="ex-btn" id="exOpenBtn">Открыть</button>
           <button type="button" class="ex-btn" id="exSaveBtn">Сохранить</button>
           <button type="button" class="ex-btn" id="exExcelBtn">Excel</button>
-        </div>
-        <div class="ex-run-wrap">
-          <button type="button" class="ex-run" id="exRun">
-            <span class="ex-spin" id="exSpin" hidden></span>
-            <span id="exRunLabel">Построить</span>
-          </button>
         </div>
       </div>
 
@@ -128,7 +102,9 @@
           </div>
 
           <!-- Загрузка, ошибка и пустой ответ — одно место: страница не остаётся молча пустой.
-               Пока отчёт не построен или строится — куб OLAP со схемой раскладки (cube.js). -->
+               Пока отчёт не построен или строится — куб OLAP со схемой раскладки (cube.js).
+               Отчёт строится сам: сразу при открытии и после паузы в изменениях (кнопки
+               «Построить» нет); после ошибки здесь же кнопка «Повторить». -->
           <div class="ex-msg ex-card" id="exMsg">
             <div id="exCube"></div>
             <div class="ex-msg-main"><div class="ex-msg-body" id="exMsgBody"></div>
@@ -156,6 +132,7 @@
         </section>
       </div>
     </div>
+    </div>
 
     <div class="ex-pop" id="exPop" role="menu" hidden></div>
     <div class="ex-modal-back" id="exModalBack" hidden></div>
@@ -166,6 +143,5 @@
     <script src="/static/js/explorer/grid.js?v={{ app_version }}"></script>
     <script src="/static/js/explorer/cube.js?v={{ app_version }}"></script>
     <script src="/static/js/explorer/page.js?v={{ app_version }}"></script>
-    <script src="/static/logo.js"></script>
 </body>
 </html>

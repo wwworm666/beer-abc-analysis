@@ -59,7 +59,7 @@ import calendar
 from bisect import bisect_left, bisect_right
 from datetime import date, datetime, timedelta
 
-from core import msk_time
+from core import msk_time, periods
 from core.guest_store import get_store
 from core.venues_config import PHYSICAL_VENUES, VENUES
 
@@ -95,19 +95,21 @@ RFM_F_THRESHOLDS = (260, 104, 52, 12)       # F5 >=260, F4 >=104, F3 >=52, F2 >=
 # при X = 180 «мёртвые» = Потерянные. Схема MCP перечисляет те же значения (enum).
 CHURN_DEAD_DAYS_CHOICES = (30, 60, 90, 180)
 CHURN_DEAD_DAYS_DEFAULT = 30
-# Длина ряда по умолчанию — сколько периодов выбранного типа видно на графике:
-# полгода недель, два года месяцев, три года кварталов, восемь лет (витрина с 2017-12).
-CHURN_SERIES_DEFAULT = {'week': 26, 'month': 24, 'quarter': 12, 'year': 8}
-# Границы параметра periods: меньше трёх точек — не ряд. Сверху — «всё время»
-# (?periods=all, кнопка вкладки, просьба владельца 2026-10-30: «по умолчанию только 2 года»):
-# ряд сам обрезается по первому чеку сети или бара, а 1040 недель — 20 лет, с запасом больше
-# истории витрины (с 2017-12: 461 неделя на 2026-10). Замер на искусственной витрине размера
-# прода (4 500 гостей, 52 тыс. чеков с 2017-12): все 107 месяцев — 0,4 с и 48 тыс. знаков, все
-# 461 неделя — 1,4 с и 208 тыс. знаков, повтор — из кэша. Агенту MCP потолок ниже
-# (core/mcp/tools/analytics.CHURN_SERIES_AGENT_MAX): длинный ответ не помещается в мост.
-CHURN_SERIES_MIN = 3
-CHURN_SERIES_MAX = 1040
-CHURN_SERIES_ALL = 'all'
+# Ряды «Оттока» и LTV — ВЫБРАННЫЙ период, разбитый на шаги (владелец 2026-11-01: «посмотреть
+# график в выбранном собой периоде»; план единого виджета, этап 2). Шаг — по длине периода: до 7
+# дней — по дням, до 92 дней (три месяца) — по неделям, до 1827 дней (пять лет) — по месяцам,
+# дольше — по годам. Крайние шаги обрезаются по периоду (clipped: «неполная неделя»), поэтому
+# сумма «новых» по точкам равна итогу периода. Агент может задать шаг сам (step).
+SERIES_STEP_DAYS_MAX = (('day', 7), ('week', 92), ('month', 1827))
+SERIES_STEPS = ('day', 'week', 'month', 'year')
+# Больше точек — ошибка 400: график не читается, а ответ агенту не помещается в мост MCP
+# (60 строк оттока — около 24 тыс. знаков при пределе 60 тыс.; шаг по умолчанию даёт не больше 61).
+SERIES_STEPS_MAX = 120
+# Когорты (§2, §5, §6) и тренд товаров (§9) — месяцы выбранного периода по дату среза; период
+# короче двух месяцев — 12 месяцев по его конец (ответ владельца Р8, 2026-11-01): таблица из одной
+# когорты ничего не сравнивает.
+COHORT_MIN_MONTHS = 2
+COHORT_FALLBACK_MONTHS = 12
 # «Кто уходит»: ушедшие по числу визитов за всю жизнь до даты среза. Границы те же, что
 # у сегментов частоты §4, но смысл другой (там визиты за период) — поэтому своя константа:
 # правка сегментов частоты не должна молча менять эту разбивку.
@@ -161,11 +163,34 @@ def _parse_date(s, default=None):
         return default
 
 
+class ParamError(ValueError):
+    """Неверный параметр запроса отчёта — текст для ответа 400 (а не 500)."""
+
+
+def period_from_range(start, end):
+    """Период «Маркетинга» по датам (общая полоса сайта, ?date_from=&date_to=, обе включительно).
+
+    Шаг — по границам (core/periods: 1–31 октября — месяц, пн–вс — неделя, иначе свой период
+    custom). Прошлый период (дельты §3) — предыдущий того же шага, у своего — той же длины
+    непосредственно перед выбранным. -> dict как у resolve_period.
+    """
+    p = periods.from_bounds(start, end)
+    if p.step in SERIES_STEPS:
+        prev = periods.shift(p, -1)
+    else:
+        prev = periods.Period(periods.CUSTOM, p.start - timedelta(days=p.days), p.start - timedelta(days=1))
+    return {'type': p.step, 'p_start': p.start, 'p_end': p.end,
+            'prev_start': prev.start, 'prev_end': prev.end,
+            'label': periods.period_title(p.step, p.start, p.end)}
+
+
 def resolve_period(period_type='month', anchor=None):
     """Границы Primary Period по типу и якорной дате (любой дате внутри периода).
 
     Возвращает dict: type, p_start, p_end (date), prev_start, prev_end
     (предыдущий период того же типа — для дельт §3), label (подпись в UI).
+    Кварталов нет (решение владельца 2026-11-01): period_type=quarter из старых ссылок и у
+    агентов даёт те же даты своим периодом (period_from_range).
     """
     # Дата московская, а не системная: прод-контейнер живёт в UTC (см.
     # core/msk_time.py), и с 00:00 до 03:00 МСК период по умолчанию уезжал бы
@@ -180,13 +205,9 @@ def resolve_period(period_type='month', anchor=None):
                  f"{p_start.strftime('%d.%m')}-{p_end.strftime('%d.%m.%Y')}")
     elif period_type == 'quarter':
         q = (a.month - 1) // 3
-        p_start = date(a.year, q * 3 + 1, 1)
         end_month = q * 3 + 3
-        p_end = date(a.year, end_month, calendar.monthrange(a.year, end_month)[1])
-        prev_end = p_start - timedelta(days=1)
-        pq = (prev_end.month - 1) // 3
-        prev_start = date(prev_end.year, pq * 3 + 1, 1)
-        label = f"{['I', 'II', 'III', 'IV'][q]} квартал {a.year}"
+        return period_from_range(date(a.year, q * 3 + 1, 1),
+                                 date(a.year, end_month, calendar.monthrange(a.year, end_month)[1]))
     elif period_type == 'year':
         p_start, p_end = date(a.year, 1, 1), date(a.year, 12, 31)
         prev_start, prev_end = date(a.year - 1, 1, 1), date(a.year - 1, 12, 31)
@@ -439,21 +460,62 @@ def parse_dead_days(raw):
     return value if value in CHURN_DEAD_DAYS_CHOICES else CHURN_DEAD_DAYS_DEFAULT
 
 
-def parse_series_len(raw, period_type):
-    """?periods= -> длина ряда в CHURN_SERIES_MIN..MAX; пусто или мусор — по умолчанию.
+def series_step(period, raw=None):
+    """Шаг ряда «Оттока» и LTV: задан (?step=day|week|month|year) или по длине периода."""
+    text = str(raw or '').strip().lower()
+    if text in SERIES_STEPS:
+        return text
+    days = (period['p_end'] - period['p_start']).days + 1
+    for step, limit in SERIES_STEP_DAYS_MAX:
+        if days <= limit:
+            return step
+    return 'year'
 
-    'all' — вся история: CHURN_SERIES_MAX, а ряд обрезается по первому чеку сети или бара
-    (_series_periods). Без int() на сыром вводе в маршруте: у прежнего ?months= мусор давал 500.
+
+def range_steps(period, step, scope_from=None):
+    """Выбранный период, разбитый на шаги step (от старых к новым).
+
+    Крайние шаги обрезаются по периоду: clipped=True, подпись — даты («1 – 4 окт 2026»). Шаги,
+    закончившиеся раньше scope_from (ISO-дата начала данных сети или первого чека бара),
+    отбрасываются. Больше SERIES_STEPS_MAX точек — ParamError (текст для ответа 400).
     """
-    default = CHURN_SERIES_DEFAULT.get(period_type, CHURN_SERIES_DEFAULT['month'])
-    text = str(raw).strip().lower()
-    if text == CHURN_SERIES_ALL:
-        return CHURN_SERIES_MAX
-    try:
-        value = int(text)
-    except ValueError:
-        return default
-    return min(max(value, CHURN_SERIES_MIN), CHURN_SERIES_MAX)
+    start, end = period['p_start'], period['p_end']
+    out = []
+    d = start
+    while d <= end:
+        whole = periods.period_for(step, d)
+        s, e = max(whole.start, start), min(whole.end, end)
+        clipped = (s, e) != (whole.start, whole.end)
+        if not scope_from or e.isoformat() >= scope_from:
+            out.append({'type': step, 'p_start': s, 'p_end': e, 'clipped': clipped,
+                        'label': periods.period_title(periods.CUSTOM if clipped else step, s, e)})
+            if len(out) > SERIES_STEPS_MAX:
+                raise ParamError('Слишком много точек (больше %d) — укрупните шаг или сократите период'
+                                 % SERIES_STEPS_MAX)
+        d = whole.end + timedelta(days=1)
+    return out
+
+
+def cohort_months(period, meta):
+    """Месяцы когорт и тренда товаров ('YYYY-MM', от новых к старым), ответ владельца Р8.
+
+    Месяцы выбранного периода по дату среза (meta['asof']); короче COHORT_MIN_MONTHS — последние
+    COHORT_FALLBACK_MONTHS месяцев по месяц конца: таблица из одной когорты ничего не сравнивает.
+    """
+    end = _parse_date(meta['asof'], period['p_end'])
+    start = period['p_start']
+    months = []
+    y, m = end.year, end.month
+    while (y, m) >= (start.year, start.month):
+        months.append('%04d-%02d' % (y, m))
+        y, m = (y, m - 1) if m > 1 else (y - 1, 12)
+    if len(months) < COHORT_MIN_MONTHS:
+        months = []
+        y, m = end.year, end.month
+        for _ in range(COHORT_FALLBACK_MONTHS):
+            months.append('%04d-%02d' % (y, m))
+            y, m = (y, m - 1) if m > 1 else (y - 1, 12)
+    return months
 
 
 def _rate(part, total, digits=1):
@@ -463,26 +525,6 @@ def _rate(part, total, digits=1):
     «0%» читался бы как «никто не ушёл».
     """
     return round(100.0 * part / total, digits) if total else None
-
-
-def _series_periods(period, n, scope_from):
-    """Выбранный период и до n-1 предыдущих того же типа — от старых к новым.
-
-    Шаг назад — resolve_period(type, prev_end): ISO-недели через границу года и
-    кварталы сходятся сами. Периоды, закончившиеся раньше scope_from (ISO-дата
-    начала данных: сети или первого чека бара), отбрасываются; без данных — [].
-    """
-    out = []
-    if not scope_from:
-        return out
-    p = period
-    for _ in range(n):
-        if p['p_end'].isoformat() < scope_from:
-            break
-        out.append(p)
-        p = resolve_period(p['type'], p['prev_end'].isoformat())
-    out.reverse()
-    return out
 
 
 # ---------------------------------------------------------------- §1 Рост базы
@@ -649,7 +691,15 @@ def frequency(store, period, meta, venue=None):
 
 # ------------------------------------------------- §2/§5 Когорты и retention
 
-def lifecycle_cohorts(store, period, meta, months_limit=24, venue=None):
+def _cohort_keys(cohorts, months, months_limit):
+    """Месяцы когорт для таблицы, от новых к старым: заданные (cohort_months — месяцы выбранного
+    периода) или последние months_limit с данными (прежнее правило, для старых вызовов)."""
+    if months is not None:
+        return [ym for ym in months if ym in cohorts]
+    return sorted(cohorts.keys(), reverse=True)[:months_limit]
+
+
+def lifecycle_cohorts(store, period, meta, months_limit=24, venue=None, months=None):
     """Когорты жизненного цикла (ТЗ §2): когорта = месяц регистрации.
 
     Воронка внутри когорты — Lifetime по дату среза: доля гостей с >= 2 и >= 5
@@ -698,7 +748,7 @@ def lifecycle_cohorts(store, period, meta, months_limit=24, venue=None):
         if last_visit and last_visit >= active_from:
             c['active'] += 1
     rows = []
-    for ym in sorted(cohorts.keys(), reverse=True)[:months_limit]:
+    for ym in _cohort_keys(cohorts, months, months_limit):
         c = cohorts[ym]
         rows.append({
             'cohort': ym, 'guests': c['n'],
@@ -709,7 +759,7 @@ def lifecycle_cohorts(store, period, meta, months_limit=24, venue=None):
     return {'basis': basis, 'cohorts': rows}
 
 
-def cohort_retention(store, period, meta, basis='first_order', months_limit=24,
+def cohort_retention(store, period, meta, basis='first_order', months_limit=24, months=None,
                      venue=None):
     """Возвраты когорт (ТЗ §5, а с basis='registration' — retention-слой §2).
 
@@ -750,7 +800,7 @@ def cohort_retention(store, period, meta, basis='first_order', months_limit=24,
                 c['returned'][w] += 1
     known = _cut_day(meta)
     rows = []
-    for ym in sorted(cohorts.keys(), reverse=True)[:months_limit]:
+    for ym in _cohort_keys(cohorts, months, months_limit):
         c = cohorts[ym]
         month_end = _parse_date(_month_end_iso(ym))
         cells = {}
@@ -763,7 +813,7 @@ def cohort_retention(store, period, meta, basis='first_order', months_limit=24,
 
 # ---------------------------------------------------------------- §6 Доходы
 
-def cohort_revenue(store, period, meta, basis='registration', months_limit=24,
+def cohort_revenue(store, period, meta, basis='registration', months_limit=24, months=None,
                    venue=None):
     """Когортные доходы (ТЗ §6): накопительные выручка/заказы/LTV по когортам.
 
@@ -796,7 +846,7 @@ def cohort_revenue(store, period, meta, basis='registration', months_limit=24,
         c['revenue'] += t['revenue']
         c['orders'] += t['orders']
     rows = []
-    for ym in sorted(cohorts.keys(), reverse=True)[:months_limit]:
+    for ym in _cohort_keys(cohorts, months, months_limit):
         c = cohorts[ym]
         rows.append({
             'cohort': ym, 'guests': c['n'],
@@ -1035,7 +1085,7 @@ def _ltv_parts(guests, checks, revenue):
     return revenue / guests, revenue / checks, checks / guests
 
 
-def ltv(store, period, meta, venue=None, periods=None):
+def ltv(store, period, meta, venue=None, step=None, series=True):
     """LTV на дату (ТЗ §8): средний, из чего состоит, ряд по периодам; YTD; по точкам.
 
     Дата среза D = min(конец периода, data_to) — та же, что у оттока (§17): последний
@@ -1047,8 +1097,9 @@ def ltv(store, period, meta, venue=None, periods=None):
     - средний чек = выручка <= D / чеков <= D; чеков на гостя = чеков <= D / гостей;
       LTV = средний чек × чеков на гостя (тождество; решение владельца 2026-10-27 —
       «из чего состоит»). Частота здесь в ЧЕКАХ, §4 считает визиты-дни;
-    - series — те же величины на конец каждого периода ряда (длина — как у оттока,
-      parse_series_len) и изменение к предыдущей точке, разложенное симметрично (без
+    - series — те же величины на конец каждого шага выбранного периода (шаг — как у оттока,
+      series_step; крайние шаги обрезаны — clipped) и изменение к предыдущей точке, разложенное
+      симметрично (без
       зависимости от порядка): вклад чека = (c1 - c0) × (f0 + f1) / 2, вклад частоты =
       (f1 - f0) × (c0 + c1) / 2, сумма = ΔLTV точно;
     - округления: всё считается из несокращённых сумм; delta = round(LTV1) - round(LTV0),
@@ -1065,7 +1116,7 @@ def ltv(store, period, meta, venue=None, periods=None):
     это пустой список, как профиль баров на /packaging и /kitchen.
     """
     venue = resolve_venue(venue)
-    n = periods or CHURN_SERIES_DEFAULT.get(period['type'], CHURN_SERIES_DEFAULT['month'])
+    step = series_step(period, step)
     last_full = data_to(meta)
     asof = min(period['p_end'].isoformat(), last_full) if last_full else None
     store_sql, store_params = _venue_cond(venue)
@@ -1100,18 +1151,19 @@ def ltv(store, period, meta, venue=None, periods=None):
     first_day = daily[3][0] if daily[3] else None
     scope_from = date.fromordinal(first_day).isoformat() if first_day and asof else None
     dt_o = date.fromisoformat(last_full).toordinal() if last_full else None
-    series = []
+    rows = []
     prev = None
-    for p in _series_periods(period, n, scope_from):
+    windows = range_steps(period, step, scope_from) if (series and scope_from) else []
+    for p in windows:
         row = {'p_start': p['p_start'].isoformat(), 'p_end': p['p_end'].isoformat(),
-               'label': p['label']}
+               'label': p['label'], 'clipped': p['clipped']}
         s_o, e_o = p['p_start'].toordinal(), p['p_end'].toordinal()
         if s_o > dt_o:
             row.update({'asof': None, 'state': 'future', 'guests': None, 'checks': None,
                         'revenue': None, 'ltv': None, 'avg_check': None,
                         'checks_per_guest': None, 'delta': None, 'check_effect': None,
                         'frequency_effect': None})
-            series.append(row)
+            rows.append(row)
             prev = None
             continue
         row_o = min(e_o, dt_o)
@@ -1132,7 +1184,7 @@ def ltv(store, period, meta, venue=None, periods=None):
             'delta': delta, 'check_effect': check_effect,
             'frequency_effect': frequency_effect,
         })
-        series.append(row)
+        rows.append(row)
         prev = cur
     return {
         'asof': asof,
@@ -1151,7 +1203,8 @@ def ltv(store, period, meta, venue=None, periods=None):
                                       if ytd_row['n'] else 0),
         },
         'by_venue': venues_out,
-        'series': series,
+        'step': step,
+        'series': rows,
     }
 
 
@@ -1298,8 +1351,16 @@ _CHURN_COUNTS = ('start_alive', 'died', 'reactivated', 'bounced', 'new', 'new_di
 _CHURN_EXTRA = ('damage_month', 'damage_year', 'slowing', 'slowing_base', 'slowing_pct')
 
 
-def churn_all(store, period, meta, periods=None, venue=None):
+def churn_all(store, period, meta, step=None, venue=None):
     """Отток (§17) сразу для всех порогов CHURN_DEAD_DAYS_CHOICES — один проход.
+
+    Строки (одни и те же формулы для любого отрезка дат): period — весь выбранный период
+    (плитки, «Кто уходит», подсказка к порогу); prev — прошлый период (той же длины перед
+    выбранным, у шага — предыдущий того же шага) для сравнения в плитках; series — выбранный
+    период, разбитый на шаги series_step (график «Отток по периодам», «Баланс базы»): крайние
+    шаги обрезаются (clipped). До 2026-11-01 ряд был «N периодов того же типа назад» с длиной
+    из кнопок «Графики за» — владелец: «почему я не могу посмотреть график в выбранном
+    собой периоде».
 
     Определения (зеркало — formulas.js и docs/guests.md, §17):
     - жив на дату D: с последнего визита (не позже D) прошло <= X дней; мёртв — > X;
@@ -1345,40 +1406,52 @@ def churn_all(store, period, meta, periods=None, venue=None):
     разойтись. С баром — правило раздела: только его чеки, первый визит — первый
     чек в нём, «ушёл из бара» не значит «ушёл из сети»; data_to — общий для сети.
 
-    periods — длина ряда (None — CHURN_SERIES_DEFAULT для типа периода).
-    -> {'data_to', 'scope_from', 'return_gaps',
-        'by_days': {X: {'series': [...], 'leavers': {...}}}}
+    step — шаг ряда (None — по длине периода, series_step).
+    -> {'data_to', 'scope_from', 'step', 'return_gaps',
+        'by_days': {X: {'period': {...}|None, 'prev': {...}|None, 'series': [...], 'leavers': {...}}}}
     """
     venue = resolve_venue(venue)
     choices = CHURN_DEAD_DAYS_CHOICES
-    n = periods or CHURN_SERIES_DEFAULT.get(period['type'], CHURN_SERIES_DEFAULT['month'])
+    step = series_step(period, step)
     last_full = data_to(meta)
     with store.conn() as conn:
         visits = _load_visit_revenue(conn, venue)
     scope_from = None
     if last_full and visits:
         scope_from = date.fromordinal(min(d[0] for d, _c in visits.values())).isoformat()
-    plist = _series_periods(period, n, scope_from)
-    by_days = {x: {'series': [], 'leavers': _leaver_buckets([])} for x in choices}
+    by_days = {x: {'period': None, 'prev': None, 'series': [], 'leavers': _leaver_buckets([])}
+               for x in choices}
     return_gaps = None
-    if not plist:
-        return {'data_to': last_full, 'scope_from': scope_from, 'return_gaps': return_gaps,
-                'by_days': by_days}
+    if not scope_from or period['p_end'].isoformat() < scope_from:
+        return {'data_to': last_full, 'scope_from': scope_from, 'step': step,
+                'return_gaps': return_gaps, 'by_days': by_days}
+    whole = {'p_start': period['p_start'], 'p_end': period['p_end'], 'label': period['label'],
+             'clipped': False}
+    prev_p = periods.from_bounds(period['prev_start'], period['prev_end'])
+    prev = {'p_start': prev_p.start, 'p_end': prev_p.end, 'clipped': False,
+            'label': periods.period_title(prev_p.step, prev_p.start, prev_p.end)}
+    plist = [('period', whole), ('prev', prev)] + [('series', w) for w in range_steps(period, step, scope_from)]
 
     dt_o = date.fromisoformat(last_full).toordinal()
     guests = list(visits.values())
     k = len(choices)
-    for idx, p in enumerate(plist):
+    def put(x, role, row):
+        if role == 'series':
+            by_days[x]['series'].append(row)
+        else:
+            by_days[x][role] = row
+
+    for role, p in plist:
         s_o, e_o = p['p_start'].toordinal(), p['p_end'].toordinal()
         base = {'p_start': p['p_start'].isoformat(), 'p_end': p['p_end'].isoformat(),
-                'label': p['label']}
+                'label': p['label'], 'clipped': p['clipped']}
         if s_o > dt_o:
             for x in choices:
                 row = dict(base, asof=None, state='future', churn_pct=None,
                            newbie_no_return=None, newbie_no_return_pct=None,
                            newbie_matures_on=None)
                 row.update({name: None for name in _CHURN_COUNTS + _CHURN_EXTRA})
-                by_days[x]['series'].append(row)
+                put(x, role, row)
             continue
         asof_o = min(e_o, dt_o)
         prev_o = s_o - 1
@@ -1393,7 +1466,7 @@ def churn_all(store, period, meta, periods=None, venue=None):
         slow_base = [0] * k
         slowing = [0] * k
         n_new = 0
-        selected = idx == len(plist) - 1
+        selected = role == 'period'
         leavers = [[] for _ in choices] if selected else None
         gaps = [] if selected else None
         for days, cum in guests:
@@ -1467,13 +1540,13 @@ def churn_all(store, period, meta, periods=None, venue=None):
                 'slowing': slowing[j], 'slowing_base': slow_base[j],
                 'slowing_pct': _rate(slowing[j], slow_base[j]),
             })
-            by_days[x]['series'].append(row)
+            put(x, role, row)
             if selected:
                 by_days[x]['leavers'] = _leaver_buckets(leavers[j])
         if selected:
             return_gaps = _return_gap_stats(gaps, asof_o)
-    return {'data_to': last_full, 'scope_from': scope_from, 'return_gaps': return_gaps,
-            'by_days': by_days}
+    return {'data_to': last_full, 'scope_from': scope_from, 'step': step,
+            'return_gaps': return_gaps, 'by_days': by_days}
 
 
 def churn_view(full, dead_days):
@@ -1483,24 +1556,23 @@ def churn_view(full, dead_days):
     бы ответ (предел 60 тыс.); один порог — около 22 тыс. (замер 2026-10-27).
     """
     part = full['by_days'][dead_days]
-    series = part['series']
     return {
         'dead_days': dead_days,
         'choices': list(CHURN_DEAD_DAYS_CHOICES),
         'data_to': full['data_to'],
-        'series': series,
-        'period': series[-1] if series else None,
+        'step': full['step'],
+        'period': part['period'],
+        'prev': part['prev'],
+        'series': part['series'],
         'leavers': part['leavers'],
         # Подсказка к порогу от порога не зависит: доли «позже порога» — сразу для всех.
         'return_gaps': full['return_gaps'],
     }
 
 
-def churn(store, period, meta, dead_days=CHURN_DEAD_DAYS_DEFAULT, periods=None,
-          venue=None):
+def churn(store, period, meta, dead_days=CHURN_DEAD_DAYS_DEFAULT, step=None, venue=None):
     """Отток по одному порогу (§17): churn_all + churn_view; порог — parse_dead_days."""
-    return churn_view(churn_all(store, period, meta, periods, venue),
-                      parse_dead_days(dead_days))
+    return churn_view(churn_all(store, period, meta, step, venue), parse_dead_days(dead_days))
 
 
 def parse_churn_group(raw):
@@ -1706,9 +1778,9 @@ def products(store, period, meta, mode='top', limit=30, venue=None):
                 GROUP BY i.dish_name ORDER BY SUM(i.revenue) DESC, i.dish_name
                 LIMIT ?
                 """, first_params + [p_start, p_end] + i_params + [limit]).fetchall()
-        else:  # trend: динамика топ-10 товаров за 12 месяцев к концу периода
-            end_d = period['p_end']
-            start_d = date(end_d.year - 1, end_d.month, 1) + timedelta(days=0)
+        else:  # trend: динамика топ-10 товаров по месяцам выбранного периода (cohort_months, Р8)
+            first_month = cohort_months(period, meta)[-1]
+            start_d = date(int(first_month[:4]), int(first_month[5:7]), 1)
             top = [r['dish_name'] for r in conn.execute(
                 f"""
                 SELECT dish_name FROM receipt_items
@@ -2296,7 +2368,7 @@ def summary(store, period, meta, venue=None):
     growth = base_growth(store, period, meta, venue)
     act = activity(store, period, meta, venue)
     freq = frequency(store, period, meta, venue)
-    ltv_block = ltv(store, period, meta, venue)
+    ltv_block = ltv(store, period, meta, venue, series=False)   # сводке ряд не нужен
     never = None if venue else never_buyers(store, period, meta)
     store_sql, store_params = _venue_cond(venue)
     with store.conn() as conn:

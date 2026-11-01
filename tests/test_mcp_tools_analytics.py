@@ -176,7 +176,7 @@ BAD_ARGS = [
                                           'metric': 'cardChecks'},
      'cardChecks — вкладка карточки cardChecksShare, а не карточка'),
     ('analytics_packaging', {'bar': 'ligovskiy', 'days': 30},
-     'ключ заведения вместо русского имени iiko: ответ «Нет данных»'),
+     'ключ заведения вместо русского имени iiko: схема держит одно написание'),
     ('analytics_discounts', {'bar': 'Лиговский'}, 'даты обязательны'),
     ('analytics_plan_save', dict(SAMPLE_ARGS['analytics_plan_save'], venue_key='all'),
      '«все заведения» — сумма баров, отдельно не планируется'),
@@ -226,7 +226,9 @@ BAD_ARGS = [
     ('analytics_guests_churn', {'dead_days': 45},
      'порог — только 30/60/90/180: маршрут молча посчитал бы по 30'),
     ('analytics_guests_churn', {'dead_days': '30'}, 'порог — число, а не строка'),
-    ('analytics_guests_churn', {'periods': 1}, 'ряд — от 3 периодов'),
+    ('analytics_guests_churn', {'step': 'quarter'}, 'кварталов нет: шаг — day/week/month/year'),
+    ('analytics_guests_churn', {'period_type': 'quarter'},
+     'кварталов нет: квартал — свой период date_from + date_to'),
     ('analytics_guests_churn_guests', {'group': 'left', 'dead_days': 45},
      'порог — только 30/60/90/180: маршрут молча посчитал бы по 30'),
     ('analytics_guests_churn_guests', {'dead_days': 30}, 'без группы маршрут ответит 400'),
@@ -237,7 +239,9 @@ BAD_ARGS = [
     ('analytics_guests_churn_guests', {'group': 'left', 'limit': 5000},
      'больше 200 строк мост всё равно урежет'),
     ('analytics_guests_churn_guests', {'group': 'left', 'export': 'xlsx'}, 'выгрузка — только csv'),
-    ('analytics_guests_ltv', {'periods': 61}, 'ряд — до 60 периодов'),
+    ('analytics_guests_ltv', {'periods': 24}, 'длины ряда больше нет — ряд по шагам периода'),
+    ('analytics_guests_ltv', {'date_from': '01.10.2026', 'date_to': '2026-10-31'},
+     'даты — YYYY-MM-DD'),
     ('analytics_explorer_report', {'rows': ['Store.Name'], 'period': 'last_week'},
      'без показателей отчёт не строится'),
     ('analytics_explorer_report', {'report_type': 'OLAP', 'measures': ['DishDiscountSumInt']},
@@ -705,13 +709,22 @@ def test_constants_match_code():
         texts['analytics_guests_churn']
     assert 'по умолчанию ' + str(guest_analytics.CHURN_DEAD_DAYS_DEFAULT) in \
         texts['analytics_guests_churn']
-    # Ряд: у агента потолок ниже, чем у страницы («всё время» мост урезал бы).
-    assert analytics.CHURN_SERIES_AGENT_MAX <= guest_analytics.CHURN_SERIES_MAX
+    # Ряд — выбранный период по шагам (2026-11-01): шаги, пороги шага по умолчанию и потолок
+    # точек в схеме и тексте — те же, что в коде.
+    assert analytics.GUEST_SERIES_STEPS == tuple(guest_analytics.SERIES_STEPS)
+    assert analytics.GUEST_SERIES_STEPS_MAX == guest_analytics.SERIES_STEPS_MAX
     for tool in ('analytics_guests_churn', 'analytics_guests_ltv'):
-        periods = _prop(tool, 'periods')
-        assert (periods['minimum'], periods['maximum']) == (guest_analytics.CHURN_SERIES_MIN,
-                                                            analytics.CHURN_SERIES_AGENT_MAX)
-        assert '3–' + str(analytics.CHURN_SERIES_AGENT_MAX) in periods['description']
+        step = _prop(tool, 'step')
+        assert step['enum'] == list(guest_analytics.SERIES_STEPS)
+        assert 'Не больше ' + str(guest_analytics.SERIES_STEPS_MAX) + ' точек' in step['description']
+        limits = dict(guest_analytics.SERIES_STEP_DAYS_MAX)
+        assert 'до ' + str(limits['day']) + ' дней по дням' in step['description']
+        assert 'до ' + str(limits['week']) + ' — по неделям' in step['description']
+        assert limits['month'] == 1827 and 'до 5 лет — по месяцам' in step['description']
+    # Свой период — у каждого отчёта «Маркетинга», как у страницы.
+    for spec in analytics.TOOLS:
+        if spec.path.startswith('/api/guests/') and 'anchor' in spec.query_params:
+            assert {'date_from', 'date_to'} <= set(spec.query_params), spec.name
     # Ущерб, «Стали ходить реже» и подсказка к порогу (2026-10-30): окна и пороги в текстах —
     # те же, что в коде; у списка порог — тот же enum, что у оттока.
     churn_text = texts['analytics_guests_churn']

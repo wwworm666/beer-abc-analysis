@@ -14,7 +14,7 @@ Self-runnable: `py -3 tests/test_orders_routes.py` (совместимо с pyte
   по поставщику и целиком (removed);
 - отправка: ожидаемая дата по календарю поставок и lead_time поставщика,
   переопределение датой, мусорная дата → 400, пустой черновик → 409;
-- список: окно дней (клампится), фильтр статусов, overdue_grace_days,
+- список: окно дней (клампится) и его даты (history_from / history_to), фильтр статусов, overdue_grace_days,
   overdue_days / unmatched_days у каждого заказа;
 - один заказ (404), «приехало» с фактом (неизвестная позиция → 400), отмена,
   «закрыть без сверки», запреты по статусам (409);
@@ -210,6 +210,8 @@ def test_list_and_get():
         d = r.get_json()
         assert r.status_code == 200
         assert d['days'] == 30 and d['overdue_grace_days'] == ORDER_OVERDUE_GRACE_DAYS
+        # окно истории датами — для подписи «История за 30 дней: 6 окт – 5 ноя 2025»
+        assert (d['history_from'], d['history_to']) == ('2025-10-06', '2025-11-05')
         assert [o['id'] for o in d['orders']] == [oid] and d['orders'][0]['text']
         assert d['orders'][0]['overdue_days'] == 0 and d['orders'][0]['unmatched_days'] == 0
         ro._today = lambda: date(2025, 11, 20)                     # ожидалась 06.11: опоздание 14 дн.

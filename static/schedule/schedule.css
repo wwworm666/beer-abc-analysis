@@ -54,62 +54,22 @@
 [data-theme="dark"] .ms-pill.is-conflict { color: #F07A6A; background: #3D1F1F; }
 [data-theme="dark"] .ms-pill.is-off      { color: #A8A29E; background: #333130; }
 
-/* ==================== Month nav ==================== */
-.month-nav {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    background: var(--bg-secondary);
-    padding: 10px 24px;
-    border-bottom: 1px solid var(--border-color);
-    flex-wrap: wrap;
-    /* Переключение месяца остаётся под рукой при прокрутке длинной сетки.
-       Ниже модалки (z 1000) и тоста (z 2000). Фон непрозрачный — контент уезжает под панель. */
-    position: sticky;
-    top: 0;
-    z-index: 50;
-}
+/* ==================== Полоса «Бар и период» ====================
+   Месяц выбирает общая полоса сайта (templates/shared/scope_strip.html) в контейнере шапки;
+   своих кнопок «Пред / След» у графика больше нет. Контейнер шапки здесь держит только меню и
+   полосу — нижний отступ ему не нужен: сетка (.main-content) начинается своим отступом. */
+body.schedule-page > .container { padding-bottom: 0; }
+body.schedule-page > .container .filter-bar { margin-bottom: 0; }
+a.fb-ghost { text-decoration: none; }
 
-.month-nav button.nav-btn {
-    background: var(--bg-tertiary);
-    border: 1px solid var(--border-color);
-    padding: 8px 12px;
-    border-radius: var(--sch-radius-sm);
-    cursor: pointer;
-    color: var(--text-primary);
-    font-family: inherit;
-    transition: all 150ms ease;
-}
-
-.month-nav button.nav-btn:hover {
-    background: var(--accent);
-    color: white;
-    border-color: var(--accent);
-}
-
-.month-nav .current-month {
-    font-size: 1.05rem;
-    font-weight: 600;
-    min-width: 170px;
-    text-align: center;
-}
-
-.month-nav .nav-spacer { flex: 1; }
-
-.month-nav .page-switch {
-    font-size: 0.85rem;
-    color: var(--text-secondary);
-    text-decoration: none;
-    border: 1px solid var(--border-color);
-    padding: 8px 14px;
-    border-radius: var(--sch-radius-sm);
-    transition: all 150ms ease;
-}
-
-.month-nav .page-switch:hover {
-    color: var(--accent);
-    border-color: var(--accent);
-}
+/* Выбран бар (ответ владельца Р9): график держит все точки, выбранная выделена, остальные
+   приглушены. Полосы по людям приглушают заливку смен в screens.js (рамки статусов не
+   трогаются), здесь — карточки «Что сейчас», колонка «План / Факт» и точка покрытия. */
+.tb-card.is-focus { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.tb-card.is-dim { opacity: .55; }
+.pf-table th.pf-focus { color: var(--accent); }
+.pf-table td.pf-focus { background: var(--accent-light); }
+.el-cdot.is-focus { box-shadow: 0 0 0 1.5px var(--accent); }
 
 /* ==================== Двухколоночная раскладка ==================== */
 /* Широкий экран: сетка слева, справочный рейл (нагрузка + сводка) справа —
@@ -1156,7 +1116,6 @@ body.eraser-mode .chip-person { cursor: not-allowed; }
 @media (max-width: 700px) {
     .schedule-container { overflow-x: auto; }
     .main-content { padding: 14px; gap: 16px; overflow-x: hidden; }
-    .month-nav { padding: 10px 14px; gap: 8px; }
     .paint-toolbar { padding: 10px 14px; }
     .warnings-row { padding: 8px 14px; }
 }

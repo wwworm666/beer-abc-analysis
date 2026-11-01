@@ -24,27 +24,18 @@
     <div class="container">
         {% set page_title = "Я" %}
         {% set page_subtitle = current_user.display_name if current_user else "" %}
+        {#- Общий заголовок и полоса «Бар и период» — как на всех страницах (план единого виджета,
+            docs/planning/period-widget-rollout.md, этап 5); своей шапки у страницы больше нет.
+            Месяц — из полосы (помесячный режим): без выбора — месяц рабочего дня бара, стрелка
+            назад — прошлый, зарплатный месяц (просьба docs/me.md). Страница личная — бар в
+            полосе серый с подписью «Личная страница». Роль и точки человека view.js дописывает
+            в подзаголовок общего заголовка. -#}
+        {% set strip = kultura_strip(mode='monthly', step='month', live=True, bar_mode='none',
+                                     bar_label='Личная страница', bar_hint='') %}
         {% include 'shared/nav.html' %}
     </div>
 
     <div class="me-wrap">
-
-      <!-- Шапка страницы вместо общей .header-bar (та скрыта на .me-page).
-           Гамбургер открывает тот же сайдбар: пробрасываем клик на скрытую
-           кнопку #sidebar-toggle из shared/nav.html, чтобы не дублировать её
-           обработчик. -->
-      <header class="me-head">
-        <button type="button" class="me-burger" id="meBurger" aria-label="Меню">
-          <span></span><span></span><span></span>
-        </button>
-        <span class="me-ava" id="meAva">{{ current_user.short_label if current_user else '' }}</span>
-        <span class="me-who">
-          <span class="me-who-n">{{ current_user.display_name if current_user else '' }}</span>
-          <span class="me-who-s" id="meWhoSub">бармен</span>
-        </span>
-        <span class="me-logo"><span class="me-logo-a">&gt;&nbsp;</span>k<span
-              class="me-logo-tail">ultura.os</span><span class="me-logo-c">_</span></span>
-      </header>
 
       <div class="me-cols">
 

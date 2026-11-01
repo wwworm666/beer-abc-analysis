@@ -1191,23 +1191,99 @@ def test_api_corrupt_file_503_and_untouched():
 
 
 def test_page_route_renders_template():
-    """Страница отдаёт reviews.html с версией; extensions подменён (настоящий тяжёлый)."""
+    """Страница отдаёт reviews.html с версией и первым днём данных (для «Всё время» в полосе);
+    extensions подменён (настоящий тяжёлый)."""
     calls = []
-    saved_render = rrev.render_template
+    saved_render, saved_start = rrev.render_template, rrev._data_start
     saved_ext = sys.modules.get('extensions')
     rrev.render_template = lambda name, **ctx: calls.append((name, ctx)) or 'ok'
+    rrev._data_start = lambda: '2018-05-03'
     sys.modules['extensions'] = types.SimpleNamespace(APP_VERSION='abc123')
     try:
         app = Flask('test_reviews_page')
         app.register_blueprint(reviews_bp)
         r = app.test_client().get('/reviews')
-        assert r.status_code == 200 and calls == [('reviews.html', {'app_version': 'abc123'})]
+        assert r.status_code == 200
+        assert calls == [('reviews.html', {'app_version': 'abc123', 'data_start': '2018-05-03'})]
     finally:
-        rrev.render_template = saved_render
+        rrev.render_template, rrev._data_start = saved_render, saved_start
         if saved_ext is None:
             sys.modules.pop('extensions', None)
         else:
             sys.modules['extensions'] = saved_ext
+
+
+def test_page_old_month_links_redirect_to_strip_dates():
+    """Бар и период — полоса «Бар и период» (с 2026-11-01): ?month=YYYY-MM старой ссылки -> 302 с
+    date_from/date_to месяца (остальные параметры на месте); ?month=all — без перевода (показ «за
+    всё время» понимает страница); неверный месяц убирается."""
+    saved_render = rrev.render_template
+    rrev.render_template = lambda name, **ctx: 'ok'
+    try:
+        with _client() as (c, _s):
+            r = c.get('/reviews?month=2026-10&status=new&source=bot')
+            assert r.status_code == 302
+            assert r.headers['Location'].endswith(
+                '/reviews?status=new&source=bot&date_from=2026-10-01&date_to=2026-10-31')
+            assert c.get('/reviews?month=2024-02').headers['Location'].endswith(
+                '/reviews?date_from=2024-02-01&date_to=2024-02-29')                     # високосный февраль
+            assert c.get('/reviews?status=new&month=all').status_code == 200            # ссылка полосы внимания
+            assert c.get('/reviews?month=all').status_code == 200                       # сторож и бот
+            assert c.get('/reviews?month=oops&status=new').headers['Location'].endswith('/reviews?status=new')
+            # Период из ссылки главнее старого месяца: month просто убирается.
+            r = c.get('/reviews?month=2026-10&date_from=2026-09-01&date_to=2026-09-30')
+            assert r.headers['Location'].endswith('/reviews?date_from=2026-09-01&date_to=2026-09-30')
+            assert c.get('/reviews?date_from=2026-09-01&date_to=2026-09-30').status_code == 200
+    finally:
+        rrev.render_template = saved_render
+
+
+def test_page_renders_strip_and_hub_strip():
+    """Настоящий шаблон: общая полоса «Бар и период» (отчёт, первый день данных — первый отзыв),
+    под ней полоса раздела в .gh-embed; своих стрелок месяца и меню бара нет."""
+    from core.scope import init_scope
+    repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    saved_ext = sys.modules.get('extensions')
+    saved_start = rrev._data_start
+    sys.modules['extensions'] = types.SimpleNamespace(APP_VERSION='abc123')
+    rrev._data_start = lambda: '2018-05-03'
+    try:
+        app = Flask('test_reviews_page_real', template_folder=os.path.join(repo, 'templates'),
+                    static_folder=os.path.join(repo, 'static'))
+        app.register_blueprint(reviews_bp)
+        init_scope(app)
+        app.context_processor(lambda: {'current_user': USER})
+        html = app.test_client().get('/reviews').get_data(as_text=True)
+        assert 'id="kultura-strip" data-mode="report"' in html, 'нет общей полосы «Бар и период»'
+        assert '"data_start": "2018-05-03"' in html, 'полоса без первого дня данных — нет «Всё время»'
+        assert html.index('class="header-bar"') < html.index('id="kultura-strip"') < html.index('class="gh-scope gh-embed"')
+        assert 'id="ghAttention"' in html
+        for gone in ('id="rvPrev"', 'id="rvNext"', 'id="rvMonthBtn"', 'id="rvBarBtn"', 'class="gh-head"'):
+            assert gone not in html, gone
+    finally:
+        rrev._data_start = saved_start
+        if saved_ext is None:
+            sys.modules.pop('extensions', None)
+        else:
+            sys.modules['extensions'] = saved_ext
+
+
+def test_page_data_start_is_earliest_review():
+    """Первый день данных полосы — дата самого раннего отзыва; нет отзывов или сбой — None."""
+    with _client() as (_c, s):
+        assert rrev._data_start() is None
+        _add(s, created_at='2026-09-20T12:00')
+        _add(s, created_at='2018-05-03T09:15', bar='ligovskiy')
+        assert rrev._data_start() == '2018-05-03'
+
+    def broken():
+        raise ReviewStoreUnavailable('битый файл')
+    saved = rrev.get_review_store
+    rrev.get_review_store = broken
+    try:
+        assert rrev._data_start() is None
+    finally:
+        rrev.get_review_store = saved
 
 
 def test_integration_real_content_plan():

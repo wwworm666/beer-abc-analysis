@@ -7,20 +7,21 @@ import { STORAGE_KEYS } from './config.js';
 import { defaultPeriod, monthYearOf } from './period_model.js';
 
 /**
- * Период при открытии: из адреса (?date_from=&date_to= — ссылка или перезагрузка), иначе
- * последняя закрытая неделя (стандарт периодов: отчёты открываются на последнем закрытом
- * периоде). Период из адреса, который начинается позже последнего доступного дня, не
- * принимается — страница не открывается на пустом периоде.
+ * Период при открытии — из общей полосы сайта (window.KStrip, core/scope.build_strip): ссылка ->
+ * выбор за последний час -> эта неделя (ответ владельца Р2). Без полосы (тесты) — адрес или эта
+ * неделя; период из адреса, который начинается позже последнего доступного дня, не принимается.
  */
 function initialPeriod() {
+    if (window.KStrip && window.KStrip.get().period) return window.KStrip.get().period;
     const K = window.KPeriod;
     const fromUrl = K.readUrlPeriod();
     if (fromUrl && K.periodState(fromUrl) !== 'future') return fromUrl;
     return defaultPeriod();
 }
 
-/** Бар — один на весь сайт (window.KScope, ключ 'kultura.bar'); вся сеть у дашборда — 'all'. */
+/** Бар — один на весь сайт (полоса или KScope); вся сеть у дашборда — 'all'. */
 function initialVenue() {
+    if (window.KStrip) return window.KStrip.get().bar || 'all';
     return window.KScope ? (window.KScope.getBar() || 'all') : 'all';
 }
 
@@ -102,11 +103,16 @@ class DashboardState {
     /**
      * Установить текущее заведение
      */
-    setVenue(venueKey) {
+    setVenue(venueKey, opts = {}) {
+        if (venueKey === this.currentVenue) return;
         this.currentVenue = venueKey;
-        // Один выбор бара на весь сайт: ключ 'kultura.bar' и ?bar= в адресе.
-        if (window.KScope) window.KScope.setBar(venueKey);
-        else this.saveToStorage(STORAGE_KEYS.SELECTED_VENUE, venueKey);
+        // Один выбор бара на весь сайт: выбор в полосе она сохраняет сама; иначе — через полосу
+        // (или KScope без неё), чтобы подпись бара в полосе не разошлась с данными.
+        if (!opts.fromStrip) {
+            if (window.KStrip) window.KStrip.setBar(venueKey === 'all' ? '' : venueKey);
+            else if (window.KScope) window.KScope.setBar(venueKey);
+            else this.saveToStorage(STORAGE_KEYS.SELECTED_VENUE, venueKey);
+        }
         this.notify('venueChanged', venueKey);
     }
 

@@ -19,8 +19,9 @@
        агент получил бы чужие цифры без ошибки:
        - /api/dashboard-analytics и /api/revenue-metrics: неизвестный ключ бара
          (например русское имя) -> iiko-фильтра нет -> цифры всей сети;
-       - фасовка/кухня/розлив/акции ждут русское имя iiko: ключ `bolshoy` уходит
-         фильтром Store.Name и даёт «Нет данных»;
+       - акции ждут русское имя iiko: ключ `bolshoy` ушёл бы фильтром Store.Name и дал бы
+         «Нет данных»; фасовка, кухня и розлив с 2026-11-01 понимают и ключ (общая полоса
+         сайта), но схема держит одно написание — имя iiko;
        - /api/guests/*: неизвестный period_type -> месяц, неизвестный бар (store) ->
          вся сеть, неизвестный mode/basis/scope -> значение по умолчанию.
     3. Защитные ограничения на ЗАПИСЬ (сознательно уже, чем принимает маршрут):
@@ -116,8 +117,13 @@ EXPLORER_FLAT_MAX_LIMIT = 5000
 EXPLORER_VALUES_MAX = 2000
 EXPLORER_REPORT_ID_PATTERN = r'^[0-9a-f]{12}$'
 
-# Типы периода «Маркетинга» (core/guest_analytics.resolve_period).
-GUEST_PERIOD_TYPES: Tuple[str, ...] = ('week', 'month', 'quarter', 'year')
+# Типы периода «Маркетинга» (core/guest_analytics.resolve_period). Кварталов нет (решение
+# владельца 2026-11-01): квартал — свой отрезок date_from + date_to.
+GUEST_PERIOD_TYPES: Tuple[str, ...] = ('week', 'month', 'year')
+# Шаги ряда «Оттока» и LTV (core/guest_analytics.SERIES_STEPS) и потолок точек ряда
+# (SERIES_STEPS_MAX: больше — ответ 400).
+GUEST_SERIES_STEPS: Tuple[str, ...] = ('day', 'week', 'month', 'year')
+GUEST_SERIES_STEPS_MAX = 120
 
 # Сегменты RFM (core/guest_analytics.RFM_SEGMENTS) — фильтр segment= через запятую.
 RFM_SEGMENTS: Tuple[str, ...] = ('CHAMPIONS', 'LOYAL', 'POTENTIAL', 'NEW', 'AT_RISK', 'CHURNED',
@@ -130,12 +136,6 @@ RFM_SEGMENT_PATTERN = ('^(' + '|'.join(RFM_SEGMENTS) + ')(,(' + '|'.join(RFM_SEG
 # их строка — около 330 знаков, 150 строк помещаются, 200 — на грани; ответ дольше 60 тыс.
 # мост урежет с пометкой, полный список — CSV.
 RFM_LIMIT_MAX = 200
-
-# Потолок periods у агента (analytics_guests_churn, analytics_guests_ltv): 60 строк оттока —
-# около 24 тыс. знаков при пределе моста 60 тыс. Маршрут принимает больше, вплоть до «всё
-# время» (core/guest_analytics.CHURN_SERIES_MAX и ?periods=all — кнопка вкладки): такой ответ
-# мост урезал бы.
-CHURN_SERIES_AGENT_MAX = 60
 
 # Плитки «Оттока» с поимённым списком (core/guest_analytics.CHURN_GUEST_GROUPS) и группы
 # «Кто уходит» (метки CHURN_LEAVER_BUCKETS) — enum group и bucket у analytics_guests_churn_guests.
@@ -195,8 +195,8 @@ def _venue_key(description: str = '', with_all: bool = True, allow_empty: bool =
 def _iiko_bar(description: str = '') -> dict:
     """Русское имя бара в iiko; '' — вся сеть «Общая»."""
     text = ("Русское имя бара в iiko: 'Большой пр. В.О', 'Лиговский', 'Кременчугская', "
-            "'Варшавская'; '' или не передавать — вся сеть («Общая»). Не ключ заведения "
-            '(bolshoy и т. п.): его iiko не знает, ответ будет «Нет данных».')
+            "'Варшавская'; '' или не передавать — вся сеть («Общая»). Ключ заведения "
+            '(bolshoy и т. п.) здесь не принимается — только имя iiko.')
     if description:
         text += ' ' + description
     return {'type': 'string', 'enum': [''] + list(IIKO_BAR_NAMES), 'description': text}
@@ -217,18 +217,33 @@ _FLAG_FULL = {
 
 
 def _guest_period_props() -> dict:
-    """Период «Маркетинга»: period_type + anchor (routes/guests.py::_ctx)."""
+    """Период «Маркетинга»: date_from + date_to или period_type + anchor (routes/guests.py::_ctx)."""
     return {
+        'date_from': _date('Свой период: первый день, YYYY-MM-DD, вместе с date_to (обе даты '
+                           'включительно) — любой длины, хоть несколько лет; тогда period_type и '
+                           'anchor не нужны. Так выбирает период страница.'),
+        'date_to': _date('Свой период: последний день, YYYY-MM-DD, вместе с date_from; '
+                         'date_from позже date_to — ошибка 400.'),
         'period_type': {
             'type': 'string', 'enum': list(GUEST_PERIOD_TYPES),
-            'description': ('Тип периода: week (ISO-неделя пн–вс), month (календарный месяц, '
-                            'по умолчанию), quarter, year.'),
+            'description': ('Тип периода, если не передан свой (date_from + date_to): week '
+                            '(ISO-неделя пн–вс), month (календарный месяц, по умолчанию), year.'),
         },
-        'anchor': _date('Любая дата внутри нужного периода, YYYY-MM-DD; по умолчанию сегодня '
+        'anchor': _date('Любая дата внутри периода period_type, YYYY-MM-DD; по умолчанию сегодня '
                         '(МСК). Пример: period_type=month, anchor=2026-08-15 — август 2026. '
                         'Дата среза отчётов = min(конец периода, последний полный день данных); '
                         'период считается с первого дня по дату среза.'),
     }
+
+
+def _guest_step_prop() -> dict:
+    """Шаг ряда «Оттока» и LTV (core/guest_analytics.series_step)."""
+    return {'type': 'string', 'enum': list(GUEST_SERIES_STEPS),
+            'description': ('Шаг ряда series внутри выбранного периода: day, week, month или '
+                            'year. По умолчанию — по длине периода: до 7 дней по дням, до 92 — '
+                            'по неделям, до 5 лет — по месяцам, дальше по годам. Не больше '
+                            + str(GUEST_SERIES_STEPS_MAX) + ' точек (иначе ошибка 400); ряд '
+                            'длиннее 60 точек мост может обрезать — берите шаг крупнее.')}
 
 
 _GUEST_META_NOTE = ('Считается по локальной витрине чеков гостей с картой лояльности (ночная '
@@ -1022,7 +1037,8 @@ _T_COMMENTS_EXPORTS = [
 # ---------------------------------------------------------------- ABC/XYZ, розлив, акции
 
 _PERIOD_OR_DAYS_NOTE = ('Период: date_from и date_to включительно, либо без них — days (последние '
-                        'N дней по МСК: с сегодня − N по сегодня).')
+                        'N полных дней по вчера по рабочим суткам бара, до 06:00 МСК, — как «Последние '
+                        '30 дней» на странице; сегодняшний неполный день не входит).')
 
 
 def _abc_input(extra_days_note: str = '') -> dict:
@@ -1101,7 +1117,7 @@ _T_ANALYSIS = [
             "Ответ {<бар или 'Общая'>: {total_liters, total_portions, total_beers, kegs_30l, "
             'kegs_50l, total_revenue, beers}}. Для решений и потерь используйте '
             'analytics_draft_kegs — там литры из проводок и нынешние пороги. Живой iiko без кэша; '
-            'days читается всегда, без дат период = последние days дней по Москве.'),
+            'без дат период — последние days полных дней по вчера (рабочие сутки бара).'),
         method='POST', path='/api/draft-analyze', body='json',
         input_schema=_obj({
             'bar': _iiko_bar(),
@@ -1289,14 +1305,14 @@ _T_ANALYSIS = [
 
 def _guests_tool(name, title, description, path, extra_props=None, extra_query=(),
                  examples=None, by_venue=True, required=(), **flags) -> ToolSpec:
-    """Отчёт витрины гостей: period_type + anchor (+ store) плюс свои параметры.
+    """Отчёт витрины гостей: date_from + date_to или period_type + anchor (+ store) плюс свои параметры.
 
     by_venue=False — отчёт на бары не делится (маршрут зовёт _ctx(by_venue=False)
     и store не читает), поэтому поля store в схеме нет. required — обязательные свои
     параметры (без них маршрут отвечает 400).
     """
     props = _guest_period_props()
-    query = ('period_type', 'anchor')
+    query = ('date_from', 'date_to', 'period_type', 'anchor')
     notes = [_GUEST_META_NOTE]
     if by_venue:
         props['store'] = _guest_store_prop()
@@ -1347,8 +1363,10 @@ _T_GUESTS = [
     _guests_tool(
         'analytics_guests_churn', 'Гости: отток и баланс базы',
         'Вкладка «Отток» (§17): гость жив, если с последнего визита прошло не больше dead_days '
-        'дней, мёртв — если больше (30/60/90/180, по умолчанию 30). series — выбранный период и '
-        'предыдущие того же типа (от старых к новым), period — выбранный: start_alive (жив '
+        'дней, мёртв — если больше (30/60/90/180, по умолчанию 30). period — весь выбранный '
+        'период (плитки), prev — прошлый (той же длины перед выбранным, у недели, месяца и года — '
+        'предыдущий такой же) для сравнения, series — выбранный период по шагам step (от старых '
+        'к новым; крайний шаг, обрезанный границей периода, — clipped=true): start_alive (жив '
         'накануне периода), died (был жив, к срезу мёртв), reactivated (был мёртв, стал жив), '
         'new (первый визит в периоде), new_died (новые, мёртвые к срезу), bounced (вернулись и '
         'снова ушли, в баланс не входят), end_alive; баланс end_alive = start_alive + new + '
@@ -1374,13 +1392,12 @@ _T_GUESTS = [
         '/api/guests/churn',
         extra_props={
             'dead_days': _churn_dead_days_prop(),
-            'periods': {'type': 'integer', 'minimum': 3,
-                        'maximum': CHURN_SERIES_AGENT_MAX,
-                        'description': 'Сколько периодов в ряду, 3–60 (по умолчанию неделя 26, '
-                                       'месяц 24, квартал 12, год 8).'},
+            'step': _guest_step_prop(),
         },
-        extra_query=('dead_days', 'periods'),
-        examples=({'period_type': 'month', 'anchor': '2026-09-15', 'dead_days': 30},),
+        extra_query=('dead_days', 'step'),
+        examples=({'period_type': 'month', 'anchor': '2026-09-15', 'dead_days': 30},
+                  {'date_from': '2025-01-01', 'date_to': '2026-09-30', 'dead_days': 60,
+                   'step': 'month'}),
     ),
     _guests_tool(
         'analytics_guests_churn_guests', 'Гости: кто в плитке «Оттока»',
@@ -1519,20 +1536,16 @@ _T_GUESTS = [
         '— по чекам не позже asof (прошлый период не видит более поздней выручки). lifetime — '
         'guests (первый визит до asof), revenue, avg_ltv = revenue / guests (₽), checks, '
         'avg_check (₽) и checks_per_guest (2 знака): avg_ltv = avg_check × checks_per_guest. '
-        'series — то же на конец каждого периода ряда (state complete / partial / future) и '
-        'изменение к предыдущей точке: delta (₽) = check_effect + frequency_effect '
+        'series — то же на конец каждого шага step выбранного периода (state complete / partial '
+        '/ future; обрезанный границей шаг — clipped) и изменение к предыдущей точке: delta (₽) '
+        '= check_effect + frequency_effect '
         '(симметричное разложение; накопленная частота падает, когда приходят новые гости). '
         'ytd — выручка с 1 января по asof / гости с визитом в этом интервале; by_venue — LTV по '
         'точке первого заказа гостя. С store — выручка и гости только этого бара, by_venue пуст '
         '(сравнение баров — только для всей сети).',
         '/api/guests/ltv',
-        extra_props={
-            'periods': {'type': 'integer', 'minimum': 3,
-                        'maximum': CHURN_SERIES_AGENT_MAX,
-                        'description': 'Сколько периодов в ряду, 3–60 (по умолчанию неделя 26, '
-                                       'месяц 24, квартал 12, год 8).'},
-        },
-        extra_query=('periods',),
+        extra_props={'step': _guest_step_prop()},
+        extra_query=('step',),
     ),
     _guests_tool(
         'analytics_guests_products', 'Гости: что покупают',
@@ -1613,7 +1626,7 @@ _T_GUESTS = [
             "'7XXXXXXXXXX' (или короткий код пластиковой карты) из analytics_guests_search; нет "
             'гостя — 404. ' + _GUEST_META_NOTE),
         method='GET', path='/api/guests/guest/<guest_id>', body='none',
-        path_params=('guest_id',), query_params=('period_type', 'anchor'),
+        path_params=('guest_id',), query_params=('date_from', 'date_to', 'period_type', 'anchor'),
         input_schema=_obj(dict({
             'guest_id': {'type': 'string', 'minLength': 1,
                          'description': 'guest_id из analytics_guests_search.'},
@@ -1699,11 +1712,11 @@ INSTRUCTIONS = """\
 Периоды
 - Даты 'YYYY-MM-DD', обе границы включительно; день к правой границе для iiko (там конец
   эксклюзивный) добавляет сервер. День = учётный день iiko, «сегодня» — по Москве.
-- Неделя пн–вс; месяц, квартал, год — календарные. У идущего периода факт только по сегодня,
+- Неделя пн–вс; месяц, год — календарные. У идущего периода факт только по сегодня,
   а план — за весь период: сравнивайте с analytics_revenue_metrics или с планом тех же дат.
-- «Маркетинг»: period_type + anchor; дата среза = min(конец периода, последний полный день
-  данных — meta.data_to), не «сегодня»; RFM — окно 365 дней на дату среза, список гостей —
-  всегда с limit (и segment / q по задаче).
+- «Маркетинг»: date_from + date_to (любой отрезок) или period_type + anchor; дата среза =
+  min(конец периода, последний полный день данных — meta.data_to), не «сегодня»; RFM — окно
+  365 дней на дату среза, список гостей — всегда с limit (и segment / q по задаче).
 - Месячный отчёт — только закрытые месяцы (пересчёт ночью 1-го числа); текущий месяц там
   нули, берите analytics_dashboard.
 

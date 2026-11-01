@@ -31,12 +31,13 @@
 
 | Файл | Роль |
 |---|---|
-| [static/js/shared/abc_view.js](../static/js/shared/abc_view.js) | `window.AbcView`. Модель из ответа API (`fromDraft`, `fromPackaging`, `fromKitchen`), расчёты (`priceGap`, `shortage`, `lossRubles`, `bartenders`, `priceCost`, `barProfile`), разметка блоков строками, `mount` — вкладки и клики |
+| [static/js/shared/abc_view.js](../static/js/shared/abc_view.js) | `window.AbcView`. Модель из ответа API (`fromDraft`, `fromPackaging`, `fromKitchen`), расчёты (`priceGap`, `shortage`, `lossRubles`, `bartenders`, `priceCost`, `barProfile`), разметка блоков строками, `mount` — вкладки и клики. С 2026-11-01 — связка трёх страниц с полосой «Бар и период»: `connect`, `memo`, `postJson`, `noXyzText`, `failText`, `progressText`, `barText` (раздел «Бар и период из полосы») |
 | [static/shared/abc_view.css](../static/shared/abc_view.css) | Классы `av-*`. Цвета — только через токены страницы: `--av-*` на `body.draft-page` берутся из `--dr-*`, на `body.packaging-page` — из `--pk-*`. Своих HEX нет, тёмная тема приходит от страницы |
 | [templates/draft.html](../templates/draft.html), [templates/packaging.html](../templates/packaging.html) | Полоса вкладок `nav.av-tabs` и панели `section.av-panel[data-panel]`. Легенды и расшифровка кода лежат в `<details class="av-how">` |
 | [static/js/draft/draft.js](../static/js/draft/draft.js), [static/js/packaging/packaging.js](../static/js/packaging/packaging.js) | Как раньше рисуют таблицы, баланс и карточки. Монтируют раскладку (`AbcView.mount`), фильтруют таблицу по группе, добавляют рубли в баланс и расхождения, сворачивают пояснения (`howNote`) |
 | [tests/test_abc_view.mjs](../tests/test_abc_view.mjs) | 17 проверок. Каждое число пересчитывается независимо на фикстурах боевого ответа. Проверяются пороги против ядра, пояснения только в раскрывашках, экранирование, классы и токены CSS |
 | `tests/test_{draft,packaging}_{render,runtime}.mjs` | Вкладки и панели в шаблонах, «Обзор» на фикстуре, клик по группе → таблица с фильтром, порции строк, рубли в потерях |
+| [tests/abc_strip_stub.mjs](../tests/abc_strip_stub.mjs) | Не тест, помощник: подменённая полоса `window.KStrip` и общие проверки связки трёх страниц (запрос после паузы, бар — имя iiko, один запрос за раз, память, «XYZ не считается», тайм-аут iiko) |
 
 ## Как работает
 
@@ -69,6 +70,29 @@
 Выбранная вкладка пишется в адрес (`#prices`). Ссылка открывает ту же вкладку, а
 перезагрузка страницы её не сбрасывает. Вкладки, которой в разрезе нет (например,
 «Бары» при выборе одного бара), не существует, и тогда открывается «Обзор».
+
+### Бар и период из полосы
+
+С 2026-11-01 (план единого виджета [planning/period-widget-rollout.md](planning/period-widget-rollout.md),
+этап 3) у розлива, фасовки и кухни нет своих меню бара и периода: выбор — общая полоса
+сайта `window.KStrip` (`templates/shared/scope_strip.html`). Модуль — общая связка трёх
+страниц с ней, чтобы правила не жили в трёх копиях (раньше пресеты периода были
+скопированы в три файла и считались по часам устройства).
+
+| Функция | Что делает |
+|---|---|
+| `connect(onChange, {strip, pause})` | `get()` → `{barKey, bar, label, from, to, title, period}`: `bar` — имя бара в iiko для запроса (`KStrip.barInfo(ключ).iiko_name`), `''` — вся сеть; `label` — «Все бары» или имя бара; `title` — название периода («2 – 31 окт 2026»). `onChange(sel)` вызывается после паузы `CHANGE_PAUSE_MS` = 350 мс в смене бара или периода: серия шагов стрелкой или кликов — один вызов |
+| `memo()` | Память ответов страницы: ключ «бар \| с \| по» → ответ; живёт 10 минут (столько же кэш сервера `cached_olap`), не больше 8 ответов (ответ розлива — до 1 МБ) |
+| `postJson(url, body)` | POST JSON → `{ok, status, payload}`; тело не JSON (страница ошибки прокси) — `payload: null`, а не исключение |
+| `failText(status, payload)` | Текст ошибки: 502, 503, 504, обрыв соединения (`status` 0) и 5xx без JSON — «iiko не успел ответить — сократите период»; иначе причина с сервера |
+| `noXyzText(from, to)` | Подпись для периода короче трёх полных недель: «XYZ не считается: в периоде 2 полные недели, нужно от 3; ABC показан». Полных недель — `fullWeeks` = дней // 7, как `full_buckets` сервера; 21 день — 3 недели, подписи нет |
+| `progressText(what, sel)` | «Считаю розлив за 2 – 31 окт 2026, Все бары…» — строка на время расчёта |
+| `barText(name)` | «Все бары» для пустого бара и для «Общая» сервера, иначе имя бара |
+
+Порядок на странице: при открытии — `syncScope()` и запрос сразу; при смене в полосе — то
+же после паузы. Запрос один за раз: новый выбор во время загрузки ждёт её конца, ответ
+старого запроса выбрасывается (`requestKey`), но запоминается в `memo`. Повтор того же бара
+и периода — из памяти, без запроса.
 
 ### Вкладки
 
@@ -257,11 +281,12 @@
 ## Проверка
 
 ```bash
-node tests/test_abc_view.mjs            # 19: формулы на фикстурах, разметка, CSS
-node tests/test_draft_render.mjs        # 18
-node tests/test_draft_runtime.mjs       # 44
-node tests/test_packaging_render.mjs    # 29
-node tests/test_packaging_runtime.mjs   # 48
+node tests/test_abc_view.mjs            # 25: формулы на фикстурах, разметка, CSS, связка с полосой
+node tests/test_draft_render.mjs        # 20
+node tests/test_draft_runtime.mjs       # 49
+node tests/test_packaging_render.mjs    # 31
+node tests/test_packaging_runtime.mjs   # 54
+node tests/test_kitchen_runtime.mjs     # 22
 ```
 
 Вёрстку проверяют глазами: светлая и тёмная тема плюс телефон 390 px, каждая вкладка.
@@ -289,6 +314,13 @@ node tests/test_packaging_runtime.mjs   # 48
 `area`, `unitOne`, `unitMany`, `qtyNote`, `priceNote`, `goods`, `catNote`.
 
 ## Changelog
+
+- **2026-11-01** — Связка трёх ABC-страниц с общей полосой «Бар и период» (план единого
+  виджета, этап 3): `connect` (бар — имя iiko, пауза 350 мс), `memo` (10 минут),
+  `postJson`, `failText` («iiko не успел ответить — сократите период»), `noXyzText`,
+  `progressText`, `barText` («Все бары»). Пресеты периода в трёх копиях и меню бара на
+  страницах удалены. Раздел «Бар и период из полосы»; тесты: +6 в `test_abc_view.mjs`,
+  общий помощник `tests/abc_strip_stub.mjs`.
 
 - **2026-09-27** — Первая версия. Вкладки, «Обзор», «Цены», бармены на тех же кегах,
   профиль баров, рубли в потерях, пояснения в «Как считается». Порции по 30 строк в

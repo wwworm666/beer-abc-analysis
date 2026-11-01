@@ -32,6 +32,7 @@ import core.auth_manager as am  # noqa: E402
 import core.bar_photo_store as photos  # noqa: E402
 import routes.cleanliness as rc  # noqa: E402
 from core.auth_guard import init_auth  # noqa: E402
+from core.scope import init_scope  # noqa: E402
 from core.bar_acceptance import (NOTE_MAX_LEN, PROBLEM_NOT_MARKED, STATUS_BAD,
                                  STATUS_CLEAN, STATUS_ISSUES, build_journal,
                                  can_answer, normalize_note, validate)  # noqa: E402
@@ -234,6 +235,23 @@ def test_journal_counts_answers_and_marks_edited():
     assert by_id[2]['problems'] == []
 
 
+def test_journal_totals_by_location_follow_the_same_rule():
+    """Плитки выбранного в полосе бара (2026-11-01) — те же итоги, что общие, но по точке;
+    в сумме по точкам — ровно общие итоги."""
+    shifts = [_shift(1, YESTERDAY, 1, 'А', ID_ME, '10:00'),
+              _shift(2, YESTERDAY, 2, 'Б', ID_OTHER, '10:00'),
+              _shift(3, '2026-08-18', 2, 'В', ID_OTHER, '10:00')]
+    accs = [_acc(1, STATUS_CLEAN), _acc(2, STATUS_BAD, 'краны', 'p.jpg')]
+    j = build_journal(shifts, accs, today=TODAY, rule_from=RULE_FROM)
+    by_loc = j['totals_by_location']
+    assert set(by_loc) == {'1', '2'}, 'ключ — строка, как в JSON'
+    assert by_loc['1']['shifts'] == 1 and by_loc['1'][STATUS_CLEAN] == 1
+    assert by_loc['2']['shifts'] == 2 and by_loc['2'][STATUS_BAD] == 1
+    assert by_loc['2'][PROBLEM_NOT_MARKED] == 1
+    for key, value in j['totals'].items():
+        assert value == sum(t[key] for t in by_loc.values()), key
+
+
 # ==================== Хранение фото ====================
 
 def test_photo_name_is_the_only_way_to_the_disk():
@@ -384,6 +402,9 @@ def env(tmp_path):
     app.register_blueprint(auth_bp)
     app.register_blueprint(cleanliness_bp)
     init_auth(app)
+    # Как в app.py: полоса «Бар и период» (core/scope.py) — страница объявляет её через
+    # kultura_strip (месяц журнала из полосы, с 2026-11-01).
+    init_scope(app)
 
     loc, role = shifts.get_locations()[0], shifts.get_roles()[0]
     yield {'app': app, 'auth': auth, 'shifts': shifts, 'photo_dir': photo_dir,
@@ -630,7 +651,12 @@ def test_photo_route_serves_the_saved_file(env):
 
 def test_page_renders(env):
     c = _user(env, 'me', 'Я', ID_ME)
-    assert c.get('/cleanliness').status_code == 200
+    r = c.get('/cleanliness')
+    assert r.status_code == 200
+    body = r.data.decode('utf-8')
+    # Месяц и бар — из полосы «Бар и период»: своих стрелок месяца и списка точек нет.
+    assert 'id="kultura-strip"' in body and 'data-mode="monthly"' in body
+    assert 'id="clPrev"' not in body and 'id="clVenue"' not in body
 
 
 if __name__ == '__main__':

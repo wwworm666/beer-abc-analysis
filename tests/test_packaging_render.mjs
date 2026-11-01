@@ -20,6 +20,13 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
 
+// Ширина контента: страница стоит в .container общих стилей (с 2026-11-01 — вместе с
+// карточкой заголовка и полосой «Бар и период»): max-width минус поля по 20 px и рамка
+// таблицы 2 px (box-sizing: border-box — base.css).
+const baseCss = read('static/dashboard/styles/base.css');
+const CONTAINER = parseInt(baseCss.match(/\.container \{\s*max-width: (\d+)px;\s*margin: 0 auto;\s*padding: \d+px 20px;/)[1], 10);
+const CONTENT = CONTAINER - 2 * 20 - 2;
+
 const html = read('templates/packaging.html');
 const css = read('static/packaging/packaging.css');
 const js = read('static/js/packaging/packaging.js');
@@ -70,12 +77,32 @@ test('все id, которые ищет JS, объявлены в шаблон�
 });
 
 test('страница берёт данные из /api/packaging и только оттуда', () => {
-    assert.match(js, /fetch\('\/api\/packaging'/, 'нет запроса к новому эндпоинту');
+    // Запрос — через общий AbcView.postJson (тело не JSON у страницы ошибки прокси).
+    assert.match(js, /postJson\('\/api\/packaging'/, 'нет запроса к новому эндпоинту');
     assert.ok(!/api\/analyze|api\/categories|weekly-chart/.test(js),
         'остался вызов удалённого эндпоинта');
-    const fetches = [...js.matchAll(/fetch\(/g)].length;
-    assert.equal(fetches, 1, `запросов должно быть ровно один, найдено ${fetches}`);
+    const calls = [...js.matchAll(/postJson\(|fetch\(/g)].length;
+    assert.equal(calls, 1, `запросов должно быть ровно один, найдено ${calls}`);
 });
+
+test('общая карточка заголовка и полоса «Бар и период» вместо своих шапки и меню', () => {
+    // План единого виджета (docs/planning/period-widget-rollout.md, этап 3): шапку и меню
+    // бара и периода рисует общее меню; у страницы своих нет, кнопки запуска тоже.
+    assert.match(html, /\{% set page_title = "Фасовка" %\}/, 'заголовок не в общей карточке');
+    assert.match(html, /\{% set page_subtitle = "ABC\/XYZ и потери: /, 'в подписи заголовка нет «ABC/XYZ и потери»');
+    assert.match(html, /\{% set strip = kultura_strip\(mode='report', step='last30', live=True,/,
+        'полоса не объявлена или не на последних 30 днях');
+    assert.ok(html.indexOf('kultura_strip(') < html.indexOf("{% include 'shared/nav.html' %}"),
+        'полоса объявлена после общего меню — меню её не нарисует');
+    for (const gone of ['pk-head', 'pk-filters', 'pk-pick', 'BarBtn"', 'PerBtn"', 'Run"', 'ПЕРИОД</span>',
+                        'type="date"']) {
+        assert.ok(!html.includes(gone), 'в шаблоне осталось: ' + gone);
+    }
+    assert.ok(!/\.header-bar \{ display: none/.test(css), 'CSS прячет общую карточку заголовка');
+    assert.ok(!/\.pk-(head|burger|filters|pick|menu|run|catch)\b/.test(css), 'в CSS остались стили своей шапки и меню');
+    assert.match(js, /AbcView\.connect\(/, 'страница не слушает полосу');
+});
+
 
 test('удалённых эндпоинтов больше нет в роутах', () => {
     assert.ok(!/route\('\/api\/analyze'/.test(analysisPy), 'остался /api/analyze');
@@ -296,8 +323,10 @@ test('зеркальные заголовки двух страниц', () => {
     const nav = read('templates/shared/nav.html');
     assert.match(html, /<title>Фасовка — ABC\/XYZ и потери — Пивная культура<\/title>/);
     assert.match(draft, /<title>Розлив — ABC\/XYZ и потери — Пивная культура<\/title>/);
-    assert.match(html, /pk-title-n">Фасовка — ABC\/XYZ и потери</);
-    assert.match(draft, /dr-title-n">Розлив — ABC\/XYZ и потери</);
+    // Заголовок — общая карточка (page_title — имя пункта меню), своей шапки у страниц нет
+    // (с 2026-11-01); «ABC/XYZ и потери» — в подписи заголовка и в <title>.
+    assert.match(html, /\{% set page_title = "Фасовка" %\}/);
+    assert.match(draft, /\{% set page_title = "Розлив" %\}/);
     assert.ok(nav.includes('Фасовка\n') && nav.includes('Розлив\n'), 'пункты меню не переименованы');
     assert.ok(!/ABC\/XYZ анализ\n|Анализ проливов\n/.test(nav), 'в меню остались старые названия');
 });
@@ -311,7 +340,7 @@ test('формула наценки показана пользователю, �
         'не подписана база, от которой считается буква по выручке');
 });
 
-test('объяснено, что такое «Общая» и откуда берутся категории', () => {
+test('объяснено, что такое «Все бары» и откуда берутся категории', () => {
     assert.match(html, /бары складываются в одну сеть/, 'не объяснено сведение в тотал');
     assert.match(html, /Без категории \(Ф\)/, 'не объяснено, куда деваются позиции без стиля');
     assert.match(html, /третий уровень дерева групп/, 'не объяснено, что такое категория');
@@ -336,14 +365,13 @@ function gridMinWidth(cols) {
 
 test('три доли (выручка, штуки, маржа) помещаются в страницу в обеих таблицах', () => {
     // С 2026-09-29 третья доля — маржа; packaging.css общий с кухней.
-    const wrap = parseInt(css.match(/\.pk-wrap \{[^}]*max-width: (\d+)px/)[1], 10);
     for (const [table, count] of [['cats', 11], ['pos', 10]]) {
         const cols = css.match(new RegExp(`\\.pk-${table} \\.pk-row \\{\\s*grid-template-columns: ([^;]+);`))[1];
         const minWidth = parseInt(css.match(new RegExp(`\\.pk-${table} \\.pk-table-in \\{ min-width: (\\d+)px; \\}`))[1], 10);
         const grid = gridMinWidth(cols);
         assert.equal(grid.count, count, `в гриде ${table} ${grid.count} колонок вместо ${count}`);
         assert.ok(grid.width <= minWidth, `колонки ${table} (${grid.width}px) шире min-width ${minWidth}px`);
-        assert.ok(minWidth <= wrap - 42, `таблица ${table} ${minWidth}px шире контента ${wrap - 42}px`);
+        assert.ok(minWidth <= CONTENT, `таблица ${table} ${minWidth}px шире контента ${CONTENT}px`);
     }
     assert.equal((js.match(/data-sort="MarginSharePercent">ДОЛЯ МАРЖИ/g) || []).length, 2,
         'доля маржи не в обеих таблицах');
@@ -394,7 +422,10 @@ test('запрещённые имена классов из уроков про�
 test('страница не ломается на периоде, где XYZ не считается', () => {
     assert.match(js, /xyz_available/, 'фронт не читает признак доступности XYZ');
     assert.match(html, /id="pkXyzChip"/, 'нет плашки о недоступности XYZ');
-    assert.ok(js.includes('без XYZ'), 'в меню периодов не помечены короткие периоды');
+    // Короткий период подписан сразу, до ответа сервера (меню периодов со своим «без XYZ»
+    // больше нет — период выбирается в полосе).
+    assert.match(js, /AbcView\.noXyzText\(state\.from, state\.to\)/, 'короткий период не подписан');
+    assert.match(view, /'XYZ не считается: в периоде '/, 'нет текста подписи в общем модуле');
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

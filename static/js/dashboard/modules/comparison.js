@@ -17,18 +17,16 @@ import { formatMoney, formatPercent } from '../core/utils.js';
 
 const K = window.KPeriod;
 const QUICK = ['last_closed_week', 'current_week', 'last_closed_month', 'current_month',
-    'current_quarter', 'current_year'];
+    'last12m', 'ytd', 'last_closed_year'];
 
 /**
- * «Тот же период год назад»: месяц и квартал — на 12 месяцев, год — на один, неделя, день и свой
+ * «Тот же период год назад»: месяц — на 12 месяцев, год — на один, неделя, день и свой
  * период — на 52 недели (364 дня), чтобы совпали дни недели: у бара пятница — не вторник.
  */
 export function yearAgo(p) {
     const s = K.fromISO(p.start);
     const e = K.fromISO(p.end);
-    if (p.granularity === 'month' || p.granularity === 'quarter') {
-        return K.periodFor(p.granularity, K.addMonths(s, -12));
-    }
+    if (p.granularity === 'month') return K.periodFor('month', K.addMonths(s, -12));
     if (p.granularity === 'year') return K.shiftPeriod(p, -1);
     if (p.granularity === 'week') return K.periodFor('week', K.addDays(s, -364));
     return K.fromBounds(K.addDays(s, -364), K.addDays(e, -364));
@@ -110,7 +108,7 @@ class ComparisonModule {
             mount.hidden = mode !== 'custom';
             if (mode === 'custom' && !this.customPicker && window.KPeriodPicker) {
                 this.customPicker = window.KPeriodPicker.mount(mount, {
-                    steps: ['day', 'week', 'month', 'quarter', 'year', 'custom'],
+                    steps: ['day', 'week', 'month', 'year', 'custom'],
                     quick: QUICK,
                     value: K.shiftPeriod(state.currentPeriod, -1),
                     onChange: () => this.schedule()

@@ -1,0 +1,50 @@
+{#- Полоса «Бар и период» — одна на всех страницах с данными (план единого виджета,
+    docs/planning/period-widget-rollout.md, раздел 3.1). Сервер рисует её уже с выбором
+    (core/scope.build_strip: ссылка -> cookie -> правило страницы), поэтому при переходе между
+    страницами она не мигает; оживляет static/js/shared/period/scope_strip.js.
+    Вид — шапка фильтров дашборда (static/dashboard/styles/base.css: .filter-bar, .fb-*).
+    Кнопки страницы справа (выгрузка) — переменная strip_actions, заданная до общего меню:
+        {% set strip_actions %}…{% endset %}
+-#}
+{%- set v = kultura_static_version | default('') -%}
+<link rel="stylesheet" href="/static/shared/period.css?v={{ v }}">
+<div class="filter-bar ks" id="kultura-strip" data-mode="{{ strip.mode }}">
+    <button type="button" class="fb-item fb-venue" id="ks-bar-trigger" aria-haspopup="listbox"
+            aria-expanded="false"{% if strip.bar_mode == 'none' %} disabled title="Страница на бары не делится"{% endif %}>
+        <svg class="fb-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M10 21v-5h4v5"/></svg>
+        <span class="fb-strong" id="ks-bar-name">{{ strip.bar_name }}</span>
+        <span class="fb-hint" id="ks-bar-hint">{{ strip.bar_hint }}</span>
+        {% if strip.bar_mode != 'none' %}<svg class="fb-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>{% endif %}
+    </button>
+
+    <span class="fb-divider"></span>
+
+    {#- Та же разметка, что строит period_picker.js: до запуска скрипта видно то же название. -#}
+    <div class="fb-period kp kp--strip{% if strip.partial %} kp--partial{% endif %}{% if strip.mode == 'now' %} kp--disabled{% endif %}" id="ks-period">
+        <button type="button" class="kp-arrow kp-prev" aria-label="Предыдущий период"{% if strip.mode == 'now' %} hidden{% endif %}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <button type="button" class="kp-trigger" aria-haspopup="dialog" aria-expanded="false"{% if strip.mode == 'now' %} disabled{% endif %}><svg class="kp-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/></svg><span class="kp-title">{{ strip.title }}</span><span class="kp-sub"{% if not strip.sub %} hidden{% endif %}>{{ strip.sub }}</span><svg class="kp-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg></button>
+        <button type="button" class="kp-arrow kp-next" aria-label="Следующий период"{% if strip.mode == 'now' %} hidden{% endif %}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg></button>
+    </div>
+
+    <span class="ks-note" id="ks-note"{% if not strip.note %} hidden{% endif %}>{{ strip.note }}</span>
+
+    <span class="fb-spacer"></span>
+    {% if strip_actions %}<span class="fb-divider fb-divider-export"></span>{{ strip_actions }}{% endif %}
+
+    <div class="fb-backdrop hidden" id="ks-backdrop"></div>
+    <div class="fb-menu hidden" id="ks-bar-menu" role="listbox" aria-labelledby="ks-bar-trigger">
+        <span class="fb-grab"></span>
+        <span class="fb-menu-label">Бар</span>
+        {% for b in strip.bar_options %}
+        <button type="button" class="fb-menu-item{% if b.key == strip.bar %} active{% endif %}" role="option"
+                aria-selected="{{ 'true' if b.key == strip.bar else 'false' }}" data-bar="{{ b.key }}">
+            <span class="fb-menu-name">{{ b.name }}</span><span class="fb-menu-hint">{{ b.hint }}</span>
+        </button>
+        {% endfor %}
+        <span class="ks-menu-note">Бар и период — общие для всех страниц</span>
+    </div>
+</div>
+<script>window.KULTURA_STRIP = {{ strip.client | tojson }};</script>
+<script src="/static/js/shared/period/period_core.js?v={{ v }}"></script>
+<script src="/static/js/shared/period/period_picker.js?v={{ v }}"></script>
+<script src="/static/js/shared/period/scope_strip.js?v={{ v }}"></script>

@@ -1,8 +1,9 @@
 /* Конструктор отчётов (/explorer) — конструктор OLAP-отчётов iiko.
 
    Оформление — как у соседних аналитических страниц (/kitchen, /packaging, /draft):
-   те же поверхности, радиусы, текст IBM Plex Sans и числа IBM Plex Mono, своя шапка
-   вместо общей .header-bar, та же тёмная тема. Значения токенов совпадают с --pk-*
+   те же поверхности, радиусы, текст IBM Plex Sans и числа IBM Plex Mono, та же тёмная
+   тема. Карточка заголовка и полоса «Бар и период» — общие для сайта (с 2026-11-01,
+   templates/shared/nav.html): своей шапки и меню периода у страницы нет. Значения токенов совпадают с --pk-*
    (static/packaging/packaging.css) намеренно: сменят палитру там — менять и здесь.
 
    Правила: ни одного HEX вне блока токенов, без эмодзи, префикс `ex-`.
@@ -114,57 +115,17 @@ body.explorer-page[data-theme="dark"] {
     --ex-backdrop: rgba(0, 0, 0, .55);
 }
 
-body.explorer-page .header-bar { display: none; }
-body.explorer-page .container { padding: 0; }
-
+/* Страница стоит в том же .container, что карточка заголовка и полоса: одна ширина и одни
+   отступы с остальными страницами (раньше — своя шапка и ширина 1600 px). Широкая сводная
+   прокручивается внутри .ex-grid-wrap. */
 .ex-wrap {
-    max-width: 1600px;
-    margin: 0 auto;
-    padding: 22px 20px calc(64px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
     font-family: var(--ex-sans);
     color: var(--ex-ink);
     -webkit-font-smoothing: antialiased;
 }
 .ex-wrap ::selection { background: color-mix(in srgb, var(--ex-accent) 22%, transparent); }
 .explorer-page [hidden] { display: none !important; }
-
-/* ==================== Шапка ==================== */
-
-.ex-head {
-    display: flex;
-    align-items: center;
-    gap: 13px;
-    background: var(--ex-card);
-    border: 1px solid var(--ex-line);
-    border-radius: var(--ex-r-head);
-    box-shadow: var(--ex-shadow);
-    padding: 11px 18px 11px 12px;
-}
-.ex-burger {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 3.5px;
-    width: 42px;
-    height: 42px;
-    border: none;
-    border-radius: 13px;
-    background: var(--ex-accent);
-    cursor: pointer;
-    flex: none;
-}
-.ex-burger:hover { background: var(--ex-accent-h); }
-.ex-burger span { width: 16px; height: 2px; border-radius: 2px; background: var(--ex-on-accent); }
-.ex-burger span:last-child { width: 10px; align-self: flex-start; margin-left: 13px; }
-.ex-title { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
-.ex-title-n { font: 600 15px/1.2 var(--ex-sans); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ex-title-s { font: 400 12px/1.2 var(--ex-sans); color: var(--ex-ink4); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ex-logo { font: 600 15px/1 var(--ex-mono); letter-spacing: .4px; white-space: nowrap; flex: none; }
-.ex-logo i { color: var(--ex-accent); font-style: normal; }
-.ex-logo b { color: var(--ex-accent); font-weight: 600; animation: exBlink .9s step-end infinite; }
-@keyframes exBlink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
-@media (max-width: 640px) { .ex-logo-tail { display: none; } }
 
 /* ==================== Панель отчёта ==================== */
 
@@ -174,7 +135,6 @@ body.explorer-page .container { padding: 0; }
     display: flex;
     align-items: stretch;
     flex-wrap: wrap;
-    margin-top: 14px;
     background: var(--ex-card);
     border: 1px solid var(--ex-line);
     border-radius: var(--ex-r-card);
@@ -199,11 +159,9 @@ body.explorer-page .container { padding: 0; }
 .ex-pick-btn:hover { background: var(--ex-hover); }
 .ex-pick-cap { font: 600 9.5px/1 var(--ex-mono); letter-spacing: .14em; color: var(--ex-ink5); }
 .ex-pick-val { display: flex; align-items: center; gap: 8px; font: 600 13.5px/1 var(--ex-sans); }
-.ex-pick-hint { font: 500 11.5px/1 var(--ex-mono); color: var(--ex-ink5); }
 .ex-chev path { stroke: var(--ex-ink6); }
-.ex-sep { width: 1px; background: var(--ex-line); margin: 13px 0; }
 .ex-grow { flex: 1; }
-.ex-actions { display: flex; align-items: center; gap: 6px; padding: 9px 4px 9px 10px; }
+.ex-actions { display: flex; align-items: center; gap: 6px; padding: 9px 12px 9px 10px; }
 .ex-btn {
     display: inline-flex;
     align-items: center;
@@ -225,7 +183,6 @@ body.explorer-page .container { padding: 0; }
     outline: 2px solid var(--ex-accent);
     outline-offset: 1px;
 }
-.ex-run-wrap { display: flex; align-items: center; padding: 9px 10px 9px 8px; }
 .ex-run {
     display: flex;
     align-items: center;
@@ -242,15 +199,6 @@ body.explorer-page .container { padding: 0; }
 }
 .ex-run:hover { background: var(--ex-accent-h); }
 .ex-run:disabled { opacity: .8; cursor: default; }
-.ex-spin {
-    width: 13px;
-    height: 13px;
-    border: 2px solid color-mix(in srgb, var(--ex-on-accent) 40%, transparent);
-    border-top-color: var(--ex-on-accent);
-    border-radius: 50%;
-    animation: exSpin .7s linear infinite;
-}
-@keyframes exSpin { to { transform: rotate(360deg); } }
 
 .ex-menu {
     position: absolute;
@@ -285,9 +233,6 @@ body.explorer-page .container { padding: 0; }
 .ex-mi-t { flex: 1; font: 500 13px/1.25 var(--ex-sans); }
 .ex-mi-s { font: 500 10.5px/1.2 var(--ex-mono); color: var(--ex-ink5); white-space: nowrap; }
 .ex-mi-sub { display: block; margin-top: 2px; font: 400 11px/1.3 var(--ex-sans); color: var(--ex-ink4); }
-.ex-menu-cap { padding: 8px 12px 6px; font: 600 9.5px/1 var(--ex-mono); letter-spacing: .14em; color: var(--ex-ink5); }
-.ex-menu-dates { display: flex; gap: 6px; align-items: center; padding: 4px 8px 8px; }
-.ex-menu-dates input { flex: 1; min-width: 0; }
 
 .ex-catch { position: fixed; inset: 0; z-index: 40; }
 
@@ -879,7 +824,6 @@ body.explorer-page .container { padding: 0; }
     .ex-layout { grid-template-columns: 260px minmax(0, 1fr); }
 }
 @media (max-width: 900px) {
-    .ex-wrap { padding: 14px 12px calc(64px + env(safe-area-inset-bottom, 0px)); }
     .ex-layout { grid-template-columns: minmax(0, 1fr); }
     .ex-zones { grid-template-columns: minmax(0, 1fr); }
     .ex-zone-add { display: inline-flex; margin-left: 6px; height: 26px; padding: 0 10px; font-size: 11.5px; }
@@ -899,9 +843,7 @@ body.explorer-page .container { padding: 0; }
     .ex-fields.is-open { transform: translateY(0); }
     .ex-fields-close { display: inline-flex; }
     .ex-bar { flex-direction: column; }
-    .ex-sep { width: auto; height: 1px; margin: 0 14px; }
     .ex-actions { padding: 6px 12px; flex-wrap: wrap; }
-    .ex-run-wrap { padding: 4px 12px 12px; }
     .ex-run { width: 100%; justify-content: center; }
     .ex-menu { position: fixed; left: 0; right: 0; bottom: 0; top: auto; width: auto; max-height: 75vh;
                border-radius: 22px 22px 0 0; padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px)); }

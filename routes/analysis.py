@@ -1,7 +1,6 @@
 from flask import Blueprint, request, jsonify
 import pandas as pd
 from datetime import datetime, timedelta
-from zoneinfo import ZoneInfo
 from core.olap_reports import OlapReports
 from core.packaging_analysis import PackagingAnalysis
 from core.packaging_loader import load_packaging
@@ -12,18 +11,57 @@ from core.draft_kegs import DraftKegAnalysis, strip_service_fields
 from core.draft_loader import load_draft_kegs
 from core.revenue_metrics import RevenueMetricsCalculator
 from core import msk_time
+from core.venues_config import bar_key, site_bar
 from extensions import BARS, cached_olap
 
 analysis_bp = Blueprint('analysis', __name__)
+
+
+def _abc_bar(raw):
+    """Бар запроса страниц ABC (розлив, фасовка, кухня) -> имя бара в iiko или None (вся сеть).
+
+    Страница шлёт имя бара в iiko («Лиговский») или '' — вся сеть; так же зовут маршрут
+    агенты (схема инструментов не менялась). Полоса «Бар и период» и ссылки знают бар
+    ключом (ligovskiy, bar2): ключ сводится к имени iiko по таблице баров сайта
+    (core/venues_config.SITE_BARS), подписи всей сети ('all', «Общая», «Все бары») — к None.
+    Неизвестное написание уходит в iiko как есть, как раньше: ответ будет «Нет данных».
+    """
+    if not raw:
+        return None
+    key = bar_key(raw)
+    if key == '':
+        return None
+    row = site_bar(key) if key else None
+    return row['iiko_name'] if row else raw
+
+
+def _days_window(raw):
+    """Окно ?days= без дат (агенты) -> (date_from, date_to) ISO или ValueError (ответ 400).
+
+    Последние N ПОЛНЫХ рабочих дней по вчера — как «Последние 30 дней» полосы на странице
+    (core/periods.last_days от последнего полного дня): сегодняшний неполный день в окно не
+    входит, иначе выручка дня делилась бы на неполную смену. Рабочие сутки бара — до 06:00 МСК
+    (msk_time.business_today). До 2026-11-01 окно было «с сегодня − N по сегодня» (N + 1 дат,
+    сегодняшний день неполный) — план единого виджета, этап 3. По умолчанию N = 30.
+    """
+    try:
+        days = int(raw if raw is not None else 30)
+    except (TypeError, ValueError):
+        raise ValueError('Поле days должно быть числом')
+    if days < 1:
+        raise ValueError('Поле days — от 1')
+    end = msk_time.business_today() - timedelta(days=1)
+    return (end - timedelta(days=days - 1)).isoformat(), end.isoformat()
 
 
 @analysis_bp.route('/api/packaging', methods=['POST'])
 def analyze_packaging():
     """ABC/XYZ анализ фасовки: вся страница /packaging одним ответом.
 
-    Тело запроса: {bar, date_from, date_to} либо {bar, days}. Пустой bar — разрез
-    «Общая»: все бары сведены в одну сеть. Даты ВКЛЮЧИТЕЛЬНЫЕ, к iiko уходит
-    date_to + 1 день (правая граница DateRange эксклюзивная).
+    Тело запроса: {bar, date_from, date_to} либо {bar, days}. bar — имя бара в iiko или
+    ключ бара (ligovskiy, с 2026-11-01, см. _abc_bar); пустой — разрез «Общая»: все бары
+    сведены в одну сеть. Даты ВКЛЮЧИТЕЛЬНЫЕ, к iiko уходит date_to + 1 день (правая
+    граница DateRange эксклюзивная).
 
     Ответ — блок из core/packaging_analysis.py: сводка, ВСЕ категории, ВСЕ
     фасовки, корзины действий. Страница рисует из него все секции без
@@ -40,7 +78,7 @@ def analyze_packaging():
         # silent=True: кривой JSON — ошибка клиента, а не наша. Без него Flask
         # бросает BadRequest, и запрос уходил в общий except как HTTP 500.
         data = request.get_json(silent=True) or {}
-        bar_name = data.get('bar') or None
+        bar_name = _abc_bar(data.get('bar'))
         date_from = data.get('date_from')
         date_to = data.get('date_to')
 
@@ -51,15 +89,10 @@ def analyze_packaging():
             # days разбирается только здесь: при явно переданных датах это поле
             # не используется, и мусор в нём не должен ронять валидный запрос.
             try:
-                days = int(data.get('days', 30))
-            except (TypeError, ValueError):
-                return jsonify({'error': 'Поле days должно быть числом'}), 400
-            # Московский день, а не UTC: иначе на UTC-хосте после 21:00 «сегодня»
-            # уезжает на сутки назад (тот же дефолт, что у /api/draft-kegs).
-            today = datetime.now(ZoneInfo('Europe/Moscow')).date()
-            date_to = today.strftime('%Y-%m-%d')
-            date_from = (today - timedelta(days=days)).strftime('%Y-%m-%d')
-            print(f"   Period: {days} dney (computed: {date_from} - {date_to})")
+                date_from, date_to = _days_window(data.get('days'))
+            except ValueError as e:
+                return jsonify({'error': str(e)}), 400
+            print(f"   Period: days (computed: {date_from} - {date_to})")
         else:
             print(f"   Period: {date_from} - {date_to}")
 
@@ -120,7 +153,7 @@ def analyze_kitchen():
     """
     try:
         data = request.get_json(silent=True) or {}
-        bar_name = data.get('bar') or None
+        bar_name = _abc_bar(data.get('bar'))
         date_from = data.get('date_from')
         date_to = data.get('date_to')
 
@@ -129,12 +162,9 @@ def analyze_kitchen():
 
         if not date_from or not date_to:
             try:
-                days = int(data.get('days', 30))
-            except (TypeError, ValueError):
-                return jsonify({'error': 'Поле days должно быть числом'}), 400
-            today = datetime.now(ZoneInfo('Europe/Moscow')).date()
-            date_to = today.strftime('%Y-%m-%d')
-            date_from = (today - timedelta(days=days)).strftime('%Y-%m-%d')
+                date_from, date_to = _days_window(data.get('days'))
+            except ValueError as e:
+                return jsonify({'error': str(e)}), 400
 
         try:
             if datetime.strptime(date_from, '%Y-%m-%d') > datetime.strptime(date_to, '%Y-%m-%d'):
@@ -184,22 +214,21 @@ def analyze_draft():
     try:
         data = request.json
         bar_name = data.get('bar')
-        days = int(data.get('days', 30))
         date_from = data.get('date_from')
         date_to = data.get('date_to')
 
         print(f"\n[DRAFT] Zapusk analiza razlivnogo piva...")
         print(f"   Bar: {bar_name if bar_name else 'VSE'}")
 
-        # Обработка дат: если переданы конкретные даты, используем их, иначе вычисляем.
-        # «Сегодня» — по Москве (core/msk_time), как у /api/packaging, /api/kitchen и
-        # /api/draft-kegs: прод-контейнер живёт в UTC, и с 00:00 до 03:00 МСК наивный
-        # datetime.now() сдвигал окно «последние N дней» на сутки назад.
+        # Обработка дат: если переданы конкретные даты, используем их, иначе — последние days
+        # полных рабочих дней по вчера (_days_window, как у /api/packaging, /api/kitchen и
+        # /api/draft-kegs).
         if not date_from or not date_to:
-            date_to_obj = msk_time.today()
-            date_from = (date_to_obj - timedelta(days=days)).strftime("%Y-%m-%d")
-            date_to = date_to_obj.strftime("%Y-%m-%d")
-            print(f"   Period: {days} dney (computed: {date_from} - {date_to})")
+            try:
+                date_from, date_to = _days_window(data.get('days'))
+            except ValueError as e:
+                return jsonify({'error': str(e)}), 400
+            print(f"   Period: days (computed: {date_from} - {date_to})")
         else:
             print(f"   Period: {date_from} - {date_to}")
 
@@ -552,15 +581,16 @@ def analyze_draft_kegs():
     оставлен рабочим: он считает литры из названий блюд и нужен для сверки двух
     расчётов (tests/test_draft_kegs.py, docs/draft.md).
 
-    Тело запроса: {bar, date_from, date_to} либо {bar, days}. Даты — ВКЛЮЧИТЕЛЬНО,
-    к iiko уходит date_to + 1 день (правая граница DateRange эксклюзивная).
+    Тело запроса: {bar, date_from, date_to} либо {bar, days}. bar — имя бара в iiko или
+    ключ бара (ligovskiy, с 2026-11-01, см. _abc_bar); пустой — все бары. Даты —
+    ВКЛЮЧИТЕЛЬНО, к iiko уходит date_to + 1 день (правая граница DateRange эксклюзивная).
     """
     try:
         # Разбор входа — как у /api/packaging (с 2026-09-26): до этого кривой JSON
         # и мусор в days при валидных датах давали 500, а период «конец раньше
         # начала» уходил в iiko и возвращался как «Нет данных» (404).
         data = request.get_json(silent=True) or {}
-        bar_name = data.get('bar') or None
+        bar_name = _abc_bar(data.get('bar'))
         date_from = data.get('date_from')
         date_to = data.get('date_to')
 
@@ -571,15 +601,10 @@ def analyze_draft_kegs():
             # days разбирается только здесь: при явно переданных датах это поле
             # не используется, и мусор в нём не должен ронять валидный запрос.
             try:
-                days = int(data.get('days', 30))
-            except (TypeError, ValueError):
-                return jsonify({'error': 'Поле days должно быть числом'}), 400
-            # Тот же дефолт, что у остальных страниц: московский день, иначе на
-            # UTC-хосте после 21:00 «сегодня» уезжает на сутки назад.
-            today = datetime.now(ZoneInfo('Europe/Moscow')).date()
-            date_to = today.strftime('%Y-%m-%d')
-            date_from = (today - timedelta(days=days)).strftime('%Y-%m-%d')
-            print(f"   Period: {days} dney (computed: {date_from} - {date_to})")
+                date_from, date_to = _days_window(data.get('days'))
+            except ValueError as e:
+                return jsonify({'error': str(e)}), 400
+            print(f"   Period: days (computed: {date_from} - {date_to})")
         else:
             print(f"   Period: {date_from} - {date_to}")
 

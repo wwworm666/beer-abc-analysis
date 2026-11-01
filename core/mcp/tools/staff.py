@@ -77,6 +77,10 @@ None (например, касса очистится); снятая помет�
 
 ## Changelog
 
+- 2026-11-01 — `staff_employees_list` принимает `date_from`/`date_to` и `bar` (как страница
+  «Сотрудники» на полосе «Бар и период»); без дат — по-прежнему 30 дней, но по рабочим суткам
+  бара. Маршруты `staff_employee_*` понимают и ключ заведения в `bar` (синоним имени iiko),
+  схема по-прежнему перечисляет имена iiko.
 - 2026-09-28 — `staff_me` принимает `employee_iiko_id`: администратор (через MCP — владелец)
   открывает кабинет любого сотрудника, зарплатный агент больше не упирается в «не привязан».
   Шаблон id — `EMPLOYEE_ID_PATTERN`, тот же, что проверяет маршрут (routes/me.py).
@@ -261,14 +265,17 @@ _PERIOD_PROPS, _PERIOD_REQ = _period()
 
 _EMPLOYEE_TOOLS = [
     _tool(
-        'staff_employees_list', 'Список сотрудников (продажи за 30 дней)',
-        'Имена сотрудников, продававших разливное за последние 30 дней — список выбора на '
-        'странице «Сотрудники» (/employee): {employees: [имя, ...]}. Имена — как в OLAP iiko '
-        '(«Имя Фамилия»): их принимают staff_employee_analytics, staff_employee_compare и '
+        'staff_employees_list', 'Список сотрудников за период',
+        'Имена сотрудников, продававших разливное за период, — список выбора на странице '
+        '«Сотрудники» (/employee; страница шлёт период и бар полосы «Бар и период»): '
+        '{employees: [имя, ...]}. Без date_from/date_to — последние 30 дней по сегодняшний '
+        'рабочий день бара (сутки до 06:00 МСК). Имена — как в OLAP iiko («Имя Фамилия»): их '
+        'принимают staff_employee_analytics, staff_employee_compare и '
         'staff_employee_discount_checks. Это не реестр графика: люди со стабильными iiko_id — '
         'staff_schedule_employees. Живой OLAP-запрос в iiko.',
-        'GET', '/api/employees', _schema(),
-        idempotent=True, heavy=True),
+        'GET', '/api/employees',
+        _schema(dict(_period(required=False)[0], bar=_bar_param())),
+        query_params=('date_from', 'date_to', 'bar'), idempotent=True, heavy=True),
     _tool(
         'staff_employee_analytics', 'Аналитика сотрудника',
         'Показатели одного сотрудника за период — вкладка «Анализ» на /employee: выручка (₽, '
@@ -923,7 +930,8 @@ _OTHER_TOOLS = [
         'Страница «Чистота» (/cleanliness): строка на каждую открывающую смену месяца — точка, '
         'бармен, ответ (Чисто / Замечания / Плохо), «что не так», имя фото, автор и время, '
         'пометка «изменено»; проблема not_marked — день прошёл без ответа (с 24.08.2026); итоги '
-        'и подписи. Фото — staff_cleanliness_photo по имени.',
+        '(totals), итоги по точкам (totals_by_location, ключ — id точки) и подписи. Фото — '
+        'staff_cleanliness_photo по имени.',
         'GET', '/api/cleanliness/month/<int:year>/<int:month>',
         _schema({'year': _year(), 'month': _month_num()}, ('year', 'month')),
         path_params=('year', 'month'), idempotent=True,

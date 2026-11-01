@@ -44,13 +44,48 @@
     var wishTimers = {};
     var saving = false;           // защита от двойных кликов
 
+    // ==================== Полоса «Бар и период» ====================
+    // Месяц — из полосы (помесячный режим: у недели — месяц её четверга), будущие месяцы
+    // можно — график планируют вперёд. Без выбора — месяц РАБОЧЕГО дня бара с сервера (в ночь
+    // на 1-е до 06:00 — ещё прошлый). Бар не сужает график: все точки остаются (планирование),
+    // выбранная выделена, остальные приглушены (ответ владельца Р9) — S.focusLocationId.
+    var strip = window.KStrip || null;
+    // Подпись сервера в полосе («по месяцам — показан октябрь 2026») до первой смены периода.
+    var periodNote = strip && strip.config ? (strip.config.note || '') : '';
+
+    function monthPhrase() {
+        return S.MONTH_NAMES[S.state.month - 1].toLowerCase() + ' ' + S.state.year;
+    }
+
+    // Страница показывает больше выбранного бара — это подписано в полосе (Р9).
+    function setFocusNote() {
+        if (!strip) return;
+        var focus = S.focusLocationId() != null ? 'все точки — выбранный бар выделен' : '';
+        strip.setNote([periodNote, focus].filter(Boolean).join(' · '));
+    }
+
+    function onStripChange(e) {
+        if (e.type === 'period') {
+            periodNote = '';
+            setFocusNote();
+            if (S.syncMonthFromStrip()) {
+                closeDayPanel();
+                monthLoader.schedule();
+            }
+            return;
+        }
+        // Бар: тот же месяц, другая выделенная точка — без нового запроса. Кисть редактора
+        // встаёт на точку бара: выбрали Лиговский — назначаем смены Лиговскому.
+        var focus = S.focusLocationId();
+        if (focus != null) brushPoint = focus;
+        setFocusNote();
+        renderToolbar();
+        updateHint();
+        renderAll();
+    }
+
     document.addEventListener('DOMContentLoaded', function () {
-        document.getElementById('prevMonth').addEventListener('click', function () {
-            S.shiftMonth(-1); closeDayPanel(); reload();
-        });
-        document.getElementById('nextMonth').addEventListener('click', function () {
-            S.shiftMonth(1); closeDayPanel(); reload();
-        });
+        if (strip) strip.onChange(onStripChange);
 
         document.getElementById('timeSeg').addEventListener('click', function (e) {
             var b = e.target.closest('[data-role]'); if (b) setRole(b.dataset.role);
@@ -143,6 +178,9 @@
                 }
             })
             .then(function () {
+                var focus = S.focusLocationId();   // точки уже загружены — бар полосы известен
+                if (focus != null) brushPoint = focus;
+                setFocusNote();
                 renderToolbar();
                 renderEditMode();
                 updateHint();
@@ -157,25 +195,44 @@
             });
     });
 
+    // Загрузка месяца. План/факт ходит в iiko — тяжёлый запрос, поэтому (static/js/shared/
+    // strip_runner.js): серия переключений месяца в полосе — одна загрузка после паузы,
+    // устаревший ответ отбрасывается (прошлый месяц не дорисуется поверх нового), пока идёт —
+    // «Загружаю график на ноябрь 2026…». После правок графика — сразу (reload).
+    var monthLoader = KStripRunner.create({
+        run: function (signal) {
+            var year = S.state.year, month = S.state.month;
+            return Promise.all([
+                S.fetchMonthData(year, month, { signal: signal }),
+                S.api('/api/schedule/plans/' + year + '/' + month, { signal: signal })
+                    .catch(function (err) {
+                        if (KStripRunner.isAbort(err)) throw err;
+                        // не глушим молча: иначе сбой выглядит как «плана нет» и вводит в заблуждение
+                        console.error(err);
+                        return { _failed: true };
+                    })
+            ]);
+        },
+        onStart: function () {
+            S.showLoading(true, 'Загружаю график на ' + monthPhrase() + '…');
+        },
+        onDone: function (res) {
+            S.state.shifts = res[0].shifts;
+            S.state.dayOffs = res[0].dayOffs;
+            S.state.plans = res[1] && res[1]._failed ? null : res[1];
+            if (res[1] && res[1]._failed) S.showToast('Не удалось загрузить план/факт', true);
+            renderAll();
+            return loadFeed();
+        },
+        onError: function (err) {
+            console.error(err);
+            S.showToast('Ошибка загрузки месяца', true);
+        },
+        onFinally: function () { S.showLoading(false); }
+    });
+
     function reload() {
-        S.showLoading(true);
-        S.updateMonthDisplay(document.getElementById('currentMonth'));
-        return Promise.all([
-            S.loadMonthData(),
-            S.api('/api/schedule/plans/' + S.state.year + '/' + S.state.month)
-                .then(function (p) { S.state.plans = p; })
-                .catch(function (err) {
-                    // не глушим молча: иначе сбой выглядит как «плана нет» и вводит в заблуждение
-                    console.error(err); S.state.plans = null;
-                    S.showToast('Не удалось загрузить план/факт', true);
-                })
-        ]).then(renderAll)
-            .then(loadFeed)
-            .catch(function (err) {
-                console.error(err);
-                S.showToast('Ошибка загрузки месяца', true);
-            })
-            .then(function () { S.showLoading(false); });
+        return monthLoader.now();
     }
 
     function renderAll() {
@@ -696,7 +753,10 @@
     function renderToolbar() {
         var pc = document.getElementById('pointChips');
         pc.innerHTML = '';
-        if (!brushPoint && S.state.locations.length) brushPoint = S.state.locations[0].id;
+        if (!brushPoint && S.state.locations.length) {
+            var focus = S.focusLocationId();
+            brushPoint = focus != null ? focus : S.state.locations[0].id;
+        }
         S.state.locations.forEach(function (loc, i) {
             var active = brushMode === 'point' && brushPoint === loc.id;
             var color = S.venueColor(loc, i);

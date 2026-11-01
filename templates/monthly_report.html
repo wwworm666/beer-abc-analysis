@@ -24,6 +24,13 @@
 
     {% set page_title = "Месячный отчёт" %}
     {% set page_subtitle = "Помесячная динамика метрик за год" %}
+    {#- Полоса «Бар и период» — общая для сайта (templates/shared/scope_strip.html, план единого
+        виджета docs/planning/period-widget-rollout.md, этап 3): своих списков года, месяца
+        ТОП-10 и бара у графиков нет. Помесячная: год отчёта — год показанного периода, ТОП-10 —
+        показанный месяц, если он закрыт. Без выбора — последний закрытый месяц (в отчёте только
+        закрытые месяцы; в январе — декабрь прошлого года). -#}
+    {% set strip = kultura_strip(mode='monthly', step='last_closed_month', live=True, steps=['month', 'year'],
+                                 freshness='Закрытые месяцы — из витрины; новый месяц досчитывается ночью 1-го числа') %}
 
     <div class="container">
         {% include 'shared/nav.html' %}
@@ -48,6 +55,5 @@
             .catch((err) => console.error('Ошибка загрузки месячного отчёта:', err));
     </script>
 
-    <script src="/static/logo.js"></script>
 </body>
 </html>

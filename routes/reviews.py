@@ -6,7 +6,10 @@ core/guest_reviews.py (докстринг модуля). Отзывы прихо
 ответ на отзыв из бота владелец отправляет гостю кнопкой (send-reply ниже).
 
 Эндпоинты:
-    GET    /reviews                         страница (templates/reviews.html)
+    GET    /reviews                         страница (templates/reviews.html); бар и период — полоса
+                                            «Бар и период» (с 2026-11-01); ?month=YYYY-MM старой
+                                            ссылки -> 302 с date_from/date_to месяца, ?month=all —
+                                            без перевода (показ «за всё время»)
     GET    /api/reviews                     список + метрики; ?from=&to=|month=|all=1
                                             &bar=&source=&rating=low|mid|high|none
                                             &status=new|answered|skipped
@@ -56,18 +59,21 @@ false — ссылка есть, а материал удалён (интерф�
 становится null (никогда 500).
 """
 import os
+import re
 from functools import wraps
 
-from flask import Blueprint, jsonify, render_template, request
+from flask import Blueprint, jsonify, redirect, render_template, request, url_for
 
 from core.auth_guard import current_user
 from core.guest_reviews import (BAR_KEYS, NETWORK_BAR, TEXT_SEND_UNKNOWN, ReviewConflict, ReviewNotFound,
                                 ReviewStoreUnavailable, get_review_store, material_draft,
                                 parse_month)
+from core.month_links import redirect_target
 
 reviews_bp = Blueprint('reviews', __name__)
 
 ATTENTION_CONTENT_KEYS = ('publications_today', 'delivery_errors', 'overdue')
+_ISO_DAY = re.compile(r'^\d{4}-\d{2}-\d{2}$')
 
 
 def _json_body() -> dict:
@@ -145,9 +151,33 @@ def _material_presence(ids):
 
 # ------------------------------------------------------------------ страница
 
+def _data_start():
+    """Первый день данных страницы — дата самого раннего отзыва ('YYYY-MM-DD') или None.
+
+    Полосе «Бар и период» он нужен для быстрого выбора «Всё время» (с первого дня данных по
+    сегодня) и как нижний предел своего периода и стрелок. Нет отзывов или файл не читается —
+    None: страница откроется и без «Всего времени» в полосе.
+    """
+    try:
+        days = [str(r.get('created_at') or '')[:10] for r in get_review_store().all()]
+    except Exception as e:  # noqa: BLE001 — сбой хранилища не должен ронять страницу
+        print(f'[REVIEWS] data start unavailable: {e!r}')
+        return None
+    days = [d for d in days if _ISO_DAY.match(d)]
+    return min(days) if days else None
+
+
 @reviews_bp.route('/reviews')
 def reviews_page():
-    return render_template('reviews.html', app_version=_app_version())
+    """Страница отзывов. Бар и период — общая полоса «Бар и период» (шаблон объявляет её через
+    kultura_strip, план единого виджета, этап 5): список — за период полосы. Старая ссылка
+    ?month=YYYY-MM — 302 с date_from/date_to этого месяца (core/month_links.py); ?month=all
+    (полоса «Отзывы без ответа», бот, сторож) остаётся — страница показывает всё время, не
+    меняя общий выбор."""
+    target = redirect_target(url_for('reviews.reviews_page'), request.args, keep=('all',))
+    if target is not None:
+        return redirect(target)
+    return render_template('reviews.html', app_version=_app_version(), data_start=_data_start())
 
 
 # ------------------------------------------------------------------ отзывы

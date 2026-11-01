@@ -11,6 +11,8 @@ from core.kpi_calculator import (KpiCalculator, KpiTargetsReader, clear_kpi_cach
                                 AVAILABLE_METRICS, is_dish_based, normalize_dish_name,
                                 discount_of, discount_metrics, normalize_discount_name)
 from core.dashboard_analysis import DashboardMetrics
+from core import msk_time, periods
+from core.venues_config import bar_key, site_bar
 from extensions import EMPLOYEES_CACHE, EMPLOYEES_CACHE_TTL
 from routes.dashboard import load_dashboard_sales
 
@@ -21,16 +23,70 @@ employee_bp = Blueprint('employee', __name__)
 DISHES_CACHE = {'data': None, 'timestamp': 0}
 DISHES_CACHE_TTL = 900          # 15 минут
 DISHES_CATALOG_DAYS = 90        # окно, за которое собираем список позиций меню
+# Список сотрудников без периода в запросе — продажи за последние 30 дней (как было до
+# полосы «Бар и период»; так его зовут агенты без дат).
+EMPLOYEES_DEFAULT_DAYS = 30
+
+
+def _iiko_bar(raw):
+    """Бар для фильтра OLAP по складу (Store.Name): имя iiko или None — вся сеть.
+
+    Страница «Сотрудники» шлёт имя iiko из таблицы баров (KStrip.barInfo(ключ).iiko_name),
+    но маршрут понимает и ключ заведения (bolshoy…), и другие написания имени («Большой пр
+    В.О.» целей KPI) — всё сводится к одному имени iiko через core/venues_config.bar_key.
+    Вся сеть — пусто, null, «all», «Все бары». Незнакомое значение уходит в фильтр как есть
+    (как и раньше: iiko просто не найдёт чеков этого склада).
+    """
+    if raw is None:
+        return None
+    text = str(raw).strip()
+    if not text:
+        return None
+    key = bar_key(text)
+    if key == '':
+        return None
+    return site_bar(key)['iiko_name'] if key else text
+
+
+def _period_error(data):
+    """Текст ошибки 400 для неверного периода (формат, одна дата, перевёрнутые) или None.
+
+    Даты — включительно, YYYY-MM-DD (core/periods.parse_period): до правки перевёрнутые
+    даты уходили в iiko и давали пустой отчёт без объяснения.
+    """
+    try:
+        periods.parse_period(data or {})
+    except periods.PeriodError as exc:
+        return str(exc)
+    return None
 
 
 @employee_bp.route('/api/employees', methods=['GET'])
 def get_employees_list():
-    """Получить список всех сотрудников для dropdown"""
+    """Список сотрудников для выбора на «Сотрудниках» — кто продавал разливное за период.
+
+    Query (всё необязательно):
+    - date_from, date_to — период включительно, YYYY-MM-DD: страница шлёт период полосы
+      «Бар и период», поэтому список совпадает с выбранным периодом. Без дат — последние
+      EMPLOYEES_DEFAULT_DAYS дней по сегодняшний рабочий день бара (msk_time.business_today,
+      а не часы UTC-контейнера: с 00:00 до 03:00 МСК окно съезжало на день назад);
+    - bar — бар (ключ заведения или имя iiko, см. _iiko_bar); без него — вся сеть.
+    Неверные или перевёрнутые даты — 400.
+    """
     try:
-        # Используем данные о продажах за последние 30 дней чтобы получить актуальный список сотрудников
-        date_to_obj = datetime.now()
-        date_from = (date_to_obj - timedelta(days=30)).strftime("%Y-%m-%d")
-        date_to = (date_to_obj + timedelta(days=1)).strftime("%Y-%m-%d")  # OLAP exclusive
+        asked = {'date_from': request.args.get('date_from'), 'date_to': request.args.get('date_to')}
+        err = _period_error(asked)
+        if err:
+            return jsonify({'error': err}), 400
+        period = periods.parse_period(asked)
+        if period is None:
+            today = msk_time.business_today()
+            start, end = today - timedelta(days=EMPLOYEES_DEFAULT_DAYS), today
+        else:
+            start, end = period.start, period.end
+        date_from = start.strftime('%Y-%m-%d')
+        date_to = (end + timedelta(days=1)).strftime('%Y-%m-%d')  # OLAP exclusive
+        bar_name = _iiko_bar(request.args.get('bar'))
 
         olap = OlapReports()
         if not olap.connect():
@@ -38,7 +94,7 @@ def get_employees_list():
 
         try:
             # Получаем данные разливного с официантами (там точно есть WaiterName)
-            report_data = olap.get_draft_sales_by_waiter_report(date_from, date_to, None)
+            report_data = olap.get_draft_sales_by_waiter_report(date_from, date_to, bar_name)
         finally:
             olap.disconnect()
 
@@ -63,12 +119,15 @@ def employee_analytics():
     try:
         data = request.json
         employee_name = data.get('employee_name')
-        bar_name = data.get('bar')  # None для всех баров
+        bar_name = _iiko_bar(data.get('bar'))  # None для всех баров; ключ заведения — синоним
         date_from = data.get('date_from')
         date_to = data.get('date_to')
 
         if not employee_name or not date_from or not date_to:
             return jsonify({'error': 'Требуются параметры: employee_name, date_from, date_to'}), 400
+        err = _period_error(data)
+        if err:
+            return jsonify({'error': err}), 400
 
         print(f"\n[EMPLOYEE] Analiz sotrudnika: {employee_name}")
         print(f"   Bar: {bar_name if bar_name else 'VSE'}")
@@ -227,12 +286,15 @@ def employee_compare():
     try:
         data = request.json
         employee_names = data.get('employee_names', [])
-        bar_name = data.get('bar')
+        bar_name = _iiko_bar(data.get('bar'))  # ключ заведения — синоним имени iiko
         date_from = data.get('date_from')
         date_to = data.get('date_to')
 
         if not employee_names or not date_from or not date_to:
             return jsonify({'error': 'Требуются параметры: employee_names, date_from, date_to'}), 400
+        err = _period_error(data)
+        if err:
+            return jsonify({'error': err}), 400
 
         if len(employee_names) < 2:
             return jsonify({'error': 'Выберите минимум 2 сотрудников для сравнения'}), 400
@@ -1276,7 +1338,8 @@ def kpi_dishes():
             return jsonify({'dishes': DISHES_CACHE['data'],
                             'days': DISHES_CATALOG_DAYS, 'cached': True})
 
-        date_to_obj = datetime.now()
+        # Окно — по сегодняшний рабочий день бара, а не по часам UTC-контейнера.
+        date_to_obj = msk_time.business_today()
         date_from = (date_to_obj - timedelta(days=DISHES_CATALOG_DAYS)).strftime('%Y-%m-%d')
         date_to = (date_to_obj + timedelta(days=1)).strftime('%Y-%m-%d')  # OLAP exclusive
 
@@ -1445,12 +1508,15 @@ def employee_discount_checks():
     try:
         data = request.json
         employee_name = data.get('employee_name')
-        bar_name = data.get('bar')  # None = все бары
+        bar_name = _iiko_bar(data.get('bar'))  # None = все бары; ключ заведения — синоним
         date_from = data.get('date_from')
         date_to = data.get('date_to')
 
         if not employee_name or not date_from or not date_to:
             return jsonify({'error': 'Требуются параметры: employee_name, date_from, date_to'}), 400
+        err = _period_error(data)
+        if err:
+            return jsonify({'error': err}), 400
 
         # OLAP трактует to-дату как exclusive → +1 день (чеки после полуночи — следующий день)
         olap_date_to = (datetime.strptime(date_to, '%Y-%m-%d') + timedelta(days=1)).strftime('%Y-%m-%d')

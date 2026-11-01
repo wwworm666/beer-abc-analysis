@@ -46,21 +46,34 @@
     <div class="container">
         {% set page_title = "График" %}
         {% set page_subtitle = "Кто где работает" %}
+        {#- Полоса «Бар и период» — общая для сайта (план единого виджета,
+            docs/planning/period-widget-rollout.md, этап 5): месяц — из неё (помесячный режим,
+            будущие месяцы можно: график планируют вперёд); без выбора — месяц рабочего дня бара
+            (в ночь на 1-е до 06:00 — ещё прошлый). Бар не сужает сетку: все точки остаются,
+            выбранная выделена (ответ владельца Р9). Кнопок «Пред / След» больше нет.
+            «В календарь» (.ics) — справа в полосе; на телефоне ссылка .ics — в «Моих сменах». -#}
+        {% set strip = kultura_strip(mode='monthly', step='month', live=True, allow_future=True) %}
+        {% if current_user and current_user.employee_iiko_id %}
+        {% set strip_actions %}
+            <div class="fb-export">
+                <a class="fb-ghost" href="/schedule/cal.ics" download="grafik-smen.ics"
+                   title="Скачать свой график файлом .ics — открыть в Календаре на iPhone/Android">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                    <span>В календарь</span>
+                </a>
+            </div>
+        {% endset %}
+        {% endif %}
         {% include 'shared/nav.html' %}
     </div>
 
-    <div class="month-nav">
-        <button class="nav-btn" id="prevMonth">&larr; Пред</button>
-        <div class="current-month" id="currentMonth"></div>
-        <button class="nav-btn" id="nextMonth">След &rarr;</button>
-        <span class="nav-spacer"></span>
-        {% if current_user and current_user.employee_iiko_id %}
-        <a class="page-switch" href="/schedule/cal.ics" download="grafik-smen.ics"
-           title="Скачать свой график файлом .ics — открыть в Календаре на iPhone/Android">В календарь</a>
-        {% endif %}
-    </div>
-
     <main class="main-content">
+      <!-- Загрузка месяца: «Загружаю график на ноябрь 2026…» (view.js) — вверху, где её видно. -->
+      <div class="loading" id="loading" style="display: none;">
+        <div class="spinner"></div>
+        <span class="loading-text">Загрузка...</span>
+      </div>
+
       <!-- Мобильный (≤700px): личный экран бармена «мои смены» (renderMyShifts).
            Кнопка «Запросить выходной» ставит/снимает выходной на выбранный день. -->
       <div class="sc-mobile">
@@ -222,11 +235,6 @@
           </div>
         </div>
       </div><!-- /.sc-desktop -->
-
-      <div class="loading" id="loading" style="display: none;">
-        <div class="spinner"></div>
-        Загрузка...
-      </div>
     </main>
 
     <!-- Модалка ввода факта часов (мобильный «мои смены»). -->
@@ -346,6 +354,7 @@
 
     <div class="toast" id="toast"></div>
 
+    <script src="/static/js/shared/strip_runner.js?v={{ app_version }}"></script>
     <script src="/static/js/schedule/common.js?v={{ app_version }}"></script>
     <script src="/static/js/schedule/screens.js?v={{ app_version }}"></script>
     <script src="/static/js/schedule/fact_modal.js?v={{ app_version }}"></script>

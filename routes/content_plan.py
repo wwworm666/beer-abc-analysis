@@ -9,9 +9,13 @@ core/content_media.py; отправка в площадки — core/content_pub
 
 Эндпоинты:
     GET    /content-plan                                  страница: календарь — главный вид (решение
-                                                          владельца 2026-10-23); ?view=table -> подстраница
+                                                          владельца 2026-10-23); ?view=table -> подстраница;
+                                                          месяц — полоса «Бар и период» (с 2026-11-01),
+                                                          ?month=YYYY-MM старой ссылки -> 302 с
+                                                          date_from/date_to месяца (core/month_links.py)
     GET    /content-plan/table                            подстраница «Таблица» (тот же шаблон, вид таблицы);
-                                                          /content-plan?state=overdue|failed без month — сюда
+                                                          /content-plan?state=overdue|failed без периода
+                                                          в адресе — сюда
     GET    /api/content-plan/beer-options?bar=            {bar, taps: [{tap, name, style, style_ru, abv,
                                                           mapped, line}], stale, error} — краны бара для
                                                           «Поставить сорт»
@@ -169,8 +173,10 @@ TELEGRAM_BOT_TOKEN) — посты, проверка, тест, напомина
 """
 import io
 from functools import wraps
+from urllib.parse import parse_qsl, urlencode
 
 from flask import Blueprint, jsonify, redirect, render_template, request, send_file, send_from_directory, url_for
+from werkzeug.datastructures import MultiDict
 
 from core import content_channels, content_image_search, content_media, content_publisher, taplist_gifs
 from core.auth_guard import current_user
@@ -182,6 +188,7 @@ from core.content_plan import (AUDIENCE_BY_KEY, BAR_ALL, CHANNELS, CROSS_MONTH_S
                                ContentPlanConflict, ContentPlanNotFound, ContentPlanUnavailable, add_months,
                                get_content_plan_store, guard_draft_mode, parse_bar, parse_bool, parse_date,
                                parse_days, parse_month, placement_content, render_live)
+from core.month_links import month_link_query, redirect_target
 
 content_plan_bp = Blueprint('content_plan', __name__)
 
@@ -368,25 +375,43 @@ def _current_month(store) -> str:
 
 # ------------------------------------------------------------------ страница
 
+def _query(pairs) -> str:
+    """'?a=1&b=2' из пар параметров (пусто — без «?»)."""
+    query = urlencode(list(pairs))
+    return '?' + query if query else ''
+
+
 @content_plan_bp.route('/content-plan')
 def content_plan_page():
     """Главная страница плана — календарь (решение владельца 2026-10-23). Старые ссылки
-    ?view=table ведут на подстраницу таблицы."""
-    view = (request.args.get('view') or '').strip()
-    # Вид «по всем месяцам» (?state=overdue|failed без month, ссылки полосы «Требует внимания»)
-    # есть только у таблицы: календарь — сетка одного месяца.
-    scope = (not (request.args.get('month') or '').strip()
-             and (request.args.get('state') or '').strip() in CROSS_MONTH_STATES)
+    ?view=table ведут на подстраницу таблицы.
+
+    Месяц плана — общая полоса «Бар и период» (шаблон объявляет её через kultura_strip, план
+    единого виджета, этап 5). Старая ссылка ?month=YYYY-MM — 302 на тот же адрес с
+    date_from/date_to этого месяца (core/month_links.py): полоса рисуется сервером сразу на нём.
+    """
+    converted = month_link_query(request.args)
+    args = MultiDict(parse_qsl(converted, keep_blank_values=True)) if converted is not None else request.args
+    view = (args.get('view') or '').strip()
+    # Вид «по всем месяцам» (?state=overdue|failed без периода в адресе, ссылки полосы «Требует
+    # внимания») есть только у таблицы: календарь — сетка одного месяца.
+    has_period = bool(args.get('date_from') or args.get('date_to'))
+    scope = not has_period and (args.get('state') or '').strip() in CROSS_MONTH_STATES
     if view == 'table' or (scope and view != 'calendar'):
-        args = request.args.to_dict(flat=True)
-        args.pop('view', None)
-        return redirect(url_for('content_plan.content_plan_table_page', **args))
+        rest = [(k, v) for k, v in args.items(multi=True) if k != 'view']
+        return redirect(url_for('content_plan.content_plan_table_page') + _query(rest))
+    if converted is not None:
+        return redirect(url_for('content_plan.content_plan_page') + _query(args.items(multi=True)))
     return render_template('content_plan.html', app_version=_app_version(), cp_view='calendar')
 
 
 @content_plan_bp.route('/content-plan/table')
 def content_plan_table_page():
-    """Подстраница «Таблица»: план строками, массовые действия, вид «по всем месяцам»."""
+    """Подстраница «Таблица»: план строками, массовые действия, вид «по всем месяцам».
+    ?month=YYYY-MM старой ссылки — 302 с датами месяца, как у календаря."""
+    target = redirect_target(url_for('content_plan.content_plan_table_page'), request.args)
+    if target is not None:
+        return redirect(target)
     return render_template('content_plan.html', app_version=_app_version(), cp_view='table')
 
 

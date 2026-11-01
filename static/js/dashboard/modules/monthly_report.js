@@ -1,10 +1,19 @@
 /**
  * Модуль "Месячный отчёт" — помесячная динамика метрик за год (Chart.js).
  *
- * Сверху — статичная ЛЕГЕНДА (цвет -> бар); все 5 баров показываются всегда:
- *   - ЛИНЕЙНЫЕ (одна метрика) накладывают ВСЕ бары (линия на бар, цвет = цвет бара);
- *   - С РАЗБИВКОЙ по категориям и СТОЛБЧАТЫЕ показывают ОДИН бар — выбор выпадающим
- *     списком (mr-bar-select), опции = все 5 баров.
+ * Бар и период — общая полоса сайта «Бар и период» (window.KStrip, с 2026-11-01, план единого
+ * виджета docs/planning/period-widget-rollout.md, этап 3): своих списков года, месяца ТОП-10 и
+ * бара у графиков нет.
+ *   - Год отчёта — год показанного периода; полоса помесячная (mode='monthly', шаги месяц и
+ *     год), без выбора — последний закрытый месяц (в январе — декабрь прошлого года).
+ *   - Месяц ТОП-10 — показанный месяц, если он закрыт; иначе последний закрытый месяц того же
+ *     года с подписью (у года — его декабрь или последний закрытый месяц).
+ *   - Бар: ЛИНЕЙНЫЕ графики (одна метрика) при «Все бары» накладывают четыре бара (линия на
+ *     бар, цвет = цвет бара), при выбранном баре — только его линию (ответ владельца Р9);
+ *     графики С РАЗБИВКОЙ по категориям, СТОЛБЧАТЫЕ и ТОП-10 — по выбранному бару или всей
+ *     сети ('all' при «Все бары»).
+ *   - Какие месяцы закрыты — по часам сервера (KPeriod.lastClosed, рабочие сутки до 06:00),
+ *     а не по часам устройства.
  *
  * Данные читаются из витрины (диск) — core/monthly_report.py serve_*:
  *   GET /api/monthly-report?venue=&years=        — выручка/наценка/доли/локал-импорт
@@ -16,19 +25,76 @@
 import { fetchAPI } from '../core/api.js';
 import { formatMoney, formatNumber } from '../core/utils.js';
 
-// Бары: ключ -> подпись + сигнатурный цвет (легенда сверху)
+// Бары: ключ -> подпись + сигнатурный цвет (легенда сверху). Подписи — короткие имена из
+// таблицы баров полосы (KStrip.barInfo(ключ).short), здесь — запасные, если полосы нет.
 const BARS = [
-    { key: 'all', label: 'Общая', color: '#D97757' },           // оранжевый
+    { key: 'all', label: 'Все бары', color: '#D97757' },        // оранжевый
     { key: 'bolshoy', label: 'ВО', color: '#D957A8' },           // розовый
     { key: 'ligovskiy', label: 'Лиг', color: '#7BD957' },        // зелёный
     { key: 'kremenchugskaya', label: 'Крем', color: '#D9B857' }, // жёлтый
-    { key: 'varshavskaya', label: 'Варш', color: '#57B8D9' },    // синий
+    { key: 'varshavskaya', label: 'Вар', color: '#57B8D9' },     // синий
 ];
 
-// Бары для ЛИНЕЙНЫХ графиков (наложение): без «Общей» — её сумма кратно выше
+// Бары для ЛИНЕЙНЫХ графиков (наложение): без всей сети — её сумма кратно выше
 // выручки/чеков отдельных баров и сплющивает их линии у нижней границы, ничего не
-// видно. «Общая» остаётся выбором в выпадающих списках столбчатых/категорийных графиков.
+// видно. Вся сеть — на графиках с разбивкой, столбчатых и ТОП-10 при «Все бары».
 const LINE_BARS = BARS.filter((b) => b.key !== 'all');
+
+const RU_MONTHS_FULL = ['январь', 'февраль', 'март', 'апрель', 'май', 'июнь',
+                        'июль', 'август', 'сентябрь', 'октябрь', 'ноябрь', 'декабрь'];
+// Пауза перед перезагрузкой после выбора в полосе: серия шагов стрелкой — одна загрузка.
+const STRIP_PAUSE_MS = 300;
+
+// Последний закрытый месяц {year, month} по часам сервера (полоса настраивает KPeriod часами
+// сервера: рабочие сутки до 06:00 МСК). Без полосы — по часам устройства (запасной путь).
+function lastClosedMonth() {
+    const K = typeof window !== 'undefined' ? window.KPeriod : null;
+    if (K && K.lastClosed) {
+        const p = K.lastClosed('month');
+        return { year: Number(p.start.slice(0, 4)), month: Number(p.start.slice(5, 7)) };
+    }
+    const now = new Date();
+    const d = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    return { year: d.getFullYear(), month: d.getMonth() + 1 };
+}
+
+/**
+ * Что показывает отчёт при выбранном в полосе периоде (чистая функция — проверяется тестом
+ * tests/test_monthly_report_scope.mjs).
+ *   period — {start, end, granularity} полосы; closed — последний закрытый месяц {year, month}.
+ * -> {year, month, topMonth, closedMonths, note}
+ *   year — год отчёта; month — показанный месяц (у года — декабрь); topMonth — месяц ТОП-10
+ *   (null — в году закрытых месяцев нет); closedMonths — сколько месяцев года закрыто
+ *   (графики рисуются по них); note — подпись, если ТОП-10 не за показанный месяц.
+ * Показанный месяц недели или своего периода — месяц его середины (у недели — четверга),
+ * у длинного — последний (ответ Р3, как KPeriod.monthOf).
+ */
+export function monthlyScope(period, closed) {
+    let year, month;
+    if (period && period.granularity === 'year') {
+        year = Number(period.start.slice(0, 4));
+        month = 12;
+    } else if (period && period.start) {
+        const K = typeof window !== 'undefined' ? window.KPeriod : null;
+        const shown = period.granularity === 'month' || !K ? period : K.monthOf(period);
+        year = Number(shown.start.slice(0, 4));
+        month = Number(shown.start.slice(5, 7));
+    } else {
+        year = closed.year;
+        month = closed.month;
+    }
+    const closedMonths = year < closed.year ? 12 : (year > closed.year ? 0 : closed.month);
+    const topMonth = month <= closedMonths ? month : (closedMonths || null);
+    let note = '';
+    if (topMonth === null) {
+        note = 'В ' + year + ' году закрытых месяцев ещё нет — ТОП-10 появится, когда закроется январь';
+    } else if (topMonth !== month) {
+        const what = period && period.granularity === 'year' ? year + ' год' : RU_MONTHS_FULL[month - 1] + ' ' + year;
+        note = what.charAt(0).toUpperCase() + what.slice(1) + ' ещё идёт — ТОП-10 за ' +
+            RU_MONTHS_FULL[topMonth - 1] + ' ' + year + ', последний закрытый месяц';
+    }
+    return { year, month, topMonth, closedMonths, note };
+}
 
 // Категории (для столбчатых, независимо от цвета бара)
 const CAT_COLORS = { draft: '#D97757', packaged: '#57B8D9', kitchen: '#7BD957' };
@@ -100,94 +166,106 @@ class MonthlyReportModule {
         this.initialized = false;
         this.charts = {};
 
-        const now = new Date();
-        this.currentYear = now.getFullYear();
-        this.currentMonth = now.getMonth() + 1;
-
-        this.year = this.currentYear;
-        // ТОП-гости: по умолчанию последний ЗАВЕРШЁННЫЙ месяц (текущий не считаем)
-        this.selectedMonth = Math.max(1, this.currentMonth - 1);
+        // Год, месяц ТОП-10 и бар — из полосы (init -> _applyScope). До init — последний
+        // закрытый месяц (по часам сервера, если полоса уже настроила KPeriod).
+        const closed = lastClosedMonth();
+        this.year = closed.year;
+        this.closedMonths = closed.month;
+        this.selectedMonth = closed.month;     // месяц ТОП-10 (null — закрытых месяцев в году нет)
+        this.topNote = '';
+        this.venue = 'all';                    // бар полосы; 'all' — «Все бары» (вся сеть)
         this.consumptionMode = 'money';        // money | units
 
         this.coreByVenue = {};
         this.loyaltyByVenue = {};
         this.litersByVenue = {};
         this.topData = null;
-        this.topVenue = null;          // выбранный бар таблицы ТОП-гостей (null -> первый)
-        this.stackedVenue = {};        // canvasId -> выбранный бар столбчатого графика
+        this.gen = 0;                          // номер загрузки: ответ старого года не ляжет в новый
+        this.strip = null;
+        this.stripTimer = null;
     }
 
     init() {
         if (this.initialized) return;
+        this.strip = (typeof window !== 'undefined' && window.KStrip) || null;
+        this._applyScope();
         this._buildBarLegend();
-        this._buildYearSelect();
-        this._buildMonthSelect();
         this._setupToggles();
+        // Выбор в полосе (бар, месяц, год) — перезагрузка после паузы.
+        if (this.strip) {
+            this.strip.onChange(() => {
+                clearTimeout(this.stripTimer);
+                this.stripTimer = setTimeout(() => { this.stripTimer = null; this._onStrip(); }, STRIP_PAUSE_MS);
+            });
+        }
         this.initialized = true;
         console.log('[Monthly] Модуль месячного отчёта инициализирован');
     }
 
+    // ------------------------ Бар и период из полосы ------------------------ //
+
+    // Год, месяц ТОП-10, бар и подпись — из выбора в полосе. -> была ли смена года.
+    _applyScope() {
+        const sel = this.strip ? this.strip.get() : { bar: '', period: null };
+        const scope = monthlyScope(sel.period, lastClosedMonth());
+        const yearChanged = scope.year !== this.year;
+        this.year = scope.year;
+        this.closedMonths = scope.closedMonths;
+        this.selectedMonth = scope.topMonth;
+        this.topNote = scope.note;
+        this.venue = sel.bar || 'all';
+        return yearChanged;
+    }
+
+    _onStrip() {
+        if (this._applyScope()) {
+            // Другой год -> данные прежнего года не подходят, грузим заново.
+            this.coreByVenue = {};
+            this.loyaltyByVenue = {};
+            this.litersByVenue = {};
+        }
+        this._buildBarLegend();
+        this.load();
+    }
+
+    // Подпись бара в легенде и на линиях: короткое имя из таблицы баров полосы («ВО», «Лиг»…).
+    _label(bar) {
+        const info = bar.key !== 'all' && this.strip && this.strip.barInfo ? this.strip.barInfo(bar.key) : null;
+        return info ? (info.short || info.name) : bar.label;
+    }
+
+    // Бар полосы словами: «Все бары» или полное имя бара («Варшавская»).
+    _venueName() {
+        if (this.venue === 'all') return 'Все бары';
+        const info = this.strip && this.strip.barInfo ? this.strip.barInfo(this.venue) : null;
+        return info ? info.name : this._label(BARS.find((b) => b.key === this.venue) || BARS[0]);
+    }
+
+    // Линии наложения: при «Все бары» — четыре бара, при выбранном баре — только он (Р9).
+    _lineBars() {
+        return this.venue === 'all' ? LINE_BARS : LINE_BARS.filter((b) => b.key === this.venue);
+    }
+
+    // Какие бары грузить: линиям — их бары, разбивкам, столбцам и ТОП-10 — бар полосы.
+    _venuesToLoad() {
+        const keys = this._lineBars().map((b) => b.key);
+        if (keys.indexOf(this.venue) < 0) keys.unshift(this.venue);
+        return keys;
+    }
+
     // ----------------------------- Контролы ----------------------------- //
 
-    // Статичная легенда (цвет -> бар). Бары не выбираются — показываются ВСЕ.
+    // Легенда (цвет -> бар) линий наложения: четыре бара при «Все бары», иначе выбранный.
     _buildBarLegend() {
         const container = document.getElementById('mr-bar-buttons');
         if (!container) return;
         container.innerHTML = '';
-        // Легенда описывает линии наложения -> без «Общей» (её на линейных нет)
-        LINE_BARS.forEach((bar) => {
+        this._lineBars().forEach((bar) => {
             const item = document.createElement('span');
             item.className = 'mr-legend-item';
-            item.innerHTML = `<span class="mr-bar-dot" style="--bar-color:${bar.color}"></span>${bar.label}`;
+            item.innerHTML = `<span class="mr-bar-dot" style="--bar-color:${bar.color}"></span>${this._label(bar)}`;
             container.appendChild(item);
         });
-    }
-
-    _buildYearSelect() {
-        const select = document.getElementById('mr-year');
-        if (!select) return;
-        select.innerHTML = '';
-        for (let y = this.currentYear; y >= this.currentYear - 2; y--) {
-            const opt = document.createElement('option');
-            opt.value = y;
-            opt.textContent = y;
-            if (y === this.year) opt.selected = true;
-            select.appendChild(opt);
-        }
-        select.addEventListener('change', () => {
-            this.year = parseInt(select.value, 10);
-            // другой год -> кэш данных невалиден, грузим заново
-            this.coreByVenue = {};
-            this.loyaltyByVenue = {};
-            this.litersByVenue = {};
-            this._buildMonthSelect();
-            this.load();
-        });
-    }
-
-    _buildMonthSelect() {
-        const select = document.getElementById('mr-top-month');
-        if (!select) return;
-        const cm = this._completeMonths();
-        // Только завершённые месяцы; текущий неполный не предлагаем
-        if (this.selectedMonth > cm) this.selectedMonth = cm || 1;
-        select.innerHTML = '';
-        if (cm === 0) {
-            const opt = document.createElement('option');
-            opt.textContent = '—';
-            select.appendChild(opt);
-        }
-        for (let m = 1; m <= cm; m++) {
-            const opt = document.createElement('option');
-            opt.value = m;
-            opt.textContent = `${RU_MONTHS[m - 1]} ${this.year}`;
-            if (m === this.selectedMonth) opt.selected = true;
-            select.appendChild(opt);
-        }
-        select.onchange = () => {
-            this.selectedMonth = parseInt(select.value, 10);
-            this._loadTop(this._topVenue(), this.selectedMonth);
-        };
     }
 
     _setupToggles() {
@@ -212,27 +290,9 @@ class MonthlyReportModule {
         });
     }
 
-    // --------------------------- Выбор баров ---------------------------- //
-
-    // Все бары всегда (сверху — только легенда, выбора нет)
-    _orderedSelected() {
-        return BARS;
-    }
-
-    _primary() {
-        const ordered = this._orderedSelected();
-        return ordered.length ? ordered[0].key : 'all';
-    }
-
-    _barMeta(key) {
-        return BARS.find((b) => b.key === key) || BARS[0];
-    }
-
-    // Кол-во ЗАВЕРШЁННЫХ месяцев для выбранного года (текущий неполный не показываем)
+    // Кол-во ЗАКРЫТЫХ месяцев года отчёта (текущий неполный не показываем) — по часам сервера.
     _completeMonths() {
-        if (this.year < this.currentYear) return 12;
-        if (this.year > this.currentYear) return 0;
-        return Math.max(0, this.currentMonth - 1);
+        return this.closedMonths;
     }
 
     _labels() {
@@ -254,78 +314,95 @@ class MonthlyReportModule {
     }
 
     async load(force = false) {
+        // Номер загрузки: выбор в полосе сменился, пока шла загрузка, — её ответы не рисуются
+        // (иначе данные прежнего года или бара легли бы под новой подписью).
+        const gen = ++this.gen;
         this._showLoading(true);
-        // Грузим ВСЕ бары: линии накладывают выбранные, а выпадающие списки
-        // столбчатых/категорийных графиков должны видеть любой бар.
-        const bars = BARS;
+        this._renderTopHeader();
+        // Грузим только нужные бары: линиям — их бары, разбивкам, столбцам и ТОП-10 — бар полосы.
+        const venues = this._venuesToLoad();
 
-        // 1. core по всем барам (наложение линий по выбранным + выбор бара у остальных)
+        // 1. core (наложение линий + разбивки и столбцы по бару полосы)
         try {
-            await this._runTasks(bars.map((b) => () => this._loadCore(b.key, force)), force);
-            const primaryCore = this.coreByVenue[this._primary()];
+            await this._runTasks(venues.map((v) => () => this._loadCore(v, force, gen)), force);
+            if (gen !== this.gen) return;
+            const primaryCore = this.coreByVenue[this.venue];
             this._renderRefreshed(primaryCore ? primaryCore.refreshed_at : null);
             this._renderCoreCharts();
             this._showNoData(!primaryCore);
         } catch (e) {
             console.error('[Monthly] core:', e);
-            this._showNoData(true);
+            if (gen === this.gen) this._showNoData(true);
         } finally {
-            this._showLoading(false);
+            if (gen === this.gen) this._showLoading(false);
         }
 
         // 2. остальные блоки в фоне
         try {
-            await this._runTasks(bars.map((b) => () => this._loadLoyalty(b.key, force)), force);
+            await this._runTasks(venues.map((v) => () => this._loadLoyalty(v, force, gen)), force);
+            if (gen !== this.gen) return;
             this._renderLoyalty();
-            await this._runTasks(bars.map((b) => () => this._loadLiters(b.key, force)), force);
+            await this._loadLiters(this.venue, force, gen);
+            if (gen !== this.gen) return;
             this._renderLitersChart();
             // Литры загружены -> обновить расход (в режиме «Кол-во» розлив берёт литры отсюда)
             this._renderConsumption();
-            await this._loadTop(this._topVenue(), this.selectedMonth, force);
+            await this._loadTop(this.venue, this.selectedMonth, force, gen);
         } catch (e) {
             console.error('[Monthly] Фоновая загрузка блоков:', e);
         }
     }
 
-    async _loadCore(venue, force) {
+    async _loadCore(venue, force, gen) {
         if (!force && this.coreByVenue[venue]) return;  // уже загружен за этот год
         const params = new URLSearchParams({ venue, years: this.year });
         if (force) params.set('force', '1');
         try {
-            this.coreByVenue[venue] = await fetchAPI(`/api/monthly-report?${params.toString()}`);
+            const data = await fetchAPI(`/api/monthly-report?${params.toString()}`);
+            if (gen === undefined || gen === this.gen) this.coreByVenue[venue] = data;
         } catch (e) {
             console.error('[Monthly] core', venue, e);
-            this.coreByVenue[venue] = null;
+            if (gen === undefined || gen === this.gen) this.coreByVenue[venue] = null;
         }
     }
 
-    async _loadLoyalty(venue, force) {
+    async _loadLoyalty(venue, force, gen) {
         if (!force && this.loyaltyByVenue[venue]) return;
         const params = new URLSearchParams({ venue, year: this.year });
         if (force) params.set('force', '1');
         try {
-            this.loyaltyByVenue[venue] = await fetchAPI(`/api/monthly-report/loyalty?${params.toString()}`);
+            const data = await fetchAPI(`/api/monthly-report/loyalty?${params.toString()}`);
+            if (gen === undefined || gen === this.gen) this.loyaltyByVenue[venue] = data;
         } catch (e) {
             console.error('[Monthly] loyalty', venue, e);
         }
     }
 
-    async _loadLiters(venue, force) {
+    async _loadLiters(venue, force, gen) {
         if (!force && this.litersByVenue[venue]) return;
         const params = new URLSearchParams({ venue, year: this.year });
         if (force) params.set('force', '1');
         try {
-            this.litersByVenue[venue] = await fetchAPI(`/api/monthly-report/draft-liters?${params.toString()}`);
+            const data = await fetchAPI(`/api/monthly-report/draft-liters?${params.toString()}`);
+            if (gen === undefined || gen === this.gen) this.litersByVenue[venue] = data;
         } catch (e) {
             console.error('[Monthly] liters', venue, e);
         }
     }
 
-    async _loadTop(venue, month, force) {
-        const params = new URLSearchParams({ venue, year: this.year, month: month || this.currentMonth });
+    // ТОП-10 за месяц ТОП-10 (закрытый): в году нет закрытых месяцев — таблица с подписью.
+    async _loadTop(venue, month, force, gen) {
+        if (!month) {
+            this.topData = { guests: [] };
+            this._renderTop();
+            return;
+        }
+        const params = new URLSearchParams({ venue, year: this.year, month });
         if (force) params.set('force', '1');
         try {
-            this.topData = await fetchAPI(`/api/monthly-report/top-guests?${params.toString()}`);
+            const data = await fetchAPI(`/api/monthly-report/top-guests?${params.toString()}`);
+            if (gen !== undefined && gen !== this.gen) return;
+            this.topData = data;
             this._renderTop();
         } catch (e) {
             console.error('[Monthly] top-guests', e);
@@ -357,8 +434,7 @@ class MonthlyReportModule {
         this._overlayLine('mr-avg-check', 'avg_check', formatMoney, 'core', false);
         this._overlayLine('mr-loyalty-writeoffs', 'loyalty_writeoffs', formatMoney, 'core');
 
-        // Столбчатые — у каждого свой выбор бара (выпадающий список)
-        this._buildStackedSelects();
+        // Разбивки и столбчатые — по бару полосы («Все бары» — вся сеть)
         this._updateStackedNote();
         this._renderRevenueStacked();
         this._renderMarkupCat();
@@ -368,57 +444,9 @@ class MonthlyReportModule {
         this._renderConsumption();
     }
 
-    // ----------------- Выбор бара для столбчатых графиков ----------------- //
-
-    // Опции = ВСЕ бары (любой можно показать независимо от кнопок наверху);
-    // по умолчанию первый выбранный, либо ранее выбранный в этом списке.
-    _buildStackedSelects() {
-        document.querySelectorAll('.mr-bar-select').forEach((select) => {
-            const chartId = select.dataset.chart;
-            const cur = (chartId === 'mr-top-guests' ? this.topVenue : this.stackedVenue[chartId]) || this._primary();
-            select.innerHTML = '';
-            BARS.forEach((b) => {
-                const opt = document.createElement('option');
-                opt.value = b.key;
-                opt.textContent = b.label;
-                if (b.key === cur) opt.selected = true;
-                select.appendChild(opt);
-            });
-            select.onchange = () => this._onStackedVenueChange(chartId, select.value);
-        });
-    }
-
-    _onStackedVenueChange(chartId, venue) {
-        if (chartId === 'mr-top-guests') {
-            this.topVenue = venue;
-            this._loadTop(venue, this.selectedMonth);
-            return;
-        }
-        this.stackedVenue[chartId] = venue;
-        const render = this._stackedRenderers()[chartId];
-        if (render) render();
-    }
-
-    // Выбранный в списке бар графика (любой из 5); по умолчанию первый выбранный кнопками
-    _venueFor(chartId) {
-        return this.stackedVenue[chartId] || this._primary();
-    }
-
-    _topVenue() {
-        return this.topVenue || this._primary();
-    }
-
-    _stackedRenderers() {
-        return {
-            'mr-markup-cat': () => this._renderMarkupCat(),
-            'mr-consumption': () => this._renderConsumption(),
-            'mr-revenue-stacked': () => this._renderRevenueStacked(),
-            'mr-shares': () => this._renderShares(),
-            'mr-li-packaged': () => this._renderLiPackaged(),
-            'mr-li-draft': () => this._renderLiDraft(),
-            'mr-revenue-card': () => this._renderRevenueCard(),
-            'mr-liters': () => this._renderLitersChart(),
-        };
+    // Бар графиков с разбивкой, столбчатых и ТОП-10 — бар полосы ('all' — вся сеть).
+    _venueFor() {
+        return this.venue;
     }
 
     _renderRevenueStacked() {
@@ -547,12 +575,28 @@ class MonthlyReportModule {
         this._renderRevenueCard();
     }
 
+    // Подзаголовок ТОП-10: за какой месяц и по какому бару; подпись, если месяц не показанный.
+    _renderTopHeader() {
+        const sub = document.getElementById('mr-top-guests-sub');
+        if (sub) {
+            const month = this.selectedMonth ? `${RU_MONTHS_FULL[this.selectedMonth - 1]} ${this.year}` : `${this.year}`;
+            sub.textContent = `Держатели карт лояльности за ${month} · ${this._venueName()}`;
+        }
+        const note = document.getElementById('mr-top-note');
+        if (note) {
+            note.textContent = this.topNote;
+            note.hidden = !this.topNote;
+        }
+    }
+
     _renderTop() {
         const tbody = document.getElementById('mr-top-guests-body');
         if (!tbody) return;
+        this._renderTopHeader();
         const guests = (this.topData && this.topData.guests) || [];
         if (!guests.length) {
-            tbody.innerHTML = '<tr class="mr-empty-row"><td colspan="5">Нет гостей с картой за месяц</td></tr>';
+            tbody.innerHTML = `<tr class="mr-empty-row"><td colspan="5">${this.selectedMonth
+                ? 'Нет гостей с картой за месяц' : 'Закрытых месяцев в году ещё нет'}</td></tr>`;
             return;
         }
         tbody.innerHTML = guests.map((g, i) => `
@@ -566,22 +610,24 @@ class MonthlyReportModule {
         `).join('');
     }
 
+    // Короткая подпись: по какому бару графики «одного бара» (разбивки, столбцы, ТОП-10).
     _updateStackedNote() {
         const el = document.getElementById('mr-stacked-note');
         if (!el) return;
-        el.textContent = 'Графики с разбивкой по категориям, столбчатые и ТОП-гости показывают '
-            + 'один бар — он выбирается выпадающим списком на каждом';
+        el.textContent = 'Графики с разбивкой, столбчатые и ТОП-10 — '
+            + (this.venue === 'all' ? 'вся сеть (Все бары)' : this._venueName());
     }
 
     // -------------------------- Chart.js строители ----------------------- //
 
     _overlayLine(canvasId, key, valueFormat, source, zeroBased = true) {
-        // Только отдельные бары, без «Общей» — иначе её линия сплющивает остальные
-        const bars = LINE_BARS;
+        // Только отдельные бары, без всей сети — иначе её линия сплющивает остальные; при
+        // выбранном в полосе баре — только он (Р9)
+        const bars = this._lineBars();
         const datasets = bars.map((b) => {
             const raw = source === 'loyalty' ? this._loyaltySeries(b.key, key) : this._coreSeries(b.key, key);
             return {
-                label: b.label,
+                label: this._label(b),
                 data: this._clip(raw),
                 borderColor: b.color,
                 backgroundColor: hexToRgba(b.color, 0.06),

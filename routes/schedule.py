@@ -865,7 +865,7 @@ def schedule_get_summary(year, month):
     locations, month_plans = _month_inputs(year, month)
     summary = compute_month_summary(month_plans, locations)
     shifts = shifts_mgr.get_shifts_for_month(year, month)
-    load = compute_employees_load(shifts, datetime.now().strftime('%Y-%m-%d'))
+    load = compute_employees_load(shifts, _today_iso())   # «без факта» — до рабочего дня бара
 
     summary['employees_load'] = load
     summary['shift_norm'] = SHIFT_NORM  # норма смен в месяц — ориентир в «Нагрузке»
@@ -881,7 +881,7 @@ def schedule_get_widgets(year, month):
     if not _valid_month(year, month):
         return jsonify({'error': 'Некорректный год или месяц'}), 400
     shifts = shifts_mgr.get_shifts_for_month(year, month)
-    load = compute_employees_load(shifts, datetime.now().strftime('%Y-%m-%d'))
+    load = compute_employees_load(shifts, _today_iso())   # «без факта» — до рабочего дня бара
     return jsonify({
         'employees_load': load,
         'shift_norm': SHIFT_NORM,

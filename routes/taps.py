@@ -419,7 +419,9 @@ def get_bar_stats(bar_id):
 
     active / empty — краны сейчас; unverified — активные краны без проверенной
     карточки сорта (в фид Яндекса не попадают); activity_7d — доля кран-дней
-    с подключённой кегой за 7 дней, включая сегодня (формула — TapsManager.tap_activity_by_tap).
+    с подключённой кегой за 7 дней, включая сегодня (формула — TapsManager.tap_activity_by_tap);
+    activity_from / activity_to — даты этого окна (YYYY-MM-DD, включительно): страница
+    подписывает окно датами («Активность за 7 дней: 26 окт – 1 ноя 2026»).
     Ошибка — 503, а не выдуманные нули.
     """
     try:
@@ -446,6 +448,8 @@ def get_bar_stats(bar_id):
             'total': total,
             'unverified': unverified,
             'activity_7d': round(activity_7d, 1),
+            'activity_from': date_from,
+            'activity_to': date_to,
         })
     except Exception as e:
         print(f"[ERROR] /api/taps/{bar_id}/stats: {type(e).__name__}: {e}")

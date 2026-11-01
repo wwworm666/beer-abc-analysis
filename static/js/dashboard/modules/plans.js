@@ -4,7 +4,7 @@
  */
 
 import { state } from '../core/state.js';
-import { getPlan, calculatePlan, savePlan, deletePlan } from '../core/api.js';
+import { getPlan, calculatePlan, savePlan, deletePlan, fetchAPI } from '../core/api.js';
 import { METRICS } from '../core/config.js';
 import { formatValue } from '../core/utils.js';
 
@@ -26,6 +26,28 @@ const LOYALTY_WRITEOFF_RATE = 0.05;
 // подставляется в новый план и в планы, сохранённые до появления поля.
 // Зеркало core/plans_manager.py PlansManager.PLAN_DEFAULTS.
 const CARD_CHECKS_SHARE_DEFAULT = 70;
+
+/**
+ * Годы в списке формы плана (с 2026-11-01 вместо зашитых в шаблоне 2025–2027): текущий год
+ * −1…+1 по часам сервера, плюс годы из extraYears — год выбранного периода и годы, на которые
+ * уже заведены планы (ключи /api/plans вида bolshoy_2026-10). По возрастанию, без повторов.
+ */
+export function planYears(currentYear, extraYears) {
+    const years = new Set();
+    for (let y = currentYear - 1; y <= currentYear + 1; y++) years.add(y);
+    (extraYears || []).forEach((raw) => {
+        const y = Number(raw);
+        if (Number.isInteger(y) && y >= 2000 && y <= 2100) years.add(y);
+    });
+    return [...years].sort((a, b) => a - b);
+}
+
+// Год «сегодня» по часам сервера: полоса «Бар и период» настраивает KPeriod часами сервера
+// (рабочие сутки до 06:00 МСК); без неё — часы устройства.
+function serverYear() {
+    const K = typeof window !== 'undefined' ? window.KPeriod : null;
+    return K && K.today ? K.today().getFullYear() : new Date().getFullYear();
+}
 
 class PlansViewer {
     constructor() {
@@ -88,6 +110,9 @@ class PlansViewer {
         this.btnLoadPlanFooter = null;
         this.selectedVenue = null;
         this.selectedPeriodKey = null;
+        // Годы, на которые уже заведены планы (/api/plans) — в список годов формы.
+        this.knownPlanYears = [];
+        this.knownPlanYearsLoaded = false;
     }
 
     /**
@@ -141,6 +166,7 @@ class PlansViewer {
         this.planVenueSelect = document.getElementById('plan-venue-select');
         this.planMetricsSection = document.getElementById('plan-metrics-section');
         this.btnLoadPlanFooter = null;
+        this.fillYearSelect(String(state.currentYear));
 
         // Автозагрузка плана при изменении селекторов
         this.planMonthSelect?.addEventListener('change', () => this.loadPlanFromModal());
@@ -478,19 +504,17 @@ class PlansViewer {
     openCreateModal() {
         this.modalTitle.textContent = 'Плановые показатели';
 
-        // Устанавливаем текущий месяц и год
-        const now = new Date();
-        if (this.planMonthSelect) {
-            this.planMonthSelect.value = String(now.getMonth() + 1).padStart(2, '0');
-        }
-        if (this.planYearSelect) {
-            this.planYearSelect.value = now.getFullYear().toString();
-        }
-        if (this.planVenueSelect) {
-            // «Общее» считается автоматически (сумма баров) — план задаётся по барам.
-            const cv = state.currentVenue;
-            this.planVenueSelect.value = (cv && !['all', 'total', ''].includes(cv)) ? cv : 'bolshoy';
-        }
+        // Месяц и год по умолчанию — месяц общего периода (state.currentMonth / currentYear:
+        // полоса «Бар и период» на вкладке «Планы» показывает месяц выбранного периода), а не
+        // часы устройства. Будущие месяцы можно: план заводят заранее.
+        const defaults = planFormDefaults(state, this.venueOptions());
+        this.fillYearSelect(defaults.year);
+        if (this.planMonthSelect) this.planMonthSelect.value = defaults.month;
+        if (this.planYearSelect) this.planYearSelect.value = defaults.year;
+        // Бар — общий бар; «Все бары» считается автоматически (сумма баров), поэтому тогда —
+        // первый бар списка: план задаётся по барам.
+        if (this.planVenueSelect) this.planVenueSelect.value = defaults.venue;
+        this.loadKnownPlanYears();
 
         // Отключаем секцию метрик до загрузки
         this.setMetricsEnabled(false);
@@ -502,6 +526,42 @@ class PlansViewer {
 
         // Автозагрузка плана
         this.loadPlanFromModal();
+    }
+
+    /** Ключи баров списка формы (как в шаблоне: bolshoy, ligovskiy, …). */
+    venueOptions() {
+        const opts = this.planVenueSelect && this.planVenueSelect.options;
+        return opts ? Array.prototype.map.call(opts, (o) => o.value) : [];
+    }
+
+    /**
+     * Список годов формы: текущий год −1…+1, год общего периода и годы заведённых планов
+     * (planYears). selected остаётся выбранным, даже если его нет в этих правилах.
+     */
+    fillYearSelect(selected) {
+        const select = this.planYearSelect;
+        if (!select) return;
+        const keep = String(selected || select.value || state.currentYear || serverYear());
+        const years = planYears(serverYear(), [state.currentYear, keep].concat(this.knownPlanYears));
+        select.innerHTML = years.map((y) => `<option value="${y}">${y}</option>`).join('');
+        select.value = keep;
+    }
+
+    /** Годы, на которые уже заведены планы (ключи /api/plans), — один раз за открытие страницы. */
+    async loadKnownPlanYears() {
+        if (this.knownPlanYearsLoaded) return;
+        this.knownPlanYearsLoaded = true;
+        try {
+            const data = await fetchAPI('/api/plans');
+            const years = (data.periods || []).map((key) => {
+                const m = String(key).match(/_(\d{4})-\d{2}$/);
+                return m ? Number(m[1]) : null;
+            }).filter((y) => y !== null);
+            this.knownPlanYears = [...new Set(years)];
+            this.fillYearSelect(this.planYearSelect ? this.planYearSelect.value : null);
+        } catch (error) {
+            this.knownPlanYearsLoaded = false;   // список годов останется по текущему году
+        }
     }
 
     /**
@@ -962,6 +1022,19 @@ class PlansViewer {
     refresh() {
         this.loadData();
     }
+}
+
+/**
+ * Значения формы плана по умолчанию (с 2026-11-01): месяц и год — месяц общего периода
+ * (st.currentMonth '01'..'12', st.currentYear), бар — общий бар; при «Все бары» (или баре не из
+ * списка) — первый бар списка venueKeys.
+ */
+export function planFormDefaults(st, venueKeys) {
+    const keys = venueKeys && venueKeys.length ? venueKeys : ['bolshoy'];
+    const month = st.currentMonth ? String(st.currentMonth).padStart(2, '0') : null;
+    const year = st.currentYear ? String(st.currentYear) : String(serverYear());
+    const venue = keys.indexOf(st.currentVenue) >= 0 ? st.currentVenue : keys[0];
+    return { month: month || '01', year, venue };
 }
 
 // Экспортируем единственный экземпляр

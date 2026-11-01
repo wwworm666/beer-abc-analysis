@@ -27,18 +27,27 @@
    Клиент только форматирует: длительность в часах/сутках (правило —
    у waitText), числа с запятой (GH.fmtNum, округление половины вверх).
 
-   Параметры адреса: ?month=YYYY-MM | all, ?status=new|answered|skipped,
-   ?source=yandex|bot, ?rating=low|mid|high|none. Бар — общий фильтр раздела
-   (GH.getBar / GH.setBar, localStorage 'gh.bar'), в адрес не пишется.
-   Период по умолчанию (нет ?month) — текущий месяц, но у «Без ответа»
-   (?status=new) — «За всё время»: отзыв, ждущий ответа, важен любой давности.
-   Счётчик полосы «Отзывы без ответа» ведёт сюда же: ?status=new&month=all.
+   Бар и период — общая полоса сайта «Бар и период» (window.KStrip, с
+   2026-11-01; план единого виджета, этап 5): своих стрелок, меню периода и
+   меню бара у страницы нет. Список — за период полосы, любой (день, неделя,
+   месяц, год, свой; «Всё время» — быстрым выбором, с даты самого раннего
+   отзыва), запросом ?from=&to= (даты включительно); бар — бар полосы. Выбор в
+   полосе (здесь, на другой странице, в другой вкладке) перечитывает список.
+
+   Параметры адреса: ?date_from=&date_to= и ?bar= пишет полоса; страница —
+   ?status=new|answered|skipped, ?source=yandex|bot, ?rating=low|mid|high|none
+   и ?month=all. ?month=all — показ «все отзывы за всё время» (ссылки полосы
+   «Отзывы без ответа» ?status=new&month=all, бота и сторожа Яндекс Карт):
+   список — ?all=1, полоса показывает всё время с подписью (KStrip.showPeriod,
+   setNote), а общий выбор периода НЕ меняется; следующий выбор в полосе
+   возвращает обычный режим. Старый ?month=YYYY-MM сервер переводит в даты
+   месяца ответом 302 (routes/reviews.py).
 
    После каждого изменения (ответ, пропуск, возврат, материал, добавление,
    правка, удаление) обновляются и список, и полоса «требует внимания»
-   (afterChange -> GH.loadAttention). При выбранном месяце под заголовком
-   списка видно, сколько отзывов без ответа осталось за другими месяцами
-   (правило — у elsewhereCount).
+   (afterChange -> GH.loadAttention). Под заголовком списка видно, сколько
+   отзывов без ответа осталось вне выбранного периода (правило — у
+   elsewhereCount).
 
    Стиль: IIFE, 'use strict', ES5 (var, function), как static/js/draft/draft.js.
    Зависит от static/js/guest_hub/common.js (window.GH) — подключается раньше. */
@@ -70,10 +79,12 @@
     // Лимиты полей — те же, что в core/guest_reviews.py.
     var MAX_REPLY_LEN = 4000;   // MAX_REPLY_LEN: внутри лимита сообщения Telegram 4096
     var MAX_TEXT_LEN = 5000;    // MAX_TEXT_LEN
-    // Меню периода: текущий месяц и 11 прошлых — ровно год назад.
-    var MONTH_MENU_COUNT = 12;
-    // Первый месяц, который принимает сервер (YEAR_MIN = 2010 в core/guest_reviews.py).
-    var MONTH_MIN = '2010-01';
+    // Даты периода в адресе и запросе — 'YYYY-MM-DD' (стандарт периодов, раздел 2).
+    var ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+    // Подпись полосы «Бар и период» в режиме ?month=all (показ, а не выбор): у «Без
+    // ответа» — то, ради чего ведёт ссылка счётчика, иначе — что показано всё время.
+    var ALL_NOTE_NEW = 'все отзывы без ответа';
+    var ALL_NOTE = 'за всё время';
     // Сколько держится подсветка карточки после действия.
     var FLASH_MS = 1600;
     // Проверка Карт, «идущая» дольше часа, считается прерванной (процесс
@@ -136,9 +147,9 @@
     // ==================== состояние ====================
 
     var state = {
-        month: null,        // 'YYYY-MM'
-        all: false,         // «За всё время»
-        bar: '',            // '' — все бары
+        period: null,       // {start, end, granularity, key} — период полосы «Бар и период»
+        all: false,         // показ «за всё время» по ссылке ?month=all (общий выбор не меняется)
+        bar: '',            // '' — все бары; бар полосы «Бар и период»
         source: '',
         rating: '',
         status: '',
@@ -225,8 +236,20 @@
     function reviewsWord(n) {
         return n + ' ' + GH.plural(n, 'отзыв', 'отзыва', 'отзывов');
     }
+    // Название периода — как в полосе («Октябрь 2026», «26 окт – 1 ноя 2026», «2026»).
+    function periodTitle(p) {
+        if (!p || !p.start) return '';
+        var K = window.KPeriod;
+        if (K && K.periodTitle) return K.periodTitle(p);
+        // Без ядра периодов (проверки в Node): месяц словом, иначе даты.
+        if (p.granularity === 'month') return GH.monthLabel(p.start.slice(0, 7));
+        return GH.fmtDate(p.start, true) + ' – ' + GH.fmtDate(p.end, true);
+    }
     function periodLabel() {
-        return state.all ? 'За всё время' : GH.monthLabel(state.month);
+        return state.all ? 'За всё время' : periodTitle(state.period);
+    }
+    function lowerFirst(text) {
+        return text ? text.charAt(0).toLowerCase() + text.slice(1) : text;
     }
     function findReview(id) {
         var list = (state.data && state.data.reviews) || [];
@@ -241,36 +264,106 @@
         return null;
     }
 
+    // ==================== бар и период: общая полоса ====================
+    // Бар и период выбираются один раз на весь сайт — полоса «Бар и период» в общем
+    // меню (templates/shared/scope_strip.html, window.KStrip). Без полосы (проверки в
+    // Node, скрипт полосы не загрузился) — ?date_from=&date_to= адреса, ?month=YYYY-MM
+    // старой ссылки или текущий месяц по Москве; бар — общий (GH.getBar).
+
+    function strip() { return window.KStrip || null; }
+    function stripPeriod() {
+        var s = strip();
+        var cur = s && s.get ? s.get() : null;
+        return cur && cur.period && cur.period.start ? cur.period : null;
+    }
+    // Целый месяц 'YYYY-MM' (обе даты включительно); неверный — текущий по Москве.
+    function monthPeriod(ym) {
+        var m = /^\d{4}-(0[1-9]|1[0-2])$/.test(ym || '') ? ym : nowInfo().month;
+        var start = m + '-01';
+        var end = m + '-' + GH.daysInMonth(m);      // 28–31: всегда две цифры
+        return { start: start, end: end, granularity: 'month', key: start + '_' + end };
+    }
+    function urlPeriod(p) {
+        var from = p.get('date_from') || '';
+        var to = p.get('date_to') || '';
+        if (!ISO_DAY.test(from) || !ISO_DAY.test(to) || from > to) return null;
+        return { start: from, end: to, granularity: 'custom', key: from + '_' + to };
+    }
+    // «Всё время»: с первого дня данных (дата самого раннего отзыва — сервер, data_start
+    // полосы) по последний доступный день — тот же период, что быстрый выбор «Всё время».
+    function allTimePeriod() {
+        var K = window.KPeriod;
+        var q = K && K.QUICK && K.QUICK.all;
+        return q ? q.build() : null;
+    }
+    // Показ «за всё время» в полосе: период и подпись, общий выбор не меняется. Нет
+    // отзывов (нет первого дня данных) — только подпись.
+    function showAllInStrip() {
+        var s = strip();
+        if (!s) return;
+        var p = allTimePeriod();
+        if (p && s.showPeriod) s.showPeriod(p);
+        if (s.setNote) s.setNote(state.status === 'new' ? ALL_NOTE_NEW : ALL_NOTE);
+    }
+    // Выбрать бар (нажатие на карточку бара) — как выбор в полосе: сохраняется для сайта,
+    // полоса сообщит onStripChange, и список перечитается.
+    function chooseBar(key) {
+        var s = strip();
+        if (s && s.setBar) { s.setBar(key); return; }
+        state.bar = GH.setBar(key);
+        onFiltersChanged();
+    }
+
+    // Выбор в полосе (здесь, на другой странице или в другой вкладке браузера).
+    //   бар    — перечитать список (в режиме «за всё время» подпись полосы — обратно:
+    //            выбор бара в полосе её снимает);
+    //   период — список за него; выбор в полосе (и «Сбросить выбор») выводит из режима
+    //            «за всё время». Выбор из другой вкладки (cause 'external') режим не
+    //            закрывает: показ «за всё время» остаётся, полоса показывает его снова.
+    function onStripChange(e) {
+        if (!e) return;
+        if (e.type === 'bar') {
+            var bar = GH.isBar(e.bar) ? e.bar : '';
+            if (state.all) showAllInStrip();
+            if (bar === state.bar) return;
+            state.bar = bar;
+            load();
+            return;
+        }
+        if (state.all && e.cause === 'external') {
+            showAllInStrip();
+            return;
+        }
+        state.all = false;
+        if (e.period && e.period.start) state.period = e.period;
+        syncUrl();
+        renderPickers();
+        load();
+    }
+
     // ==================== адрес и фильтры ====================
 
-    function validMonth(v) {
-        return /^\d{4}-(0[1-9]|1[0-2])$/.test(v || '') && v >= MONTH_MIN;
-    }
     function readUrl() {
         var p = GH.params();
         var month = p.get('month') || '';
-        var cur = nowInfo().month;
         var status = p.get('status') || '';
         state.status = STATUS_KEYS.indexOf(status) >= 0 ? status : '';
-        // Без ?month «Без ответа» открывается за всё время: ждущий ответа отзыв
-        // важен любой давности, а месяц по умолчанию прятал бы отзывы прошлых
-        // месяцев (1-го числа — все вчерашние). Остальные статусы — текущий месяц.
-        state.all = month === 'all' || (!month && state.status === 'new');
-        state.month = validMonth(month) && month <= cur ? month : cur;
+        // ?month=all — ссылки полосы «Отзывы без ответа», бота и сторожа: все отзывы за
+        // любую дату (отзыв, ждущий ответа, важен любой давности; 1-го числа период
+        // «этот месяц» прятал бы все вчерашние). Это показ, общий выбор не меняется.
+        state.all = month === 'all';
+        state.period = stripPeriod() || urlPeriod(p) || monthPeriod(month);
         var source = p.get('source') || '';
         state.source = source === 'yandex' || source === 'bot' ? source : '';
         var rating = p.get('rating') || '';
         state.rating = optName(RATING_OPTS, rating) && rating ? rating : '';
         state.bar = GH.getBar();
     }
+    // Фильтры страницы — в адрес. Период и бар пишет полоса (?date_from=&date_to=, ?bar=);
+    // month=all — пока открыт показ «за всё время», чтобы перезагрузка его не потеряла.
     function syncUrl() {
-        var cur = nowInfo().month;
-        // Текущий месяц в адрес не пишется (он и так по умолчанию) — кроме
-        // «Без ответа»: там по умолчанию «За всё время» (см. readUrl), и без
-        // явного month обновление страницы сменило бы выбранный период.
-        var implicitMonth = state.month === cur && state.status !== 'new';
         GH.setParams({
-            month: state.all ? 'all' : (implicitMonth ? null : state.month),
+            month: state.all ? 'all' : null,
             status: state.status || null,
             source: state.source || null,
             rating: state.rating || null
@@ -279,7 +372,7 @@
     function query() {
         var p = [];
         if (state.all) p.push('all=1');
-        else p.push('month=' + encodeURIComponent(state.month));
+        else p.push('from=' + encodeURIComponent(state.period.start), 'to=' + encodeURIComponent(state.period.end));
         if (state.bar) p.push('bar=' + encodeURIComponent(state.bar));
         if (state.source) p.push('source=' + encodeURIComponent(state.source));
         if (state.rating) p.push('rating=' + encodeURIComponent(state.rating));
@@ -287,7 +380,11 @@
         return p.join('&');
     }
     function hasListFilters() {
-        return !!(state.bar || state.source || state.rating || state.status);
+        return !!(state.bar || hasPageFilters());
+    }
+    // Фильтры самой страницы (без бара: он — общий выбор сайта в полосе).
+    function hasPageFilters() {
+        return !!(state.source || state.rating || state.status);
     }
 
     // ==================== загрузка ====================
@@ -354,17 +451,12 @@
         renderList();
     }
 
+    // Фильтры страницы. Бар и период показывает полоса «Бар и период».
     function renderPickers() {
-        var cur = nowInfo().month;
-        el.monthLabel.textContent = periodLabel();
-        el.prev.disabled = state.all || state.month <= MONTH_MIN;
-        el.next.disabled = state.all || state.month >= cur;
-        el.barLabel.textContent = GH.barName(state.bar);
         el.sourceLabel.textContent = state.source ? sourceName(state.source) : 'Все';
         el.ratingLabel.textContent = optName(RATING_OPTS, state.rating, true);
         el.statusLabel.textContent = optName(STATUS_OPTS, state.status, true);
         var f = formulas();
-        if (f.period) el.monthBtn.setAttribute('data-tip', f.period);
         if (f.rating_filter) el.ratingBtn.setAttribute('data-tip', f.rating_filter);
     }
 
@@ -467,10 +559,11 @@
         var on = state.bar === key;
         var count = m.count || 0;
         var avg = m.avg_rating;
+        // Нажатие — выбор бара в полосе «Бар и период» (общий для всех страниц сайта).
         var tip = key
-            ? (on ? 'Показаны отзывы бара «' + title + '». Нажмите ещё раз, чтобы показать все бары.'
-                  : 'Нажмите, чтобы показать отзывы только бара «' + title + '».')
-            : 'Вся сеть: все четыре бара. Нажмите, чтобы снять фильтр бара.';
+            ? (on ? 'Выбран бар «' + title + '». Нажмите ещё раз, чтобы выбрать все бары.'
+                  : 'Нажмите, чтобы выбрать бар «' + title + '» — в полосе сверху, для всех страниц.')
+            : 'Все четыре бара вместе. Нажмите, чтобы выбрать все бары — в полосе сверху, для всех страниц.';
         var avgTip = (f.avg_rating || '') + '\n\nЗдесь: ' + (m.rated || 0) + ' с оценкой из ' + reviewsWord(count) + '.';
         var countTip = (f.count || '') + '\n\nЗдесь: без ответа ' + (m.unanswered || 0) +
             ', отвечено ' + (m.answered || 0) + ', без ответа по решению ' + (m.skipped || 0) + '.';
@@ -499,7 +592,8 @@
     function renderTiles() {
         var metrics = (state.data && state.data.metrics) || {};
         var byBar = metrics.by_bar || {};
-        var html = tileHtml('', 'Вся сеть', metrics.total);
+        // Вся сеть подписана одинаково на всём сайте — «Все бары» (ответ владельца Р6).
+        var html = tileHtml('', 'Все бары', metrics.total);
         for (var i = 0; i < GH.BARS.length; i++) {
             var b = GH.BARS[i];
             html += tileHtml(b.key, b.name, byBar[b.key]);
@@ -899,20 +993,25 @@
             el.emptyTitle.textContent = state.all ? 'Отзывов пока нет' : 'Отзывов за период нет';
             el.emptyText.textContent = 'Отзывы приходят с Яндекс Карт раз в 3 часа и из бота — сразу.';
         } else {
+            // Бар — общий выбор сайта (полоса сверху): «Сбросить фильтры» его не трогает,
+            // поэтому он назван отдельно.
+            var why = [];
+            if (hasPageFilters()) why.push('фильтры источника, оценки или статуса');
+            if (state.bar) why.push('бар «' + GH.barName(state.bar) + '» в полосе сверху');
             el.emptyTitle.textContent = 'Под выбранные фильтры отзывов нет';
-            el.emptyText.textContent = (state.all ? 'Отзывы есть' : 'За ' + GH.monthLabel(state.month).toLowerCase() +
-                ' отзывы есть') + ', но фильтры бара, источника, оценки или статуса их скрывают.';
+            el.emptyText.textContent = (state.all ? 'Отзывы есть' : 'За ' + lowerFirst(periodLabel()) +
+                ' отзывы есть') + ', но их скрывают ' + (why.length ? why.join(' и ') : 'фильтры') + '.';
         }
-        el.emptyReset.hidden = !hasListFilters();
+        el.emptyReset.hidden = !hasPageFilters();
         el.empty.hidden = false;
     }
 
-    // Сколько отзывов без ответа НЕ попало в показанный месяц.
-    //   другие = «Отзывы без ответа» из полосы (все даты; бар — общий фильтр)
-    //            − без ответа за показанный месяц по тому же бару
+    // Сколько отзывов без ответа НЕ попало в показанный период.
+    //   другие = «Отзывы без ответа» из полосы (все даты; бар — бар полосы «Бар и период»)
+    //            − без ответа за показанный период по тому же бару
     //              (metrics.by_bar[бар].unanswered или metrics.total.unanswered).
     // Считается, только когда числа сравнимы:
-    //   - выбран месяц (у «За всё время» других месяцев нет);
+    //   - показан период полосы (у «за всё время» других дат нет);
     //   - нет фильтра источника: счётчик полосы источник не учитывает, а
     //     показатели страницы — учитывают;
     //   - ответ полосы — для того же бара, что выбран на странице;
@@ -940,10 +1039,11 @@
         if (n <= 0) return;
         var where = state.bar ? ', бар «' + GH.barName(state.bar) + '»' : '';
         el.elsewhereText.textContent = 'Ещё ' + n + ' ' + GH.plural(n, 'отзыв', 'отзыва', 'отзывов') +
-            ' без ответа — за другие месяцы' + where + '.';
+            ' без ответа — вне выбранного периода' + where + '.';
         el.elsewhere.setAttribute('data-tip', 'Без ответа за любую дату: ' + c.total +
-            ' (счётчик «Отзывы без ответа» в полосе сверху). За ' + periodLabel().toLowerCase() + ' — ' + c.here +
-            '. Разница ' + c.total + ' − ' + c.here + ' = ' + n + ' — отзывы других месяцев, в этом списке их нет.');
+            ' (счётчик «Отзывы без ответа» в полосе сверху). За ' + lowerFirst(periodLabel()) + ' — ' + c.here +
+            '. Разница ' + c.total + ' − ' + c.here + ' = ' + n + ' — отзывы других дат, в этом списке их нет. ' +
+            '«Показать все без ответа» показывает их за всё время, не меняя выбранный период.');
     }
 
     // Точечная перерисовка одной карточки (правка ответа, черновик).
@@ -974,40 +1074,8 @@
         return html;
     }
 
+    // Фильтры страницы. Бар и период — в полосе «Бар и период» (onStripChange).
     var PICKERS = {
-        month: {
-            btn: 'rvMonthBtn', menu: 'rvMonthMenu',
-            build: function () {
-                var cur = nowInfo().month;
-                var html = '<div class="gh-menu-grab"></div><div class="gh-menu-cap">Период</div>' +
-                    menuItem('all', 'За всё время', state.all, 'без дат') + '<div class="gh-menu-sep"></div>';
-                var seen = false;
-                for (var i = 0; i < MONTH_MENU_COUNT; i++) {
-                    var m = GH.addMonths(cur, -i);
-                    if (m < MONTH_MIN) break;
-                    var on = !state.all && m === state.month;
-                    if (on) seen = true;
-                    html += menuItem(m, GH.monthLabel(m), on, i === 0 ? 'текущий' : '');
-                }
-                if (!state.all && !seen) html += menuItem(state.month, GH.monthLabel(state.month), true, '');
-                return html;
-            },
-            apply: function (v) {
-                if (v === 'all') { state.all = true; }
-                else if (validMonth(v)) { state.all = false; state.month = v; }
-            }
-        },
-        bar: {
-            btn: 'rvBarBtn', menu: 'rvBarMenu',
-            build: function () {
-                var opts = [{ key: '', name: 'Все бары', hint: 'вся сеть' }];
-                for (var i = 0; i < GH.BARS.length; i++) {
-                    opts.push({ key: GH.BARS[i].key, name: GH.BARS[i].name, hint: GH.BARS[i].short });
-                }
-                return optionsMenu('Бар', opts, state.bar);
-            },
-            apply: function (v) { state.bar = GH.setBar(v); }
-        },
         source: {
             btn: 'rvSourceBtn', menu: 'rvSourceMenu',
             build: function () {
@@ -1045,17 +1113,11 @@
     }
 
     function onFiltersChanged() {
+        // Подпись полосы в режиме «за всё время» зависит от статуса («все отзывы без ответа»).
+        if (state.all) showAllInStrip();
         syncUrl();
         renderPickers();
         load();
-    }
-
-    function shiftMonth(delta) {
-        if (state.all) return;
-        var m = GH.addMonths(state.month, delta);
-        if (!validMonth(m) || m > nowInfo().month) return;
-        state.month = m;
-        onFiltersChanged();
     }
 
     // ==================== черновики ====================
@@ -1239,9 +1301,14 @@
         });
     }
 
+    // Период целого месяца для ссылки: ?date_from=&date_to= (стандарт периодов, раздел 6) —
+    // страница по ссылке открывается на этом месяце, как после выбора в полосе.
+    function monthQuery(month) {
+        var p = monthPeriod(month);
+        return 'date_from=' + p.start + '&date_to=' + p.end;
+    }
     function materialLink(materialId, month) {
-        return '/content-plan?' + (month ? 'month=' + encodeURIComponent(month) + '&' : '') +
-            'open=' + encodeURIComponent(materialId);
+        return '/content-plan?' + (month ? monthQuery(month) + '&' : '') + 'open=' + encodeURIComponent(materialId);
     }
 
     function doMaterial(id, btn) {
@@ -1519,11 +1586,13 @@
         req.then(function (res) {
             var r = res && res.review;
             GH.closeModal(el.dlg);
-            var month = r && r.created_at ? r.created_at.slice(0, 7) : null;
-            if (dlg.mode === 'add' && month && !state.all && month !== state.month) {
-                GH.toast('Отзыв добавлен за ' + GH.monthLabel(month).toLowerCase() + ' — сейчас показан другой месяц', 'success', {
+            var day = r && r.created_at ? r.created_at.slice(0, 10) : null;
+            var outside = !!day && !state.all && !!state.period && (day < state.period.start || day > state.period.end);
+            if (dlg.mode === 'add' && outside) {
+                var month = day.slice(0, 7);
+                GH.toast('Отзыв добавлен за ' + GH.monthLabel(month).toLowerCase() + ' — сейчас показан другой период', 'success', {
                     actionLabel: 'Показать',
-                    actionHref: '/reviews?month=' + encodeURIComponent(month)
+                    actionHref: '/reviews?' + monthQuery(month)
                 });
             } else {
                 GH.toast(dlg.mode === 'edit' ? 'Отзыв сохранён' : 'Отзыв добавлен', 'success');
@@ -1548,8 +1617,7 @@
     function init() {
         if (!GH) return;
         var ids = {
-            prev: 'rvPrev', next: 'rvNext', monthBtn: 'rvMonthBtn', monthLabel: 'rvMonthLabel',
-            barLabel: 'rvBarLabel', sourceLabel: 'rvSourceLabel', ratingBtn: 'rvRatingBtn',
+            sourceLabel: 'rvSourceLabel', ratingBtn: 'rvRatingBtn',
             ratingLabel: 'rvRatingLabel', statusLabel: 'rvStatusLabel', sync: 'rvSync', syncText: 'rvSyncText',
             banner: 'rvBanner', bannerText: 'rvBannerText', retry: 'rvRetry',
             scope: 'rvScope', metricsHelp: 'rvMetricsHelp', tiles: 'rvTiles',
@@ -1568,26 +1636,30 @@
         }
 
         readUrl();
+        // Ссылка ?month=all: полоса показывает всё время с подписью, общий выбор не меняется.
+        if (state.all) showAllInStrip();
         syncUrl();
         for (var name in PICKERS) {
             if (Object.prototype.hasOwnProperty.call(PICKERS, name)) bindPicker(name);
         }
-        el.prev.addEventListener('click', function () { shiftMonth(-1); });
-        el.next.addEventListener('click', function () { shiftMonth(1); });
+        // Выбор в полосе «Бар и период» перечитывает список (здесь, на другой странице,
+        // в другой вкладке).
+        var s = strip();
+        if (s && s.onChange) s.onChange(onStripChange);
+        // «Сбросить фильтры» — фильтры страницы; бар — общий выбор сайта, его меняют в полосе.
         el.emptyReset.addEventListener('click', function () {
             state.source = '';
             state.rating = '';
             state.status = '';
-            state.bar = GH.setBar('');
             onFiltersChanged();
         });
         el.retry.addEventListener('click', function () { load(); });
-        // «Показать все без ответа»: за всё время, только без ответа. Фильтр
-        // оценки снимается — число в подсказке посчитано без него.
+        // «Показать все без ответа»: за всё время, только без ответа (показ, общий выбор
+        // периода не меняется). Фильтр оценки снимается — число в подсказке посчитано без него.
         el.elsewhereShow.addEventListener('click', function () {
-            state.all = true;
             state.status = 'new';
             state.rating = '';
+            state.all = true;           // onFiltersChanged показывает всё время в полосе
             onFiltersChanged();
         });
         // Ответ полосы «требует внимания» (её грузит common.js) нужен подсказке
@@ -1601,9 +1673,8 @@
             var tile = e.target.closest ? e.target.closest('[data-bar]') : null;
             if (!tile) return;
             var key = tile.getAttribute('data-bar');
-            // Повторный клик по выбранному бару снимает фильтр.
-            state.bar = GH.setBar(key && key === state.bar ? '' : key);
-            onFiltersChanged();
+            // Карточка бара — выбор бара в полосе; повторное нажатие — все бары.
+            chooseBar(key && key === state.bar ? '' : key);
         });
 
         el.list.addEventListener('click', onListClick);

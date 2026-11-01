@@ -232,13 +232,25 @@ test('«Рост базы» без динамики: два разных «Уш�
     assert.ok(html.includes('data-tab="growth">Рост базы<'), 'вкладка роста не переименована');
 });
 
-test('скрытие глобального периода описано в CSS и включается из JS', () => {
-    assert.ok(css.includes('.guests-controls.own-period'),
-        'нет правила скрытия панели периода');
-    assert.ok(common.includes("classList.toggle('own-period'"),
-        'JS не переключает класс own-period');
-    assert.ok(promo.includes('ownPeriod: true'),
-        'вкладка «Акции» не объявлена как владеющая своим периодом');
+test('страница на общей полосе «Бар и период»: своих кнопок периода и бара нет (2026-11-01)', () => {
+    assert.ok(html.includes("kultura_strip(mode='report', step='month', live=False"),
+        'страница не объявляет общую полосу (шаг — месяц, витрина с ночной загрузкой)');
+    assert.ok(html.indexOf('kultura_strip(') < html.indexOf("include 'shared/nav.html'"),
+        'полоса объявлена после общего меню — меню её не нарисует');
+    for (const gone of ['guests-controls', 'period-types', 'ptype-btn', 'data-ptype="quarter"',
+                        'periodPrev', 'periodNext', 'barPick', 'coverageBanner']) {
+        assert.ok(!html.includes(gone), 'в шаблоне осталось старое управление: ' + gone);
+    }
+    const actions = html.slice(html.indexOf('{% set strip_actions %}'), html.indexOf('{% endset %}'));
+    assert.ok(actions.includes('id="syncBtn"'), 'кнопка синка — не в полосе (strip_actions)');
+    assert.ok(common.includes('window.KStrip') && common.includes("q.set('date_from'"),
+        'вкладки берут период не из полосы');
+    assert.ok(!common.includes("q.set('period_type'") && !common.includes('shiftPeriod'),
+        'в скрипте страницы остался свой период');
+    for (const gone of ['.guests-controls', '.own-period', '.ptype-btn', '.bar-pick', '.churn-dyn']) {
+        assert.ok(!css.includes(gone), 'в CSS осталось старое управление: ' + gone);
+    }
+    assert.ok(!promo.includes('ownPeriod'), '«Акции» снова со своим периодом');
 });
 
 // ---------------------------------------------------------------- формулы
@@ -269,36 +281,26 @@ test('все ключи формул, на которые ссылаются в�
 });
 
 // ---------------------------------------------------------------- бар (2026-09-29)
-test('кнопка «Бар» стоит в панели периода, меню — .gh-menu раздела в .gh-scope', () => {
-    const controls = html.slice(html.indexOf('class="guests-controls"'),
-                                html.indexOf('class="period-types"'));
-    for (const id of ['barPick', 'barPickBtn', 'barPickLabel', 'barPickMenu']) {
-        assert.ok(controls.includes(`id="${id}"`), `нет #${id} в начале панели периода`);
-    }
-    assert.ok(/class="bar-pick gh-scope"/.test(controls),
-        'обёртка без .gh-scope: у меню не будет токенов цвета');
-    assert.ok(/class="gh-menu" id="barPickMenu" role="menu" hidden/.test(controls),
-        'меню бара — не .gh-menu раздела или видно сразу');
-    // Модуль раздела (window.GH: getBar/setBar/toggleMenu) обязан быть на странице.
-    assert.ok(html.includes('/static/js/guest_hub/common.js'), 'нет модуля раздела');
-    assert.ok(common.includes('gh.getBar()') && common.includes('gh.setBar(key)'),
-        'бар не берётся из общего фильтра раздела');
+test('бар — из полосы; счётчики раздела «Гости» пересчитываются при его смене', () => {
+    const hubJs = read('static/js/guest_hub/common.js');
+    assert.ok(html.includes('/static/js/guest_hub/common.js'), 'нет модуля раздела (счётчики полосы)');
+    assert.ok(hubJs.includes('root.KStrip.onChange') && hubJs.includes("e.type === 'bar'"),
+        'счётчики «требует внимания» не слушают смену бара в полосе');
+    assert.ok(common.includes('s.onChange(') && common.includes('readStrip()'),
+        'вкладки не слушают полосу');
 });
 
-test('классы кнопки бара и подписи охвата описаны в CSS', () => {
+test('классы подписи охвата описаны в CSS', () => {
     const hub = read('static/guest_hub/hub.css');
     const used = new Set();
     for (const src of [html, common, ...TABS.map((t) => read(`static/js/guests/views-${t}.js`))]) {
-        for (const m of src.matchAll(/(?<![\w-])((?:bar-pick|scope-note|gh-menu)[a-z0-9-]*)(?![\w-])/g)) {
+        for (const m of src.matchAll(/(?<![\w-])((?:scope-note|gh-menu)[a-z0-9-]*)(?![\w-])/g)) {
             used.add(m[1]);
         }
     }
-    assert.ok(used.has('bar-pick-btn') && used.has('scope-note') && used.has('gh-menu-note'),
-        'не найдены классы бара: ' + [...used].join(', '));
+    assert.ok(used.has('scope-note'), 'не найдены классы подписи охвата: ' + [...used].join(', '));
     const missing = [...used].filter((c) => !css.includes('.' + c) && !hub.includes('.' + c));
     assert.deepEqual(missing, [], `классы без стилей: ${missing.join(', ')}`);
-    assert.ok(css.includes('.guests-controls.own-period .bar-pick'),
-        'на «Акциях» (свой фильтр точки) общий бар не скрыт');
 });
 
 test('отчёты витрины передают meta в howBlock — правило бара в «Как считается»', () => {
@@ -378,31 +380,31 @@ test('псевдогость «Без карты» исключён из гос�
     assert.ok(promo.includes('splitNoCard'), 'нет отделения продаж без карты');
 });
 
-test('смена точки и дат вызывает загрузку, а не молчит', () => {
-    assert.ok(/\['promoBar', 'promoFrom', 'promoTo'\]/.test(promo),
-        'точка и даты не подписаны на перезагрузку');
-    assert.ok(!promo.includes('function sameRange'),
-        'вернулась проверка, из-за которой смена точки ничего не делала');
+test('«Акции»: период и точка — из полосы, своих полей нет', () => {
+    assert.ok(promo.includes('G.state.period.start') && promo.includes('iiko_name'),
+        'период или имя точки iiko берутся не из полосы');
+    for (const gone of ['promoFrom', 'promoTo', 'promoBar', 'type="date"']) {
+        assert.ok(!promo.includes(gone), 'у «Акций» снова своё поле: ' + gone);
+    }
 });
 
-test('повторный клик по «Анализировать» защищён', () => {
+test('«Акции»: устаревший ответ iiko отбрасывается, выбор акции заблокирован на время запроса', () => {
     assert.ok(promo.includes('var gen = 0'), 'нет поколения запроса');
     assert.ok(promo.includes('my !== gen'), 'устаревший ответ не отбрасывается');
-    assert.ok(promo.includes("busy ? 'Запрашиваю…'"), 'кнопка не блокируется');
+    assert.ok(promo.includes("busy ? ' disabled' : ''"), 'выбор акции не блокируется');
 });
 
-test('вкладка «Акции» не грузит iiko при открытии', () => {
-    assert.ok(promo.includes('Анализировать'), 'нет кнопки явной загрузки');
-    // Запрос отчёта должен идти только из load(), вызываемого по кнопке/drill-down.
-    // Считаем именно ВЫЗОВЫ, а не упоминания в комментариях.
+test('«Акции» считаются сразу (ответ Р5), но не дольше года; запрос — один, в load()', () => {
     const calls = (promo.match(/G\.post\('\/api\/discount-analyze'/g) || []).length;
     assert.equal(calls, 1, 'вызов discount-analyze должен быть ровно один (в load)');
     // Ни одного другого обращения к iiko: список акций приходит вместе с отчётом.
     assert.ok(!promo.includes('discount-names'),
         'вернулся отдельный запрос за списком акций — он лезет в iiko при открытии');
-    // Точка входа вида не должна ничего запрашивать.
+    assert.ok(promo.includes('var PROMO_AUTO_MAX_DAYS = 366'), 'нет потолка автоматического запроса');
     const entry = promo.slice(promo.lastIndexOf('--------- вход'));
-    assert.ok(!/G\.(api|post)\(/.test(entry), 'точка входа делает запрос');
+    assert.ok(entry.includes('days(start) > PROMO_AUTO_MAX_DAYS') && entry.includes('load(start)'),
+        'точка входа не считает сразу или не проверяет длину периода');
+    assert.ok(entry.includes('sameScope(S.params, start)'), 'возврат на вкладку снова идёт в iiko');
 });
 
 console.log(`\n${passed} ok, ${failed} failed`);

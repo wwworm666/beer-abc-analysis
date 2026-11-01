@@ -2,11 +2,13 @@
 
    Что здесь (экран переделан 2026-10-04: на виду — план, пост и его время;
    служебное агента, редкие действия, пояснения и история — свёрнуты или в меню):
-     - полоса фильтров: месяц, бар (общий для раздела: GH.getBar / GH.setBar),
-       площадка, вид «Таблица | Календарь»; действия «Утвердить готовые» и
-       «Добавить материал» (диалог: название, площадка, бары, дата и время сразу);
-       под полосой — сводка месяца и два меню: «ИИ-агент» и «Ещё» (каналы и
-       отправка, копирование прошлого месяца, пауза);
+     - месяц и бар — общая полоса сайта «Бар и период» (window.KStrip, с
+       2026-11-01; раздел «Бар и месяц — из полосы» ниже): своих стрелок месяца
+       и меню бара у страницы нет;
+     - фильтры страницы: площадка, вид «Календарь | Таблица»; действия
+       «Утвердить готовые» и «Добавить материал» (диалог: название, площадка,
+       бары, дата и время сразу); под ними — сводка месяца и два меню:
+       «ИИ-агент» и «Ещё» (каналы и отправка, копирование прошлого месяца, пауза);
      - таблица месяца (материалы плана по неделям; чипы одного материала на
        нескольких барах склеены) и календарь (все размещения, датированные
        месяцем; плашка — время, где и название) со слоем отзывов по дням;
@@ -51,18 +53,32 @@
 
    Адрес: путь — вид (/content-plan — календарь, главная; /content-plan/table —
    таблица, с 2026-10-23; старый ?view=table сервер переводит на таблицу),
-   ?month=YYYY-MM, ?open=<id материала>,
+   ?date_from=&date_to= (месяц, выбранный в полосе, — его пишет сама полоса;
+   старый ?month=YYYY-MM сервер переводит в даты месяца ответом 302),
+   ?bar= (бар полосы), ?open=<id материала>,
    ?state=overdue|failed|incomplete|ready|scheduled|paused, ?origin=agent
    (только материалы ИИ-агента), ?brief=1 (открыть бриф для агента),
    ?channels=1 (открыть «Каналы и отправка»).
 
-   Сквозной вид: ?state=overdue|failed БЕЗ ?month= (так ведут ссылки полосы
-   «Требует внимания»: там считаются размещения любых месяцев) — страница
-   грузит GET /api/content-plan?state=<состояние> без месяца: все материалы,
-   у которых есть размещения в этом состоянии, из любого месяца; таблица
-   группирует их по месяцам. Чип «Все месяцы · …» с крестиком, стрелки месяца,
-   переход в календарь и фильтр другого состояния возвращают обычный месяц.
-   Если сервер не ответил scope: 'state', страница честно остаётся в месяце.
+   Бар и месяц — из полосы (план единого виджета, этап 5): страница помесячная
+   (kultura_strip mode='monthly'), месяц плана S.month — месяц периода полосы
+   (у недели — месяц её четверга, у своего периода — месяц середины или
+   последний; подпись — в полосе), бар S.bar — бар полосы. Выбор в полосе
+   (здесь, на другой странице, в другой вкладке) — KStrip.onChange: другой
+   месяц перечитывает план, другой бар перерисовывает его (фильтр бара — на
+   экране). Материал по ссылке ?open= из другого месяца открывает его месяц
+   выбором в полосе (KStrip.setPeriod) — это действие страницы, оно становится
+   общим выбором.
+
+   Сквозной вид: ?state=overdue|failed БЕЗ периода в адресе (так ведут ссылки
+   полосы «Требует внимания»: там считаются размещения любых месяцев) —
+   страница грузит GET /api/content-plan?state=<состояние> без месяца: все
+   материалы, у которых есть размещения в этом состоянии, из любого месяца;
+   таблица группирует их по месяцам. Это фильтр страницы: в полосе — подпись
+   «все месяцы» (KStrip.setNote). Чип «Все месяцы · …» с крестиком, выбор
+   месяца в полосе, переход в календарь и фильтр другого состояния
+   возвращают обычный месяц. Если сервер не ответил scope: 'state', страница
+   честно остаётся в месяце.
 
    Цвет размещения — по display_state (не по тону сервера): у каждого
    состояния свой вид (контур, заливка, зачёркивание), легенда та же, что на
@@ -116,9 +132,12 @@
     var MEDIA_ACCEPT = 'image/jpeg,image/png,image/webp,video/mp4';
     var STATE_FILTERS = ['overdue', 'failed', 'incomplete', 'ready', 'scheduled', 'paused'];
     // Состояния, для которых есть сквозной вид по всем месяцам (?state= без
-    // ?month=): их считает полоса «Требует внимания» за любой месяц.
+    // периода в адресе): их считает полоса «Требует внимания» за любой месяц.
     var SCOPE_STATES = ['overdue', 'failed'];
     var SCOPE_NAMES = { overdue: 'Время вышло', failed: 'Ошибки отправки' };
+    // Подпись в полосе «Бар и период», пока открыт сквозной вид: список не зависит
+    // от месяца полосы (показ, а не выбор — общий выбор месяца не меняется).
+    var SCOPE_NOTE = 'все месяцы';
     var CHANNEL_KEYS = ['telegram', 'instagram', 'bot'];
     var MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
     var DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -311,15 +330,16 @@
     // ==================== состояние ====================
 
     var S = {
-        month: null,
+        month: null,             // 'YYYY-MM' — месяц полосы «Бар и период» (stripMonth)
         // Вид: календарь — главная страница (/content-plan, решение владельца 2026-10-23),
         // таблица — подстраница /content-plan/table (VIEW_PATHS, setView).
         view: 'calendar',
-        bar: '',                 // '' = все бары
+        bar: '',                 // '' = все бары; бар полосы «Бар и период» (stripBar)
+        baseNote: '',            // подпись полосы от сервера («по месяцам — показан …»), до своей
         channel: '',             // '' = все площадки
         stateFilter: '',
         origin: '',              // '' — все материалы, 'agent' — только от ИИ (?origin=agent)
-        scope: '',               // 'state' — сквозной вид по всем месяцам (?state= без ?month=)
+        scope: '',               // 'state' — сквозной вид по всем месяцам (?state= без периода в адресе)
         data: null,              // ответ GET /api/content-plan
         extra: {},               // id -> материал, открытый в карточке, но выпавший из списка сквозного вида
         seq: 0,                  // номер последнего запроса месяца (старые ответы отбрасываются)
@@ -962,12 +982,20 @@
             data = data || {};
             if (S.scope && data.scope !== 'state') {
                 // Сервер не знает сквозного вида: это ответ за текущий месяц.
-                // Остаёмся в месяце с фильтром состояния — подпись «Все месяцы»
-                // над одним месяцем была бы неправдой.
+                // Остаёмся в месяце (полосы) с фильтром состояния — подпись «Все
+                // месяцы» над одним месяцем была бы неправдой.
                 S.scope = '';
-                GH.setParams({ month: data.month || S.month });
+                setStripNote(S.baseNote);
+                if (strip()) {
+                    writeMonthUrl(S.month);
+                    if (data.month !== S.month) return load(opts);
+                } else {
+                    writeMonthUrl(data.month || S.month);
+                }
             }
-            if (data.month && MONTH_RE.test(data.month)) S.month = data.month;
+            // Месяц плана задаёт полоса; ответ сервера сдвигает его только без неё
+            // (сквозной вид отвечает текущим месяцем — он не должен подменить месяц полосы).
+            if (!strip() && data.month && MONTH_RE.test(data.month)) S.month = data.month;
             S.data = data;
             S.extra = {};
             if (S.scope && fresh && fresh.id === S.openId && !inPayload(fresh.id)) S.extra[fresh.id] = fresh;
@@ -1025,7 +1053,10 @@
                 S.month = mon;
                 S.selected = {};
                 S.calOpen = {};
-                GH.setParams({ month: mon });
+                // Месяц материала — выбор в полосе (действие страницы: открыли материал
+                // ссылкой): сохраняется для сайта и пишется в адрес. Обработчик полосы
+                // видит, что месяц уже этот, и второй раз план не грузит.
+                chooseMonth(mon);
                 renderChrome();
                 load().then(function () {
                     S.resolving = null;
@@ -1109,7 +1140,7 @@
     }
     // Перерисовать всё, что зависит от прав (после смены флага).
     function applyAdmin() {
-        if (!el.monthLabel) return;       // страница ещё не собрана (проверки в vm)
+        if (!el.chLabel) return;          // страница ещё не собрана (проверки в vm)
         renderChrome();
         if (current() && drawerOpen()) renderDrawer();
         if (S.chan && S.chan.data) renderChannels();
@@ -1175,11 +1206,11 @@
     }
 
     function renderChrome() {
-        el.monthLabel.textContent = S.scope ? 'Все месяцы' : GH.monthLabel(S.month);
-        // В режиме «Все месяцы» (?state без ?month) утверждение и копирование
+        // Месяц и бар показывает полоса «Бар и период»; здесь — то, что от них зависит.
+        // В режиме «Все месяцы» (?state без периода в адресе) утверждение и копирование
         // выключены: обе операции работают с одним месяцем, а на экране — выборка
-        // из разных месяцев. Иначе кнопка молча действовала бы на текущий месяц.
-        var scopeTip = S.scope ? 'Недоступно в режиме «Все месяцы»: выберите месяц стрелками' : '';
+        // из разных месяцев. Иначе кнопка молча действовала бы на месяц полосы.
+        var scopeTip = S.scope ? 'Недоступно в режиме «Все месяцы»: выберите месяц в полосе сверху' : '';
         el.approveBtn.disabled = !!S.scope;
         el.copyBtn.disabled = !!S.scope;
         el.approveBtn.title = scopeTip;
@@ -1193,7 +1224,6 @@
             el.approveBtn.setAttribute('aria-disabled', 'true');
             el.approveBtn.setAttribute('data-tip', ADMIN_TIP + ': утверждает публикации администратор');
         }
-        el.barLabel.textContent = S.bar ? GH.barName(S.bar) : 'Все бары';
         el.chLabel.textContent = S.channel ? chName(S.channel) : 'Все площадки';
         renderViewLinks();
         renderDelivery();
@@ -1287,7 +1317,8 @@
                 '<span class="gh-chip gh-cp-scopechip ' + stateCls(S.stateFilter) + '"' +
                     tip('Материалы любых месяцев с размещениями в состоянии «' + sinfo.label + '». Сюда ведёт ' +
                         'полоса «Требует внимания»: она считает такие размещения за все месяцы.\n' +
-                        STATE_TIPS[S.stateFilter] + '\nКрестик — вернуться к плану текущего месяца.') + '>' +
+                        STATE_TIPS[S.stateFilter] + '\nКрестик или выбор месяца в полосе сверху — вернуться к ' +
+                        'плану месяца.') + '>' +
                     '<span class="gh-chip-dot"></span>Все месяцы · ' + esc(SCOPE_NAMES[S.stateFilter]) +
                     '<button type="button" class="gh-chip-x" data-act="clear-state" ' +
                         'aria-label="Закрыть список за все месяцы">' + X_SVG + '</button>' +
@@ -1314,31 +1345,34 @@
     function setStateFilter(value) {
         var next = STATE_FILTERS.indexOf(value) >= 0 ? value : '';
         // Сквозной вид держится на одном состоянии: другой фильтр или снятие
-        // фильтра возвращают обычный план текущего месяца.
+        // фильтра возвращают обычный план месяца полосы.
         if (S.scope) { leaveScope(S.month, next); return; }
         S.stateFilter = next;
         GH.setParams({ state: S.stateFilter || null });
+        // ?state=overdue|failed без периода в адресе — сквозной вид: в месяце его
+        // фильтр держится датами месяца в адресе (иначе перезагрузка открыла бы все месяцы).
+        if (SCOPE_STATES.indexOf(S.stateFilter) >= 0) keepMonthInUrl();
         renderSummary();
         renderStateBar();
         renderView();
         renderBulk();
     }
 
-    // Выход из сквозного вида в месяц mon; state — фильтр состояния, который
-    // остаётся ('' — без фильтра). Если фильтр остаётся, месяц пишется в адрес
-    // явно: иначе перезагрузка страницы (?state= без ?month=) снова открыла бы
-    // сквозной вид.
+    // Выход из сквозного вида в месяц mon (месяц полосы); state — фильтр состояния,
+    // который остаётся ('' — без фильтра). Если остаётся overdue или failed, месяц
+    // пишется в адрес явно: иначе перезагрузка страницы (?state= без периода в
+    // адресе) снова открыла бы сквозной вид. Подпись полосы «все месяцы» снимается.
     function leaveScope(mon, state) {
         flushAll();
         S.scope = '';
         S.extra = {};
-        S.month = MONTH_RE.test(mon || '') ? mon : GH.mskNow().month;
+        S.month = MONTH_RE.test(mon || '') ? mon : (stripMonth() || GH.mskNow().month);
         S.stateFilter = STATE_FILTERS.indexOf(state) >= 0 ? state : '';
         S.selected = {};
         S.calOpen = {};
-        var params = { state: S.stateFilter || null };
-        params.month = (S.stateFilter || S.month !== GH.mskNow().month) ? S.month : null;
-        GH.setParams(params);
+        GH.setParams({ state: S.stateFilter || null });
+        if (SCOPE_STATES.indexOf(S.stateFilter) >= 0) keepMonthInUrl();
+        setStripNote(S.baseNote);
         renderChrome();
         renderStateBar();
         load();
@@ -1361,7 +1395,7 @@
                     '» нет ни в одном месяце</div>' +
                 '<div class="gh-empty-s">Всё отмечено: полоса «Требует внимания» обновится сама.</div>' +
                 '<div class="gh-empty-a"><button type="button" class="gh-btn" data-act="leave-scope">' +
-                    'К плану текущего месяца</button></div></div>';
+                    'К плану «' + esc(GH.monthLabel(S.month)) + '»</button></div></div>';
         }
         var any = false;
         each(materials(), function (m) { if (m.in_month) any = true; });
@@ -1384,12 +1418,23 @@
                 '<div class="gh-empty-a"><button type="button" class="gh-btn" data-act="origin-off">' +
                     'Показать все материалы</button></div></div>';
         }
+        // Бар — общий выбор сайта (полоса сверху): «Сбросить фильтры» его не трогает,
+        // поэтому он назван отдельно, а кнопка есть, только когда есть фильтры страницы.
+        var pageFilters = [];
+        if (S.channel) pageFilters.push('площадка');
+        if (S.stateFilter) pageFilters.push('состояние');
+        if (S.origin) pageFilters.push('только от ИИ');
+        var why = [];
+        if (pageFilters.length) why.push('фильтры: ' + pageFilters.join(', '));
+        if (S.bar) why.push('бар «' + GH.barName(S.bar) + '» в полосе сверху (его размещения и размещения на всю сеть)');
         return '<div class="gh-empty">' +
             '<div class="gh-empty-t">Под выбранные фильтры ничего не попало</div>' +
-            '<div class="gh-empty-s">Фильтры: бар, площадка' + (S.stateFilter ? ', состояние' : '') +
-                (S.origin ? ', только от ИИ' : '') + '. Материалы без подходящих размещений скрыты.</div>' +
-            '<div class="gh-empty-a"><button type="button" class="gh-btn" data-act="reset-filters">' +
-                'Сбросить фильтры</button></div></div>';
+            '<div class="gh-empty-s">' + esc(why.length ? 'Скрывают ' + why.join(' и ') + '.' : 'Скрывают фильтры.') +
+                ' Материалы без подходящих размещений скрыты.</div>' +
+            (pageFilters.length
+                ? '<div class="gh-empty-a"><button type="button" class="gh-btn" data-act="reset-filters">' +
+                    'Сбросить фильтры</button></div>'
+                : '') + '</div>';
     }
 
     // ==================== таблица ====================
@@ -6532,14 +6577,6 @@
 
     // ==================== меню фильтров ====================
 
-    function renderBarMenu() {
-        var html = '<div class="gh-menu-grab" aria-hidden="true"></div><div class="gh-menu-cap">Бар</div>' +
-            menuItem('data-bar', '', 'Все бары', 'вся сеть', S.bar === '');
-        each(GH.BARS, function (b) { html += menuItem('data-bar', b.key, b.name, b.short, S.bar === b.key); });
-        html += '<div class="gh-cp-menu-note">Показываются размещения бара и размещения на всю сеть. Фильтр общий ' +
-            'для контент-плана, отзывов и маркетинга.</div>';
-        el.barMenu.innerHTML = html;
-    }
     function renderChMenu() {
         var hints = { telegram: 'канал каждого бара', instagram: 'аккаунт сети', bot: 'рассылка' };
         var html = '<div class="gh-menu-grab" aria-hidden="true"></div><div class="gh-menu-cap">Площадка</div>' +
@@ -6548,19 +6585,102 @@
         el.chMenu.innerHTML = html;
     }
 
-    // ==================== месяц и вид ====================
+    // ==================== бар и месяц: общая полоса сайта ====================
+    // Бар и период выбираются один раз на весь сайт — полоса «Бар и период» в общем
+    // меню (templates/shared/scope_strip.html, window.KStrip; план единого виджета,
+    // этап 5). Страница помесячная: месяц плана — месяц периода полосы, бар — бар
+    // полосы. Без полосы (проверки в Node, скрипт полосы не загрузился) — ?month=
+    // старой ссылки или текущий месяц по Москве и общий бар (GH.getBar).
 
-    function switchMonth(mon) {
-        if (!mon || !MONTH_RE.test(mon)) return;
-        // Стрелки и кнопка месяца выводят из сквозного вида в месяц; фильтр
-        // состояния остаётся — можно пройти по месяцам с тем же фильтром.
-        if (S.scope) { leaveScope(mon, S.stateFilter); return; }
+    function strip() { return window.KStrip || null; }
+
+    // Месяц 'YYYY-MM' периода полосы. В помесячном режиме полоса и так держит целый
+    // месяц; иначе — месяц по правилу Р3 (KPeriod.monthOf: у недели — месяц четверга,
+    // до 31 дня — месяц середины, длиннее — последний месяц).
+    function monthOfPeriod(p) {
+        if (!p || !p.start) return null;
+        var K = window.KPeriod;
+        var m = p.granularity === 'month' || !K || !K.monthOf ? p : K.monthOf(p);
+        var mon = String(m.start).slice(0, 7);
+        return MONTH_RE.test(mon) ? mon : null;
+    }
+    function stripMonth() {
+        var s = strip();
+        var cur = s && s.get ? s.get() : null;
+        return cur ? monthOfPeriod(cur.period) : null;
+    }
+    function stripBar() {
+        var s = strip();
+        var cur = s && s.get ? s.get() : null;
+        if (cur) return GH.isBar(cur.bar) ? cur.bar : '';
+        return GH.getBar();
+    }
+    // Месяц 'YYYY-MM' -> период полосы (целый месяц, обе даты включительно).
+    function monthPeriod(mon) {
+        if (!MONTH_RE.test(mon || '')) return null;
+        var K = window.KPeriod;
+        if (K && K.periodFor && K.fromISO) return K.periodFor('month', K.fromISO(mon + '-01'));
+        var start = mon + '-01';
+        var end = mon + '-' + pad2(GH.daysInMonth(mon));
+        return { granularity: 'month', start: start, end: end, key: start + '_' + end };
+    }
+    // Месяц, выбранный действием страницы (материал открыт ссылкой из другого месяца), —
+    // новый общий выбор, как выбор в полосе: сохраняется для сайта и пишется в адрес.
+    function chooseMonth(mon) {
+        var s = strip();
+        var p = monthPeriod(mon);
+        if (s && s.setPeriod && p) s.setPeriod(p);
+        else if (p) writeMonthUrl(mon);
+    }
+    // Даты месяца в адрес (как их пишет полоса) — когда сквозной вид надо закрыть явно:
+    // ?state=overdue|failed без периода в адресе после перезагрузки снова открыл бы его.
+    function writeMonthUrl(mon) {
+        var p = monthPeriod(mon);
+        if (p) GH.setParams({ date_from: p.start, date_to: p.end, month: null });
+    }
+    function keepMonthInUrl() {
+        var params = GH.params();
+        if (params.get('date_from') && params.get('date_to')) return;
+        writeMonthUrl(S.month);
+    }
+    // Подпись в полосе: «все месяцы» в сквозном виде, иначе подпись сервера.
+    function setStripNote(text) {
+        var s = strip();
+        if (s && s.setNote) s.setNote(text || '');
+    }
+
+    // Выбор в полосе (здесь, на другой странице или в другой вкладке браузера).
+    //   бар   — фильтр плана на экране: перерисовать, слой отзывов календаря — заново;
+    //   месяц — другой месяц плана: перечитать; выбор месяца выводит из сквозного
+    //           вида (фильтр состояния остаётся — можно пройти по месяцам с ним).
+    // Выбор в полосе сам снимает её подпись; сквозной вид ставит «все месяцы» обратно,
+    // если остаётся (смена бара). Выбор из другой вкладки (cause 'external') сквозной
+    // вид не закрывает: он — фильтр этой страницы, а подпись полоса не трогает.
+    function onStripChange(e) {
+        if (!e) return;
+        if (e.cause !== 'external') S.baseNote = '';
+        if (e.type === 'bar') {
+            var bar = GH.isBar(e.bar) ? e.bar : '';
+            if (S.scope) setStripNote(SCOPE_NOTE);
+            if (bar === S.bar) return;
+            S.bar = bar;
+            renderChrome();
+            renderView();
+            if (S.reviewsOn) loadReviews();
+            return;
+        }
+        var mon = monthOfPeriod(e.period);
+        if (!mon) return;
+        if (S.scope) {
+            if (e.cause === 'external') { S.month = mon; return; }
+            leaveScope(mon, S.stateFilter);
+            return;
+        }
         if (mon === S.month) return;
         flushAll();
         S.month = mon;
         S.selected = {};
         S.calOpen = {};
-        GH.setParams({ month: mon });
         renderChrome();
         load();
         if (S.reviewsOn) loadReviews();
@@ -6631,7 +6751,7 @@
             if (a === 'leave-scope') { leaveScope(S.month, ''); return; }
             if (a === 'origin-off') { setOrigin(''); return; }
             if (a === 'reset-filters') {
-                S.bar = GH.setBar('');
+                // Фильтры страницы. Бар — общий выбор сайта, его меняют в полосе сверху.
                 S.channel = '';
                 S.origin = '';
                 GH.setParams({ origin: null });
@@ -6697,19 +6817,7 @@
     }
 
     function bind() {
-        el.prev.addEventListener('click', function () { switchMonth(GH.addMonths(S.month, -1)); });
-        el.next.addEventListener('click', function () { switchMonth(GH.addMonths(S.month, 1)); });
-        el.monthBtn.addEventListener('click', function () { switchMonth(GH.mskNow().month); });
-
-        el.barBtn.addEventListener('click', function () { renderBarMenu(); GH.toggleMenu(el.barMenu, el.barBtn); });
-        el.barMenu.addEventListener('click', function (e) {
-            var item = closest(e.target, '[data-bar]');
-            if (!item) return;
-            S.bar = GH.setBar(item.getAttribute('data-bar'));
-            renderChrome();
-            renderView();
-            if (S.reviewsOn) loadReviews();
-        });
+        // Месяц и бар — в полосе «Бар и период» (onStripChange, подписка в init).
         el.chBtn.addEventListener('click', function () { renderChMenu(); GH.toggleMenu(el.chMenu, el.chBtn); });
         el.chMenu.addEventListener('click', function (e) {
             var item = closest(e.target, '[data-ch]');
@@ -6858,13 +6966,6 @@
 
     function init() {
         el = {
-            prev: byId('cpPrev'),
-            next: byId('cpNext'),
-            monthBtn: byId('cpMonthBtn'),
-            monthLabel: byId('cpMonthLabel'),
-            barBtn: byId('cpBarBtn'),
-            barLabel: byId('cpBarLabel'),
-            barMenu: byId('cpBarMenu'),
             chBtn: byId('cpChBtn'),
             chLabel: byId('cpChLabel'),
             chMenu: byId('cpChMenu'),
@@ -6921,9 +7022,11 @@
             return;
         }
         var params = GH.params();
+        // Месяц плана — месяц полосы «Бар и период». Без полосы — ?month= старой ссылки
+        // (на сайте её уже перевёл в даты сервер, ответом 302) или текущий месяц по Москве.
         var mon = params.get('month');
         var monthGiven = MONTH_RE.test(mon || '');
-        S.month = monthGiven ? mon : GH.mskNow().month;
+        S.month = stripMonth() || (monthGiven ? mon : GH.mskNow().month);
         // Вид — по странице (data-cp-view шаблона, иначе путь); старый ?view=table сервер
         // уже перевёл на /content-plan/table.
         var pageView = document.body && document.body.getAttribute ? document.body.getAttribute('data-cp-view') : null;
@@ -6931,12 +7034,13 @@
             : (params.get('view') === 'table' ? 'table' : viewOfPath(window.location && window.location.pathname));
         var st = params.get('state');
         S.stateFilter = STATE_FILTERS.indexOf(st) >= 0 ? st : '';
-        // Сквозной вид — ?state=overdue|failed без ?month= (ссылки полосы
+        // Сквозной вид — ?state=overdue|failed без периода в адресе (ссылки полосы
         // «Требует внимания»). С календарём не сочетается: календарь — сетка
         // одного месяца, там остаётся обычный фильтр состояния.
-        S.scope = !monthGiven && SCOPE_STATES.indexOf(S.stateFilter) >= 0 && S.view === 'table' ? 'state' : '';
+        var periodGiven = monthGiven || !!(params.get('date_from') || params.get('date_to'));
+        S.scope = !periodGiven && SCOPE_STATES.indexOf(S.stateFilter) >= 0 && S.view === 'table' ? 'state' : '';
         S.origin = params.get('origin') === ORIGIN_AGENT ? ORIGIN_AGENT : '';
-        S.bar = GH.getBar();
+        S.bar = stripBar();
         S.pendingOpen = params.get('open') || null;
         // ?brief=1 — открыть бриф для агента (ссылка «откройте бриф»), ?channels=1
         // — «Каналы и отправка»; если в адресе есть и ?open=, главнее карточка
@@ -6947,6 +7051,14 @@
         if (adminFlag !== null) S.isAdmin = adminFlag === 'true';
         var wantChannels = params.get('channels') === '1';
         bind();
+        // Полоса «Бар и период»: её выбор перечитывает план (onStripChange); подпись сервера
+        // («по месяцам — показан …») запоминается, чтобы вернуть её после «все месяцы».
+        var s = strip();
+        if (s && s.onChange) {
+            S.baseNote = (s.config && s.config.note) || '';
+            s.onChange(onStripChange);
+            if (S.scope) setStripNote(SCOPE_NOTE);
+        }
         renderChrome();
         load().then(function (ok) {
             if (ok && S.pendingOpen) {
@@ -6998,6 +7110,10 @@
         pillHtml: pillHtml, pillBeer: pillBeer, pillDraggable: pillDraggable, dropProblem: dropProblem,
         channelConflict: channelConflict, movePill: movePill, beerText: beerText, beerHtml: beerHtml,
         beerPickHtml: beerPickHtml, setBeer: setBeer, barCopyHtml: barCopyHtml, barCopyState: barCopyState,
-        copyToBars: copyToBars, viewHref: viewHref, viewOfPath: viewOfPath
+        copyToBars: copyToBars, viewHref: viewHref, viewOfPath: viewOfPath,
+        // 2026-11-01: бар и месяц — из полосы «Бар и период».
+        onStripChange: onStripChange, monthOfPeriod: monthOfPeriod, stripMonth: stripMonth, stripBar: stripBar,
+        monthPeriod: monthPeriod, chooseMonth: chooseMonth, leaveScope: leaveScope, setStateFilter: setStateFilter,
+        emptyHtml: emptyHtml
     };
 })();

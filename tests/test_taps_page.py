@@ -1,8 +1,13 @@
 """Страницы кранов /taps и /taps/<bar> (переработка 2026-09-27): защита от устаревших
 действий, «X → Y» в замене, порядок истории, свежесть между воркерами, сводка бара,
-поиск кег по названию сорта. Временный файл кранов, без app.py и без сети."""
+поиск кег по названию сорта; полоса «Бар и период» (этап 6 плана единого виджета,
+2026-11-01): обзор показывает выбранный бар, страница бара делает свой бар общим и не
+держит своих ссылок на бары, окно активности подписано датами. Временный файл кранов,
+без app.py и без сети."""
 import importlib.util
+import json
 import os
+import re
 import sys
 import tempfile
 import types
@@ -102,6 +107,10 @@ class TapsPageTests(unittest.TestCase):
         stats = self.client.get('/api/taps/bar1/stats').json
         self.assertEqual((stats['active'], stats['empty'], stats['total'], stats['unverified']), (2, 22, 24, 1))
         self.assertIsInstance(stats['activity_7d'], float)
+        # окно активности датами: 7 дней, включая сегодня — для подписи «26 окт – 1 ноя 2026»
+        from datetime import date
+        start, end = date.fromisoformat(stats['activity_from']), date.fromisoformat(stats['activity_to'])
+        self.assertEqual((end - start).days, 6)
         full = self.client.get('/api/taps/bar3/stats').json
         self.assertEqual((full['active'], full['empty']), (0, 12))
         self.assertEqual(self.client.get('/api/taps/bar9/stats').status_code, 404)
@@ -123,24 +132,72 @@ class TapsPageTests(unittest.TestCase):
         self.assertEqual(self.manager.get_bar_taps('bar2')['bar_name'], 'Лиговский')
 
     def test_pages_render_with_tap_counts_from_one_place(self):
-        from routes.pages import _tap_bars
+        from routes.pages import _tap_bars, _taps_bar_strip
+        from core.scope import init_scope
         bars = _tap_bars()
         self.assertEqual([(b['id'], b['taps']) for b in bars],
                          [(k, v['taps']) for k, v in TapsManager.BARS_CONFIG.items()])
         app = Flask('taps_pages', template_folder=str(ROOT / 'templates'))
         app.jinja_env.globals['app_version'] = 'test'
+        init_scope(app)
         with app.test_request_context('/taps/bar1'):
             from flask import render_template
             main = render_template('taps_main.html', bars=bars)
             bar = render_template('taps_bar.html', bar_id='bar1', bar_name=BAR_NAMES['bar1'],
-                                  tap_count=24, bars=bars)
+                                  tap_count=24, bars=bars, strip=_taps_bar_strip('bar1'))
         for name in BAR_NAMES.values():
             self.assertIn(name, main)
         self.assertIn('data-taps="24"', bar)
-        self.assertIn('aria-current="page"', bar)
         self.assertIn('/static/js/taps/bar.js', bar)
         for page in (main, bar):
             self.assertNotRegex(page, '[\U0001F300-\U0001FAFF☀-➿]')
+
+    def test_strip_on_tap_pages(self):
+        """Полоса «Бар и период»: обзор — все бары или выбранный (Р9), страница бара — её бар."""
+        import routes.pages as rp
+        from core import scope
+        from flask import render_template_string
+        app = Flask('taps_strip', template_folder=str(ROOT / 'templates'))
+        app.register_blueprint(rp.pages_bp)
+        scope.init_scope(app)
+        saved = scope._current_user_id
+        scope._current_user_id = lambda: 7
+        self.addCleanup(setattr, scope, '_current_user_id', saved)
+        with patch('core.auth_guard.current_user', return_value={'id': 7}):
+            client = app.test_client()
+            main = client.get('/taps').get_data(as_text=True)
+            # обзор: полоса «на сейчас», все бары, карточки с ключом бара из таблицы сайта
+            self.assertIn('id="kultura-strip" data-mode="now"', main)
+            self.assertIn('id="ks-bar-name">Все бары<', main)
+            self.assertIn('data-bar="bar2" data-key="ligovskiy"', main)
+            self.assertNotRegex(main, r'class="tp-panel tp-barcard"[^>]*hidden')
+            self.assertIn('data-field="activity-dates"', main)
+            # выбран бар — чужие карточки сервер прячет сразу (без мигания)
+            client.set_cookie(scope.COOKIE_BAR, '7:kremenchugskaya')
+            main = client.get('/taps').get_data(as_text=True)
+            hidden = re.findall(r'data-key="(\w+)" data-taps="\d+" hidden', main)
+            self.assertEqual(sorted(hidden), ['bolshoy', 'ligovskiy', 'varshavskaya'])
+            # страница бара: бар — из адреса, а не из cookie; своих ссылок на бары нет
+            bar = client.get('/taps/bar2').get_data(as_text=True)
+            self.assertIn('id="ks-bar-name">Лиговский<', bar)
+            self.assertNotIn('data-bar=""', bar, 'по одному бару: без «Все бары»')
+            self.assertNotIn('class="tp-bars"', bar)
+            self.assertNotIn('href="/taps/bar1"', bar)
+            config = json.loads(re.search(r'window\.KULTURA_STRIP = (\{.*?\});</script>', bar).group(1))
+            self.assertEqual((config['mode'], config['barMode'], config['bar'], config['barSource']),
+                             ('now', 'single', 'ligovskiy', 'url'))
+            self.assertEqual(client.get('/taps/bar9').status_code, 404)
+            # «Связи с Untappd» — вся сеть, бар не выбирается
+            links = client.get('/taps/untappd').get_data(as_text=True)
+            self.assertIn('id="ks-bar-name">Все бары<', links)
+            self.assertIn('disabled title="Страница на бары не делится"', links)
+
+    def test_bar_page_script_follows_the_strip(self):
+        """bar.js: свой бар — последний бар страниц «по одному бару», выбор в полосе ведёт на его страницу."""
+        js = (ROOT / 'static/js/taps/bar.js').read_text(encoding='utf-8')
+        self.assertIn('KScope.setBarSingle(site.key)', js)
+        self.assertIn("window.location.href = '/taps/' + encodeURIComponent(info.bar_id)", js)
+        self.assertIn('activity_from', js)
 
 
 if __name__ == '__main__':

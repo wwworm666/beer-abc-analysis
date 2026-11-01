@@ -27,7 +27,7 @@ const js = read('static/js/guest_hub/reviews.js');
 const commonJs = read('static/js/guest_hub/common.js');
 const routes = read('routes/reviews.py');
 const core = read('core/guest_reviews.py');
-const headPartial = read('templates/shared/guest_hub_head.html');
+const periodCore = read('static/js/shared/period/period_core.js');
 
 let passed = 0;
 let failed = 0;
@@ -63,21 +63,42 @@ test('шаблон подключает стили и скрипты разде�
     assert.ok(hub > 0 && hub < own, 'reviews.css должен идти после hub.css (перекрывает его)');
 });
 
-test('каркас страницы: body, сайдбар, шапка раздела внутри gh-wrap', () => {
+test('каркас страницы: body, общая карточка заголовка и полоса «Бар и период», полоса раздела внутри gh-wrap', () => {
     assert.match(html, /<body class="gh-page gh-scope"[^>]*>/, 'нет классов страницы раздела на body');
     // флаг администратора: ответ гостю наружу — только админ (routes/reviews.py send-reply -> 403)
     assert.match(html, /<body[^>]*data-is-admin="\{\{ 'true' if current_user and current_user\.is_admin else 'false' \}\}"/,
         'нет флага администратора на body');
     assert.match(js, /function isAdmin\(/, 'нет проверки флага администратора в reviews.js');
     assert.match(js, /aria-disabled="true"/, 'кнопка отправки гостю не блокируется для не-админа');
-    assert.match(html, /\{% include 'shared\/nav\.html' %\}/, 'нет общего сайдбара');
+    // С 2026-11-01 — общий каркас сайта, как /guests: заголовок — общая карточка shared/nav.html.
+    const nav = html.indexOf("{% include 'shared/nav.html' %}");
+    assert.ok(nav > 0, 'нет общего меню');
+    assert.match(html, /\{% set page_title = "Отзывы" %\}/, 'нет заголовка общей карточки');
+    assert.match(html, /\{% set page_subtitle = "Яндекс Карты: ответы гостям" %\}/, 'нет подзаголовка');
+    assert.ok(!html.includes('guest_hub_head.html') && !html.includes('hub_title'), 'вернулась своя шапка раздела');
     const wrap = html.indexOf('<div class="gh-wrap">');
-    const head = html.indexOf("{% include 'shared/guest_hub_head.html' %}");
-    assert.ok(wrap > 0 && head > wrap, 'шапка раздела подключается вне .gh-wrap');
+    const embed = html.indexOf('<div class="gh-scope gh-embed">');
+    const hub = html.indexOf("{% include 'shared/guest_hub_strip.html' %}");
+    assert.ok(nav < wrap && wrap < embed && embed < hub, 'полоса раздела не в .gh-embed внутри .gh-wrap');
     assert.match(html, /\{% set hub_active = 'reviews' %\}/, 'вкладка «Отзывы» не активна');
-    assert.match(html, /\{% set hub_title = 'Отзывы' %\}/, 'нет заголовка');
-    assert.match(html, /\{% set hub_subtitle = 'Яндекс Карты: ответы гостям' %\}/, 'нет подзаголовка');
-    assert.match(headPartial, /hub_title/, 'шапка раздела больше не читает hub_title');
+});
+
+test('полоса «Бар и период»: отчёт за любой период, «Всё время» с первого отзыва; своих выборов периода и бара нет', () => {
+    const decl = "{% set strip = kultura_strip(mode='report', step='month', live=True, data_start=data_start) %}";
+    assert.ok(html.includes(decl), 'полоса объявлена не так (отчёт, шаг месяц, живые данные, первый день данных)');
+    assert.ok(html.indexOf(decl) < html.indexOf("{% include 'shared/nav.html' %}"), 'полоса объявлена после общего меню');
+    assert.match(routes, /data_start=_data_start\(\)/, 'маршрут не передаёт первый день данных');
+    for (const id of ['rvPrev', 'rvNext', 'rvMonthBtn', 'rvMonthMenu', 'rvMonthLabel', 'rvBarBtn', 'rvBarMenu', 'rvBarLabel']) {
+        assert.ok(!html.includes(`id="${id}"`) && !js.includes(`'${id}'`), `вернулся свой выбор периода или бара: #${id}`);
+    }
+    assert.ok(!/class="gh-month"/.test(html), 'вернулись стрелки месяца страницы');
+    for (const id of ['rvSourceBtn', 'rvRatingBtn', 'rvStatusBtn']) assert.ok(html.includes(`id="${id}"`), `пропал #${id}`);
+    // Список — датами периода полосы; ?month= страница больше не шлёт.
+    assert.match(js, /'from=' \+ encodeURIComponent\(state\.period\.start\), 'to=' \+ encodeURIComponent\(state\.period\.end\)/);
+    assert.ok(!/'month=' \+/.test(js), 'список снова запрашивается месяцем');
+    assert.match(js, /s\.onChange\(onStripChange\)/, 'страница не слушает полосу');
+    // Старые ссылки ?month=YYYY-MM — 302 с датами; ?month=all — без перевода (показ «за всё время»).
+    assert.match(routes, /redirect_target\(url_for\('reviews\.reviews_page'\), request\.args, keep=\('all',\)\)/);
 });
 
 test('все id, которые ищет JS, объявлены в шаблоне', () => {
@@ -292,14 +313,14 @@ test('срок ответа 48 ч — одна именованная конст
     assert.match(js, /data-tip="' \+ GH\.esc\(tip\)/, 'у отметки ожидания нет подсказки с правилом');
 });
 
-test('адрес страницы: status, source, month (и all) читаются и пишутся', () => {
-    for (const key of ['status', 'source', 'month', 'rating']) {
+test('адрес страницы: status, source, rating и month=all читаются и пишутся; период и бар — у полосы', () => {
+    for (const key of ['status', 'source', 'month', 'rating', 'date_from', 'date_to']) {
         assert.match(js, new RegExp(`p\\.get\\('${key}'\\)`), `не читается ?${key}=`);
     }
     assert.match(js, /month === 'all'/, '«За всё время» не читается из адреса');
     assert.match(js, /GH\.setParams\(/, 'фильтры не пишутся в адрес');
-    assert.match(js, /GH\.getBar\(\)/, 'бар не берётся из общего фильтра раздела');
-    assert.match(js, /GH\.setBar\(/, 'бар не сохраняется в общий фильтр раздела');
+    assert.match(js, /month: state\.all \? 'all' : null/, 'в адрес снова пишется месяц (его пишет полоса датами)');
+    assert.match(js, /GH\.getBar\(\)/, 'бар не берётся из общего выбора (полосы)');
 });
 
 test('телефон: у стилей есть разметка до 768px и лист диалога', () => {
@@ -403,7 +424,7 @@ const tick = () => new Promise((r) => setTimeout(r, 0));
 
 // Поднимает страницу: common.js + reviews.js в одном vm-контексте.
 // search — строка адреса (?status=new&month=all); respond(url, init) -> {status, body}.
-function bootPage({ search = '', respond }) {
+function bootPage({ search = '', respond, strip = null, clock = null }) {
     const ids = {};
     const document = {
         readyState: 'complete',
@@ -442,7 +463,13 @@ function bootPage({ search = '', respond }) {
         },
     };
     window.document = document;
+    if (strip) window.KStrip = strip;
     const ctx = vm.createContext(sandbox);
+    // Ядро периодов — как на странице с полосой (scope_strip.js настраивает часы с сервера).
+    if (clock) {
+        vm.runInContext(periodCore, ctx, { filename: 'period_core.js' });
+        window.KPeriod.configure(clock);
+    }
     vm.runInContext(commonJs, ctx, { filename: 'common.js' });
     sandbox.GH = window.GH;
     vm.runInContext(js, ctx, { filename: 'reviews.js' });
@@ -477,31 +504,104 @@ function fakeServer(state) {
 }
 const listUrls = (calls) => calls.filter((c) => c.url.startsWith('/api/reviews?')).map((c) => c.url);
 
-atest('ссылка полосы ?status=new&month=all открывает «За всё время» + «Без ответа»', async () => {
+// Поддельная полоса «Бар и период»: то же поведение для страницы, что scope_strip.js — выбор в
+// полосе снимает её подпись и сообщает onChange; showPeriod показывает, не меняя выбор.
+function fakeStrip({ period, bar = '' }) {
+    const listeners = [];
+    const emit = (e) => listeners.forEach((fn) => fn(e));
+    return {
+        state: { bar, period }, notes: [], shown: [], chosen: [], bars: [],
+        config: { note: '' },
+        get() { return { bar: this.state.bar, period: this.state.period }; },
+        onChange(fn) { listeners.push(fn); },
+        setNote(t) { this.notes.push(t); },
+        showPeriod(p) { this.shown.push(p); this.state.period = p; },
+        setPeriod(p) { this.chosen.push(p); this.state.period = p; this.notes.push(''); emit({ type: 'period', period: p, bar: this.state.bar, cause: 'user' }); },
+        setBar(k) {
+            this.bars.push(k);
+            const changed = k !== this.state.bar;
+            this.state.bar = k;
+            this.notes.push('');
+            if (changed) emit({ type: 'bar', bar: k, period: this.state.period, cause: 'user' });
+        },
+        fire(e) {
+            if (e.period) this.state.period = e.period;
+            if (e.bar !== undefined) this.state.bar = e.bar;
+            if (e.cause !== 'external') this.notes.push('');
+            emit(e);
+        },
+    };
+}
+const OCT = { granularity: 'month', start: '2026-10-01', end: '2026-10-31', key: '2026-10-01_2026-10-31' };
+const NOV = { granularity: 'month', start: '2026-11-01', end: '2026-11-30', key: '2026-11-01_2026-11-30' };
+// Часы страницы с сервера: первый отзыв 3 мая 2018 (data_start), сегодня 1 ноября 2026.
+const CLOCK = { today: '2026-11-01', last_full_day: '2026-10-31', max_date: '2026-11-01', data_start: '2018-05-03' };
+
+atest('полоса: список — за период полосы датами; выбор периода и бара в полосе перечитывает список', async () => {
     const st = { attn: { reviews_unanswered: 0 }, list: listPayload([], 0) };
-    const { ids, calls, urls } = bootPage({ search: '?status=new&month=all', respond: fakeServer(st) });
+    const strip = fakeStrip({ period: NOV, bar: 'ligovskiy' });
+    const page = bootPage({ search: '', respond: fakeServer(st), strip, clock: CLOCK });
     await tick();
-    assert.equal(listUrls(calls)[0], '/api/reviews?all=1&status=new', 'список запрошен не за всё время');
-    assert.equal(ids.rvMonthLabel.textContent, 'За всё время');
-    assert.equal(ids.rvStatusLabel.textContent, 'Без ответа');
-    assert.match(urls[urls.length - 1], /month=all/, 'адрес потерял month=all');
+    assert.equal(listUrls(page.calls)[0], '/api/reviews?from=2026-11-01&to=2026-11-30&bar=ligovskiy',
+        'список запрошен не за период и бар полосы');
+    // Свой период из полосы — любой длины.
+    strip.fire({ type: 'period', period: { granularity: 'custom', start: '2024-03-01', end: '2026-10-31', key: 'c' }, cause: 'user' });
+    await tick();
+    assert.equal(listUrls(page.calls).pop(), '/api/reviews?from=2024-03-01&to=2026-10-31&bar=ligovskiy');
+    strip.fire({ type: 'bar', bar: '', cause: 'user' });
+    await tick();
+    assert.equal(listUrls(page.calls).pop(), '/api/reviews?from=2024-03-01&to=2026-10-31', 'смена бара не перечитала список');
+    // Карточка бара — выбор бара в полосе (общий для сайта), список перечитывает её onChange.
+    const tile = { closest: (sel) => (sel === '[data-bar]' ? { getAttribute: () => 'bolshoy' } : null) };
+    page.ids.rvTiles.fire('click', { target: tile });
+    await tick();
+    assert.deepEqual(strip.bars, ['bolshoy'], 'карточка бара выбирает мимо полосы');
+    assert.equal(listUrls(page.calls).pop(), '/api/reviews?from=2024-03-01&to=2026-10-31&bar=bolshoy');
+    assert.ok(!page.urls.some((u) => /[?&]month=/.test(u)), `страница пишет ?month= в адрес: ${page.urls.join(' ')}`);
 });
 
-atest('без ?month «Без ответа» — за всё время, остальные — текущий месяц', async () => {
+atest('ссылка полосы ?status=new&month=all: все без ответа за всё время, общий выбор не меняется; выбор в полосе — обычный режим', async () => {
+    const st = { attn: { reviews_unanswered: 0 }, list: listPayload([], 0) };
+    const strip = fakeStrip({ period: OCT });
+    const page = bootPage({ search: '?status=new&month=all', respond: fakeServer(st), strip, clock: CLOCK });
+    await tick();
+    assert.equal(listUrls(page.calls)[0], '/api/reviews?all=1&status=new', 'список запрошен не за всё время');
+    assert.equal(page.ids.rvStatusLabel.textContent, 'Без ответа');
+    assert.deepEqual(strip.shown.map((p) => [p.start, p.end]), [['2018-05-03', '2026-11-01']],
+        'полоса не показывает «Всё время» (с первого отзыва по сегодня)');
+    assert.equal(strip.notes[strip.notes.length - 1], 'все отзывы без ответа', 'нет подписи в полосе');
+    assert.deepEqual(strip.chosen, [], 'показ «за всё время» поменял общий выбор периода');
+    assert.match(page.urls[page.urls.length - 1], /month=all/, 'адрес потерял month=all');
+    // Смена бара в полосе снимает её подпись — показ «за всё время» возвращает её.
+    strip.fire({ type: 'bar', bar: 'kremenchugskaya', cause: 'user' });
+    await tick();
+    assert.equal(strip.notes[strip.notes.length - 1], 'все отзывы без ответа');
+    assert.equal(listUrls(page.calls).pop(), '/api/reviews?all=1&bar=kremenchugskaya&status=new');
+    // Выбор в другой вкладке — показ остаётся.
+    strip.fire({ type: 'period', period: NOV, cause: 'external' });
+    await tick();
+    assert.equal(listUrls(page.calls).pop(), '/api/reviews?all=1&bar=kremenchugskaya&status=new');
+    assert.equal(strip.shown.length, 3, 'после выбора в другой вкладке полоса не показывает «Всё время» снова');
+    // Следующий выбор в полосе — обычный режим: период полосы, фильтр статуса остаётся.
+    strip.fire({ type: 'period', period: OCT, cause: 'user' });
+    await tick();
+    assert.equal(listUrls(page.calls).pop(), '/api/reviews?from=2026-10-01&to=2026-10-31&bar=kremenchugskaya&status=new');
+    assert.ok(!/month=/.test(page.urls[page.urls.length - 1]), 'month=all остался в адресе');
+});
+
+atest('без полосы и без ?month: «Без ответа» — фильтр статуса за период (текущий месяц), месяц в адрес не пишется', async () => {
     const st = { attn: { reviews_unanswered: 0 }, list: listPayload([], 0) };
     let page = bootPage({ search: '?status=new', respond: fakeServer(st) });
     await tick();
-    assert.equal(listUrls(page.calls)[0], '/api/reviews?all=1&status=new');
+    assert.match(listUrls(page.calls)[0], /^\/api\/reviews\?from=\d{4}-\d{2}-01&to=\d{4}-\d{2}-\d{2}&status=new$/);
     page = bootPage({ search: '', respond: fakeServer(st) });
     await tick();
-    assert.match(listUrls(page.calls)[0], /^\/api\/reviews\?month=\d{4}-\d{2}$/, 'по умолчанию — не месяц');
-    assert.ok(!/month=/.test(page.urls[page.urls.length - 1]), 'текущий месяц не пишется в адрес');
-    // Выбранный текущий месяц у «Без ответа» пишется явно — иначе F5 открыл бы «За всё время».
-    const cur = listUrls(page.calls)[0].slice(-7);
-    page = bootPage({ search: `?status=new&month=${cur}`, respond: fakeServer(st) });
+    assert.match(listUrls(page.calls)[0], /^\/api\/reviews\?from=\d{4}-\d{2}-01&to=\d{4}-\d{2}-\d{2}$/, 'по умолчанию — не месяц');
+    assert.ok(!/month=/.test(page.urls[page.urls.length - 1]), 'месяц пишется в адрес');
+    // Даты в адресе (ссылка) — период списка.
+    page = bootPage({ search: '?date_from=2026-09-01&date_to=2026-09-30&status=new', respond: fakeServer(st) });
     await tick();
-    assert.equal(listUrls(page.calls)[0], `/api/reviews?month=${cur}&status=new`);
-    assert.match(page.urls[page.urls.length - 1], new RegExp(`month=${cur}`), 'месяц пропал из адреса');
+    assert.equal(listUrls(page.calls)[0], '/api/reviews?from=2026-09-01&to=2026-09-30&status=new');
 });
 
 atest('карточки: гость со ссылкой ?q=, строка про Яндекс, три состояния материала, черновик как набран', async () => {
@@ -543,13 +643,13 @@ atest('«ещё N без ответа за другие месяцы»: по с�
     await tick();
     const box = page.ids.rvElsewhere;
     assert.equal(box.hidden, false, 'подсказка не показана');
-    assert.equal(page.ids.rvElsewhereText.textContent, 'Ещё 2 отзыва без ответа — за другие месяцы.');
+    assert.equal(page.ids.rvElsewhereText.textContent, 'Ещё 2 отзыва без ответа — вне выбранного периода.');
     assert.match(box.getAttribute('data-tip'), /5 − 3 = 2/, 'в подсказке нет расчёта');
     // «Показать все без ответа» -> за всё время, только без ответа.
     page.ids.rvElsewhereShow.fire('click', {});
     await tick();
     assert.equal(listUrls(page.calls).pop(), '/api/reviews?all=1&status=new');
-    assert.equal(box.hidden, true, 'у «За всё время» других месяцев нет');
+    assert.equal(box.hidden, true, 'у «за всё время» других дат нет');
     // Фильтр источника: счётчик полосы его не учитывает — не сравниваем.
     page = bootPage({ search: '?source=yandex', respond: fakeServer(st) });
     await tick();

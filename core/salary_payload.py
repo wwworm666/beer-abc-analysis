@@ -35,12 +35,13 @@
 
 ## Changelog
 
+- 2026-11-01 — `current_month` — по рабочим суткам бара (`msk_time.business_today`), а не
+  наивный `date.today()` (UTC контейнера).
 - 2026-08-01 — модуль создан под ночную выгрузку в Google Таблицу.
 """
 
 import calendar
 import json
-from datetime import date
 
 DEFAULT_ROLE_RATE = 300      # ставка роли по умолчанию (как в bonus.html)
 DEFAULT_BASE_PREMIUM = 5000  # тариф KPI, если фонд не задан
@@ -55,7 +56,14 @@ def month_bounds(month: str):
 
 
 def current_month() -> str:
-    return date.today().strftime('%Y-%m')
+    """Текущий месяц по РАБОЧИМ суткам бара (core/msk_time.business_today).
+
+    Не наивный date.today(): прод-контейнер живёт в UTC, и с 00:00 до 03:00 МСК дата
+    отставала на день; а ночная смена 31-го (до 06:00 1-го числа) — это ещё прошлый
+    месяц (стандарт периодов, docs/period-standard.md, раздел 1).
+    """
+    from core.msk_time import business_today
+    return business_today().strftime('%Y-%m')
 
 
 def previous_month(month: str = None) -> str:

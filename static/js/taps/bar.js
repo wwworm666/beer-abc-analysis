@@ -5,7 +5,12 @@
 
    Каждое действие отправляет expected — состояние крана, которое видел бармен
    (status, current_beer, started_at). Если кран за это время изменили (второй
-   бармен, вторая вкладка, двойное нажатие), сервер отвечает 409 и ничего не пишет. */
+   бармен, вторая вкладка, двойное нажатие), сервер отвечает 409 и ничего не пишет.
+
+   Бар — общая полоса «Бар и период» (план единого виджета, этап 6): страница «по одному
+   бару», бар задан адресом (/taps/bar2). Сервер рисует полосу сразу с этим баром и делает
+   его общим баром сайта, как бар из ссылки (routes/pages.taps_bar); выбор другого бара в
+   полосе открывает страницу того бара. Своих ссылок на бары у страницы нет. */
 (function () {
     'use strict';
 
@@ -18,6 +23,7 @@
     const state = {
         taps: [],
         stats: null,
+        pendingBar: null,   // бар, выбранный в другой вкладке, пока было открыто окно крана
         events: [],
         historyShown: HISTORY_STEP,
         beers: null,
@@ -186,6 +192,45 @@
         }
     }
 
+    // Окно без выбора — датами с сервера (activity_from / activity_to), название — общим
+    // KPeriod, как в полосе: «26 окт – 1 ноя 2026».
+    function windowDates(fromIso, toIso) {
+        const K = window.KPeriod;
+        const start = K && fromIso ? K.fromISO(fromIso) : null;
+        const end = K && toIso ? K.fromISO(toIso) : null;
+        return start && end ? K.customPeriod(start, end).label : '';
+    }
+
+    // ---------- полоса «Бар и период» ----------
+
+    const strip = window.KStrip;
+
+    function openBarPage(key) {
+        const info = strip ? strip.barInfo(key) : null;
+        if (info && info.bar_id !== BAR.id) window.location.href = '/taps/' + encodeURIComponent(info.bar_id);
+    }
+
+    function bindStrip() {
+        if (!strip) return;
+        const site = (strip.config.bars || []).find((bar) => bar.bar_id === BAR.id);
+        // Открыть страницу бара — выбрать его: он же последний бар страниц «по одному бару»
+        // (их показывают при «Все бары» на сайте, ответ владельца Р4).
+        if (site && window.KScope) window.KScope.setBarSingle(site.key);
+        strip.onChange((event) => {
+            if (event.type !== 'bar' || !event.bar) return;
+            // Окно крана открыто (бар сменили в другой вкладке) — переход после его закрытия.
+            if (state.sheet) { state.pendingBar = event.bar; return; }
+            openBarPage(event.bar);
+        });
+    }
+
+    function followPendingBar() {
+        if (!state.pendingBar) return;
+        const key = state.pendingBar;
+        state.pendingBar = null;
+        openBarPage(key);
+    }
+
     // ---------- сводка и фильтры ----------
 
     function counts() {
@@ -215,6 +260,7 @@
             if (extra) number.appendChild(el('small', null, ' ' + extra));
             node.appendChild(number);
             node.appendChild(el('span', null, label));
+            if (options && options.sub) node.appendChild(el('span', null, options.sub));
             box.appendChild(node);
         };
         cell(c.active, 'Активных кранов', 'из ' + c.all);
@@ -227,6 +273,7 @@
         cell(activity, 'Активность за 7 дней', null, {
             title: 'Доля кран-дней с подключённой кегой за последние 7 дней, включая сегодня: '
                 + 'сумма активных дней всех кранов / (кранов × 7) × 100',
+            sub: state.stats ? windowDates(state.stats.activity_from, state.stats.activity_to) : '',
         });
     }
 
@@ -407,6 +454,7 @@
         state.sheet = null;
         $('tp-sheet-wrap').hidden = true;
         document.documentElement.classList.remove('tp-lock');
+        followPendingBar();
     }
 
     function setMode(mode) {
@@ -639,6 +687,7 @@
         state.sheet = null;
         $('tp-sheet-wrap').hidden = true;
         document.documentElement.classList.remove('tp-lock');
+        followPendingBar();
     }
 
     function submitPicked(tap, buttonNode) {
@@ -761,5 +810,6 @@
     }
 
     bind();
+    bindStrip();
     refreshAll();
 })();

@@ -21,7 +21,8 @@ REPORT_KEYS = ('report_type', 'rows', 'columns', 'measures', 'filters', 'include
                'date_from', 'date_to', 'period', 'format', 'sort', 'order', 'limit', 'having')
 XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 
-# Отчёт, который страница показывает при первом открытии (строится по кнопке).
+# Отчёт, который страница показывает при первом открытии (строится сразу). Периода в нём нет:
+# период страницы — общий выбор полосы «Бар и период» (с 2026-11-01; без выбора — эта неделя).
 DEFAULT_CONFIG = {
     'report_type': 'SALES',
     'rows': ['DishGroup.TopParent'],
@@ -30,7 +31,6 @@ DEFAULT_CONFIG = {
     'filters': [{'field': fid, 'op': 'in', 'values': list(values)}
                 for fid, values in olap_constructor.DELETION_GUARDS],
     'include_deleted': True,
-    'period': {'preset': 'last_week'},
 }
 
 
@@ -68,12 +68,20 @@ def _flag(name: str) -> bool:
 
 @explorer_bp.route('/explorer')
 def explorer_page():
-    """Страница конструктора."""
+    """Страница конструктора.
+
+    Бар и период — общая полоса сайта (шаблон объявляет kultura_strip, план единого виджета,
+    этап 3). periods — таблица пресетов сервера с датами на сегодня: по ней страница
+    переводит период сохранённого отчёта ({preset}) в даты полосы и сохраняет период полосы
+    пресетом, если даты совпали. bar_fields — поле бара у каждого типа отчёта
+    (olap_catalog.BAR_FIELD): по нему ставится фильтр бара из полосы.
+    """
     bootstrap = {
         'report_types': [{'id': rt, 'title': olap_catalog.REPORT_TYPE_TITLES[rt],
                           'hint': olap_catalog.REPORT_TYPE_HINTS[rt]}
                          for rt in olap_catalog.REPORT_TYPES],
         'periods': olap_constructor.period_table(),
+        'bar_fields': dict(olap_catalog.BAR_FIELD),
         'default': DEFAULT_CONFIG,
         'guarded_types': list(olap_constructor.GUARDED_TYPES),
         'guard_filters': DEFAULT_CONFIG['filters'],

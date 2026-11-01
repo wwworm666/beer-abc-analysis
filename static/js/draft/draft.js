@@ -9,6 +9,13 @@
    Числа не пересчитываются на клиенте нигде, кроме форматирования и ширины
    шкал: доли, наценки и итоги приходят посчитанными сервером (core/draft_kegs.py),
    чтобы страница и документация говорили одно и то же.
+
+   Бар и период — общая полоса сайта «Бар и период» (window.KStrip; связка трёх
+   ABC-страниц — AbcView.connect в static/js/shared/abc_view.js). Своих меню бара
+   и периода и кнопки «Запустить анализ» нет (с 2026-11-01, план единого виджета,
+   этап 3): страница считает сразу при открытии и после паузы в смене бара или
+   периода. Без выбора за последний час полоса открывается на последних 30 полных
+   днях: XYZ нужно не меньше трёх недель.
 */
 (function () {
     'use strict';
@@ -16,12 +23,12 @@
     // ==================== состояние ====================
 
     var state = {
-        bar: '',                 // '' = все бары («Общая»)
-        // 30 дней, а не прошлая неделя (с 2026-09-26, как на /packaging): на
-        // неделе третья буква кода (спрос) не считается ни у одного кега.
-        preset: 'd30',
+        // Бар и период — из полосы (syncScope): bar — имя бара в iiko для запроса,
+        // '' — все бары; title — название периода для строки «Считаю…».
+        bar: '',
         from: null,
         to: null,
+        title: '',
         data: null,              // блок ответа /api/draft-kegs
         query: '',
         catSort: { key: 'TotalRevenue', dir: -1 },
@@ -34,6 +41,10 @@
     // Общая раскладка страницы (static/js/shared/abc_view.js): вкладки, «Обзор»,
     // «Цены», бармены. null — модуль не подключён (страница работает и без него).
     var view = null;
+    // Связка с полосой «Бар и период» (AbcView.connect) и память ответов на время
+    // страницы (AbcView.memo): тот же бар и период второй раз — без запроса.
+    var scope = null;
+    var memo = null;
 
     // Пояснение расчёта — свёрнуто под стрелкой «Как считается» (CLAUDE.md, п. 1):
     // текст на странице, но не занимает экран.
@@ -105,10 +116,6 @@
         if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
         return (parts[0][0] + parts[1][0]).toUpperCase();
     }
-    function dateISO(d) {
-        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') +
-               '-' + String(d.getDate()).padStart(2, '0');
-    }
     function dateRu(iso, withYear) {
         if (!iso) return '';
         var p = String(iso).split('-');
@@ -117,9 +124,6 @@
     function rangeLabel(from, to) {
         if (!from || !to) return '';
         return dateRu(from) + ' — ' + dateRu(to, true);
-    }
-    function daysBetween(from, to) {
-        return Math.round((new Date(to) - new Date(from)) / 86400000) + 1;
     }
     // «26 кегов», «8 барменов», «7 дней» — без этого подписи звучат как робот.
     function plural(n, one, few, many) {
@@ -131,144 +135,29 @@
         return many;
     }
 
-    // ==================== период ====================
+    // ==================== бар и период ====================
 
-    function startOfWeek(d) {
-        var day = d.getDay();
-        var shift = day === 0 ? 6 : day - 1;   // неделя с понедельника
-        var start = new Date(d);
-        start.setDate(d.getDate() - shift);
-        start.setHours(0, 0, 0, 0);
-        return start;
+    // Подпись бара в строке разреза и карточках: «Все бары» или имя бара.
+    function barText() {
+        return window.AbcView ? window.AbcView.barText(state.bar) : (state.bar || 'Все бары');
     }
 
-    function presetRange(key) {
-        var today = new Date();
-        today.setHours(0, 0, 0, 0);
-        var from = new Date(today), to = new Date(today);
-
-        if (key === 'today') {
-            /* от сегодня до сегодня */
-        } else if (key === 'yesterday') {
-            from.setDate(today.getDate() - 1);
-            to = new Date(from);
-        } else if (key === 'week') {
-            from = startOfWeek(today);
-        } else if (key === 'prev_week') {
-            var thisMonday = startOfWeek(today);
-            from = new Date(thisMonday);
-            from.setDate(thisMonday.getDate() - 7);
-            to = new Date(from);
-            to.setDate(from.getDate() + 6);
-        } else if (key === 'month') {
-            from = new Date(today.getFullYear(), today.getMonth(), 1);
-        } else if (key === 'prev_month') {
-            from = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-            to = new Date(today.getFullYear(), today.getMonth(), 0);
-        } else if (key === 'd30' || key === 'd90') {
-            // Скользящие «N дней» заканчиваются ВЧЕРА (с 2026-09-26): сегодняшний
-            // день неполный, и с ним последняя неделя XYZ и её столбик в карточке
-            // были занижены. «Сегодня», «текущая неделя» и «текущий месяц»
-            // включают сегодня по смыслу и остаются как есть.
-            var span = key === 'd30' ? 30 : 90;
-            to.setDate(today.getDate() - 1);
-            from = new Date(to);
-            from.setDate(to.getDate() - (span - 1));
-        } else {
-            return null;
-        }
-        return { from: dateISO(from), to: dateISO(to) };
+    // Бар и период из полосы — в состояние страницы.
+    function syncScope() {
+        if (!scope) return;
+        var sel = scope.get();
+        state.bar = sel.bar;
+        state.from = sel.from;
+        state.to = sel.to;
+        state.title = sel.title;
     }
 
-    // Сверху периоды, на которых считается спрос (XYZ, третья буква кода), —
-    // тот же порядок, что на /packaging. Короткие стоят ниже и подписаны в меню
-    // «без XYZ»: на них у всех кегов третья буква «?».
-    var PRESETS = [
-        { key: 'd30', label: 'Последние 30 дней' },
-        { key: 'prev_month', label: 'Прошлый месяц' },
-        { key: 'month', label: 'Текущий месяц' },
-        { key: 'd90', label: 'Последние 90 дней' },
-        { key: 'week', label: 'Текущая неделя' },
-        { key: 'prev_week', label: 'Прошлая неделя' },
-        { key: 'yesterday', label: 'Вчера' },
-        { key: 'today', label: 'Сегодня' }
-    ];
-
-    // Полных 7-дневных недель в периоде — та же арифметика, что на сервере
-    // (core/draft_kegs.py, full_buckets): нужна только подписи «без XYZ» в меню.
-    function weeksIn(from, to) {
-        if (!from || !to) return 0;
-        return Math.floor(daysBetween(from, to) / 7);
-    }
-
-    function presetLabel(key) {
-        for (var i = 0; i < PRESETS.length; i++) {
-            if (PRESETS[i].key === key) return PRESETS[i].label;
-        }
-        return 'Свой период';
-    }
-
-    function applyPreset(key) {
-        var range = presetRange(key);
-        state.preset = key;
-        if (range) { state.from = range.from; state.to = range.to; }
-        syncPickers();
-    }
-
-    function syncPickers() {
-        el.barLabel.textContent = state.bar || 'Общая';
-        el.perLabel.textContent = presetLabel(state.preset);
-        el.perHint.textContent = rangeLabel(state.from, state.to);
-    }
-
-    // ==================== меню фильтров ====================
-
-    function closeMenus() {
-        el.barMenu.hidden = true;
-        el.perMenu.hidden = true;
-        el.catch_.hidden = true;
-    }
-    function openMenu(menu) {
-        closeMenus();
-        menu.hidden = false;
-        el.catch_.hidden = false;
-    }
-
-    function buildBarMenu(bars) {
-        var html = '<button type="button" class="dr-menu-item' +
-            (state.bar ? '' : ' is-on') + '" data-bar=""><span>Общая</span>' +
-            '<span>все точки</span></button>';
-        bars.forEach(function (bar) {
-            html += '<button type="button" class="dr-menu-item' +
-                (state.bar === bar ? ' is-on' : '') + '" data-bar="' + esc(bar) + '">' +
-                '<span>' + esc(bar) + '</span><span></span></button>';
-        });
-        el.barMenu.innerHTML = html;
-    }
-
-    function buildPerMenu() {
-        var html = '';
-        PRESETS.forEach(function (preset) {
-            var range = presetRange(preset.key);
-            var weeks = weeksIn(range.from, range.to);
-            html += '<button type="button" class="dr-menu-item' +
-                (state.preset === preset.key ? ' is-on' : '') +
-                '" data-preset="' + preset.key + '">' +
-                '<span>' + esc(preset.label) + '</span>' +
-                '<span>' + (weeks < 3 ? 'без XYZ' : esc(rangeLabel(range.from, range.to))) +
-                '</span></button>';
-        });
-        // Свой период: пресеты закрывают обычные вопросы, но расчёт умеет любой
-        // диапазон, и отнимать эту возможность у страницы нельзя.
-        html += '<div class="dr-menu-item" style="display:block;cursor:default">' +
-            '<div style="font:600 9.5px/1 var(--dr-mono);letter-spacing:.14em;' +
-            'color:var(--dr-ink5);margin-bottom:7px">СВОЙ ПЕРИОД</div>' +
-            '<div style="display:flex;gap:6px;align-items:center">' +
-            '<input type="date" id="drFrom" value="' + esc(state.from || '') + '">' +
-            '<input type="date" id="drTo" value="' + esc(state.to || '') + '">' +
-            '<button type="button" class="dr-run" id="drCustom" ' +
-            'style="height:30px;padding:0 14px">ОК</button></div></div>';
-        el.perMenu.innerHTML = html;
+    // Подпись «XYZ не считается» сразу по выбранному периоду (до ответа сервера):
+    // короче трёх полных недель спрос не считается, ABC — как обычно.
+    function showXyzHint() {
+        var text = window.AbcView ? window.AbcView.noXyzText(state.from, state.to) : '';
+        el.xyzChip.hidden = !text;
+        el.xyzChip.textContent = text;
     }
 
     // ==================== запрос ====================
@@ -286,57 +175,58 @@
     }
 
     function run() {
-        // Идёт запрос — не теряем новый выбор: ответ старого запроса будет
-        // выброшен, а новый запустится сразу по его завершении (см. ниже).
-        // До 2026-09-26 run() молча выходил, и страница показывала данные
-        // «Общей» с подписью выбранного бара.
+        // Идёт запрос — новый выбор не теряется: ответ старого запроса будет
+        // выброшен, а новый запустится сразу по его завершении (см. ниже). Так в
+        // iiko никогда не уходит больше одного запроса страницы.
         if (state.loading) return;
         if (!state.from || !state.to) {
-            showMessage('Выберите период', true);
+            showMessage('Период не выбран', true);
             return;
         }
         var key = requestKey();
+        var AV = window.AbcView;
+        showXyzHint();
+        var cached = memo ? memo.get(key) : null;
+        if (cached) {
+            show(cached);
+            return;
+        }
         state.loading = true;
-        el.spin.hidden = false;
-        el.runLabel.textContent = 'Считаю…';
-        el.run.disabled = true;
         el.body.hidden = true;
-        showMessage('Забираем данные из iiko: проводки по кегам, продажи, техкарты…');
+        showMessage(AV.progressText('розлив', { title: state.title, label: barText() }) +
+            ' Забираем из iiko проводки по кегам, продажи и техкарты.');
 
-        fetch('/api/draft-kegs', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ bar: state.bar, date_from: state.from, date_to: state.to })
-        }).then(function (response) {
-            return response.json().then(function (payload) {
-                return { ok: response.ok, status: response.status, payload: payload };
+        AV.postJson('/api/draft-kegs', { bar: state.bar, date_from: state.from, date_to: state.to })
+            .then(function (result) {
+                var good = result.ok && result.payload && Object.keys(result.payload).length > 0;
+                if (good && memo) memo.put(key, result.payload);   // пригодится и устаревший
+                if (key !== requestKey()) return;       // выбор сменился, ответ устарел
+                // Сервер присылает причину («Нет данных за выбранный период») — её и
+                // показываем; не успел iiko — просьба сократить период.
+                if (!result.ok || !result.payload) throw new Error(AV.failText(result.status, result.payload));
+                if (!good) throw new Error('За выбранный период движения кегов не было');
+                show(result.payload);
+            }, function () {
+                // Ответа нет совсем: соединение оборвалось (воркер остановлен по тайм-ауту).
+                if (key !== requestKey()) return;
+                throw new Error(AV.failText(0, null));
+            }).catch(function (error) {
+                if (key !== requestKey()) return;
+                state.data = null;
+                el.body.hidden = true;
+                showMessage(error.message, true);
+            }).then(function () {
+                state.loading = false;
+                if (key !== requestKey()) run();        // пока ждали, выбрали другое
             });
-        }).then(function (result) {
-            if (key !== requestKey()) return;       // фильтр сменился, ответ устарел
-            if (!result.ok) {
-                // Сервер присылает причину («Нет данных за выбранный период») —
-                // показываем её, а не общее «ошибка запроса».
-                throw new Error((result.payload && result.payload.error) ||
-                                ('HTTP ' + result.status));
-            }
-            var keys = Object.keys(result.payload || {});
-            if (!keys.length) throw new Error('За выбранный период движения кегов не было');
-            state.data = result.payload[keys[0]];
-            state.query = '';
-            el.search.value = '';
-            render();
-        }).catch(function (error) {
-            if (key !== requestKey()) return;
-            state.data = null;
-            el.body.hidden = true;
-            showMessage(error.message, true);
-        }).then(function () {
-            state.loading = false;
-            el.spin.hidden = true;
-            el.runLabel.textContent = 'Запустить анализ';
-            el.run.disabled = false;
-            if (key !== requestKey()) run();        // пока ждали, выбрали другое
-        });
+    }
+
+    // Ответ /api/draft-kegs ({<бар или «Общая»>: блок}) — на экран.
+    function show(payload) {
+        state.data = payload[Object.keys(payload)[0]];
+        state.query = '';
+        el.search.value = '';
+        render();
     }
 
     // ==================== отрисовка ====================
@@ -348,7 +238,7 @@
         el.body.hidden = false;
 
         var period = data.period || {};
-        el.context.textContent = 'разрез: ' + (state.bar || 'Общая') + ' · ' +
+        el.context.textContent = 'разрез: ' + barText() + ' · ' +
             rangeLabel(period.from, period.to) + ' · ' + period.days + ' дн.';
         if (data.generated_at) {
             el.updated.hidden = false;
@@ -410,7 +300,7 @@
 
         var html = '<div class="dr-dr-in">';
         html += drawerHead(info.name + ' — ' + info.action,
-            'разрез: ' + (state.bar || 'Общая') + ' · ' + rangeLabel(period.from, period.to));
+            'разрез: ' + barText() + ' · ' + rangeLabel(period.from, period.to));
 
         html += sub('ЧТО В ГРУППЕ');
         html += '<div class="dr-cells three">' +
@@ -537,7 +427,7 @@
 
         var html = '<div class="dr-dr-in">';
         html += drawerHead(cat.Category,
-            'разрез: ' + (state.bar || 'Общая') + ' · ' + rangeLabel(period.from, period.to));
+            'разрез: ' + barText() + ' · ' + rangeLabel(period.from, period.to));
 
         html += sub('ИТОГИ КАТЕГОРИИ');
         html += '<div class="dr-cells">' +
@@ -1127,7 +1017,7 @@
         // Без esc(): drawerHead экранирует подзаголовок целиком, иначе «&» в
         // названии стиля показался бы как «&amp;».
         html += drawerHead(keg.KegName, (keg.Category || '') + ' · разрез: ' +
-            (state.bar || 'Общая') + ' · ' + rangeLabel(period.from, period.to));
+            barText() + ' · ' + rangeLabel(period.from, period.to));
 
         html += sub('ПРОДАЖИ');
         html += '<div class="dr-cells">' +
@@ -1431,56 +1321,6 @@
     }
 
     function bind() {
-        el.burger.addEventListener('click', function () {
-            // Тот же сайдбар, что на остальных страницах: пробрасываем клик на
-            // скрытую кнопку из shared/nav.html, чтобы не дублировать обработчик.
-            var toggle = document.getElementById('sidebar-toggle');
-            if (toggle) toggle.click();
-        });
-
-        el.barBtn.addEventListener('click', function () {
-            if (!el.barMenu.hidden) { closeMenus(); return; }
-            buildBarMenu(state.bars);
-            openMenu(el.barMenu);
-        });
-        el.perBtn.addEventListener('click', function () {
-            if (!el.perMenu.hidden) { closeMenus(); return; }
-            buildPerMenu();
-            openMenu(el.perMenu);
-        });
-        el.catch_.addEventListener('click', closeMenus);
-
-        el.barMenu.addEventListener('click', function (event) {
-            var item = event.target.closest('[data-bar]');
-            if (!item) return;
-            state.bar = item.dataset.bar;
-            syncPickers();
-            closeMenus();
-            run();
-        });
-        el.perMenu.addEventListener('click', function (event) {
-            var item = event.target.closest('[data-preset]');
-            if (item) {
-                applyPreset(item.dataset.preset);
-                closeMenus();
-                run();
-                return;
-            }
-            if (event.target.id === 'drCustom') {
-                var from = document.getElementById('drFrom').value;
-                var to = document.getElementById('drTo').value;
-                if (!from || !to) return;
-                if (from > to) { var swap = from; from = to; to = swap; }
-                state.preset = 'custom';
-                state.from = from;
-                state.to = to;
-                syncPickers();
-                closeMenus();
-                run();
-            }
-        });
-
-        el.run.addEventListener('click', run);
         el.search.addEventListener('input', function () {
             state.query = el.search.value;
             if (state.data) renderKegs();
@@ -1503,26 +1343,12 @@
         });
         el.backdrop.addEventListener('click', closeDrawer);
         document.addEventListener('keydown', function (event) {
-            if (event.key !== 'Escape') return;
-            if (!el.drawer.hidden) { closeDrawer(); return; }
-            closeMenus();
+            if (event.key === 'Escape' && !el.drawer.hidden) closeDrawer();
         });
     }
 
     function init() {
         el = {
-            burger: document.getElementById('drBurger'),
-            barBtn: document.getElementById('drBarBtn'),
-            barMenu: document.getElementById('drBarMenu'),
-            barLabel: document.getElementById('drBarLabel'),
-            perBtn: document.getElementById('drPerBtn'),
-            perMenu: document.getElementById('drPerMenu'),
-            perLabel: document.getElementById('drPerLabel'),
-            perHint: document.getElementById('drPerHint'),
-            catch_: document.getElementById('drCatch'),
-            run: document.getElementById('drRun'),
-            runLabel: document.getElementById('drRunLabel'),
-            spin: document.getElementById('drSpin'),
             context: document.getElementById('drContext'),
             updated: document.getElementById('drUpdated'),
             msg: document.getElementById('drMsg'),
@@ -1570,8 +1396,13 @@
             });
         }
 
-        applyPreset(state.preset);
         bind();
+        // Бар и период — из полосы; смена в полосе — новый расчёт после паузы.
+        if (window.AbcView) {
+            memo = window.AbcView.memo();
+            scope = window.AbcView.connect(function () { syncScope(); run(); });
+        }
+        syncScope();
         run();
     }
 
@@ -1585,18 +1416,17 @@
     // должны быть вызываемы вне браузера.
     if (typeof module !== 'undefined' && module.exports) {
         module.exports = { num: num, fixed: fixed, money: money, pct: pct, signed: signed, esc: esc,
-                           plural: plural, presetRange: presetRange, lossTone: lossTone,
-                           initials: initials, weeksIn: weeksIn, markupPct: markupPct };
+                           plural: plural, lossTone: lossTone, initials: initials, markupPct: markupPct };
     }
     if (typeof window !== 'undefined') {
-        window.__draft = { state: state, render: render, openKeg: openKeg,
+        window.__draft = { state: state, render: render, openKeg: openKeg, run: run,
+                           syncScope: syncScope,
                            view: function () { return view; },
                            openBartender: openBartender, openBucket: openBucket,
                            openCategory: openCategory,
                            num: num, fixed: fixed,
                            money: money, pct: pct,
                            signed: signed, esc: esc, plural: plural, lossTone: lossTone,
-                           initials: initials, presetRange: presetRange,
-                           weeksIn: weeksIn, markupPct: markupPct };
+                           initials: initials, markupPct: markupPct };
     }
 })();

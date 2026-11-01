@@ -158,15 +158,12 @@ body.draft-page[data-theme="dark"] {
     --dr-backdrop: rgba(0, 0, 0, .55);
 }
 
-/* Общий каркас приложения на этой странице не нужен: своя шапка вместо
-   .header-bar, сайдбар открывается гамбургером из неё. */
-body.draft-page .header-bar { display: none; }
-body.draft-page .container { padding: 0; }
-
+/* Карточка заголовка (.header-bar) и полоса «Бар и период» — общие для сайта
+   (templates/shared/nav.html, с 2026-11-01): своей шапки, меню бара и периода у
+   страницы больше нет. Страница стоит в том же .container, что заголовок и
+   полоса, — одна ширина и одни отступы с остальными страницами. */
 .dr-wrap {
-    max-width: 1240px;
-    margin: 0 auto;
-    padding: 22px 20px calc(64px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
     font-family: var(--dr-sans);
     color: var(--dr-ink);
     -webkit-font-smoothing: antialiased;
@@ -174,190 +171,14 @@ body.draft-page .container { padding: 0; }
 }
 .dr-wrap ::selection { background: color-mix(in srgb, var(--dr-accent) 22%, transparent); }
 
-/* ==================== Шапка ==================== */
-
-.dr-head {
-    display: flex;
-    align-items: center;
-    gap: 13px;
-    background: var(--dr-card);
-    border: 1px solid var(--dr-line);
-    border-radius: var(--dr-r-head);
-    box-shadow: var(--dr-shadow);
-    padding: 11px 18px 11px 12px;
-}
-.dr-burger {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 3.5px;
-    width: 42px;
-    height: 42px;
-    border: none;
-    border-radius: var(--dr-r-burger);
-    background: var(--dr-accent);
-    cursor: pointer;
-    flex: none;
-    transition: background .15s ease;
-}
-.dr-burger:hover { background: var(--dr-accent-h); }
-.dr-burger span {
-    width: 16px;
-    height: 2px;
-    border-radius: 2px;
-    background: var(--dr-on-accent);
-}
-.dr-burger span:last-child { width: 10px; align-self: flex-start; margin-left: 13px; }
-.dr-title { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
-.dr-title-n {
-    font: 600 15px/1.2 var(--dr-sans);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-.dr-title-s {
-    font: 400 12px/1.2 var(--dr-sans);
-    color: var(--dr-ink4);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-.dr-logo {
-    font: 600 15px/1 var(--dr-mono);
-    letter-spacing: .4px;
-    white-space: nowrap;
-    flex: none;
-}
-.dr-logo i { color: var(--dr-accent); font-style: normal; }
-.dr-logo b { color: var(--dr-accent); font-weight: 600; animation: drBlink .9s step-end infinite; }
-@keyframes drBlink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
-@media (max-width: 640px) { .dr-logo-tail { display: none; } }
-
-/* ==================== Панель фильтров ==================== */
-
-.dr-filters {
-    position: relative;
-    z-index: 41;
-    display: flex;
-    align-items: stretch;
-    flex-wrap: wrap;
-    margin-top: 14px;
-    background: var(--dr-card);
-    border: 1px solid var(--dr-line);
-    border-radius: var(--dr-r-card);
-    box-shadow: var(--dr-shadow);
-    min-height: 58px;
-}
-.dr-pick { position: relative; display: flex; }
-.dr-pick-btn {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    gap: 4px;
-    border: none;
-    background: transparent;
-    padding: 9px 18px;
-    cursor: pointer;
-    text-align: left;
-    font-family: var(--dr-sans);
-    transition: background .15s ease;
-}
-.dr-pick:first-child .dr-pick-btn { border-radius: var(--dr-r-card) 0 0 var(--dr-r-card); }
-.dr-pick-btn:hover { background: var(--dr-hover); }
-.dr-pick-cap {
-    font: 600 9.5px/1 var(--dr-mono);
-    letter-spacing: .14em;
-    color: var(--dr-ink5);
-}
-.dr-pick-val {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font: 600 13.5px/1 var(--dr-sans);
-    color: var(--dr-ink);
-}
-.dr-pick-hint { font: 500 11.5px/1 var(--dr-mono); color: var(--dr-ink5); }
-.dr-chev { flex: none; }
-.dr-chev path { stroke: var(--dr-ink6); }
-.dr-sep { width: 1px; background: var(--dr-line); margin: 13px 0; }
+/* Строка контекста под полосой: разрез, «XYZ не считается», «обновлено». */
 .dr-grow { flex: 1; }
-
-.dr-menu {
-    position: absolute;
-    top: calc(100% + 8px);
-    left: 10px;
-    width: 272px;
-    background: var(--dr-card);
-    border: 1px solid var(--dr-line);
-    border-radius: var(--dr-r-menu);
-    box-shadow: var(--dr-shadow-menu);
-    padding: 6px;
-    z-index: 45;
-}
-.dr-menu[hidden] { display: none; }
-.dr-menu-item {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    width: 100%;
-    border: none;
-    background: transparent;
-    border-radius: 9px;
-    padding: 9px 12px;
-    cursor: pointer;
-    text-align: left;
-    font-family: var(--dr-sans);
-    transition: background .12s ease;
-}
-.dr-menu-item:hover { background: var(--dr-soft); }
-.dr-menu-item.is-on { background: var(--dr-soft); }
-.dr-menu-item span:first-child { flex: 1; font: 500 13px/1.2 var(--dr-sans); color: var(--dr-ink); }
-.dr-menu-item span:last-child {
-    font: 500 10.5px/1 var(--dr-mono);
-    color: var(--dr-ink5);
-    white-space: nowrap;
-}
-.dr-run-wrap { display: flex; align-items: center; padding: 9px 10px 9px 18px; }
-.dr-run {
-    display: flex;
-    align-items: center;
-    gap: 9px;
-    height: 40px;
-    padding: 0 22px;
-    border: none;
-    border-radius: 999px;
-    background: var(--dr-accent);
-    color: var(--dr-on-accent);
-    font: 600 13px/1 var(--dr-sans);
-    cursor: pointer;
-    white-space: nowrap;
-    flex: none;
-    transition: background .15s ease;
-}
-.dr-run:hover { background: var(--dr-accent-h); }
-.dr-run:disabled { cursor: default; opacity: .8; }
-.dr-spin {
-    width: 13px;
-    height: 13px;
-    border: 2px solid color-mix(in srgb, var(--dr-on-accent) 40%, transparent);
-    border-top-color: var(--dr-on-accent);
-    border-radius: 50%;
-    animation: drSpin .7s linear infinite;
-}
-@keyframes drSpin { to { transform: rotate(360deg); } }
-
-/* Перехватчик клика мимо открытого меню. */
-.dr-catch { position: fixed; inset: 0; z-index: 40; }
-.dr-catch[hidden] { display: none; }
-
-/* Строка контекста под фильтрами. */
 .dr-context {
     display: flex;
     align-items: center;
     flex-wrap: wrap;
     gap: 10px;
-    margin: 16px 2px 0;
+    margin: 0 2px;
 }
 .dr-context-t { font: 500 11px/1 var(--dr-mono); color: var(--dr-ink5); }
 .dr-context-chip {
@@ -883,13 +704,6 @@ body.draft-page .container { padding: 0; }
 /* ==================== Телефон ==================== */
 
 @media (max-width: 720px) {
-    .dr-wrap { padding: 14px 12px 48px; }
-    .dr-filters { flex-wrap: wrap; }
-    .dr-pick { flex: 1 1 auto; }
-    .dr-pick-btn { width: 100%; }
-    .dr-sep { display: none; }
-    .dr-run-wrap { width: 100%; padding: 0 12px 12px; }
-    .dr-run { width: 100%; justify-content: center; }
     .dr-context { justify-content: flex-start; }
     .dr-search { width: 100%; }
     .dr-drawer { width: 100%; max-width: 100%; }
