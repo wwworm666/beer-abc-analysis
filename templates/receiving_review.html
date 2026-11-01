@@ -17,6 +17,9 @@
     <div class="container">
         {% set page_title = "Разбор приёмок" %}
         {% set page_subtitle = "Позиции приёмки на РЦ, которых нет в iiko" %}
+        {#- Полоса «Бар и период» (план единого виджета, этап 6): приёмка идёт на распределительном
+            складе, а не в баре — бар в полосе серый («Склад · распределительный»), период — «сейчас». -#}
+        {% set strip = kultura_strip(mode='now', bar_mode='none', bar_label='Склад', bar_hint='распределительный') %}
         {% include 'shared/nav.html' %}
 
         <!-- Очередь бухгалтерии. Данные — /api/receiving/review (routes/receiving.py),

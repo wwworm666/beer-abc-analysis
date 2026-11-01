@@ -6,7 +6,12 @@
    Черновик: у каждой позиции поля hidden/name/price/description. Сохраняются
    только изменённые позиции, вместе с base — правкой, которую страница видела
    при загрузке. Если за это время позицию сохранил кто-то ещё, сервер отвечает
-   409 и ничего не пишет. */
+   409 и ничего не пишет.
+
+   Бар — общая полоса «Бар и период» (план единого виджета, этап 6): у каждого бара свой
+   фид, страница «по одному бару». Открыт фид бара из полосы (bar1…bar4 по таблице баров,
+   KStrip.barInfo); вкладка бара и полоса — один выбор: нажали вкладку — сменился бар сайта,
+   сменили бар в полосе — открылась его вкладка. Несохранённые правки — с подтверждением. */
 (function () {
     'use strict';
 
@@ -248,6 +253,43 @@
         if (id === state.barId) return;
         if (dirtyCount() && !window.confirm('Есть несохранённые правки. Перейти к другому бару без сохранения?')) return;
         openBar(id);
+        syncStrip(id);
+    }
+
+    // ---------- полоса «Бар и период» ----------
+
+    const strip = window.KStrip;
+
+    // Ключ бара полосы (bolshoy…) для фида bar1…bar4 и обратно — по таблице баров сайта.
+    function stripKeyFor(feedId) {
+        const row = strip ? (strip.config.bars || []).find((bar) => bar.bar_id === feedId) : null;
+        return row ? row.key : null;
+    }
+
+    function feedIdFor(key) {
+        const info = strip && key ? strip.barInfo(key) : null;
+        const id = info ? info.bar_id : null;
+        return id && state.feeds.some((feed) => feed.id === id) ? id : null;
+    }
+
+    // Нажали вкладку — тот же выбор, что в полосе: бар сохраняется для всего сайта.
+    function syncStrip(feedId) {
+        const key = stripKeyFor(feedId);
+        if (key && strip.get().bar !== key) strip.setBar(key);
+    }
+
+    function bindStrip() {
+        if (!strip) return;
+        strip.onChange((event) => {
+            if (event.type !== 'bar') return;
+            const id = feedIdFor(event.bar);
+            if (!id || id === state.barId) return;
+            if (dirtyCount() && !window.confirm('Есть несохранённые правки. Перейти к другому бару без сохранения?')) {
+                syncStrip(state.barId);   // остаёмся на этом баре — полоса возвращается к нему
+                return;
+            }
+            openBar(id);
+        });
     }
 
     async function loadFeeds() {
@@ -1228,9 +1270,12 @@
 
     async function start() {
         bind();
+        bindStrip();
         try {
             await loadFeeds();
-            if (state.feeds.length) await openBar(state.feeds[0].id);
+            // Открыт фид бара из полосы; без полосы (или бара нет среди фидов) — первый.
+            const id = feedIdFor(strip ? strip.get().bar : null) || (state.feeds[0] && state.feeds[0].id);
+            if (id) await openBar(id);
         } catch (error) {
             $('yf-list').textContent = '';
             $('yf-list').appendChild(el('div', 'yf-empty', error.message || 'Не удалось загрузить список баров'));

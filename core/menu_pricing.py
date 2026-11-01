@@ -236,15 +236,33 @@ def compute_prices(cards, p):
     return result
 
 
+# Окно продаж для цен кнопки «Обновить цены из iiko»: последние ~3,5 месяца — цены свежие,
+# но продаж хватает на моду даже у редкого сорта. Окно подписано датами на /menu и /menu/edit
+# (план единого виджета, раздел 3.6: окна без выбора подписываются датами).
+PRICE_WINDOW_DAYS = 105
+
+
+def price_window(today=None):
+    """Окно продаж для цен: (date_from, date_to) — даты YYYY-MM-DD, обе включительно.
+
+    date_to — сегодня по Москве (сервер живёт по московскому времени, TZ в Dockerfile),
+    date_from — сегодня − PRICE_WINDOW_DAYS. Пример: 1 ноя 2026 -> 2026-07-19 .. 2026-11-01.
+    Одна функция и для запроса цен, и для подписи на странице — даты не расходятся.
+    """
+    from core import msk_time
+    today = today or msk_time.today()
+    return (today - timedelta(days=PRICE_WINDOW_DAYS)).isoformat(), today.isoformat()
+
+
 def refresh_prices(cards, date_from=None, date_to_incl=None, cache_path=None, use_cache=False):
     """Обновить цены карточек ПО МЕСТУ из текущих продаж iiko. Возвращает сводку:
     {'updated': [...], 'matched': N, 'total': N, 'date_from':, 'date_to':}.
-    Карточки без совпадения остаются как есть."""
+    Карточки без совпадения остаются как есть. Окно по умолчанию — price_window()."""
+    default_from, default_to = price_window()
     if date_to_incl is None:
-        date_to_incl = datetime.now().strftime("%Y-%m-%d")
+        date_to_incl = default_to
     if date_from is None:
-        # последние ~3.5 месяца — свежие цены, но достаточно данных для моды
-        date_from = (datetime.now() - timedelta(days=105)).strftime("%Y-%m-%d")
+        date_from = default_from
     raw = fetch_sales_raw(date_from, date_to_incl, cache_path=cache_path, use_cache=use_cache)
     p = prepare_sales_df(raw)
     priced = compute_prices(cards, p)

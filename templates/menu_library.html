@@ -25,6 +25,8 @@
       }
       .ml-search:focus{ outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-light); }
       .ml-count{ font-size: 12px; color: var(--text-tertiary); letter-spacing: 0.04em; white-space: nowrap; }
+      /* Окно продаж для «Обновить цены из iiko» — датами, рядом с кнопкой. */
+      .ml-window{ font-size: 12px; color: var(--text-tertiary); }
       .ml-grow{ flex: 1; }
       .m-btn{
         border: 1px solid var(--accent); background: var(--accent); color: #fff;
@@ -74,6 +76,9 @@
 <div class="container">
     {% set page_title = "Редактор меню" %}
     {% set page_subtitle = "библиотека сортов" %}
+    {#- Полоса «Бар и период» (план единого виджета, этап 6): меню одно на всю сеть — бар в полосе
+        серый («Все бары · вся сеть»), период — «сейчас». -#}
+    {% set strip = kultura_strip(mode='now', bar_mode='none', bar_hint='вся сеть') %}
     {% include 'shared/nav.html' %}
 
     <div class="ml-wrap">
@@ -81,6 +86,9 @@
         <input class="ml-search" id="search" placeholder="Поиск: название, латиница, пивоварня, страна, стиль…" oninput="render()">
         <span class="ml-count" id="count"></span>
         <span class="ml-grow"></span>
+        {#- Окно продаж для цен — датами (core/menu_pricing.price_window, то же окно, что у кнопки). -#}
+        <span class="ml-window" id="price-window"
+              title="Цена порции — самая частая цена прайса в продажах iiko за это окно">цены iiko — за {{ price_window.days }} дней: {{ price_window.label }}</span>
         <button class="m-btn" id="btnPrices" onclick="refreshPrices()">Обновить цены из iiko</button>
         <a class="m-btn sec" href="/menu/api/export-pdf?filter=all">Скачать PDF</a>
         <a class="m-btn" href="/menu/edit">+ Новая</a>
@@ -152,9 +160,16 @@ async function refreshPrices(){
     const d = await r.json();
     if(!r.ok) throw new Error(d.error||("HTTP "+r.status));
     await load();
-    toast(`Цены обновлены: совпало ${d.matched}/${d.total}, изменено ${(d.updated||[]).length}. Период ${d.date_from}…${d.date_to}.`);
+    toast(`Цены обновлены: совпало ${d.matched}/${d.total}, изменено ${(d.updated||[]).length}. Продажи за ${windowTitle(d.date_from, d.date_to)}.`);
   }catch(e){ toast("Не удалось обновить цены: "+e.message); }
   finally{ btn.disabled = false; btn.textContent = old; }
+}
+
+// Окно продаж — общим KPeriod, как в полосе: «19 июл – 1 ноя 2026»; без него — даты как есть.
+function windowTitle(fromIso, toIso){
+  const K = window.KPeriod;
+  const a = K ? K.fromISO(fromIso) : null, b = K ? K.fromISO(toIso) : null;
+  return a && b ? K.customPeriod(a, b).label : `${fromIso}…${toIso}`;
 }
 
 let toastTimer;

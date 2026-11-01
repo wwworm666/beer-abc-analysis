@@ -211,18 +211,34 @@ def _sanitize(data, base=None):
 # Страницы
 # ---------------------------------------------------------------------------
 
+def _price_window():
+    """Окно продаж для цен «Обновить цены из iiko» — подпись на страницах датами.
+
+    План единого виджета (docs/planning/period-widget-rollout.md, раздел 3.6): окно без выбора
+    подписывается датами. Даты — из core/menu_pricing.price_window, той же функции, по которой
+    кнопка берёт продажи: {'days': 105, 'date_from': '2026-07-19', 'date_to': '2026-11-01',
+    'label': '19 июл – 1 ноя 2026'}.
+    """
+    from datetime import date
+
+    from core import menu_pricing, periods
+    date_from, date_to = menu_pricing.price_window()
+    label = periods.period_title(periods.CUSTOM, date.fromisoformat(date_from), date.fromisoformat(date_to))
+    return {"days": menu_pricing.PRICE_WINDOW_DAYS, "date_from": date_from, "date_to": date_to, "label": label}
+
+
 @menu_editor_bp.route("", strict_slashes=False)
 @menu_editor_bp.route("/")
 def menu_page():
     # /menu и /menu/ -> библиотека-таблица (без 308-редиректа, чтобы подсветка
     # активного пункта меню по pathname совпадала с href="/menu").
-    return render_template("menu_library.html")
+    return render_template("menu_library.html", price_window=_price_window())
 
 
 @menu_editor_bp.route("/edit")
 def edit_page():
     # Редактор одной карточки (?id=N — открыть существующую, без id — новая).
-    return render_template("menu_editor.html")
+    return render_template("menu_editor.html", price_window=_price_window())
 
 
 @menu_editor_bp.route("/card")
