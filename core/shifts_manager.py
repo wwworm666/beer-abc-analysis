@@ -624,10 +624,12 @@ class ShiftsManager:
         считает цель KPI на месяц целиком («в графике 12 смен — цель 6 шт»),
         иначе цель ползла бы вверх с каждой отработанной сменой.
         Даты включительно (date >= from AND date <= to). today — ISO-дата «сегодня»
-        (по умолчанию date.today(); параметр для детерминированных тестов).
+        (по умолчанию — рабочие сутки бара, msk_time.business_today: ночная смена до
+        06:00 МСК ещё идёт и пробелом в часах не считается; наивный date.today() в
+        UTC-контейнере отставал на день; параметр — для детерминированных тестов).
         """
         if today is None:
-            today = date.today().isoformat()
+            today = msk_time.business_today().isoformat()
         with self._lock:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
