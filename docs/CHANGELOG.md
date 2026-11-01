@@ -1,5 +1,19 @@
 ﻿# Changelog
 
+### 2026-11-01 (9) — Этап 6: страницы «на сейчас» на общей полосе
+
+План — `docs/planning/period-widget-rollout.md`, этап 6. Режим «на сейчас»: период в полосе серый
+(«Сейчас»), бар — общий выбор сайта; своих выборов бара у страниц нет.
+
+| Что | Почему | Где | Что сломается при неверной правке |
+|---|---|---|---|
+| Склад и заказы: бар из полосы (по одному бару, Р4), прежний `stocks.bar` переходит в общий бар один раз, старые ссылки `?bar=<имя iiko>` работают и меняются на ключ; окна расхода и история заказов подписаны датами (`window_from`/`window_to`, `history_from`/`history_to`) | Один выбор бара на сайт; окна — датами (план, 3.7) | `templates/stocks.html`, `routes/stocks.py`, `routes/orders.py`, `core/stock_consumption.py` | Запись в `stocks.bar` рядом с полосой — снова два выбора бара |
+| Сроки годности и температура: бар из полосы (`bar_id`, «Все бары» — все), при выбранном баре — только его карточка и линия (Р9); карточка заголовка — на общем месте | Р9; общий макет | `templates/expiration.html`, `routes/expiration.py`, `templates/temperature.html` | Свой контейнер 1200 px — карточка заголовка «прыгает» при переходе |
+| Краны: обзор показывает выбранный бар (Р9), страница бара делает свой бар общим (полоса строится в маршруте, без мигания), выбор в полосе ведёт на `/taps/<bar_id>`; активность за 7 дней подписана датами | Р9 | `templates/taps_*.html`, `static/js/taps/bar.js`, `static/taps/taps.css`, `routes/pages.py`, `routes/taps.py` | — |
+| Меню и приёмка — серый бар («вся сеть», «Склад · распределительный»); окно цен меню 105 дней — одна функция `price_window` для запроса и подписи; фиды Яндекса — вкладка бара и полоса один выбор | Подписи окон; один выбор | `core/menu_pricing.py`, `routes/menu_editor.py`, `templates/menu_*.html`, `templates/receiving*.html`, `templates/yml_feeds.html`, `static/js/yml_feeds/page.js` | Окно цен в запросе и в подписи разными функциями — подпись соврёт |
+| Общие файлы: стрелки периода в режиме «на сейчас» скрыты (`.kp-arrow[hidden]`), бар из ссылки на странице «по одному бару» пишется и в `kultura_bar_single` | Видны были стрелки, которые ничего не делают; склад после крана бара открывался на прежнем баре | `static/shared/period.css`, `static/js/shared/period/scope_strip.js` | `.kp-arrow { display: flex }` без `[hidden]` снова покажет стрелки (тест в браузере) |
+| Тесты и документация | Правило проекта | `tests/test_now_pages_strip.py`, `tests/test_now_pages_browser.py`, `tests/test_stocks_browser.py`, `tests/test_taps_page.py` и др.; `docs/stocks.md`, `orders.md`, `expiration.md`, `taps.md`, `temperature.md`, `menu-editor.md`, `receiving.md`, `yandex-feeds.md` | — |
+
 ### 2026-11-01 (8) — Этап 2: «Маркетинг» на общей полосе «Бар и период»
 
 Владелец: «не понимаю, нахуя там выбор даты в двух местах, почему я не могу посмотреть график в
