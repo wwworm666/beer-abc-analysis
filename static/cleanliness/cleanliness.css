@@ -10,30 +10,16 @@
 
 .cl-wrap { max-width: 1200px; margin: 0 auto; padding: 8px 0 64px; }
 
-/* ==================== Шапка: месяц ==================== */
+/* ==================== Шапка: правило ====================
+   Месяц и бар выбирает полоса «Бар и период» над страницей; здесь — с какого дня задаётся
+   вопрос и, если нужно, почему показаны все точки. */
 
 .cl-head {
     display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
     margin-bottom: 20px;
 }
-.cl-month { display: flex; align-items: center; gap: 6px; }
-.cl-month-t {
-    min-width: 190px; text-align: center;
-    font-size: 1.05rem; font-weight: 700; color: var(--text-primary);
-}
-.cl-nav {
-    width: 36px; height: 36px;
-    display: flex; align-items: center; justify-content: center;
-    font-family: inherit; font-size: 1.2rem; line-height: 1;
-    color: var(--text-secondary);
-    background: var(--bg-secondary);
-    border: 1px solid var(--border-color);
-    border-radius: var(--border-radius-sm);
-    cursor: pointer;
-    transition: border-color var(--transition-fast), color var(--transition-fast);
-}
-.cl-nav:hover { border-color: var(--accent); color: var(--accent); }
 .cl-rule { font-size: 0.78rem; color: var(--text-tertiary); }
+.cl-rule[hidden] { display: none; }
 
 /* ==================== Итоги ==================== */
 
@@ -200,7 +186,6 @@
 @media (max-width: 768px) {
     .cl-wrap { padding: 8px 0 40px; }
     .cl-tiles { grid-template-columns: repeat(2, 1fr); }
-    .cl-month-t { min-width: 150px; font-size: 0.95rem; }
 
     /* Строка таблицы -> карточка. Шесть колонок в 390 px не помещаются: при
        горизонтальной прокрутке «Что не так» и фото уезжают за экран, а строка

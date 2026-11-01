@@ -125,6 +125,12 @@
         });
     }
     function daysInMonth() { return new Date(S.state.year, S.state.month, 0).getDate(); }
+    // Точка выбранного в полосе бара (ответ владельца Р9): график держит ВСЕ точки — это
+    // планирование, — а выбранную выделяет, остальные приглушает. null — «Все бары».
+    function focusLoc() { return S.focusLocationId ? S.focusLocationId() : null; }
+    // Доля яркости заливки смен других точек, когда выбран бар. Рамка статуса (сегодня, ждёт
+    // факт, конфликт) остаётся полной: приглушаем точку, а не предупреждение.
+    var DIM = 0.35;
     function dows(dow) { return ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'][dow]; }
     function isWeekend(dow) { return dow === 5 || dow === 6; } // пт/сб
 
@@ -263,8 +269,10 @@
             + '<button class="tb-nav' + (dnum >= dim ? ' is-disabled' : '') + '" data-step="1" title="День вперёд">›</button>'
             + tag + '<span class="tb-os">&gt; kultura.os</span></div>';
 
+        var focus = focusLoc();
         var cards = S.state.locations.map(function (loc, i) {
             var col = locColor(loc, i);
+            var focusCls = focus == null ? '' : (loc.id === focus ? ' is-focus' : ' is-dim');
             var dayList = S.state.shifts.filter(function (s) {
                 return s.date === ds && s.location_id === loc.id;
             });
@@ -300,7 +308,7 @@
                     + (cell.fact != null ? S.formatMoney(cell.fact) : '—') + '</b> / план '
                     + (cell.plan != null ? S.formatMoney(cell.plan) : '—') + ' ₽</div>';
             }
-            return '<div class="tb-card">'
+            return '<div class="tb-card' + focusCls + '">'
                 + '<div class="tb-bar"><span class="tb-sq" style="background:' + col + '"></span>'
                 + '<span class="tb-bn">' + esc(loc.short_name || loc.name) + '</span></div>'
                 + peopleLine()
@@ -699,6 +707,7 @@
         var today = S.todayStr();
         var year = S.state.year, month = S.state.month, dim = daysInMonth();
         var locs = S.state.locations;
+        var focus = focusLoc();
 
         var days = [];
         for (var d = 1; d <= dim; d++) {
@@ -736,6 +745,7 @@
                         + (off ? '<span class="el-dayoff-blk" title="обязательный выходной"></span>' : '') + '</div>';
                 }
                 var col = colorById(s.location_id), eve = isEvening(s), past = x.ds < today;
+                var dimmed = focus != null && s.location_id !== focus;
                 // ждёт факт: прошедшая смена без введённого факта часов (как в легенде)
                 var nofact = past && s.fact_minutes == null;
                 var bd = '1px solid rgba(0,0,0,.06)';
@@ -748,8 +758,9 @@
                     + (nofact ? ' · ждёт факт' : '') + (off ? ' · конфликт с выходным' : '');
                 // Яркость: предстоящее и сегодня — ярко, прошедшее (отработана/ждёт факт) — приглушённо.
                 var blk = '<span class="el-blk" style="height:' + (eve ? '9px' : '16px')
-                    + ';background:' + rgba(col, past ? 0.5 : 0.9) + ';border:' + bd + '"></span>';
-                return '<div class="el-cell' + dayCls(x) + '" data-emp="' + dataEmp + '" data-ds="' + x.ds
+                    + ';background:' + rgba(col, (past ? 0.5 : 0.9) * (dimmed ? DIM : 1)) + ';border:' + bd + '"></span>';
+                return '<div class="el-cell' + dayCls(x) + (dimmed ? ' is-dim' : (focus != null ? ' is-focus' : ''))
+                    + '" data-emp="' + dataEmp + '" data-ds="' + x.ds
                     + '" data-day="' + x.d + '" data-shift-id="' + esc(s.id) + '" title="' + esc(tip) + '">' + blk + '</div>';
             }).join('');
 
@@ -778,7 +789,9 @@
                 if (!ok) { miss.push(loc.short_name || loc.name); if (future) holeCount++; }
                 var st = ok ? 'background:' + locColor(loc, i) + ';border:none'
                     : (future ? 'background:#fff;border:1.5px solid ' + TH.conflict : 'background:#ece4d6;border:none');
-                return '<span class="el-cdot" style="' + st + '"></span>';
+                if (focus != null && loc.id !== focus) st += ';opacity:.35';
+                return '<span class="el-cdot' + (focus != null && loc.id === focus ? ' is-focus' : '')
+                    + '" style="' + st + '"></span>';
             }).join('');
             var tip = (miss.length ? 'дыра: ' + miss.join(', ') : 'покрыто') + ' · ' + pad2(x.d) + '.' + pad2(month);
             return '<div class="el-cov' + dayCls(x) + '" title="' + esc(tip) + '"><span class="el-cgrid">' + dots + '</span></div>';

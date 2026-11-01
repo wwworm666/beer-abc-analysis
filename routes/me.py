@@ -47,6 +47,10 @@
 
 ## Changelog
 
+- 2026-11-01 — месяц страницы — из полосы «Бар и период» (страница шлёт `?month=`, стрелка
+  назад — прошлый, зарплатный месяц). Месяц без снимка, который сервер уже не пересчитывает
+  (`me_snapshot.months_to_build`), — понятная подпись вместо «соберётся ночью», кнопки
+  «Обновить» у такого месяца нет (`refresh.month_buildable`).
 - 2026-09-28 — `?employee_iiko_id=` для администратора (кабинет любого сотрудника,
   блок `viewing` в ответе); остальным — 403.
 - 2026-08-13 — страница создана: живые блоки + каркас под снимок.
@@ -59,7 +63,7 @@ from flask import Blueprint, current_app, jsonify, render_template, request
 from core import me_snapshot
 from core.auth_guard import current_user
 from core.auth_manager import get_auth_manager
-from core.me_identity import REFUSING_STATUSES, resolve_me
+from core.me_identity import NO_SNAPSHOT, REFUSING_STATUSES, resolve_me
 from extensions import APP_VERSION, shifts_mgr
 
 me_bp = Blueprint('me', __name__)
@@ -84,6 +88,19 @@ NOTES = {
     'live_vs_snapshot': ('Смены и часы — живые. Показатели, KPI и деньги — снимок: '
                          'они пересчитываются раз в сутки.'),
 }
+
+
+def _old_month_message(month_label: str) -> str:
+    """Подпись месяца без снимка, который сервер уже не пересчитывает.
+
+    Страница листает месяцы полосой «Бар и период»: стрелка назад уводит дальше прошлого
+    месяца. Обычный текст «снимок ещё не собран — появится после ночного расчёта» там был бы
+    неправдой: ночь пересчитывает только текущий месяц и прошлый — до PREV_UNTIL_DAY-го числа
+    (`me_snapshot.months_to_build`).
+    """
+    return ('Снимка за {month} нет: показатели, KPI и деньги пересчитываются только за текущий '
+            'месяц и прошлый — до {day}-го числа следующего. Смены и часы ниже — живые, они '
+            'есть за любой месяц.').format(month=month_label, day=me_snapshot.PREV_UNTIL_DAY)
 
 
 @me_bp.route('/me')
@@ -138,6 +155,12 @@ def api_me():
         linked_users=_linked_users(subject.get('employee_iiko_id')),
     )
 
+    # Месяц, который ночной расчёт ещё пересчитывает: только у него есть смысл в кнопке
+    # «Обновить» и в обещании «снимок появится».
+    buildable = month in me_snapshot.months_to_build()
+    if identity['status'] == NO_SNAPSHOT and not buildable:
+        identity = dict(identity, message=_old_month_message(_month_label(month)))
+
     row = identity.get('row') or {}
     show_numbers = identity['status'] not in REFUSING_STATUSES
 
@@ -172,7 +195,8 @@ def api_me():
         'hours': row.get('hours') if show_numbers else None,
         'notes': NOTES,
         'refresh': {
-            'can_refresh': _iiko_configured()[0],
+            'can_refresh': _iiko_configured()[0] and buildable,
+            'month_buildable': buildable,
             'running': bool(me_snapshot.get_progress().get('running')),
             'cooldown_left_sec': me_snapshot.cooldown_left_sec(),
             'cooldown_min': me_snapshot.COOLDOWN_MIN,

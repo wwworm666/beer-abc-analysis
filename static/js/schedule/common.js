@@ -12,8 +12,10 @@
     var DAY_NAMES = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
 
     var state = {
-        year: new Date().getFullYear(),
-        month: new Date().getMonth() + 1, // 1..12
+        // Месяц страницы — из полосы «Бар и период» (syncMonthFromStrip ниже, сразу после
+        // объявления функций): не часы устройства.
+        year: 0,
+        month: 0, // 1..12
         locations: [],
         roles: [],
         employees: [],
@@ -197,17 +199,67 @@
         });
     }
 
-    function loadMonthData() {
-        var first = dateStr(state.year, state.month, 1);
-        var lastDay = new Date(state.year, state.month, 0).getDate();
-        var last = dateStr(state.year, state.month, lastDay);
+    /* Смены и заявки на выходные месяца — без записи в state: страница кладёт их сама,
+       когда ответ ещё актуален (быстрая смена месяца в полосе не должна дорисовать прошлый
+       месяц поверх нового). opts.signal — отмена запроса браузера. */
+    function fetchMonthData(year, month, opts) {
+        var o = opts && opts.signal ? { signal: opts.signal } : undefined;
+        var first = dateStr(year, month, 1);
+        var lastDay = new Date(year, month, 0).getDate();
+        var last = dateStr(year, month, lastDay);
         return Promise.all([
-            api('/api/schedule/' + state.year + '/' + state.month),
-            api('/api/schedule/dayoff?date_from=' + first + '&date_to=' + last)
+            api('/api/schedule/' + year + '/' + month, o),
+            api('/api/schedule/dayoff?date_from=' + first + '&date_to=' + last, o)
         ]).then(function (res) {
-            state.shifts = res[0];
-            state.dayOffs = res[1];
+            return { year: year, month: month, shifts: res[0], dayOffs: res[1] };
         });
+    }
+
+    function loadMonthData() {
+        return fetchMonthData(state.year, state.month).then(function (data) {
+            state.shifts = data.shifts;
+            state.dayOffs = data.dayOffs;
+        });
+    }
+
+    // ==================== Полоса «Бар и период» ====================
+
+    /* Месяц страницы — показанный в полосе «Бар и период» (window.KStrip; помесячный режим:
+       у недели — месяц её четверга, у длинного периода — последний месяц, как
+       core/periods.month_of). Без полосы — месяц РАБОЧЕГО дня бара (todayStr: в ночь на 1-е
+       до 06:00 — ещё прошлый месяц), а не календарная дата устройства. */
+    function stripMonth() {
+        var strip = window.KStrip;
+        var p = strip && strip.get ? strip.get().period : null;
+        if (p && p.start) {
+            var K = window.KPeriod;
+            if (p.granularity !== 'month' && K && K.monthOf) p = K.monthOf(p);
+            return { year: Number(p.start.slice(0, 4)), month: Number(p.start.slice(5, 7)) };
+        }
+        var t = todayStr();
+        return { year: Number(t.slice(0, 4)), month: Number(t.slice(5, 7)) };
+    }
+
+    /* Поставить месяц state из полосы. true — месяц сменился (надо перезагрузить). */
+    function syncMonthFromStrip() {
+        var m = stripMonth();
+        var changed = m.year !== state.year || m.month !== state.month;
+        state.year = m.year;
+        state.month = m.month;
+        return changed;
+    }
+
+    /* Точка графика выбранного в полосе бара: locations.venue_key = ключ бара сайта
+       (bolshoy…). «Все бары» или полосы нет — null. График показывает ВСЕ точки
+       (планирование) и выделяет эту (ответ владельца Р9). */
+    function focusLocationId() {
+        var strip = window.KStrip;
+        var bar = strip && strip.get ? strip.get().bar : '';
+        if (!bar) return null;
+        for (var i = 0; i < state.locations.length; i++) {
+            if (state.locations[i].venue_key === bar) return state.locations[i].id;
+        }
+        return null;
     }
 
     function getDayOffEmployees(ds) {
@@ -548,18 +600,20 @@
         };
         var shiftsByDay = {};
         state.shifts.forEach(function (s) { (shiftsByDay[s.date] = shiftsByDay[s.date] || []).push(s); });
+        var focus = focusLocationId();   // выбранный в полосе бар — его колонка выделена (Р9)
 
         // Ячейка точки в ОДНУ строку: слева факт «/» план, сразу за ними — бармены
         // (сокращение + часы, если факт есть). Числа и бармен сгруппированы слева,
         // поэтому бармен вплотную к СВОИМ суммам, а не к соседней точке. Цветом
         // выделяем ТОЛЬКО перевыполнение (факт >= план) — зелёным (--success); недобор
         // нейтральный (решение владельца). peopleHtml — для строки «Итого» не передаётся.
-        function ttCell(plan, fact, name, isTotal, peopleHtml) {
+        function ttCell(plan, fact, name, isTotal, peopleHtml, locId) {
             var pct = (plan != null && plan > 0 && fact != null) ? Math.round(fact / plan * 100) : null;
             var over = pct != null && pct >= 100;
             var title = name + ': факт ' + (fact != null ? formatMoney(fact) : '—')
                 + ' / план ' + (plan != null ? formatMoney(plan) : '—') + (pct != null ? ' (' + pct + '%)' : '');
-            return '<td class="pf-tt' + (isTotal ? ' pf-tt-total' : '') + '" title="' + escapeHtml(title) + '">'
+            return '<td class="pf-tt' + (isTotal ? ' pf-tt-total' : '')
+                + (focus != null && locId === focus ? ' pf-focus' : '') + '" title="' + escapeHtml(title) + '">'
                 + '<span class="pf-nums"><span class="pf-tt-f' + (over ? ' pf-over' : '') + '">' + formatK(fact) + '</span>'
                 + '<span class="pf-tt-p">/' + formatK(plan) + '</span></span>'
                 + (peopleHtml || '')
@@ -598,7 +652,7 @@
                 var pplHtml = dayShifts.filter(function (s) { return s.location_id === L.id; })
                     .sort(function (a, b) { return (isEve(a) ? 1 : 0) - (isEve(b) ? 1 : 0); })
                     .map(function (s) { return pfCellPerson(s); }).join('');
-                return ttCell(p, f, L.short_name || L.name, false, pplHtml);
+                return ttCell(p, f, L.short_name || L.name, false, pplHtml, L.id);
             }).join('');
 
             body.push(
@@ -627,12 +681,13 @@
         }
 
         var headTt = locs.map(function (L) {
-            return '<th class="pf-tt" title="' + escapeHtml(L.name) + '">'
+            return '<th class="pf-tt' + (focus != null && L.id === focus ? ' pf-focus' : '')
+                + '" title="' + escapeHtml(L.name) + '">'
                 + escapeHtml(L.short_name || L.name) + '</th>';
         }).join('');
         var totalTt = locs.map(function (L) {
             var t = ttSum[L.id];
-            return ttCell(t.hasP ? t.p : null, t.hasF ? t.f : null, L.short_name || L.name, true);
+            return ttCell(t.hasP ? t.p : null, t.hasF ? t.f : null, L.short_name || L.name, true, '', L.id);
         }).join('');
         var totalRow = '<tr class="pf-total"><td>Итого</td>' + totalTt
             + ttCell(anyPlan ? sumPlan : null, anyFact ? sumFact : null, 'Итого месяц', true)
@@ -699,16 +754,6 @@
 
     // ==================== UI-мелочи ====================
 
-    function updateMonthDisplay(el) {
-        el.textContent = MONTH_NAMES[state.month - 1] + ' ' + state.year;
-    }
-
-    function shiftMonth(delta) {
-        state.month += delta;
-        if (state.month < 1) { state.month = 12; state.year--; }
-        if (state.month > 12) { state.month = 1; state.year++; }
-    }
-
     function showToast(msg, isError) {
         var toast = document.getElementById('toast');
         if (!toast) return;
@@ -719,10 +764,17 @@
         toast._timer = setTimeout(function () { toast.classList.remove('show'); }, 2500);
     }
 
-    function showLoading(show) {
+    /* text — что грузится («Загружаю график на ноябрь 2026…»), если у страницы есть место
+       под подпись (.loading-text); без него остаётся подпись разметки. */
+    function showLoading(show, text) {
         var el = document.getElementById('loading');
-        if (el) el.style.display = show ? 'flex' : 'none';
+        if (!el) return;
+        el.style.display = show ? 'flex' : 'none';
+        var label = el.querySelector('.loading-text');
+        if (label && text) label.textContent = text;
     }
+
+    syncMonthFromStrip();
 
     window.Schedule = {
         state: state,
@@ -753,10 +805,12 @@
         escapeHtml: escapeHtml,
         loadDictionaries: loadDictionaries,
         loadMonthData: loadMonthData,
+        fetchMonthData: fetchMonthData,
+        stripMonth: stripMonth,
+        syncMonthFromStrip: syncMonthFromStrip,
+        focusLocationId: focusLocationId,
         getDayOffEmployees: getDayOffEmployees,
         renderGrid: renderGrid,
-        updateMonthDisplay: updateMonthDisplay,
-        shiftMonth: shiftMonth,
         showToast: showToast,
         showLoading: showLoading
     };

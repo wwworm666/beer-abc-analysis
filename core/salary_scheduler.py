@@ -97,9 +97,16 @@ def _cleanup_old_locks() -> None:
 
 
 def months_to_sync(today: date = None) -> list:
-    """Какие месяцы выгружать сегодня: текущий (+ предыдущий первую неделю)."""
+    """Какие месяцы выгружать сегодня: текущий (+ предыдущий первую неделю).
+
+    «Сегодня» — рабочие сутки бара (core/msk_time.business_today), а не наивный
+    date.today(): контейнер живёт в UTC, а ночная смена 31-го до 06:00 МСК — ещё
+    прошлый месяц. Ночной прогон в 04:00 по часам контейнера (07:00 МСК) от этого не
+    меняется; меняется ручной запуск в ночные часы.
+    """
+    from core.msk_time import business_today
     from core.salary_payload import previous_month
-    today = today or date.today()
+    today = today or business_today()
     current = today.strftime('%Y-%m')
     months = [current]
     if today.day <= PREV_UNTIL_DAY:

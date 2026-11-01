@@ -17,19 +17,19 @@
     <div class="container">
         {% set page_title = "Чистота" %}
         {% set page_subtitle = "Приёмка бара" %}
+        {#- Полоса «Бар и период» — общая для сайта (план единого виджета,
+            docs/planning/period-widget-rollout.md, этап 5): месяц — из неё (помесячный режим,
+            журнал ведётся с 24.08.2026 — раньше стрелка выключена; без выбора — месяц рабочего
+            дня бара), бар — точка графика с тем же ключом. Своих стрелок месяца и списка
+            «Все точки» нет; фильтры ответа и поиск — виды журнала, они остаются. -#}
+        {% set strip = kultura_strip(mode='monthly', step='month', live=True, data_start='2026-08-24') %}
         {% include 'shared/nav.html' %}
 
         <div class="cl-wrap">
 
-            <!-- Месяц. Стрелки, а не выпадающий список: журнал читают подряд,
-                 «а что было в прошлом месяце» — это один щелчок назад. -->
             <div class="cl-head">
-                <div class="cl-month">
-                    <button type="button" class="cl-nav" id="clPrev" aria-label="Предыдущий месяц">&lsaquo;</button>
-                    <span class="cl-month-t" id="clMonthLabel">&nbsp;</span>
-                    <button type="button" class="cl-nav" id="clNext" aria-label="Следующий месяц">&rsaquo;</button>
-                </div>
                 <div class="cl-rule" id="clRule"></div>
+                <div class="cl-rule" id="clBarNote" hidden></div>
             </div>
 
             <!-- Итоги месяца. «Не отмечено» стоит последним и выделено: это
@@ -38,7 +38,6 @@
             <div class="cl-tiles" id="clTiles"></div>
 
             <div class="cl-filters">
-                <select id="clVenue" class="cl-sel"><option value="">Все точки</option></select>
                 <select id="clStatus" class="cl-sel">
                     <option value="">Все ответы</option>
                     <option value="clean">Чисто</option>

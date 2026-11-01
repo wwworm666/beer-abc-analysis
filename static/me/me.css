@@ -159,11 +159,12 @@ body.me-page[data-theme="dark"] {
     --me-shadow: 0 1px 2px rgba(0, 0, 0, .35);
 }
 
-/* Общий каркас приложения на этой странице не нужен: своя шапка вместо
-   .header-bar (сайдбар остаётся, гамбургер в шапке его открывает), и внизу нет
-   .bottom-tabs, под которые mobile.css оставляет 76px пустоты. */
-body.me-page .header-bar { display: none; }
-body.me-page .container { padding: 0; }
+/* Общий заголовок и полоса «Бар и период» — как на всех страницах (с 2026-11-01; до того
+   своя шапка .me-head прятала общую). Контейнер держит только меню и полосу: нижний отступ
+   ему не нужен — колонки начинаются отступом .me-wrap, а .bottom-tabs, под которые
+   mobile.css оставляет 76px пустоты, на этой странице нет. */
+body.me-page > .container { padding-bottom: 0; }
+body.me-page > .container .filter-bar { margin-bottom: 0; }
 
 /* Типографика и ссылки — строго внутри содержимого страницы, не в сайдбаре. */
 .me-wrap {
@@ -178,78 +179,6 @@ body.me-page .container { padding: 0; }
 .me-wrap a { color: var(--me-accent); text-decoration: none; }
 .me-wrap a:hover { color: var(--me-accent-h); text-decoration: underline; }
 .me-wrap ::selection { background: color-mix(in srgb, var(--me-accent) 22%, transparent); }
-
-/* ==================== Шапка страницы ==================== */
-
-.me-head {
-    display: flex;
-    align-items: center;
-    gap: 13px;
-    background: var(--me-card);
-    border: 1px solid var(--me-line);
-    border-radius: var(--me-r-head);
-    box-shadow: var(--me-shadow);
-    padding: 11px 18px 11px 12px;
-}
-.me-burger {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 3.5px;
-    width: 42px;
-    height: 42px;
-    border: none;
-    border-radius: 13px;
-    background: var(--me-accent);
-    cursor: pointer;
-    flex: none;
-    transition: background .15s ease;
-}
-.me-burger:hover { background: var(--me-accent-h); }
-.me-burger span {
-    width: 16px;
-    height: 2px;
-    border-radius: 2px;
-    background: var(--me-on-accent);
-}
-.me-burger span:last-child { width: 10px; align-self: flex-start; margin-left: 13px; }
-.me-ava {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    background: var(--me-ava-bg, #D3B471);
-    color: #FFFFFF;
-    font: 700 13px/1 var(--me-mono);
-    flex: none;
-}
-.me-who { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
-.me-who-n {
-    font: 600 15px/1.2 var(--me-sans);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-.me-who-s {
-    font: 400 12px/1.2 var(--me-sans);
-    color: var(--me-ink3);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-.me-logo {
-    font: 600 15px/1 var(--me-mono);
-    letter-spacing: .4px;
-    white-space: nowrap;
-    flex: none;
-    color: var(--me-ink);
-}
-.me-logo .me-logo-a { color: var(--me-accent); }
-.me-logo .me-logo-c { color: var(--me-accent); animation: meBlink .9s step-end infinite; }
-@keyframes meBlink { 0%, 100% { opacity: 1 } 50% { opacity: 0 } }
 
 /* ==================== Колонки ==================== */
 
@@ -1032,8 +961,6 @@ body.me-page .ms-note {
 @media (max-width: 768px) {
     .me-wrap { padding: 14px 12px calc(40px + env(safe-area-inset-bottom, 0px)); }
     .me-cols { gap: 10px; }
-    .me-head { padding: 9px 14px 9px 10px; gap: 10px; }
-    .me-logo { display: none; }          /* в шапке телефона важнее имя, чем логотип */
     /* Колонки схлопнулись в одну — без разреза блоки читаются одной простынёй.
        Поэтому на телефоне полоса-заголовок несёт ещё и линию во всю ширину:
        видно, где кончилась предыдущая секция. Правило идёт ПОСЛЕ .me-band-sub,

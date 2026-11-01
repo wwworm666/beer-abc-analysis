@@ -13,6 +13,7 @@
     <link rel="stylesheet" href="/static/dashboard/styles/sidebar.css">
     <link rel="stylesheet" href="/static/dashboard/styles/mobile.css">
     <link rel="stylesheet" href="/static/logo.css">
+    <script src="/static/js/shared/strip_runner.js?v={{ app_version }}"></script>
 
     <style>
         /* Card */
@@ -23,44 +24,6 @@
             padding: 24px 28px;
             margin-bottom: 20px;
         }
-
-        /* Controls: month + bar switcher */
-        .controls {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 16px;
-            align-items: end;
-            justify-content: space-between;
-        }
-        .form-group { display: flex; flex-direction: column; gap: 8px; }
-        .form-group label { text-align: left; font-size: 0.85rem; color: var(--text-secondary); }
-        input[type="month"] {
-            padding: 8px 12px;
-            font-family: inherit;
-            font-size: 0.9rem;
-            color: var(--text-primary);
-            background: var(--bg-tertiary);
-            border: 1px solid var(--border-color);
-            border-radius: 10px;
-            outline: none;
-        }
-        input[type="month"]:focus { border-color: var(--accent); }
-
-        /* Bar tabs */
-        .bar-tabs { display: flex; flex-wrap: wrap; gap: 8px; }
-        .bar-tab {
-            background: var(--bg-tertiary);
-            border: 1px solid var(--border-color);
-            border-radius: 10px;
-            padding: 8px 16px;
-            font-family: inherit;
-            font-size: 0.88rem;
-            color: var(--text-secondary);
-            cursor: pointer;
-            transition: all 150ms ease;
-        }
-        .bar-tab:hover { border-color: var(--accent); color: var(--accent); }
-        .bar-tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
 
         /* Loading / error */
         .loading { display: none; text-align: center; padding: 48px 24px; color: var(--text-secondary); }
@@ -224,7 +187,7 @@
 
         /* Print: hide chrome, keep goals */
         @media print {
-            .sidebar, .sidebar-backdrop, .header-bar, .no-print { display: none !important; }
+            .sidebar, .sidebar-backdrop, .header-bar, .ks, .no-print { display: none !important; }
             .container { padding: 0 !important; max-width: none !important; }
             body { background: #fff; }
             .card, .kpi-goal, .cal-cell { border-color: #ccc; break-inside: avoid; }
@@ -245,31 +208,31 @@
     <div class="container">
         {% set page_title = "Цели месяца" %}
         {% set page_subtitle = "План по дням + KPI на месяц" %}
-        {% include 'shared/nav.html' %}
-
-        <!-- Controls -->
-        <div class="card no-print">
-            <div class="controls">
-                <div class="form-group">
-                    <label for="goal-month">Месяц</label>
-                    <input type="month" id="goal-month" onchange="load()">
-                </div>
-                <div class="form-group" style="flex:1;min-width:220px;">
-                    <label>Точка</label>
-                    <div class="bar-tabs" id="bar-tabs"></div>
-                </div>
-                <div class="form-group">
-                    <label>&nbsp;</label>
-                    <button class="btn" onclick="window.print()">Печать / PDF</button>
-                </div>
+        {#- Полоса «Бар и период» — общая для сайта (план единого виджета,
+            docs/planning/period-widget-rollout.md, этап 4). Цели живут помесячно: показан месяц
+            общего выбора (у недели — месяц её четверга, ответ Р3), смена месяца здесь — общий
+            выбор. Будущие месяцы можно — цели скидывают смене заранее. Бар — общий: «Все бары»
+            показывают все четыре точки, бар — только его (вкладок точек больше нет). -#}
+        {% set strip = kultura_strip(mode='monthly', step='month', live=True, allow_future=True) %}
+        {% set strip_actions %}
+            <div class="fb-export">
+                <button type="button" class="fb-ghost" onclick="window.print()" title="Распечатать или сохранить в PDF">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                    <span>Печать / PDF</span>
+                </button>
             </div>
-        </div>
+            <button type="button" class="fb-arrow fb-export-mobile" onclick="window.print()"
+                    aria-label="Печать / PDF" title="Печать / PDF">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+            </button>
+        {% endset %}
+        {% include 'shared/nav.html' %}
 
         <div class="error" id="error"></div>
 
         <div class="loading" id="loading">
             <div class="spinner"></div>
-            <p>Загружаем цели месяца...</p>
+            <p id="loading-text">Загружаю цели месяца…</p>
         </div>
 
         <div id="content"></div>
@@ -292,7 +255,7 @@
         const MONTHS_RU = ['январь','февраль','март','апрель','май','июнь','июль',
                            'август','сентябрь','октябрь','ноябрь','декабрь'];
 
-        let selectedBar = 'all';          // 'all' | venue_key
+        let shownMonth = null;            // {year, month} загруженных данных
         let plansData = null;             // ответ /api/schedule/plans/<y>/<m>
         let locations = [];               // /api/schedule/locations (id, name, venue_key, short_name)
         let kpiTargets = null;            // /api/kpi-targets
@@ -335,75 +298,91 @@
             return null;
         }
 
+        // ===================== БАР И МЕСЯЦ =====================
+        // Из полосы «Бар и период» (window.KStrip): месяц — показанный там (помесячный режим),
+        // бар — общий бар сайта: '' — все точки, ключ — одна точка. «Сегодня» для подсветки
+        // календаря — рабочий день бара с сервера (KPeriod), а не часы устройства.
+        const K = window.KPeriod;
+        const strip = window.KStrip || null;
+
+        function pageMonth() {
+            const p = strip ? strip.get().period : K.currentPeriod('month');
+            const m = p.granularity === 'month' ? p : K.monthOf(p);
+            return { year: Number(m.start.slice(0, 4)), month: Number(m.start.slice(5, 7)) };
+        }
+        function selectedBar() {
+            return (strip && strip.get().bar) || 'all';
+        }
+
         // ===================== INIT =====================
         document.addEventListener('DOMContentLoaded', () => {
-            // По умолчанию — прошлый месяц (в начале месяца скидываем цели на текущий,
-            // но чаще открыто «что было»; текущий доступен переключателем).
-            const now = new Date();
-            const m = document.getElementById('goal-month');
-            m.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-            renderBarTabs();
-            load();
+            loader.now();   // открытие страницы — сразу, без паузы
+            if (strip) {
+                strip.onChange(e => {
+                    if (e.type === 'period') loader.schedule();   // другой месяц — новые данные
+                    else if (plansData) render();                 // бар — тот же месяц, другие точки
+                });
+            }
         });
 
-        function renderBarTabs() {
-            const tabs = [{ key: 'all', short: 'Все' }].concat(BARS.map(b => ({ key: b.key, short: b.short })));
-            document.getElementById('bar-tabs').innerHTML = tabs.map(t =>
-                `<button class="bar-tab ${selectedBar === t.key ? 'active' : ''}" onclick="selectBar('${t.key}')">${t.short}</button>`
-            ).join('');
-        }
-
-        function selectBar(key) {
-            selectedBar = key;
-            renderBarTabs();
-            render();
-        }
-
         // ===================== LOAD =====================
-        async function load() {
-            hideError();
-            const monthVal = document.getElementById('goal-month').value;
-            if (!monthVal) return;
-            const [year, month] = monthVal.split('-').map(Number);
-
-            document.getElementById('content').innerHTML = '';
-            document.getElementById('foot-card').style.display = 'none';
-            document.getElementById('loading').classList.add('active');
-
-            try {
+        // План по дням ходит в iiko за фактом (/api/schedule/plans) — тяжёлый запрос: серия
+        // переключений месяца — одна загрузка после паузы, устаревший ответ отбрасывается
+        // (static/js/shared/strip_runner.js), пока грузится — «Загружаю цели на ноябрь 2026…».
+        const loader = KStripRunner.create({
+            run: async (signal) => {
+                const { year, month } = pageMonth();
                 const [plansRes, locRes, kpiRes] = await Promise.all([
-                    fetch(`/api/schedule/plans/${year}/${month}`),
-                    fetch('/api/schedule/locations'),
-                    fetch('/api/kpi-targets'),
+                    fetch(`/api/schedule/plans/${year}/${month}`, { signal }),
+                    fetch('/api/schedule/locations', { signal }),
+                    fetch('/api/kpi-targets', { signal }),
                 ]);
                 if (!plansRes.ok) throw new Error('Не удалось загрузить планы по дням');
                 if (!locRes.ok) throw new Error('Не удалось загрузить точки');
                 if (!kpiRes.ok) throw new Error('Не удалось загрузить KPI-цели');
-
-                plansData = await plansRes.json();
-                locations = await locRes.json();
-                kpiTargets = await kpiRes.json();
+                return {
+                    year, month,
+                    plans: await plansRes.json(),
+                    locations: await locRes.json(),
+                    kpi: await kpiRes.json(),
+                };
+            },
+            onStart: () => {
+                const { year, month } = pageMonth();
+                hideError();
+                document.getElementById('content').innerHTML = '';
+                document.getElementById('foot-card').style.display = 'none';
+                document.getElementById('loading-text').textContent =
+                    `Загружаю цели на ${MONTHS_RU[month - 1]} ${year}…`;
+                document.getElementById('loading').classList.add('active');
+            },
+            onDone: (r) => {
+                shownMonth = { year: r.year, month: r.month };
+                plansData = r.plans;
+                locations = r.locations;
+                kpiTargets = r.kpi;
                 availableMetrics = kpiTargets.available_metrics || {};
-
                 render();
-            } catch (e) {
+            },
+            onError: (e) => {
                 console.error(e);
                 showError('Ошибка: ' + e.message);
-            } finally {
+            },
+            onFinally: () => {
                 document.getElementById('loading').classList.remove('active');
             }
-        }
+        });
 
         // ===================== RENDER =====================
         function render() {
-            const monthVal = document.getElementById('goal-month').value;
-            const [year, month] = monthVal.split('-').map(Number);
+            const { year, month } = shownMonth;
             const monthKey = `${year}-${String(month).padStart(2, '0')}`;
             const monthLabel = `${MONTHS_RU[month - 1]} ${year}`;
             const monthTargets = ((kpiTargets.months || {})[monthKey]) || null;
             const kpiConfig = monthTargets ? (monthTargets.kpi_config || {}) : {};
 
-            const barsToShow = selectedBar === 'all' ? BARS : BARS.filter(b => b.key === selectedBar);
+            const bar = selectedBar();
+            const barsToShow = bar === 'all' ? BARS : BARS.filter(b => b.key === bar);
 
             let html = '';
             barsToShow.forEach(bar => {
@@ -538,7 +517,7 @@
         }
 
         function renderCalendar(dayPlans, year, month) {
-            const todayStr = new Date().toISOString().slice(0, 10);
+            const todayStr = K.toISO(K.today());   // рабочий день бара с сервера
             let html = '<div class="cal">';
             // Заголовки дней недели
             DOW.forEach((d, i) => {

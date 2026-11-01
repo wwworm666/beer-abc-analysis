@@ -7,15 +7,24 @@
 
    Фильтрация — на клиенте: месяц это ~120 строк (4 точки x 30 дней), гонять
    запрос на каждый щелчок фильтра незачем (тот же приём, что в блоке «Касса за
-   месяц»). */
+   месяц»).
+
+   Месяц и бар — из полосы «Бар и период» (window.KStrip; с 2026-11-01, план единого
+   виджета, этап 5): своих стрелок месяца и списка «Все точки» больше нет. Месяц — показанный
+   в полосе (помесячный режим, данные с 24.08.2026 — раньше стрелка выключена). Бар — точка
+   графика с тем же ключом (locations.venue_key из /api/schedule/locations): строки и плитки
+   этой точки (плитки — totals_by_location с сервера, правило «что считать» не дублируется).
+   «Все бары» — все точки. */
 (function () {
     'use strict';
 
-    var MONTHS = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль',
-                  'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
     var DOW = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'];
 
-    var state = { year: 0, month: 0, data: null };
+    var strip = window.KStrip || null;
+    var K = window.KPeriod || null;
+    // places — точки графика (id, venue_key) для сопоставления с баром полосы.
+    var state = { year: 0, month: 0, data: null, places: null };
+    var loadSeq = 0;   // номер последней загрузки: ответ за прежний месяц не рисуется
 
     function esc(s) {
         return String(s == null ? '' : s)
@@ -46,22 +55,71 @@
         return m ? m[1] + ':' + m[2] : '';
     }
 
+    // ==================== Бар и месяц из полосы ====================
+
+    // Точка графика бара: venue_key = ключ бара сайта. «Все бары» ('') — null; бара нет среди
+    // точек графика — undefined (страница пишет это и показывает все точки).
+    function locationIdForBar(bar, places) {
+        if (!bar) return null;
+        for (var i = 0; i < (places || []).length; i++) {
+            if (places[i].venue_key === bar) return places[i].id;
+        }
+        return undefined;
+    }
+
+    // Строки под фильтры: точка (id или null — все), ответ, поиск по бармену и тексту.
+    function filterRows(rows, f) {
+        f = f || {};
+        var q = (f.q || '').trim().toLowerCase();
+        return (rows || []).filter(function (r) {
+            if (f.locationId != null && String(r.location_id) !== String(f.locationId)) return false;
+            if (f.status === 'not_marked') {
+                if (r.problems.indexOf('not_marked') === -1) return false;
+            } else if (f.status && r.status !== f.status) return false;
+            if (q) {
+                var hay = (r.employee_name + ' ' + (r.note || '')).toLowerCase();
+                if (hay.indexOf(q) === -1) return false;
+            }
+            return true;
+        });
+    }
+
+    function stripMonth() {
+        var p = strip ? strip.get().period : (K ? K.currentPeriod('month') : null);
+        if (p && p.granularity !== 'month' && K) p = K.monthOf(p);
+        return p ? { year: Number(p.start.slice(0, 4)), month: Number(p.start.slice(5, 7)) } : null;
+    }
+
+    function selectedLocation() {
+        var bar = strip ? strip.get().bar : '';
+        var id = locationIdForBar(bar, state.places);
+        return id === undefined ? null : id;
+    }
+
+    // Бар выбран, но такой точки в графике нет — видно, почему в журнале все точки.
+    function barNote() {
+        var bar = strip ? strip.get().bar : '';
+        if (!bar || !state.places || locationIdForBar(bar, state.places) !== undefined) return '';
+        return 'Точки этого бара нет в графике — показаны все точки.';
+    }
+
     // ==================== Загрузка ====================
 
     function load() {
+        var seq = ++loadSeq;
         var url = '/api/cleanliness/month/' + state.year + '/' + state.month;
-        return api(url)
-            .then(function (data) {
-                state.data = data;
+        var places = state.places ? Promise.resolve(state.places)
+            : api('/api/schedule/locations').catch(function () { return null; });
+        return Promise.all([api(url), places])
+            .then(function (res) {
+                if (seq !== loadSeq) return;
+                state.data = res[0];
+                state.places = res[1] || state.places;
                 document.getElementById('clNotice').innerHTML = '';
-                renderMonthLabel();
-                renderRule();
-                renderTiles();
-                fillVenues();
-                renderRows();
-                renderFoot();
+                render();
             })
             .catch(function (err) {
+                if (seq !== loadSeq) return;
                 // Ошибку показываем НА МЕСТЕ таблицы, а не тостом: тост живёт
                 // пару секунд, а причина пустого экрана нужна дольше.
                 console.error('[CLEAN]', err);
@@ -77,9 +135,11 @@
 
     // ==================== Рендер ====================
 
-    function renderMonthLabel() {
-        document.getElementById('clMonthLabel').textContent =
-            MONTHS[state.month - 1] + ' ' + state.year;
+    function render() {
+        renderRule();
+        renderTiles();
+        renderRows();
+        renderFoot();
     }
 
     function renderRule() {
@@ -91,7 +151,10 @@
     }
 
     function renderTiles() {
-        var t = (state.data || {}).totals || {};
+        var d = state.data || {};
+        var loc = selectedLocation();
+        // Плитки выбранного бара — итоги его точки с сервера; нет строк точки — нули.
+        var t = loc == null ? (d.totals || {}) : ((d.totals_by_location || {})[String(loc)] || {});
         var gap = t.not_marked || 0;
         var tiles = [
             { k: 'смен с приёмкой', v: (t.answered || 0) + ' / ' + (t.shifts || 0), cls: '' },
@@ -107,33 +170,12 @@
         }).join('');
     }
 
-    function fillVenues() {
-        var sel = document.getElementById('clVenue');
-        var prev = sel.value;
-        var locs = (state.data || {}).locations || [];
-        sel.innerHTML = '<option value="">Все точки</option>'
-            + locs.map(function (l) {
-                return '<option value="' + esc(l.id) + '">' + esc(l.short || l.name) + '</option>';
-            }).join('');
-        // Точка сохраняется при переходе между месяцами, если она там есть.
-        if (prev && sel.querySelector('option[value="' + prev + '"]')) sel.value = prev;
-    }
-
+    // Строки бара полосы (все — при «Все бары») с фильтрами ответа и поиска.
     function visibleRows() {
-        var rows = (state.data || {}).rows || [];
-        var venue = document.getElementById('clVenue').value;
-        var status = document.getElementById('clStatus').value;
-        var q = (document.getElementById('clSearch').value || '').trim().toLowerCase();
-        return rows.filter(function (r) {
-            if (venue && String(r.location_id) !== venue) return false;
-            if (status === 'not_marked') {
-                if (r.problems.indexOf('not_marked') === -1) return false;
-            } else if (status && r.status !== status) return false;
-            if (q) {
-                var hay = (r.employee_name + ' ' + (r.note || '')).toLowerCase();
-                if (hay.indexOf(q) === -1) return false;
-            }
-            return true;
+        return filterRows((state.data || {}).rows, {
+            locationId: selectedLocation(),
+            status: document.getElementById('clStatus').value,
+            q: document.getElementById('clSearch').value
         });
     }
 
@@ -159,8 +201,12 @@
     function renderRows() {
         var rows = visibleRows();
         var body = document.getElementById('clRows');
-        document.getElementById('clCount').textContent =
-            rows.length + ' из ' + (((state.data || {}).rows || []).length);
+        // «из» — строки бара полосы (все точки при «Все бары»), а не всей сети.
+        var base = filterRows((state.data || {}).rows, { locationId: selectedLocation() });
+        document.getElementById('clCount').textContent = rows.length + ' из ' + base.length;
+        var note = barNote();
+        var noteEl = document.getElementById('clBarNote');
+        if (noteEl) { noteEl.textContent = note; noteEl.hidden = !note; }
 
         if (!rows.length) {
             body.innerHTML = '<tr><td colspan="6"><div class="cl-empty">'
@@ -225,23 +271,36 @@
 
     // ==================== Старт ====================
 
-    function shiftMonth(delta) {
-        var d = new Date(state.year, state.month - 1 + delta, 1);
-        state.year = d.getFullYear();
-        state.month = d.getMonth() + 1;
-        load();
+    // Месяц state — из полосы. true — сменился (надо загрузить журнал).
+    function syncMonth() {
+        var m = stripMonth();
+        if (!m) return false;
+        var changed = m.year !== state.year || m.month !== state.month;
+        state.year = m.year;
+        state.month = m.month;
+        return changed;
     }
 
-    document.addEventListener('DOMContentLoaded', function () {
-        var now = new Date();
-        state.year = now.getFullYear();
-        state.month = now.getMonth() + 1;
+    // Чистые помощники — для Node-проверки (tests/test_cleanliness_strip_runtime.mjs).
+    window.CleanlinessView = { locationIdForBar: locationIdForBar, filterRows: filterRows,
+                               stripMonth: stripMonth };
 
-        document.getElementById('clPrev').addEventListener('click', function () { shiftMonth(-1); });
-        document.getElementById('clNext').addEventListener('click', function () { shiftMonth(1); });
-        ['clVenue', 'clStatus'].forEach(function (id) {
-            document.getElementById(id).addEventListener('change', renderRows);
-        });
+    if (typeof document === 'undefined' || !document.getElementById) return;
+
+    document.addEventListener('DOMContentLoaded', function () {
+        syncMonth();
+        if (strip) {
+            // Месяц — другой журнал; бар — те же строки, другая точка (без запроса).
+            strip.onChange(function (e) {
+                if (e.type === 'period') {
+                    if (syncMonth()) load();
+                } else if (state.data) {
+                    renderTiles();
+                    renderRows();
+                }
+            });
+        }
+        document.getElementById('clStatus').addEventListener('change', renderRows);
         document.getElementById('clSearch').addEventListener('input', renderRows);
 
         document.getElementById('clLbClose').addEventListener('click', closeLightbox);
