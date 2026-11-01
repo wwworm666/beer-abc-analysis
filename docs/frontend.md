@@ -343,9 +343,10 @@ export function getTheme() {
 не подключается. Полосу рисует общее меню `templates/shared/nav.html`, если шаблон страницы объявил
 `{% set strip = kultura_strip(...) %}` до него.
 
-Flatpickr с CDN остаётся на «Сотрудниках» (`templates/employee.html`) и зарплате
-(`templates/bonus.html`) до этапа 4 [плана единого виджета](planning/period-widget-rollout.md).
-Предел календаря там — `maxDate: 'today'`:
+С этапа 4 [плана единого виджета](planning/period-widget-rollout.md) (2026-11-01) Flatpickr
+не подключает ни одна рабочая страница: «Сотрудники» (`templates/employee.html`) и зарплата
+(`templates/bonus.html`) тоже на полосе; CDN остался только в неиспользуемом
+`templates/discounts.html` (удаление — этап 7). Если календарь Flatpickr где-то вернётся:
 
 - **Не зашивать год.** `new Date(2026, 11, 31)` на «Сотрудниках» не дал бы выбрать ни одной даты
   с 1 января 2027 года. Тест `tests/test_calendar_limits.py` ищет `maxDate`/`minDate` с годом в
