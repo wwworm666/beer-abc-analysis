@@ -17,15 +17,15 @@
     <div class="container">
         {% set page_title = "Краны" %}
         {% set page_subtitle = bar_name %}
+        {#- Полоса «Бар и период» (план единого виджета, этап 6): страница «на сейчас» по одному бару.
+            Бар задан адресом (/taps/bar2), поэтому полосу строит маршрут (routes/pages.taps_bar:
+            core/scope.build_strip с баром страницы, mode='now', bar_mode='single') и передаёт как
+            strip — сервер рисует её сразу с этим баром, без мигания. Выбор другого бара в полосе
+            открывает его страницу (static/js/taps/bar.js); своих ссылок на бары у страницы нет. -#}
         {% include 'shared/nav.html' %}
 
         <div class="tp" id="tp" data-bar="{{ bar_id }}" data-bar-name="{{ bar_name }}" data-taps="{{ tap_count }}">
             <div class="tp-top">
-                <nav class="tp-bars" aria-label="Бар">
-                    {% for bar in bars %}
-                    <a class="tp-bar" href="/taps/{{ bar.id }}"{% if bar.id == bar_id %} aria-current="page"{% endif %}>{{ bar.name }}</a>
-                    {% endfor %}
-                </nav>
                 <div class="tp-top-actions">
                     <button class="tp-btn tp-btn-sm" id="tp-csv" type="button"
                             title="Таплист бара: цены и порции из iiko, пивоварня, фото и описание">

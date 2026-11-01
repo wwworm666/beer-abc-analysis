@@ -159,9 +159,29 @@ def monthly_report_page():
     return render_template('monthly_report.html', app_version=APP_VERSION)
 
 
+def _taps_bar_strip(bar_id):
+    """Полоса «Бар и период» страницы бара: бар страницы — из адреса (/taps/bar2), как ?bar=.
+
+    План единого виджета (docs/planning/period-widget-rollout.md, этап 6): страница «на сейчас»
+    по одному бару. Бар задан путём, поэтому полоса строится здесь, а не в шаблоне: сервер сразу
+    рисует её с баром страницы (без мигания и без ?bar= в адресе), а scope_strip.js делает этот
+    бар общим баром сайта, как бар из ссылки (barSource 'url'). Остальное — как у
+    kultura_strip(mode='now', bar_mode='single').
+    """
+    from core.auth_guard import current_user
+    from core.scope import build_strip
+    from core.venues_config import bar_key
+
+    args = request.args.to_dict()
+    args['bar'] = bar_key(bar_id) or ''
+    user = current_user()
+    return build_strip(user.get('id') if user else None, args, request.cookies,
+                       mode='now', bar_mode='single')
+
+
 @pages_bp.route('/taps/<bar_id>')
 def taps_bar(bar_id):
-    """Страница управления кранами конкретного бара"""
+    """Страница управления кранами конкретного бара (бар в полосе — из адреса, _taps_bar_strip)."""
     bars = _tap_bars()
     bar_info = next((bar for bar in bars if bar['id'] == bar_id), None)
     if bar_info is None:
@@ -171,6 +191,7 @@ def taps_bar(bar_id):
                          bar_name=bar_info['name'],
                          tap_count=bar_info['taps'],
                          bars=bars,
+                         strip=_taps_bar_strip(bar_id),
                          app_version=APP_VERSION)
 
 
