@@ -39,6 +39,8 @@ const FILES = {
     strip: 'templates/shared/guest_hub_strip.html',
     nav: 'templates/shared/nav.html',
     guests: 'templates/guests.html',
+    contentPlan: 'templates/content_plan.html',
+    reviews: 'templates/reviews.html',
 };
 const css = read(FILES.css);
 const js = read(FILES.js);
@@ -46,6 +48,8 @@ const head = read(FILES.head);
 const strip = read(FILES.strip);
 const nav = read(FILES.nav);
 const guests = read(FILES.guests);
+const contentPlanHtml = read(FILES.contentPlan);
+const reviewsHtml = read(FILES.reviews);
 
 // ---------------------------------------------------------------- мини-раннер
 // Тесты бывают асинхронными (промисы GH.api / loadAttention), поэтому
@@ -105,12 +109,36 @@ test('сайдбар: у каждой ссылки раздела своя SVG-�
 
 // ---------------------------------------------------------------- 2. partials
 
-test('шапка раздела: бургер, заголовок, подзаголовок, логотип и полоса', () => {
-    assert.ok(head.includes('id="ghBurger"'), 'нет #ghBurger (его ищет GH.initHeader)');
-    assert.ok(head.includes('{{ hub_title'), 'заголовок не из hub_title');
-    assert.ok(/\{% if hub_subtitle %\}/.test(head), 'подзаголовок не из hub_subtitle');
-    assert.ok(head.includes('class="gh-logo"'), 'нет логотипа');
-    assert.ok(head.includes("{% include 'shared/guest_hub_strip.html' %}"), 'шапка не подключает полосу');
+// С 2026-11-01 (план единого виджета, этап 5) своей шапки у раздела нет: /content-plan и
+// /reviews стоят на общей карточке заголовка и полосе «Бар и период» (shared/nav.html), как
+// /guests. Файл guest_hub_head.html оставлен только до удаления — его никто не подключает.
+test('своей шапки раздела нет: guest_hub_head.html никто не подключает, бургера нет', () => {
+    for (const [name, src] of Object.entries({ contentPlanHtml, reviewsHtml, guests, strip })) {
+        assert.ok(!src.includes("include 'shared/guest_hub_head.html'"), `${name} подключает старую шапку раздела`);
+        assert.ok(!src.includes('hub_title'), `${name}: заголовок раздела — снова свой (hub_title)`);
+    }
+    assert.ok(!head.includes('<header'), 'в guest_hub_head.html снова разметка шапки');
+    assert.ok(!js.includes('ghBurger') && !js.includes('initHeader'), 'common.js снова ищет бургер своей шапки');
+    assert.ok(!/\.gh-(head|burger|logo|title)\b/.test(css.replace(/\/\*[\s\S]*?\*\//g, '')),
+        'в hub.css остались стили своей шапки раздела');
+});
+
+test('три страницы раздела: общая карточка заголовка, полоса «Бар и период», под ней полоса раздела', () => {
+    const pages = { '/content-plan': [contentPlanHtml, 'content'], '/reviews': [reviewsHtml, 'reviews'],
+                    '/guests': [guests, 'guests'] };
+    for (const [url, [src, active]] of Object.entries(pages)) {
+        const stripAt = src.indexOf('kultura_strip(');
+        const navAt = src.indexOf("{% include 'shared/nav.html' %}");
+        const hubAt = src.indexOf("{% include 'shared/guest_hub_strip.html' %}");
+        assert.ok(stripAt > 0 && stripAt < navAt, `${url}: полоса «Бар и период» не объявлена до общего меню`);
+        assert.ok(hubAt > navAt, `${url}: полоса раздела не под общим меню`);
+        assert.match(src, /\{% set page_title = "[^"]+" %\}/, `${url}: нет заголовка общей карточки`);
+        const before = src.slice(navAt, hubAt);
+        assert.ok(before.includes(`{% set hub_active = '${active}' %}`), `${url}: hub_active не ${active}`);
+        const wrapAt = before.lastIndexOf('<div class="gh-scope gh-embed">');
+        assert.ok(wrapAt >= 0 && !before.slice(wrapAt).includes('</div>'),
+            `${url}: полоса раздела не в <div class="gh-scope gh-embed">`);
+    }
 });
 
 test('полоса: вкладки раздела ведут на три страницы и подсвечиваются по hub_active', () => {
@@ -176,9 +204,9 @@ test('common.js и полоса согласованы: те же ключи с�
     // Все id, которые common.js ищет через byId, есть в partials (кроме
     // #sidebar-toggle — он из shared/nav.html).
     const ids = new Set([...js.matchAll(/byId\('([^']+)'\)/g)].map((m) => m[1]));
-    assert.ok(ids.has('ghAttention') && ids.has('ghBurger'), 'common.js не ищет узлы полосы');
+    assert.ok(ids.has('ghAttention'), 'common.js не ищет узлы полосы');
     for (const id of ids) {
-        const src = id === 'sidebar-toggle' ? nav : head + strip;
+        const src = id === 'sidebar-toggle' ? nav : strip;
         assert.ok(src.includes(`id="${id}"`), `узла #${id} нет в разметке`);
     }
     assert.ok(js.includes("'/api/guest-hub/attention?bar='"), 'полоса ходит не в /api/guest-hub/attention');
@@ -264,9 +292,15 @@ test('hub.css: тёмная тема переопределяет те же цв
     assert.ok(DARK.text.includes('.gh-scope[data-theme="dark"]'), 'нет второго селектора тёмной темы');
 });
 
-test('hub.css: токены на .gh-scope, общая шапка скрыта только на body.gh-page', () => {
+test('hub.css: токены на .gh-scope, общая карточка заголовка на страницах раздела не скрыта', () => {
     assert.ok(!/(^|\n)\s*(body|:root)\s*\{[^}]*--gh-/.test(cssNoComments), 'токены объявлены не на .gh-scope');
-    assert.match(cssNoComments, /body\.gh-page \.header-bar\s*\{\s*display:\s*none/, 'общая .header-bar не скрыта');
+    // С 2026-11-01 карточка заголовка и полоса «Бар и период» — общие: на месте, как на /guests.
+    assert.ok(!/\.header-bar\s*\{[^}]*display:\s*none/.test(cssNoComments), 'общая .header-bar снова скрыта');
+    assert.ok(!/body\.gh-page \.container\s*\{\s*padding:\s*0/.test(cssNoComments),
+        'у .container страниц раздела снято поле — карточка заголовка уедет с общего места');
+    assert.match(cssNoComments, /body\.gh-page > \.container \{ padding-bottom: 0; \}/,
+        'под полосой «Бар и период» осталось нижнее поле .container');
+    assert.match(cssNoComments, /\.gh-embed \.gh-strip \{\s*margin-top: 0;/, 'полоса раздела не прижата к полосе «Бар и период»');
     // Ни одного правила на голые теги: полоса встраивается в /guests и не
     // должна трогать остальную страницу.
     // После '}' или '{' (первое правило внутри @media) до следующей '{'.
@@ -282,7 +316,7 @@ test('каждый класс gh-* из partials и common.js описан в hu
     const used = new Set();
     // (?<![\w-]) — чтобы не взять хвост data-gh-close / data-gh-keep;
     // (?![\w-]) — чтобы не взять склейку 'gh-tone-' + tone как класс gh-tone.
-    for (const src of [js, head, strip, guests]) {
+    for (const src of [js, strip, guests]) {
         for (const m of src.matchAll(/(?<![\w-])(gh-[a-z0-9-]*[a-z0-9])(?![\w-])/g)) used.add(m[1]);
     }
     // Не классы: ключ localStorage и имена событий пишутся иначе (gh.bar,
@@ -295,7 +329,7 @@ test('каждый класс gh-* из partials и common.js описан в hu
 });
 
 test('hub.css: компоненты из спецификации на месте', () => {
-    const need = ['.gh-wrap', '.gh-head', '.gh-burger', '.gh-tabs', '.gh-tab', '.gh-attn', '.gh-filters',
+    const need = ['.gh-wrap', '.gh-tabs', '.gh-tab', '.gh-attn', '.gh-filters',
         '.gh-pick', '.gh-menu', '.gh-btn', '.gh-btn-primary', '.gh-btn-ghost', '.gh-btn-danger', '.gh-chip',
         '.gh-badge', '.gh-input', '.gh-select', '.gh-textarea', '.gh-drawer', '.gh-modal', '.gh-toast',
         '.gh-banner', '.gh-empty', '.gh-tipbox', '.gh-seg', '.gh-check', '.gh-embed'];
@@ -413,10 +447,6 @@ function loadCommon({ dom = false, storage = 'memory', respond } = {}) {
     let document;
     if (dom) {
         ids.ghAttention = buildAttention();
-        ids.ghBurger = new FakeEl('button', { id: 'ghBurger' });
-        ids['sidebar-toggle'] = new FakeEl('button', { id: 'sidebar-toggle' });
-        ids['sidebar-toggle'].clicked = 0;
-        ids['sidebar-toggle'].addEventListener('click', () => { ids['sidebar-toggle'].clicked++; });
         document = {
             readyState: 'complete',
             documentElement: new FakeEl('html'),
@@ -457,7 +487,7 @@ test('GH отдаёт весь API из спецификации (п. 3)', () =>
     const { GH } = loadCommon();
     const fns = ['api', 'esc', 'barName', 'barShort', 'fmtDate', 'fmtDateShort', 'fmtDateTime',
         'monthLabel', 'addMonths', 'mskNow', 'fmtHours', 'plural', 'fmtNum', 'getBar', 'setBar',
-        'toast', 'confirm', 'prompt', 'openDrawer', 'closeDrawer', 'loadAttention', 'initHeader',
+        'toast', 'confirm', 'prompt', 'openDrawer', 'closeDrawer', 'loadAttention',
         // дополнительные, на которые опираются страницы раздела
         'openModal', 'closeModal', 'openMenu', 'closeMenus', 'toggleMenu', 'setSeg', 'bindSeg',
         'debounce', 'copyText', 'params', 'setParams', 'weekday', 'addDays', 'daysInMonth', 'toneClass'];
@@ -727,13 +757,26 @@ test('полоса «требует внимания»: ошибка запро�
     assert.equal(ids.ghAttention.hidden, true);
 });
 
-test('бургер шапки открывает общий сайдбар (клик по #sidebar-toggle)', () => {
-    const { GH, ids } = loadCommon({ dom: true, respond: () => Promise.resolve(jsonResponse(200, {})) });
-    ids.ghBurger.click();
-    assert.equal(ids['sidebar-toggle'].clicked, 1);
-    GH.initHeader();                 // повторный вызов не вешает второй обработчик
-    ids.ghBurger.click();
-    assert.equal(ids['sidebar-toggle'].clicked, 2);
+test('бар — из полосы «Бар и период»: GH.getBar читает её, GH.setBar выбирает в ней', () => {
+    const { GH, window } = loadCommon();
+    const chosen = [];
+    window.KStrip = { get: () => ({ bar: 'ligovskiy', period: null }), setBar: (k) => chosen.push(k) };
+    window.KScope = { getBar: () => 'bolshoy', setBar() { throw new Error('мимо полосы'); } };
+    assert.equal(GH.getBar(), 'ligovskiy', 'бар не из полосы (в другой вкладке мог смениться)');
+    assert.equal(GH.setBar('varshavskaya'), 'varshavskaya');
+    assert.deepEqual(chosen, ['varshavskaya'], 'выбор не ушёл в полосу');
+    window.KStrip = { get: () => ({ bar: 'nope', period: null }), setBar() {} };
+    assert.equal(GH.getBar(), '', 'неизвестный бар полосы — все бары');
+    delete window.KStrip;
+    assert.equal(GH.getBar(), 'bolshoy', 'без полосы — общий выбор KScope');
+});
+
+test('подпись области счётчиков — «Все бары» (одна подпись всей сети на сайте)', async () => {
+    const { ids } = loadCommon({ dom: true, respond: () => Promise.resolve(jsonResponse(200, {})) });
+    await new Promise((r) => setTimeout(r, 0));
+    assert.equal(ids.ghAttention.querySelector('[data-attn-scope]').textContent, 'Все бары');
+    assert.match(strip, /data-attn-scope[\s\S]*?>Все бары<\/span>/, 'в разметке полосы — не «Все бары»');
+    assert.ok(!/scope\.textContent = [^;]*'Вся сеть'/.test(js), 'common.js снова пишет «Вся сеть»');
 });
 
 // ---------------------------------------------------------------- запуск
