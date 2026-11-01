@@ -118,15 +118,12 @@ body.packaging-page[data-theme="dark"] {
     --pk-backdrop: rgba(0, 0, 0, .55);
 }
 
-/* Общий каркас приложения на этой странице не нужен: своя шапка вместо
-   .header-bar, сайдбар открывается гамбургером из неё. */
-body.packaging-page .header-bar { display: none; }
-body.packaging-page .container { padding: 0; }
-
+/* Карточка заголовка (.header-bar) и полоса «Бар и период» — общие для сайта
+   (templates/shared/nav.html, с 2026-11-01): своей шапки, меню бара и периода у
+   фасовки и кухни больше нет. Страница стоит в том же .container, что заголовок и
+   полоса, — одна ширина и одни отступы с остальными страницами. */
 .pk-wrap {
-    max-width: 1240px;
-    margin: 0 auto;
-    padding: 22px 20px calc(64px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
     font-family: var(--pk-sans);
     color: var(--pk-ink);
     -webkit-font-smoothing: antialiased;
@@ -134,210 +131,14 @@ body.packaging-page .container { padding: 0; }
 }
 .pk-wrap ::selection { background: color-mix(in srgb, var(--pk-accent) 22%, transparent); }
 
-/* ==================== Шапка ==================== */
-
-.pk-head {
-    display: flex;
-    align-items: center;
-    gap: 13px;
-    background: var(--pk-card);
-    border: 1px solid var(--pk-line);
-    border-radius: var(--pk-r-head);
-    box-shadow: var(--pk-shadow);
-    padding: 11px 18px 11px 12px;
-}
-.pk-burger {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 3.5px;
-    width: 42px;
-    height: 42px;
-    border: none;
-    border-radius: var(--pk-r-burger);
-    background: var(--pk-accent);
-    cursor: pointer;
-    flex: none;
-    transition: background .15s ease;
-}
-.pk-burger:hover { background: var(--pk-accent-h); }
-.pk-burger span {
-    width: 16px;
-    height: 2px;
-    border-radius: 2px;
-    background: var(--pk-on-accent);
-}
-.pk-burger span:last-child { width: 10px; align-self: flex-start; margin-left: 13px; }
-.pk-title { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
-.pk-title-n {
-    font: 600 15px/1.2 var(--pk-sans);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-.pk-title-s {
-    font: 400 12px/1.2 var(--pk-sans);
-    color: var(--pk-ink4);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-.pk-logo {
-    font: 600 15px/1 var(--pk-mono);
-    letter-spacing: .4px;
-    white-space: nowrap;
-    flex: none;
-}
-.pk-logo i { color: var(--pk-accent); font-style: normal; }
-.pk-logo b { color: var(--pk-accent); font-weight: 600; animation: pkBlink .9s step-end infinite; }
-@keyframes pkBlink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
-@media (max-width: 640px) { .pk-logo-tail { display: none; } }
-
-/* ==================== Панель фильтров ==================== */
-
-.pk-filters {
-    position: relative;
-    z-index: 41;
-    display: flex;
-    align-items: stretch;
-    flex-wrap: wrap;
-    margin-top: 14px;
-    background: var(--pk-card);
-    border: 1px solid var(--pk-line);
-    border-radius: var(--pk-r-card);
-    box-shadow: var(--pk-shadow);
-    min-height: 58px;
-}
-.pk-pick { position: relative; display: flex; }
-.pk-pick-btn {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    gap: 4px;
-    border: none;
-    background: transparent;
-    padding: 9px 18px;
-    cursor: pointer;
-    text-align: left;
-    font-family: var(--pk-sans);
-    transition: background .15s ease;
-}
-.pk-pick:first-child .pk-pick-btn { border-radius: var(--pk-r-card) 0 0 var(--pk-r-card); }
-.pk-pick-btn:hover { background: var(--pk-hover); }
-.pk-pick-cap {
-    font: 600 9.5px/1 var(--pk-mono);
-    letter-spacing: .14em;
-    color: var(--pk-ink5);
-}
-.pk-pick-val {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font: 600 13.5px/1 var(--pk-sans);
-    color: var(--pk-ink);
-}
-.pk-pick-hint { font: 500 11.5px/1 var(--pk-mono); color: var(--pk-ink5); }
-.pk-chev { flex: none; }
-.pk-chev path { stroke: var(--pk-ink6); }
-.pk-sep { width: 1px; background: var(--pk-line); margin: 13px 0; }
+/* Строка контекста под полосой: разрез, «XYZ не считается», «обновлено». */
 .pk-grow { flex: 1; }
-
-.pk-menu {
-    position: absolute;
-    top: calc(100% + 8px);
-    left: 10px;
-    width: 272px;
-    background: var(--pk-card);
-    border: 1px solid var(--pk-line);
-    border-radius: var(--pk-r-menu);
-    box-shadow: var(--pk-shadow-menu);
-    padding: 6px;
-    z-index: 45;
-}
-.pk-menu[hidden] { display: none; }
-.pk-menu-item {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    width: 100%;
-    border: none;
-    background: transparent;
-    border-radius: 9px;
-    padding: 9px 12px;
-    cursor: pointer;
-    text-align: left;
-    font-family: var(--pk-sans);
-    transition: background .12s ease;
-}
-.pk-menu-item:hover { background: var(--pk-soft); }
-.pk-menu-item.is-on { background: var(--pk-soft); }
-.pk-menu-item span:first-child { flex: 1; font: 500 13px/1.2 var(--pk-sans); color: var(--pk-ink); }
-.pk-menu-item span:last-child {
-    font: 500 10.5px/1 var(--pk-mono);
-    color: var(--pk-ink5);
-    white-space: nowrap;
-}
-.pk-menu-cap {
-    font: 600 9.5px/1 var(--pk-mono);
-    letter-spacing: .14em;
-    color: var(--pk-ink5);
-    margin-bottom: 7px;
-}
-.pk-menu-custom { display: block; cursor: default; }
-.pk-menu-dates { display: flex; gap: 6px; align-items: center; }
-.pk-menu-dates input {
-    flex: 1;
-    min-width: 0;
-    height: 30px;
-    border: 1px solid var(--pk-line);
-    border-radius: 8px;
-    background: var(--pk-card);
-    color: var(--pk-ink);
-    padding: 0 8px;
-    font: 500 11.5px/1 var(--pk-mono);
-}
-.pk-run-wrap { display: flex; align-items: center; padding: 9px 10px 9px 18px; }
-.pk-run {
-    display: flex;
-    align-items: center;
-    gap: 9px;
-    height: 40px;
-    padding: 0 22px;
-    border: none;
-    border-radius: 999px;
-    background: var(--pk-accent);
-    color: var(--pk-on-accent);
-    font: 600 13px/1 var(--pk-sans);
-    cursor: pointer;
-    white-space: nowrap;
-    flex: none;
-    transition: background .15s ease;
-}
-.pk-run:hover { background: var(--pk-accent-h); }
-.pk-run:disabled { cursor: default; opacity: .8; }
-.pk-run.sm { height: 30px; padding: 0 14px; }
-.pk-spin {
-    width: 13px;
-    height: 13px;
-    border: 2px solid color-mix(in srgb, var(--pk-on-accent) 40%, transparent);
-    border-top-color: var(--pk-on-accent);
-    border-radius: 50%;
-    animation: pkSpin .7s linear infinite;
-}
-@keyframes pkSpin { to { transform: rotate(360deg); } }
-
-/* Перехватчик клика мимо открытого меню. */
-.pk-catch { position: fixed; inset: 0; z-index: 40; }
-.pk-catch[hidden] { display: none; }
-
-/* Строка контекста под фильтрами. */
 .pk-context {
     display: flex;
     align-items: center;
     flex-wrap: wrap;
     gap: 10px;
-    margin: 16px 2px 0;
+    margin: 0 2px;
 }
 .pk-context-t { font: 500 11px/1 var(--pk-mono); color: var(--pk-ink5); }
 .pk-context-chip {
@@ -862,14 +663,6 @@ body.packaging-page .container { padding: 0; }
 /* ==================== Телефон ==================== */
 
 @media (max-width: 720px) {
-    .pk-wrap { padding: 14px 12px 48px; }
-    .pk-filters { flex-wrap: wrap; }
-    .pk-pick { flex: 1 1 auto; }
-    .pk-pick-btn { width: 100%; }
-    .pk-sep { display: none; }
-    .pk-run-wrap { width: 100%; padding: 0 12px 12px; }
-    .pk-run { width: 100%; justify-content: center; }
-    .pk-run.sm { width: auto; }
     .pk-context { justify-content: flex-start; }
     .pk-search { width: 100%; }
     .pk-drawer { width: 100%; max-width: 100%; }

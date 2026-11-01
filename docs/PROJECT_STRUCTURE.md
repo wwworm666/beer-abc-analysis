@@ -52,6 +52,8 @@ beer-abc-analysis/
 │                           #   test_msk_today_routes.py, test_schedule_employee_update.py,
 │                           #   test_docs_secrets_moved.py; приёмка на РЦ: test_receiving_*.py,
 │                           #   test_receiving_*.mjs, fixtures/receiving_codes.json (паритет Python/JS);
+│                           #   аналитика на полосе «Бар и период»: test_analytics_strip.py,
+│                           #   abc_strip_stub.mjs (не тест: полоса для test_{draft,packaging,kitchen}_runtime.mjs);
 │                           #   conftest.py — пустые боевые токены
 │                           #   для каждого прогона pytest)
 ├── docs/                   # Документация проекта (SoT)
@@ -327,7 +329,7 @@ static/
 │   ├── packaging/       # packaging.js — весь экран «Фасовка — ABC/XYZ и потери»
 │   ├── kitchen/         # kitchen.js — «Кухня — ABC/XYZ и потери», клон packaging.js
 │   ├── explorer/        # конструктор OLAP: page.js (поля, зоны, фильтры, сохранение), grid.js (сводная), cube.js (3D-куб — схема раскладки)
-│   ├── shared/          # общие блоки страниц: kpi_breakdown.js, abc_view.js (вкладки /draft, /packaging, /kitchen)
+│   ├── shared/          # общие блоки страниц: kpi_breakdown.js, abc_view.js (вкладки /draft, /packaging, /kitchen и связка с полосой «Бар и период»)
 │   ├── employee/
 │   ├── guests/          # «Маркетинг»; views-guest.js подставляет ?q= в поиск гостя
 │   ├── guest_hub/       # раздел «Гости»: common.js (window.GH, полоса), content_plan.js, reviews.js

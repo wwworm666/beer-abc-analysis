@@ -27,6 +27,13 @@ const js = read('static/js/draft/draft.js');
 const view = read('static/js/shared/abc_view.js');
 const viewCss = read('static/shared/abc_view.css');
 
+// Ширина контента: страница стоит в .container общих стилей (с 2026-11-01 — вместе с
+// карточкой заголовка и полосой «Бар и период»): max-width минус поля по 20 px и рамка
+// таблицы 2 px (box-sizing: border-box — base.css).
+const baseCss = read('static/dashboard/styles/base.css');
+const CONTAINER = parseInt(baseCss.match(/\.container \{\s*max-width: (\d+)px;\s*margin: 0 auto;\s*padding: \d+px 20px;/)[1], 10);
+const CONTENT = CONTAINER - 2 * 20 - 2;
+
 let passed = 0;
 let failed = 0;
 function test(name, fn) {
@@ -62,11 +69,31 @@ test('все id, которые ищет JS, объявлены в шаблон�
 });
 
 test('страница берёт данные из /api/draft-kegs и только оттуда', () => {
-    assert.match(js, /fetch\('\/api\/draft-kegs'/, 'нет запроса к новому эндпоинту');
+    // Запрос — через общий AbcView.postJson (тело не JSON у страницы ошибки прокси).
+    assert.match(js, /postJson\('\/api\/draft-kegs'/, 'нет запроса к новому эндпоинту');
     assert.ok(!/draft-analyze|waiter-analyze/.test(js), 'остался вызов старого эндпоинта');
-    const fetches = [...js.matchAll(/fetch\(/g)].length;
-    assert.equal(fetches, 1, `запросов должно быть ровно один, найдено ${fetches}`);
+    const calls = [...js.matchAll(/postJson\(|fetch\(/g)].length;
+    assert.equal(calls, 1, `запросов должно быть ровно один, найдено ${calls}`);
 });
+
+test('общая карточка заголовка и полоса «Бар и период» вместо своих шапки и меню', () => {
+    // План единого виджета (docs/planning/period-widget-rollout.md, этап 3): шапку и меню
+    // бара и периода рисует общее меню; у страницы своих нет, кнопки запуска тоже.
+    assert.match(html, /\{% set page_title = "Розлив" %\}/, 'заголовок не в общей карточке');
+    assert.match(html, /\{% set page_subtitle = "ABC\/XYZ и потери: /, 'в подписи заголовка нет «ABC/XYZ и потери»');
+    assert.match(html, /\{% set strip = kultura_strip\(mode='report', step='last30', live=True,/,
+        'полоса не объявлена или не на последних 30 днях');
+    assert.ok(html.indexOf('kultura_strip(') < html.indexOf("{% include 'shared/nav.html' %}"),
+        'полоса объявлена после общего меню — меню её не нарисует');
+    for (const gone of ['dr-head', 'dr-filters', 'dr-pick', 'BarBtn"', 'PerBtn"', 'Run"', 'ПЕРИОД</span>',
+                        'type="date"']) {
+        assert.ok(!html.includes(gone), 'в шаблоне осталось: ' + gone);
+    }
+    assert.ok(!/\.header-bar \{ display: none/.test(css), 'CSS прячет общую карточку заголовка');
+    assert.ok(!/\.dr-(head|burger|filters|pick|menu|run|catch)\b/.test(css), 'в CSS остались стили своей шапки и меню');
+    assert.match(js, /AbcView\.connect\(/, 'страница не слушает полосу');
+});
+
 
 test('список баров приходит из шаблона, а не захардкожен в JS', () => {
     assert.match(html, /id="drBars"[^>]*>\{\{ bars \| tojson \}\}/,
@@ -227,25 +254,23 @@ function gridMinWidth(cols) {
 
 test('в таблице кегов нет колонки XYZ, и таблица влезает в страницу', () => {
     // Колонка XYZ повторяла третью букву кода и при min-width 1240px не влезала
-    // в контент страницы (max-width 1240px минус отступы = 1198px).
+    // в контент страницы (тогда max-width 1240px минус отступы = 1198px).
     assert.ok(!/'XYZ'|>XYZ</.test(js.match(/function renderKegs[\s\S]*?\n    }\n/)[0]),
         'в таблице кегов осталась колонка XYZ');
     assert.ok(!js.includes('dr-xyz'), 'в разметке осталась ячейка XYZ');
     const minWidth = parseInt(css.match(/\.dr-kegs \.dr-table-in \{ min-width: (\d+)px; \}/)[1], 10);
-    const wrap = parseInt(css.match(/\.dr-wrap \{[^}]*max-width: (\d+)px/)[1], 10);
-    assert.ok(minWidth <= wrap - 2 * 20 - 2, `таблица кегов ${minWidth}px шире контента ${wrap - 42}px`);
+    assert.ok(minWidth <= CONTENT, `таблица кегов ${minWidth}px шире контента ${CONTENT}px`);
 });
 
 test('три доли (выручка, литры, маржа) помещаются в страницу в обеих таблицах', () => {
     // С 2026-09-29 у кегов и категорий третья доля — маржа. Колонки долей 108px.
-    const wrap = parseInt(css.match(/\.dr-wrap \{[^}]*max-width: (\d+)px/)[1], 10);
     for (const [table, count] of [['kegs', 11], ['cats', 11]]) {
         const cols = css.match(new RegExp(`\\.dr-${table} \\.dr-row \\{\\s*grid-template-columns: ([^;]+);`))[1];
         const minWidth = parseInt(css.match(new RegExp(`\\.dr-${table} \\.dr-table-in \\{ min-width: (\\d+)px; \\}`))[1], 10);
         const grid = gridMinWidth(cols);
         assert.equal(grid.count, count, `в гриде ${table} ${grid.count} колонок вместо ${count}`);
         assert.ok(grid.width <= minWidth, `колонки ${table} (${grid.width}px) шире min-width ${minWidth}px`);
-        assert.ok(minWidth <= wrap - 42, `таблица ${table} ${minWidth}px шире контента ${wrap - 42}px`);
+        assert.ok(minWidth <= CONTENT, `таблица ${table} ${minWidth}px шире контента ${CONTENT}px`);
     }
     for (const fn of ['renderKegs', 'renderCategories']) {
         const body = js.match(new RegExp(`function ${fn}[\\s\\S]*?\\n    }\\n`))[0];

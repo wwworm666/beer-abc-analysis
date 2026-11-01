@@ -19,6 +19,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
+import { bootStrip, stripChecks } from './abc_strip_stub.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
@@ -69,9 +70,9 @@ function makeEl(id) {
     };
 }
 
-const IDS = ['ktBurger', 'ktBarBtn', 'ktBarMenu', 'ktBarLabel', 'ktPerBtn', 'ktPerMenu',
-             'ktPerLabel', 'ktPerHint', 'ktCatch', 'ktRun', 'ktRunLabel', 'ktSpin',
-             'ktContext', 'ktXyzChip', 'ktMsg', 'ktBody', 'ktTabs', 'ktOverview',
+// Своих меню бара и периода и кнопки запуска у страницы нет (с 2026-11-01): бар и
+// период — полоса «Бар и период» (tests/abc_strip_stub.mjs).
+const IDS = ['ktContext', 'ktXyzChip', 'ktMsg', 'ktBody', 'ktTabs', 'ktOverview',
              'ktPrices', 'ktFilter', 'ktPanelItems', 'ktPanelCats', 'ktPanelLosses',
              'ktPanelBars', 'ktCatCount', 'ktCats', 'ktPosCount', 'ktSearch', 'ktPos',
              'ktUpdated', 'ktBalance', 'ktLosses', 'ktDiag', 'ktDrawer', 'ktBackdrop',
@@ -85,7 +86,7 @@ function boot() {
     const fetchCalls = [];
     const sandbox = {
         console, Intl, Math, Number, String, Object, Array, JSON, Date, isNaN, Promise,
-        setTimeout, module: undefined,
+        setTimeout, clearTimeout, module: undefined,
         document: {
             readyState: 'complete',
             getElementById: (id) => byId[id] || null,
@@ -106,9 +107,11 @@ function boot() {
     };
     sandbox.window = sandbox;
     vm.createContext(sandbox);
+    // Полоса «Бар и период» и ядро периодов (часы страницы — 01.11.2026): tests/abc_strip_stub.mjs.
+    const strip = bootStrip(sandbox);
     new vm.Script(viewJs, { filename: 'abc_view.js' }).runInContext(sandbox);
     new vm.Script(js, { filename: 'kitchen.js' }).runInContext(sandbox);
-    return { sandbox, byId, fetchCalls };
+    return { sandbox, byId, fetchCalls, strip };
 }
 
 
@@ -136,19 +139,24 @@ const flat = (h) => h.replace(/[  ]/g, ' ');
 const rows = (h) => (h.match(/class="pk-row is-body"/g) || []).length;
 const fmt = (v) => new Intl.NumberFormat('ru-RU').format(Math.round(v)).replace(/[  ]/g, ' ');
 
-test('скрипт исполняется и сам запрашивает /api/kitchen за 30 дней', () => {
+test('скрипт исполняется и сам запрашивает /api/kitchen за период полосы (30 дней)', () => {
     assert.equal(env.fetchCalls.length, 1, 'страница не сходила за данными');
     assert.equal(env.fetchCalls[0].url, '/api/kitchen');
     const body = env.fetchCalls[0].body;
-    const days = Math.round((new Date(body.date_to) - new Date(body.date_from)) / 86400000) + 1;
-    assert.equal(days, 30);
+    // Последние 30 полных дней без выбора ставит сервер полосы (core/scope.page_default).
+    assert.deepEqual([body.date_from, body.date_to], ['2026-10-02', '2026-10-31']);
     assert.equal(body.bar, '');
+    assert.equal(env.strip.listeners.length, 1, 'страница не подписалась на смену бара и периода');
+    for (const gone of ['presetRange', 'PRESETS', 'buildPerMenu', 'buildBarMenu', 'ktRun', 'ktPerBtn',
+                        'new Date()', "'Запустить анализ'"]) {
+        assert.ok(!js.includes(gone), 'в kitchen.js осталось: ' + gone);
+    }
 });
 
 test('после ответа тело показано, строка разреза и чип «обновлено» на месте', () => {
     assert.equal(b.ktBody.hidden, false);
     assert.equal(b.ktMsg.hidden, true);
-    assert.match(b.ktContext.textContent, /разрез: Общая \(4 бара\)/);
+    assert.match(b.ktContext.textContent, /разрез: Все бары \(4 бара\)/);
     assert.match(b.ktUpdated.textContent, /обновлено 12:34/);
 });
 
@@ -306,6 +314,27 @@ test('опасные символы в данных экранируются', (
         api.state.data = keep;
         api.render();
     }
+});
+
+async function asyncTest(name, fn) {
+    try {
+        await fn();
+        passed++;
+        console.log(`  ok  ${name}`);
+    } catch (e) {
+        failed++;
+        console.log(`FAIL  ${name}`);
+        console.log(`      ${e && e.message}`);
+    }
+}
+
+// Связка с полосой «Бар и период» — общие проверки трёх ABC-страниц (tests/abc_strip_stub.mjs).
+await stripChecks({
+    env, asyncTest, url: '/api/kitchen', what: 'кухню',
+    ids: { msg: 'ktMsg', body: 'ktBody', chip: 'ktXyzChip', context: 'ktContext' },
+    reply: (bar) => ({ ok: true, status: 200, json: () => Promise.resolve(bar
+        ? Object.assign({}, BLOCK, { scope: 'bar', bar_label: bar }) : BLOCK) }),
+    contextLabel: (bar) => bar
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

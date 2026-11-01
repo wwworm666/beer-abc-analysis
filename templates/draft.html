@@ -17,79 +17,28 @@
     <link rel="stylesheet" href="/static/shared/abc_view.css?v={{ app_version }}">
 </head>
 <body class="draft-page">
+    {#- Заголовок — имя пункта меню: длинное «Розлив — ABC/XYZ и потери» не помещалось в
+        карточку заголовка на телефоне (подпись там скрыта). -#}
+    {% set page_title = "Розлив" %}
+    {% set page_subtitle = "ABC/XYZ и потери: что держать, где поднять цену, где теряются литры" %}
+    {#- Полоса «Бар и период» — общая для сайта (templates/shared/scope_strip.html, план единого
+        виджета docs/planning/period-widget-rollout.md, этап 3): своих меню бара и периода у
+        страницы нет. Без выбора за последний час — последние 30 полных дней: XYZ нужно не
+        меньше трёх недель (ответ владельца Р2). Шаги — день, неделя, месяц, год, свой. -#}
+    {% set strip = kultura_strip(mode='report', step='last30', live=True,
+                                 freshness='Данные iiko — по сегодня; тот же бар и период 10 минут берутся из кэша') %}
     <div class="container">
-        {% set page_title = "Розлив — ABC/XYZ и потери" %}
-        {% set page_subtitle = "Ассортимент разливного и баланс кегов в литрах" %}
         {% include 'shared/nav.html' %}
-    </div>
 
     <div class="dr-wrap">
-
-      <!-- Шапка страницы вместо общей .header-bar (та скрыта на .draft-page).
-           Гамбургер открывает тот же сайдбар: клик пробрасывается на скрытую
-           кнопку #sidebar-toggle из shared/nav.html — тот же приём, что на /me. -->
-      <header class="dr-head">
-        <button type="button" class="dr-burger" id="drBurger" aria-label="Меню">
-          <span></span><span></span><span></span>
-        </button>
-        <span class="dr-title">
-          <span class="dr-title-n">Розлив — ABC/XYZ и потери</span>
-          <span class="dr-title-s">что держать, где поднять цену, где теряются литры</span>
-        </span>
-        <span class="dr-logo"><i>&gt;&nbsp;</i>k<span class="dr-logo-tail">ultura.os</span><b>_</b></span>
-      </header>
-
-      <!-- Перехватчик клика мимо открытого меню бара или периода. -->
-      <div class="dr-catch" id="drCatch" hidden></div>
-
-      <div class="dr-filters">
-        <div class="dr-pick">
-          <button type="button" class="dr-pick-btn" id="drBarBtn" aria-haspopup="listbox">
-            <span class="dr-pick-cap">БАР</span>
-            <span class="dr-pick-val">
-              <span id="drBarLabel">Общая</span>
-              <svg class="dr-chev" width="9" height="9" viewBox="0 0 10 10" aria-hidden="true">
-                <path d="M2 3.5 5 6.5 8 3.5" stroke-width="1.6" fill="none"
-                      stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-            </span>
-          </button>
-          <div class="dr-menu" id="drBarMenu" role="listbox" hidden></div>
-        </div>
-
-        <span class="dr-sep"></span>
-
-        <div class="dr-pick">
-          <button type="button" class="dr-pick-btn" id="drPerBtn" aria-haspopup="listbox">
-            <span class="dr-pick-cap">ПЕРИОД</span>
-            <span class="dr-pick-val">
-              <span id="drPerLabel">Последние 30 дней</span>
-              <span class="dr-pick-hint" id="drPerHint"></span>
-              <svg class="dr-chev" width="9" height="9" viewBox="0 0 10 10" aria-hidden="true">
-                <path d="M2 3.5 5 6.5 8 3.5" stroke-width="1.6" fill="none"
-                      stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-            </span>
-          </button>
-          <div class="dr-menu" id="drPerMenu" role="listbox" hidden></div>
-        </div>
-
-        <span class="dr-grow"></span>
-
-        <div class="dr-run-wrap">
-          <button type="button" class="dr-run" id="drRun">
-            <span class="dr-spin" id="drSpin" hidden></span>
-            <span id="drRunLabel">Запустить анализ</span>
-          </button>
-        </div>
-      </div>
 
       <div class="dr-context">
         <span class="dr-grow"></span>
         <span class="dr-context-t" id="drContext"></span>
-        <!-- Плашка «XYZ не считается»: на пресете «неделя» третьей буквы (спрос)
-             нет ни у одного кега, код каждого кончается на «?», и без плашки это
-             выглядит сломанным. Зеркало #pkXyzChip на фасовке. -->
+        <!-- Плашка «XYZ не считается»: на периоде короче трёх полных недель третьей
+             буквы (спрос) нет ни у одного кега, код каждого кончается на «?», и без
+             плашки это выглядит сломанным. Видна сразу по выбранному периоду, до
+             ответа сервера (AbcView.noXyzText). Зеркало #pkXyzChip на фасовке. -->
         <span class="dr-context-chip" id="drXyzChip" hidden></span>
         <span class="dr-context-chip" id="drUpdated" hidden></span>
       </div>
@@ -229,15 +178,15 @@
         </section>
       </div>
     </div>
+    </div>
 
     <div class="dr-backdrop" id="drBackdrop" hidden></div>
     <aside class="dr-drawer" id="drDrawer" hidden aria-label="Карточка"></aside>
 
-    <!-- Список баров отдаёт сервер: меню фильтра строит JS, а BARS живут в
-         extensions.py и на клиенте иначе взяться неоткуда. -->
+    <!-- Список баров отдаёт сервер (extensions.BARS): карточка кега пишет «в N из 4
+         баров». Выбор бара — общая полоса сайта, своего меню у страницы нет. -->
     <script type="application/json" id="drBars">{{ bars | tojson }}</script>
     <script src="/static/js/shared/abc_view.js?v={{ app_version }}"></script>
     <script src="/static/js/draft/draft.js?v={{ app_version }}"></script>
-    <script src="/static/logo.js"></script>
 </body>
 </html>
