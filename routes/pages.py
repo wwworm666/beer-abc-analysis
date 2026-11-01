@@ -1,4 +1,5 @@
 from flask import Blueprint, redirect, render_template, request
+from core import periods
 from extensions import BARS, APP_VERSION
 
 pages_bp = Blueprint('pages', __name__)
@@ -144,8 +145,14 @@ def kpi_redirect():
 
 @pages_bp.route('/dashboard')
 def dashboard():
-    """Страница аналитического дашборда"""
-    return render_template('dashboard.html', bars=BARS, app_version=APP_VERSION)
+    """Страница аналитического дашборда.
+
+    period_config — даты страницы по стандарту периодов (core/periods.page_config, живые данные
+    iiko): сегодняшний учётный день виден, последний полный — вчера, рабочие сутки до 06:00 МСК.
+    Страница открывается на последней закрытой неделе по этим датам, а не по часам устройства.
+    """
+    return render_template('dashboard.html', bars=BARS, app_version=APP_VERSION,
+                           period_config=periods.page_config(live=True))
 
 
 @pages_bp.route('/monthly-report')

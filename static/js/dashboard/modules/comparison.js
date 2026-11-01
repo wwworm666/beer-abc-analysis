@@ -1,11 +1,64 @@
 /**
- * Comparison Module — Modern Fintech Design
- * Сравнение периодов с AI-инсайтами и продвинутой визуализацией
+ * Сравнение периодов (вкладка «Сравнение» дашборда).
+ *
+ * С 2026-11-01 по стандарту периодов (docs/period-standard.md, раздел 8): период 1 — тот, что
+ * выбран в шапке страницы; период 2 — «прошлый период», «тот же период год назад» или «свой»
+ * (второй элемент «Период» во вкладке). Идущий период сравнивается равной длиной по
+ * последний полный день: 1–29 окт против 1–29 сен. Раньше у вкладки были свои списки недель:
+ * режимы выбирали будущие недели, по воскресеньям текущая неделя не находилась (дата недели
+ * читалась как UTC), «Год к году» не работал.
+ *
+ * Числа каждого периода — те же запросы, что у «Аналитики» (/api/dashboard-analytics).
  */
 
 import { state } from '../core/state.js';
 import { api } from '../core/api.js';
 import { formatMoney, formatPercent } from '../core/utils.js';
+
+const K = window.KPeriod;
+const QUICK = ['last_closed_week', 'current_week', 'last_closed_month', 'current_month',
+    'current_quarter', 'current_year'];
+
+/**
+ * «Тот же период год назад»: месяц и квартал — на 12 месяцев, год — на один, неделя, день и свой
+ * период — на 52 недели (364 дня), чтобы совпали дни недели: у бара пятница — не вторник.
+ */
+export function yearAgo(p) {
+    const s = K.fromISO(p.start);
+    const e = K.fromISO(p.end);
+    if (p.granularity === 'month' || p.granularity === 'quarter') {
+        return K.periodFor(p.granularity, K.addMonths(s, -12));
+    }
+    if (p.granularity === 'year') return K.shiftPeriod(p, -1);
+    if (p.granularity === 'week') return K.periodFor('week', K.addDays(s, -364));
+    return K.fromBounds(K.addDays(s, -364), K.addDays(e, -364));
+}
+
+/**
+ * Равная длина у идущего периода: период 1 — по последний полный день, период 2 — столько же
+ * дней от своего начала. Закрытый период 1 не режется. Если в периоде 1 нет ни одного полного
+ * дня (выбран сегодняшний), сравнивается как есть — с пометкой.
+ * -> {p1, p2, note}
+ */
+export function equalLength(p1, p2) {
+    const lfd = K.lastFullDay();
+    const end1 = K.fromISO(p1.end);
+    const start1 = K.fromISO(p1.start);
+    if (end1 <= lfd) return { p1, p2, note: '' };
+    if (lfd < start1) {
+        return { p1, p2, note: 'В периоде 1 ещё нет полного дня — сравнение по неполным данным.' };
+    }
+    const days = K.daysBetweenInclusive(start1, lfd);
+    const start2 = K.fromISO(p2.start);
+    const end2 = K.addDays(start2, days - 1);
+    const p2end = K.fromISO(p2.end);
+    return {
+        p1: K.fromBounds(start1, lfd),
+        p2: K.fromBounds(start2, end2 < p2end ? end2 : p2end),
+        note: 'Период 1 ещё идёт: сравниваем ' + days + ' ' + K.pluralDays(days) +
+            ' с начала — по последний полный день.'
+    };
+}
 
 class ComparisonModule {
     constructor() {
@@ -13,8 +66,10 @@ class ComparisonModule {
         this.comparisonChart = null;
         this.period1Data = null;
         this.period2Data = null;
-        this.currentMode = 'week'; // week | month | year
-        this.weeks = [];
+        this.mode = 'prev';          // prev | year | custom
+        this.customPicker = null;    // элемент «Период» для своего периода 2
+        this.timer = null;
+        this.runId = 0;
     }
 
     /**
@@ -22,221 +77,102 @@ class ComparisonModule {
      */
     init() {
         if (this.initialized) return;
-
-        console.log('[Comparison] Инициализация модуля сравнения...');
-
         this.setupEventListeners();
-        this.loadWeeks();
-
+        state.subscribe((event, data) => {
+            if (event === 'tabChanged') {
+                if (data === 'tab-comparison') this.schedule();
+            } else if (event === 'periodChanged' || event === 'venueChanged') {
+                if (state.activeTab === 'tab-comparison') this.schedule();
+                else this.renderLabels();
+            }
+        });
+        this.renderLabels();
+        if (state.activeTab === 'tab-comparison') this.schedule();
         this.initialized = true;
-        console.log('[Comparison] Модуль сравнения инициализирован');
     }
 
-    /**
-     * Загрузить список недель
-     */
-    async loadWeeks() {
-        try {
-            const weeksResponse = await api.getWeeks();
-            this.weeks = weeksResponse.weeks || [];
-
-            await this.populateSelectors();
-            await this.autoSelectPeriods();
-
-        } catch (error) {
-            console.error('[Comparison] Ошибка загрузки недель:', error);
-        }
-    }
-
-    /**
-     * Заполнить селекторы периодов
-     */
-    async populateSelectors() {
-        const select1 = document.getElementById('comparison-period-1');
-        const select2 = document.getElementById('comparison-period-2');
-
-        if (!select1 || !select2) return;
-
-        const options = this.weeks.map(w =>
-            `<option value="${w.key}">${w.label}</option>`
-        ).join('');
-
-        select1.innerHTML = '<option value="">Выберите период...</option>' + options;
-        select2.innerHTML = '<option value="">Выберите период...</option>' + options;
-    }
-
-    /**
-     * Автоматически выбрать периоды при загрузке
-     */
-    async autoSelectPeriods() {
-        if (this.weeks.length < 2) return;
-
-        const select1 = document.getElementById('comparison-period-1');
-        const select2 = document.getElementById('comparison-period-2');
-
-        if (!select1 || !select2) return;
-
-        // Находим текущую неделю
-        const currentWeekIndex = this.weeks.findIndex(w => {
-            const today = new Date();
-            const start = new Date(w.start);
-            const end = new Date(w.end);
-            return today >= start && today <= end;
-        });
-
-        if (currentWeekIndex >= 0) {
-            // Текущая неделя в период 1
-            select1.value = this.weeks[currentWeekIndex].key;
-
-            // Предыдущая неделя в период 2 (если есть)
-            if (currentWeekIndex > 0) {
-                select2.value = this.weeks[currentWeekIndex - 1].key;
-            }
-        } else {
-            // Если текущая неделя не найдена, берём последние две
-            select1.value = this.weeks[0].key;
-            if (this.weeks.length > 1) {
-                select2.value = this.weeks[1].key;
-            }
-        }
-    }
-
-    /**
-     * Настроить обработчики событий
-     */
     setupEventListeners() {
-        // Mode tabs
         document.querySelectorAll('.comparison-mode-tab').forEach(tab => {
-            tab.addEventListener('click', (e) => {
-                this.switchMode(e.target.dataset.mode);
-            });
+            tab.addEventListener('click', () => this.switchMode(tab.dataset.mode));
         });
-
-        // Кнопка "Сравнить"
-        document.getElementById('btn-compare')?.addEventListener('click', () => {
-            this.runComparison();
-        });
-
-        // Селекторы периодов - автоматическое сравнение при изменении
-        document.getElementById('comparison-period-1')?.addEventListener('change', () => {
-            const period1 = document.getElementById('comparison-period-1')?.value;
-            const period2 = document.getElementById('comparison-period-2')?.value;
-            if (period1 && period2) {
-                this.runComparison();
-            }
-        });
-
-        document.getElementById('comparison-period-2')?.addEventListener('change', () => {
-            const period1 = document.getElementById('comparison-period-1')?.value;
-            const period2 = document.getElementById('comparison-period-2')?.value;
-            if (period1 && period2) {
-                this.runComparison();
-            }
-        });
-
-        // Export button
         document.getElementById('btn-export-comparison')?.addEventListener('click', () => {
             this.exportComparison();
         });
     }
 
-    /**
-     * Переключить режим сравнения
-     */
     switchMode(mode) {
-        this.currentMode = mode;
-
-        // Обновляем активный таб
+        this.mode = mode;
         document.querySelectorAll('.comparison-mode-tab').forEach(tab => {
             tab.classList.toggle('active', tab.dataset.mode === mode);
         });
-
-        // Автоматически выбираем периоды в зависимости от режима
-        this.autoSelectPeriodsForMode(mode);
-    }
-
-    /**
-     * Автоматически выбрать периоды для режима
-     */
-    async autoSelectPeriodsForMode(mode) {
-        if (this.weeks.length < 2) return;
-
-        const select1 = document.getElementById('comparison-period-1');
-        const select2 = document.getElementById('comparison-period-2');
-
-        if (!select1 || !select2) return;
-
-        const currentWeekIndex = this.weeks.findIndex(w => {
-            const today = new Date();
-            const start = new Date(w.start);
-            const end = new Date(w.end);
-            return today >= start && today <= end;
-        });
-
-        if (currentWeekIndex < 0) return;
-
-        select1.value = this.weeks[currentWeekIndex].key;
-
-        let offset = 1; // week-over-week
-        if (mode === 'month') offset = 4;
-        if (mode === 'year') offset = 52;
-
-        const targetIndex = currentWeekIndex + offset;
-        if (targetIndex < this.weeks.length) {
-            select2.value = this.weeks[targetIndex].key;
-            // Автоматически запускаем сравнение
-            this.runComparison();
+        const mount = document.getElementById('cmp-p2-picker');
+        if (mount) {
+            mount.hidden = mode !== 'custom';
+            if (mode === 'custom' && !this.customPicker && window.KPeriodPicker) {
+                this.customPicker = window.KPeriodPicker.mount(mount, {
+                    steps: ['day', 'week', 'month', 'quarter', 'year', 'custom'],
+                    quick: QUICK,
+                    value: K.shiftPeriod(state.currentPeriod, -1),
+                    onChange: () => this.schedule()
+                });
+            }
         }
+        this.schedule();
     }
 
-    /**
-     * Запустить сравнение
-     */
+    /** Два периода сравнения по выбору режима (до выравнивания длины). */
+    periods() {
+        const p1 = state.currentPeriod;
+        let p2;
+        if (this.mode === 'year') p2 = yearAgo(p1);
+        else if (this.mode === 'custom' && this.customPicker) p2 = this.customPicker.get();
+        else p2 = K.shiftPeriod(p1, -1);
+        return equalLength(p1, p2);
+    }
+
+    renderLabels() {
+        const { p1, p2, note } = this.periods();
+        const p1el = document.getElementById('cmp-p1');
+        const p2el = document.getElementById('cmp-p2');
+        const noteEl = document.getElementById('cmp-note');
+        if (p1el) p1el.textContent = K.periodTitle(p1);
+        if (p2el) p2el.textContent = K.periodTitle(p2);
+        if (noteEl) {
+            noteEl.textContent = note;
+            noteEl.hidden = !note;
+        }
+        return { p1, p2 };
+    }
+
+    // Пауза — одна загрузка на серию переключений.
+    schedule() {
+        clearTimeout(this.timer);
+        this.timer = setTimeout(() => this.runComparison(), 250);
+    }
+
     async runComparison() {
-        const period1Key = document.getElementById('comparison-period-1')?.value;
-        const period2Key = document.getElementById('comparison-period-2')?.value;
-
-        if (!period1Key || !period2Key) {
-            this.showEmpty();
-            return;
-        }
-
-        if (period1Key === period2Key) {
+        const { p1, p2 } = this.renderLabels();
+        if (p1.start === p2.start && p1.end === p2.end) {
             state.addMessage('warning', 'Выберите разные периоды', 3000);
             return;
         }
-
-        console.log(`[Comparison] Сравнение: ${period1Key} vs ${period2Key}`);
+        const run = ++this.runId;
         this.showLoading();
-
         try {
             const venueKey = state.currentVenue;
-
-            const week1 = this.weeks.find(w => w.key === period1Key);
-            const week2 = this.weeks.find(w => w.key === period2Key);
-
-            if (!week1 || !week2) {
-                throw new Error('Не удалось найти периоды');
-            }
-
-            // Загружаем данные для обоих периодов параллельно
             const [data1, data2] = await Promise.all([
-                api.getAnalytics(venueKey, week1.start, week1.end),
-                api.getAnalytics(venueKey, week2.start, week2.end)
+                api.getAnalytics(venueKey, p1.start, p1.end),
+                api.getAnalytics(venueKey, p2.start, p2.end)
             ]);
-
-            this.period1Data = { key: period1Key, label: week1.label, ...data1 };
-            this.period2Data = { key: period2Key, label: week2.label, ...data2 };
-
-            // Отображаем результаты
+            if (run !== this.runId) return;   // пока грузилось, выбрали другое
+            this.period1Data = { key: p1.key, label: K.periodTitle(p1), ...data1 };
+            this.period2Data = { key: p2.key, label: K.periodTitle(p2), ...data2 };
             this.displayMetricCards();
             this.displayTopChanges();
             this.displayDetailedTable();
             this.showResults();
-
-            state.addMessage('success', 'Сравнение завершено', 3000);
-
         } catch (error) {
+            if (run !== this.runId) return;
             console.error('[Comparison] Ошибка сравнения:', error);
             state.addMessage('error', 'Ошибка при сравнении периодов');
             this.showEmpty();

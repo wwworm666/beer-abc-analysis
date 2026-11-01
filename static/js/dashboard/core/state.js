@@ -6,17 +6,34 @@
 import { STORAGE_KEYS } from './config.js';
 import { defaultPeriod, monthYearOf } from './period_model.js';
 
+/**
+ * Период при открытии: из адреса (?date_from=&date_to= — ссылка или перезагрузка), иначе
+ * последняя закрытая неделя (стандарт периодов: отчёты открываются на последнем закрытом
+ * периоде). Период из адреса, который начинается позже последнего доступного дня, не
+ * принимается — страница не открывается на пустом периоде.
+ */
+function initialPeriod() {
+    const K = window.KPeriod;
+    const fromUrl = K.readUrlPeriod();
+    if (fromUrl && K.periodState(fromUrl) !== 'future') return fromUrl;
+    return defaultPeriod();
+}
+
+/** Бар — один на весь сайт (window.KScope, ключ 'kultura.bar'); вся сеть у дашборда — 'all'. */
+function initialVenue() {
+    return window.KScope ? (window.KScope.getBar() || 'all') : 'all';
+}
+
 class DashboardState {
     constructor() {
-        // Текущее выбранное заведение
-        this.currentVenue = this.loadFromStorage(STORAGE_KEYS.SELECTED_VENUE) || 'all';
+        // Текущее заведение — общий выбор бара на весь сайт (стандарт периодов, раздел 6).
+        this.currentVenue = initialVenue();
 
-        // Текущий период — ЕДИНСТВЕННЫЙ источник дефолта на весь дашборд:
-        // последняя завершённая неделя (пн-вс). Намеренно НЕ восстанавливаем из
-        // localStorage: у незавершённого/старого периода факт и план несопоставимы,
-        // и до этого три источника дефолта (localStorage, /api/weeks, datepicker)
-        // перетирали друг друга, давая лишний OLAP-запрос на старте.
-        this.currentPeriod = defaultPeriod();
+        // Текущий период — ЕДИНСТВЕННЫЙ источник дефолта на весь дашборд: адрес страницы или
+        // последняя закрытая неделя (пн–вс) по учётному дню с сервера. Из localStorage
+        // намеренно НЕ восстанавливаем: у незавершённого/старого периода факт и план
+        // несопоставимы, а период живёт в адресе (?date_from=&date_to=).
+        this.currentPeriod = initialPeriod();
 
         // Месяц/год месячных вкладок (Выручка, Планы) ВЫВОДЯТСЯ из периода,
         // отдельных селекторов больше нет. Формат обязателен: месяц — строка
@@ -87,7 +104,9 @@ class DashboardState {
      */
     setVenue(venueKey) {
         this.currentVenue = venueKey;
-        this.saveToStorage(STORAGE_KEYS.SELECTED_VENUE, venueKey);
+        // Один выбор бара на весь сайт: ключ 'kultura.bar' и ?bar= в адресе.
+        if (window.KScope) window.KScope.setBar(venueKey);
+        else this.saveToStorage(STORAGE_KEYS.SELECTED_VENUE, venueKey);
         this.notify('venueChanged', venueKey);
     }
 
@@ -99,8 +118,8 @@ class DashboardState {
      * подписаны именно на 'monthChanged', поэтому листание стрелками внутри
      * одного месяца их не дёргает.
      *
-     * Период НЕ персистится: дашборд всегда открывается на последней завершённой
-     * неделе (см. конструктор).
+     * Период хранится в адресе страницы (?date_from=&date_to=, пишет элемент «Период»), а не в
+     * localStorage: без адреса дашборд открывается на последней закрытой неделе.
      */
     setPeriod(period) {
         this.currentPeriod = period;

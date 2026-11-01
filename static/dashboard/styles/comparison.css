@@ -1,6 +1,71 @@
 /* Comparison Module — Modern Fintech Design */
 
 /* ============================================
+   ПЕРИОДЫ СРАВНЕНИЯ (стандарт периодов, раздел 8)
+   Период 1 — из шапки страницы, период 2 — режим «Сравнить с»
+   ============================================ */
+
+.cmp-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: var(--spacing-lg);
+    padding: var(--spacing-md);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-sm);
+}
+
+.cmp-line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 14px;
+}
+
+.cmp-label {
+    min-width: 92px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+}
+
+.cmp-value {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.cmp-hint {
+    font-size: 0.75rem;
+    color: var(--text-tertiary);
+}
+
+.cmp-controls .comparison-mode-tabs {
+    flex: 1 1 auto;
+    margin-bottom: 0;
+}
+
+.cmp-p2-picker[hidden] {
+    display: none;
+}
+
+/* Идущий период сравнивается равной длиной — видимой подписью, а не подсказкой. */
+.cmp-note {
+    padding: 8px 12px;
+    border-radius: 10px;
+    background: var(--warning-bg);
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+.cmp-note[hidden] {
+    display: none;
+}
+
+/* ============================================
    COMPARISON MODE TABS
    ============================================ */
 

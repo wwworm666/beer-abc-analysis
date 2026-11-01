@@ -58,7 +58,11 @@
     GH.MONTHS = MONTHS_NOM;
     GH.WEEKDAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 
-    var BAR_STORAGE_KEY = 'gh.bar';
+    // С 2026-11-01 бар — один на весь сайт (стандарт периодов, раздел 6): ключ 'kultura.bar'
+    // общий с дашбордом (static/js/shared/period/scope.js). Вся сеть пишется явно как 'all',
+    // чтобы пустой ключ отличался от «не выбирали»; старый 'gh.bar' читается, пока новый не записан.
+    var BAR_STORAGE_KEY = 'kultura.bar';
+    var LEGACY_BAR_KEY = 'gh.bar';
     // Счётчики, которые показываются только когда больше нуля (спецификация, п. 3).
     var ATTN_HIDE_WHEN_ZERO = { delivery_errors: true, overdue: true };
     // Тон ненулевого счётчика: отзывы и просрочка — внимание, ошибки — опасность,
@@ -303,12 +307,13 @@
     // Общий фильтр бара: '' = все бары. Неизвестное значение читается как ''.
     GH.getBar = function () {
         var v = storageGet(BAR_STORAGE_KEY);
+        if (v === null) v = storageGet(LEGACY_BAR_KEY);
         return findBar(v) ? v : '';
     };
     // Сохраняет выбор и сам обновляет полосу «требует внимания».
     GH.setBar = function (key) {
         var v = findBar(key) ? key : '';
-        storageSet(BAR_STORAGE_KEY, v);
+        storageSet(BAR_STORAGE_KEY, v || 'all');
         if (byId('ghAttention')) GH.loadAttention();
         return v;
     };

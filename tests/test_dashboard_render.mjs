@@ -184,8 +184,8 @@ const REDESIGN_CLASSES = [
     // шапка фильтров: одна полоса «заведение | период | экспорт»
     'filter-bar', 'fb-native-select', 'fb-item', 'fb-venue', 'fb-strong', 'fb-hint',
     'fb-icon', 'fb-caret', 'fb-divider', 'fb-spacer',
-    'fb-period', 'fb-arrow', 'fb-period-trigger',
-    'fb-export', 'fb-ghost', 'fb-export-mobile', 'period-picker-anchor',
+    'fb-period', 'fb-arrow',
+    'fb-export', 'fb-ghost', 'fb-export-mobile',
     // выпадающие списки / нижний лист
     'fb-backdrop', 'fb-menu', 'fb-grab', 'fb-menu-label', 'fb-menu-item',
     'fb-menu-name', 'fb-menu-hint', 'fb-menu-icon', 'fb-menu-sep', 'fb-menu-muted',
@@ -501,20 +501,47 @@ test('нижняя таб-панель повторяет вкладки и со
     assert.ok(html.includes('id="bt-more"'), 'нет кнопки «Ещё»');
 });
 
-test('шапка фильтров: один контрол, без сегментов и «Сегодня»', () => {
+test('шапка фильтров: бар, общий элемент «Период», выгрузка', () => {
     const html = read('templates/dashboard/base.html');
-    // Обязательные части полосы (макет 5a)
-    for (const id of ['filter-bar', 'venue-trigger', 'venue-selector', 'period-prev',
-                      'period-trigger', 'period-title', 'period-hint', 'period-next',
-                      'period-menu', 'venue-menu', 'export-menu', 'fb-backdrop',
-                      'period-preset-list', 'period-custom', 'flexi-range-picker']) {
+    // Обязательные части полосы (макет 5a). Период — точка монтирования общего элемента.
+    for (const id of ['filter-bar', 'venue-trigger', 'venue-selector', 'cg-period',
+                      'venue-menu', 'export-menu', 'fb-backdrop']) {
         assert.ok(html.includes(`id="${id}"`), `нет элемента #${id}`);
     }
-    // Убранное макетом не должно вернуться
+    // Убранное не должно вернуться: сегменты, своя разметка периода, якорь Flatpickr.
     for (const gone of ['data-granularity', 'period-today', 'period-sublabel',
-                        'dashboard-controls', 'control-group-period']) {
+                        'dashboard-controls', 'control-group-period', 'period-menu',
+                        'period-preset-list', 'flexi-range-picker', 'period-trigger']) {
         assert.ok(!html.includes(gone), `в разметке осталось «${gone}»`);
     }
+});
+
+test('стандарт периодов: даты страницы с сервера, общий элемент, без CDN-календаря', () => {
+    const page = read('templates/dashboard.html');
+    for (const needle of ['window.DASHBOARD_PERIOD = {{ period_config | tojson }}',
+                          '/static/shared/period.css', '/static/js/shared/period/period_core.js',
+                          '/static/js/shared/period/scope.js', '/static/js/shared/period/period_picker.js',
+                          'KPeriod.configure(window.DASHBOARD_PERIOD)']) {
+        assert.ok(page.includes(needle), `нет «${needle}»`);
+    }
+    assert.ok(!/flatpickr/i.test(page), 'календарь с CDN вернулся');
+    // Ядро — до модулей: модель дашборда читает window.KPeriod при импорте.
+    assert.ok(page.indexOf('period_core.js') < page.indexOf('type="module"'), 'ядро после модулей');
+    // Экспорт подключает только main.js: второй адрес модуля давал двойную выгрузку.
+    assert.ok(!page.includes('modules/export.js'), 'export.js снова грузится из шаблона');
+    const route = read('routes/pages.py');
+    assert.ok(route.includes('period_config=periods.page_config(live=True)'), 'нет дат страницы в маршруте');
+    const state = read('static/js/dashboard/core/state.js');
+    assert.ok(state.includes('K.readUrlPeriod()') && state.includes('KScope.getBar()'),
+        'период не из адреса или бар не общий');
+    const controls = read('static/js/dashboard/modules/period_controls.js');
+    assert.ok(controls.includes('KPeriodPicker.mount') && controls.includes('urlSync: true'),
+        'шапка не на общем элементе');
+    assert.ok(controls.includes("'tab-plans': ['month', 'year']") && controls.includes('beforeSnap'),
+        '«Планы» снова меняют период насовсем');
+    const cmp = read('static/js/dashboard/modules/comparison.js');
+    assert.ok(cmp.includes('state.currentPeriod') && !cmp.includes('comparison-period-1'),
+        '«Сравнение» снова со своими списками недель');
 });
 
 test('легенда шкал стоит один раз — в строке вкладок', () => {
@@ -535,7 +562,12 @@ test('в разметке дашборда нет эмодзи', () => {
         'static/js/dashboard/modules/analytics.js',
         'static/js/dashboard/modules/comparison.js',
         'static/js/dashboard/modules/period_controls.js',
-        'static/js/dashboard/core/period_model.js'
+        'static/js/dashboard/core/period_model.js',
+        'static/js/shared/period/period_core.js',
+        'static/js/shared/period/period_picker.js',
+        'static/js/shared/period/scope.js',
+        'static/shared/period.css',
+        'templates/dashboard/comparison_tab.html'
     ];
     const emoji = /[\u{1F300}-\u{1FAFF}\u{2705}\u{274C}\u{26A0}\u{2B50}\u{1F4C5}]/u;
     for (const f of files) {
