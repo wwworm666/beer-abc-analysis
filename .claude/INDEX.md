@@ -152,6 +152,7 @@ Beer ABC/XYZ Analysis (Flask + iiko + ЧЗ)
 
 ## Changelog (по версиям документации)
 
+- **2026-11-01 (6):** **Этап 0: календари без зашитого года** (сотрудники, зарплата — `maxDate: 'today'`). Запись CHANGELOG 2026-11-01 (6); [employee.md](../docs/employee.md), [frontend.md](../docs/frontend.md).
 - **2026-11-01 (5):** **Ответы владельца по плану единого виджета** (Р1–Р10): период — час, без выбора — текущий период, тяжёлые страницы считают сразу. Запись CHANGELOG 2026-11-01 (5); [planning/period-widget-rollout.md](../docs/planning/period-widget-rollout.md), [period-standard.md](../docs/period-standard.md).
 - **2026-11-01 (4):** **План: один виджет «Бар и период» на всём сайте.** Запись CHANGELOG 2026-11-01 (4). Новый [planning/period-widget-rollout.md](../docs/planning/period-widget-rollout.md); [period-standard.md](../docs/period-standard.md) — второе решение владельца как цель.
 - **2026-11-01 (3):** **Стандарт периодов: фазы 1–3.** Запись CHANGELOG 2026-11-01 (3). [period-standard.md](../docs/period-standard.md) — решения, «Файлы», как подключить страницу; [dashboard.md](../docs/dashboard.md) — «Выбор периода — шапка фильтров», «Сравнение периодов»; [guests.md](../docs/guests.md), [content-plan.md](../docs/content-plan.md), [reviews.md](../docs/reviews.md) — бар `kultura.bar`; [lessons.md](../docs/lessons.md) — ES-модуль по двум адресам.

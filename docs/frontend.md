@@ -335,27 +335,22 @@ export function getTheme() {
 
 ---
 
-### Шапка фильтров (period_controls.js)
+### Шапка фильтров дашборда и календари Flatpickr
 
-Flatpickr подключается **глобальным скриптом с CDN** (`templates/dashboard.html`),
-а не через `import` — сборщика в проекте нет. Панель владеет единственным
-экземпляром календаря:
+С 2026-11-01 период на дашборде выбирает общий элемент «Период» (`static/js/shared/period/*`,
+стандарт — [period-standard.md](period-standard.md)); Flatpickr на дашборде больше не
+подключается.
 
-```javascript
-// static/js/dashboard/modules/period_controls.js
-this.flatpickr = flatpickr(this.pickerInput, {
-    mode: 'range',
-    dateFormat: 'd.m.Y',
-    locale: 'ru',
-    positionElement: this.trigger,       // календарь у подписи, не у скрытого инпута
-    maxDate: new Date(2027, 11, 31),     // ТОЛЬКО Date-объект, не строка
-    onChange: (dates) => this.onPickerChange(dates)
-});
-```
+Flatpickr с CDN остаётся на «Сотрудниках» (`templates/employee.html`) и зарплате
+(`templates/bonus.html`) до этапа 4 [плана единого виджета](planning/period-widget-rollout.md).
+Предел календаря там — `maxDate: 'today'`:
 
-**`maxDate` только Date-объектом.** Строку Flatpickr парсит собственным
-`dateFormat: 'd.m.Y'` и из `'2027-12-31'` читает день `20` — календарь упирается
-в 20-е число текущего месяца.
+- **Не зашивать год.** `new Date(2026, 11, 31)` на «Сотрудниках» не дал бы выбрать ни одной даты
+  с 1 января 2027 года. Тест `tests/test_calendar_limits.py` ищет `maxDate`/`minDate` с годом в
+  шаблонах и скриптах.
+- **Не передавать дату строкой.** Строку Flatpickr парсит собственным `dateFormat: 'd.m.Y'` и из
+  `'2027-12-31'` читает день `20` — календарь упирается в 20-е число текущего месяца. Ключевое
+  слово `'today'` он разбирает отдельно, мимо формата.
 
 **Стили Flatpickr подключены ДО наших** (`templates/dashboard.html`): специфичность
 правил одинаковая, решает порядок, иначе CDN побеждает и календарь в тёмной теме
@@ -466,6 +461,7 @@ body {
 
 ## Changelog
 
+- **2026-11-01** — Календари «Сотрудников» и зарплаты: предел `maxDate: 'today'` вместо зашитых 31.12.2026 и 31.12.2027 (этап 0 плана единого виджета), тест `tests/test_calendar_limits.py`; раздел про шапку дашборда — общий элемент «Период» вместо Flatpickr.
 - **2026-08-12** — Период и заведение живут в единой шапке фильтров (макет 5a/6a); добавлен `filter_menus.js`. Отдельных селекторов и сегментов гранулярности больше нет.
 - **2026-08-11** — Приведено в соответствие с кодом + редизайн дашборда:
   (1) секция State Management описывала несуществующий `StateManager` с
