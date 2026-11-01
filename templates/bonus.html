@@ -15,11 +15,8 @@
     <link rel="stylesheet" href="/static/logo.css">
     <link rel="stylesheet" href="/static/shared/kpi_breakdown.css?v={{ app_version }}">
 
-    <!-- Flatpickr -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/l10n/ru.js"></script>
     <script src="/static/js/shared/kpi_breakdown.js?v={{ app_version }}"></script>
+    <script src="/static/js/shared/strip_runner.js?v={{ app_version }}"></script>
 
     <style>
         /* Card */
@@ -32,21 +29,15 @@
             transition: all 150ms ease;
         }
 
-        /* Controls */
-        .controls { display: grid; grid-template-columns: 1fr auto auto; gap: 16px; align-items: end; }
         .form-group { display: flex; flex-direction: column; gap: 8px; }
         .form-group label { text-align: left; }
 
-        input[readonly] { cursor: pointer; }
-        .flatpickr-calendar { border-radius: 12px; border: 1px solid var(--border-color); box-shadow: 0 8px 24px rgba(0,0,0,0.12); font-family: 'IBM Plex Mono', monospace; }
-        [data-theme="dark"] .flatpickr-calendar { background: var(--bg-secondary); border-color: var(--border-color); }
-        [data-theme="dark"] .flatpickr-months, [data-theme="dark"] .flatpickr-weekdays, [data-theme="dark"] .flatpickr-month { background: var(--bg-secondary); }
-        [data-theme="dark"] .flatpickr-current-month .flatpickr-monthDropdown-months, [data-theme="dark"] .flatpickr-current-month input.cur-year, [data-theme="dark"] .flatpickr-weekday, [data-theme="dark"] .flatpickr-month .flatpickr-prev-month, [data-theme="dark"] .flatpickr-month .flatpickr-next-month { color: var(--text-primary); fill: var(--text-primary); }
-        [data-theme="dark"] .flatpickr-day { color: var(--text-primary); }
-        [data-theme="dark"] .flatpickr-day:hover { background: var(--bg-tertiary); border-color: var(--bg-tertiary); }
-        .flatpickr-day.selected, .flatpickr-day.startRange, .flatpickr-day.endRange { background: var(--accent) !important; border-color: var(--accent) !important; }
-        .flatpickr-day.inRange { background: rgba(217,119,87,0.15) !important; border-color: transparent !important; box-shadow: -5px 0 0 rgba(217,119,87,0.15), 5px 0 0 rgba(217,119,87,0.15); }
-        [data-theme="dark"] .flatpickr-day.inRange { background: rgba(217,119,87,0.25) !important; box-shadow: -5px 0 0 rgba(217,119,87,0.25), 5px 0 0 rgba(217,119,87,0.25); }
+        /* Выгрузка в полосе «Бар и период»: пока расчёт не готов, кнопки выключены. */
+        .ks .fb-ghost:disabled, .ks .fb-menu-item:disabled { opacity: 0.45; cursor: default; }
+        .ks .fb-ghost:disabled:hover { background: transparent; color: var(--text-secondary); }
+        /* «За ноябрь кассовых смен ещё нет» — не ошибка, а пояснение на месте расчёта. */
+        .empty-message { display: none; text-align: center; color: var(--text-secondary); padding: 40px 32px; }
+        .empty-message.active { display: block; }
 
         /* Loading */
         .loading { display: none; text-align: center; padding: 60px 32px; }
@@ -429,40 +420,11 @@
         }
         .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
 
-        /* Выгрузка «Excel / Google»: две кнопки в одной рамке. Рамка и отступы —
-           как у .btn-secondary, чтобы пара стояла в строке ровно с «Рассчитать»;
-           половинки кликаются отдельно, разделитель «/» — просто текст. */
-        .export-pair {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            background: var(--bg-tertiary);
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            padding: 10px 18px;
-            white-space: nowrap;
-        }
-        .export-pair-label { font-size: 0.9rem; color: var(--text-tertiary); }
-        .export-pair-sep { color: var(--border-color); font-size: 0.9rem; }
-        .export-pair-btn {
-            background: none;
-            border: none;
-            padding: 0;
-            font-family: inherit;
-            font-size: 0.9rem;
-            color: var(--text-secondary);
-            cursor: pointer;
-        }
-        .export-pair-btn:hover:not(:disabled) { color: var(--accent); }
-        .export-pair-btn:disabled { opacity: 0.45; cursor: default; }
-        /* Подсветка рамки при наведении на активную половину (как у .btn-secondary) */
-        .export-pair:has(.export-pair-btn:hover:not(:disabled)) { border-color: var(--accent); }
         .success-msg { display: none; color: var(--success); padding: 12px; font-weight: 500; margin-bottom: 12px; }
         .success-msg.active { display: block; }
 
         /* Responsive */
         @media (max-width: 768px) {
-            .controls { grid-template-columns: 1fr; }
             .card { padding: 20px 16px; }
             .emp-card-header { padding: 16px; flex-wrap: wrap; gap: 8px; }
             .emp-card-body { padding: 0 16px 16px; }
@@ -481,35 +443,44 @@
     <div class="container">
         {% set page_title = "Расчёт ЗП" %}
         {% set page_subtitle = "Премии, штрафы, KPI, ставка" %}
-        {% include 'shared/nav.html' %}
-
-        <!-- Controls -->
-        <div class="card">
-            <div class="controls">
-                <div class="form-group">
-                    <label for="date-range">Период</label>
-                    <input type="text" id="date-range" placeholder="Выберите период" readonly>
-                </div>
-                <div class="form-group">
-                    <label>&nbsp;</label>
-                    <button class="btn" id="calc-btn" onclick="calculate()">Рассчитать</button>
-                </div>
-                <!-- Excel и Google — одна кнопка-пара в общей рамке. Раньше это
-                     были две отдельные кнопки, и четвёртая колонка в .controls
-                     (там их три) уезжала на вторую строку во всю ширину. -->
-                <div class="form-group">
-                    <label>&nbsp;</label>
-                    <div class="export-pair">
-                        <span class="export-pair-label">Выгрузка</span>
-                        <button class="export-pair-btn" id="export-btn" onclick="exportExcel()" disabled
-                                title="Скачать таблицу расчёта за месяц в Excel (сначала выполните расчёт)">Excel</button>
-                        <span class="export-pair-sep" aria-hidden="true">/</span>
-                        <button class="export-pair-btn" id="export-gsheet-btn" onclick="exportGoogleSheet()" disabled
-                                title="Обновить Google Таблицу бухгалтерии расчётом за этот месяц прямо сейчас (сначала выполните расчёт). Пишет ту же вкладку «Месяц_Автоматическая», что и ночная выгрузка в 04:00; ручная вкладка бухгалтера не трогается">Google</button>
-                    </div>
-                </div>
+        {#- Полоса «Бар и период» — общая для сайта (план единого виджета,
+            docs/planning/period-widget-rollout.md, этап 4). Зарплата — только за целый месяц:
+            цели KPI помесячные, а выгрузка в Google принимает только месяц целиком. Поэтому режим
+            помесячный: показан месяц общего выбора (у недели — месяц её четверга, ответ Р3), а
+            смена месяца здесь становится общим выбором. Без выбора — этот месяц (Р2). Сеть не
+            делится на бары — бар в полосе серый. Расчёт — сразу при открытии и смене месяца (Р5).
+            Справа — выгрузка: на компьютере две кнопки, на телефоне одна иконка с листом. -#}
+        {% set strip = kultura_strip(mode='monthly', step='month', live=True, bar_mode='none',
+                                     bar_hint='вся сеть') %}
+        {% set strip_actions %}
+            <div class="fb-export">
+                <button type="button" class="fb-ghost" id="export-btn" onclick="exportExcel()" disabled
+                        title="Скачать таблицу расчёта за месяц в Excel (кнопка оживает, когда расчёт готов)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                    <span>Excel</span>
+                </button>
+                <button type="button" class="fb-ghost" id="export-gsheet-btn" onclick="exportGoogleSheet()" disabled
+                        title="Обновить Google Таблицу бухгалтерии расчётом за этот месяц прямо сейчас (кнопка оживает, когда расчёт готов). Пишет ту же вкладку «Месяц_Автоматическая», что и ночная выгрузка в 04:00; ручная вкладка бухгалтера не трогается">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+                    <span>Google</span>
+                </button>
             </div>
-        </div>
+            <button type="button" class="fb-arrow fb-export-mobile" id="export-trigger"
+                    aria-haspopup="menu" aria-expanded="false" aria-label="Выгрузка" title="Выгрузка">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            </button>
+            <div class="fb-menu hidden" id="export-menu" role="menu" aria-labelledby="export-trigger">
+                <span class="fb-grab"></span>
+                <span class="fb-menu-label">Выгрузка за месяц</span>
+                <button type="button" class="fb-menu-item" data-export="export-btn" role="menuitem" disabled>
+                    <span class="fb-menu-name">Excel</span>
+                </button>
+                <button type="button" class="fb-menu-item" data-export="export-gsheet-btn" role="menuitem" disabled>
+                    <span class="fb-menu-name">Google Таблица</span>
+                </button>
+            </div>
+        {% endset %}
+        {% include 'shared/nav.html' %}
 
         <!-- KPI Targets editor (доступно без расчёта) -->
         <div class="targets-section">
@@ -605,10 +576,12 @@
 
         <div class="error" id="error-message"></div>
 
+        <div class="card empty-message" id="empty-message"></div>
+
         <div class="card loading" id="loading">
             <div class="spinner"></div>
-            <h2>Считаем...</h2>
-            <p>Загружаем данные по всем сотрудникам</p>
+            <h2 id="loading-title">Считаю зарплату…</h2>
+            <p>Премии, KPI и часы по всем сотрудникам — живой запрос в iiko, обычно до минуты</p>
         </div>
 
         <!-- Results -->
@@ -623,14 +596,16 @@
 
     <script>
         // ===================== STATE =====================
-        let datePicker = null;
+        // Месяц — из полосы «Бар и период» (window.KStrip), «сегодня» — с сервера (KPeriod).
+        const K = window.KPeriod;
+        const strip = window.KStrip || null;
         let mergedEmployees = [];
         let bonusData = null;
         let kpiData = null;
         let hoursData = null;   // часы по ролям из графика — источник часов оплаты
         let rolesRates = [];    // ставки за час по ролям (для редактора и подписей)
         let targetsData = null;
-        // Месяц периода расчёта ('YYYY-MM', от date_from) — для имени файла экспорта
+        // Месяц посчитанного расчёта ('YYYY-MM') — для имени файла экспорта
         let periodMonth = null;
         // Границы посчитанного периода. Нужны экспорту: Google-выгрузка пишет
         // вкладку МЕСЯЦА в таблицу бухгалтерии, и данными половины месяца её
@@ -654,29 +629,15 @@
 
         // ===================== INIT =====================
         document.addEventListener('DOMContentLoaded', function() {
-            const today = new Date();
-            const firstDay = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-            const lastDay = new Date(today.getFullYear(), today.getMonth(), 0);
-
-            datePicker = flatpickr('#date-range', {
-                mode: 'range',
-                dateFormat: 'd.m.Y',
-                locale: 'ru',
-                maxDate: 'today',  // Предел — сегодня, а не зашитая дата: с 2026-12-31 с 1 января 2027 года даты было не выбрать (docs/planning/period-widget-rollout.md, этап 0). 'today' Flatpickr разбирает сам, мимо формата d.m.Y
-                defaultDate: [firstDay, lastDay]
-            });
-
+            initExportMenu();
             loadTargets();
             loadRoles();
+            calcRunner.now();   // открытие страницы — сразу, без паузы
+            // Месяц в полосе — общий выбор сайта: смена месяца пересчитывает зарплату.
+            if (strip) strip.onChange(e => { if (e.type === 'period') calcRunner.schedule(); });
         });
 
         // ===================== HELPERS =====================
-        function getPickerDates() {
-            if (!datePicker || !datePicker.selectedDates || datePicker.selectedDates.length < 2) return null;
-            const fmt = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-            return { from: fmt(datePicker.selectedDates[0]), to: fmt(datePicker.selectedDates[1]) };
-        }
-
         function formatMoney(v) {
             if (v === undefined || v === null) return '0';
             return new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(v) + ' ₽';
@@ -760,51 +721,136 @@
         }
 
         // ===================== CALCULATE =====================
-        async function calculate() {
-            const dates = getPickerDates();
-            if (!dates) { showError('Выберите период'); return; }
+        // Месяц страницы — показанный в полосе «Бар и период» (помесячный режим: у недели —
+        // месяц её четверга, у длинного периода — последний месяц; core/periods.month_of).
+        // Расчёт — сразу при открытии и при смене месяца (ответ владельца Р5), кнопки нет:
+        // серия переключений — один расчёт после паузы, устаревший ответ отбрасывается
+        // (static/js/shared/strip_runner.js), пока идёт — «Считаю зарплату за октябрь 2026…».
+        function pageMonth() {
+            const p = strip ? strip.get().period : K.currentPeriod('month');
+            const m = p.granularity === 'month' ? p : K.monthOf(p);
+            const label = K.periodTitle(m);
+            return { from: m.start, to: m.end, month: m.start.slice(0, 7),
+                     phrase: label.charAt(0).toLowerCase() + label.slice(1) };
+        }
 
-            hideError();
-            document.getElementById('results').classList.remove('active');
-            document.getElementById('loading').classList.add('active');
-            document.getElementById('calc-btn').disabled = true;
+        // Ответ маршрута с текстом ошибки сервера; bonus 404 — «кассовых смен нет», это не сбой.
+        async function readJson(res) {
+            return res.json().catch(() => ({}));
+        }
 
-            try {
-                const body = JSON.stringify({ date_from: dates.from, date_to: dates.to });
+        const calcRunner = KStripRunner.create({
+            run: async (signal) => {
+                const m = pageMonth();
+                const body = JSON.stringify({ date_from: m.from, date_to: m.to });
                 const headers = { 'Content-Type': 'application/json' };
-                const hoursUrl = `/api/schedule/hours-by-role?date_from=${dates.from}&date_to=${dates.to}`;
+                const hoursUrl = `/api/schedule/hours-by-role?date_from=${m.from}&date_to=${m.to}`;
 
                 const [bonusRes, kpiRes, hoursRes] = await Promise.all([
-                    fetch('/api/bonus-calculate', { method: 'POST', headers, body }),
-                    fetch('/api/kpi-calculate', { method: 'POST', headers, body }),
-                    fetch(hoursUrl)
+                    fetch('/api/bonus-calculate', { method: 'POST', headers, body, signal }),
+                    fetch('/api/kpi-calculate', { method: 'POST', headers, body, signal }),
+                    fetch(hoursUrl, { signal })
                 ]);
 
-                const bData = await bonusRes.json();
-                const kData = await kpiRes.json();
-                const hData = await hoursRes.json();
+                const bData = await readJson(bonusRes);
+                const kData = await readJson(kpiRes);
+                const hData = await readJson(hoursRes);
 
+                if (bonusRes.status === 404) {
+                    const empty = new Error(bData.error || 'Нет данных за выбранный период');
+                    empty.noData = true;
+                    empty.month = m;
+                    throw empty;
+                }
                 if (!bonusRes.ok) throw new Error(bData.error || 'Ошибка bonus API');
                 if (!kpiRes.ok) throw new Error(kData.error || 'Ошибка KPI API');
                 if (!hoursRes.ok) throw new Error(hData.error || 'Ошибка часов из графика');
-
-                bonusData = bData;
-                kpiData = kData;
-                hoursData = hData;
-                periodMonth = dates.from.slice(0, 7);
-                periodFrom = dates.from;
-                periodTo = dates.to;
+                return { m, bData, kData, hData };
+            },
+            onStart: () => {
+                const m = pageMonth();
+                hideError();
+                hideEmpty();
+                setExportEnabled(false);
+                document.getElementById('results').classList.remove('active');
+                document.getElementById('loading-title').textContent = 'Считаю зарплату за ' + m.phrase + '…';
+                document.getElementById('loading').classList.add('active');
+            },
+            onDone: (r) => {
+                bonusData = r.bData;
+                kpiData = r.kData;
+                hoursData = r.hData;
+                periodMonth = r.m.month;
+                periodFrom = r.m.from;
+                periodTo = r.m.to;
 
                 mergeAndRender();
-                document.getElementById('export-btn').disabled = false;
-                document.getElementById('export-gsheet-btn').disabled = false;
-            } catch (error) {
+                setExportEnabled(true);
+            },
+            onError: (error) => {
+                if (error.noData) {
+                    const current = K.currentPeriod('month');
+                    showEmpty(error.month.from === current.start
+                        ? 'За ' + error.month.phrase + ' кассовых смен в iiko ещё нет — расчёт появится после первой закрытой смены. Прошлый месяц — стрелкой назад в полосе.'
+                        : 'За ' + error.month.phrase + ' кассовых смен в iiko нет — считать нечего.');
+                    return;
+                }
                 console.error('Error:', error);
                 showError('Ошибка: ' + error.message);
-            } finally {
+            },
+            onFinally: () => {
                 document.getElementById('loading').classList.remove('active');
-                document.getElementById('calc-btn').disabled = false;
             }
+        });
+
+        // Выгрузка — только посчитанного месяца: пока идёт расчёт, кнопки и пункты листа
+        // телефона выключены (иначе в файл ушёл бы прошлый месяц под подписью нового).
+        function setExportEnabled(on) {
+            ['export-btn', 'export-gsheet-btn'].forEach(id => {
+                const btn = document.getElementById(id);
+                if (btn) btn.disabled = !on;
+            });
+            document.querySelectorAll('#export-menu [data-export]').forEach(item => { item.disabled = !on; });
+        }
+
+        function showEmpty(text) {
+            const el = document.getElementById('empty-message');
+            el.textContent = text;
+            el.classList.add('active');
+        }
+        function hideEmpty() { document.getElementById('empty-message').classList.remove('active'); }
+
+        // Лист выгрузки на телефоне (как у дашборда): пункт нажимает кнопку компьютера.
+        function initExportMenu() {
+            const trigger = document.getElementById('export-trigger');
+            const menu = document.getElementById('export-menu');
+            const backdrop = document.getElementById('ks-backdrop');
+            if (!trigger || !menu) return;
+            const close = () => {
+                if (menu.classList.contains('hidden')) return;
+                menu.classList.add('hidden');
+                if (backdrop) backdrop.classList.add('hidden');
+                trigger.setAttribute('aria-expanded', 'false');
+            };
+            trigger.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (!menu.classList.contains('hidden')) { close(); return; }
+                const barMenu = document.getElementById('ks-bar-menu');
+                if (barMenu) barMenu.classList.add('hidden');
+                menu.classList.remove('hidden');
+                if (backdrop) backdrop.classList.remove('hidden');
+                trigger.setAttribute('aria-expanded', 'true');
+            });
+            menu.querySelectorAll('[data-export]').forEach(item => {
+                item.addEventListener('click', () => {
+                    close();
+                    const btn = document.getElementById(item.dataset.export);
+                    if (btn && !btn.disabled) btn.click();
+                });
+            });
+            if (backdrop) backdrop.addEventListener('click', close);
+            document.addEventListener('click', (e) => { if (!menu.contains(e.target)) close(); });
+            document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
         }
 
         function mergeAndRender() {
@@ -1257,9 +1303,10 @@
             const payload = await buildExportPayload();
             if (!payload) return;
             const btn = document.getElementById('export-btn');
+            const label = btn.querySelector('span') || btn;
             const LABEL = 'Excel';
             btn.disabled = true;
-            btn.textContent = 'готовим...';
+            label.textContent = 'готовим...';
             try {
                 const resp = await fetch('/api/salary/export', {
                     method: 'POST',
@@ -1284,7 +1331,7 @@
                 showError('Экспорт не удался: ' + e.message);
             } finally {
                 btn.disabled = false;
-                btn.textContent = LABEL;
+                label.textContent = LABEL;
             }
         }
 
@@ -1307,15 +1354,15 @@
             // самое (это решающая проверка), здесь — понятное сообщение заранее.
             if (payload.date_from !== `${payload.month}-01`
                 || payload.date_to !== monthLastDay(payload.month)) {
-                showError('Обновление Google — только за целый месяц: выберите период '
-                    + `${payload.month}-01 … ${monthLastDay(payload.month)} и повторите расчёт. `
-                    + 'Excel можно скачать за любой период.');
+                showError('Обновление Google — только за целый месяц '
+                    + `${payload.month}-01 … ${monthLastDay(payload.month)}: дождитесь расчёта месяца из полосы.`);
                 return;
             }
             const btn = document.getElementById('export-gsheet-btn');
+            const label = btn.querySelector('span') || btn;
             const LABEL = 'Google';
             btn.disabled = true;
-            btn.textContent = 'обновляем...';
+            label.textContent = 'обновляем...';
             try {
                 const resp = await fetch('/api/salary/export-gsheet', {
                     method: 'POST',
@@ -1330,7 +1377,7 @@
                 showError('Google Таблица не обновлена: ' + e.message);
             } finally {
                 btn.disabled = false;
-                btn.textContent = LABEL;
+                label.textContent = LABEL;
             }
         }
 
@@ -1483,11 +1530,12 @@
             });
         }
 
-        // Выбран весь текущий (по Москве) календарный месяц
+        // Посчитан весь текущий месяц — по рабочему дню бара с сервера (KPeriod: сутки до
+        // 06:00 МСК), а не по часам устройства
         function periodIsWholeCurrentMonth() {
             if (!periodFrom || !periodTo) return false;
-            const nowMonth = new Date(Date.now() + 3 * 3600 * 1000).toISOString().slice(0, 7);
-            return periodFrom === nowMonth + '-01' && periodTo === monthLastDay(nowMonth);
+            const current = K.currentPeriod('month');
+            return periodFrom === current.start && periodTo === current.end;
         }
 
         // ===================== RATES EDITOR (ставки за час по ролям) =====================
@@ -1593,8 +1641,7 @@
             if (months.length > 0) {
                 input.value = months[months.length - 1];
             } else {
-                const now = new Date();
-                input.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+                input.value = K.currentPeriod('month').start.slice(0, 7);
             }
         }
 

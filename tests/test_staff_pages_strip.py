@@ -66,10 +66,12 @@ class PageRender(unittest.TestCase):
         assert m, 'полоса не нарисована'
         return json.loads(m.group(1))
 
-    def assert_no_own_period_controls(self, html, name):
-        for needle in ('flatpickr', 'type="month"', 'id="date-range"', 'id="compare-date-range"',
-                       'id="bar-select"'):
+    def assert_no_own_period_controls(self, html, name, month_inputs=0):
+        """Нет своих выборов периода и бара. month_inputs — поля месяца, которые правят данные
+        (месяц целей KPI в редакторе зарплаты), а не выбирают период страницы."""
+        for needle in ('flatpickr', 'id="date-range"', 'id="compare-date-range"', 'id="bar-select"'):
             self.assertNotIn(needle, html, '%s: свой выбор периода или бара (%s)' % (name, needle))
+        self.assertEqual(html.count('type="month"'), month_inputs, name + ': своё поле месяца')
 
 
 class EmployeePageTest(PageRender):
@@ -103,6 +105,54 @@ class EmployeePageTest(PageRender):
         self.assertIn('analysisRunner = KStripRunner.create(', src)
         self.assertIn('compareRunner = KStripRunner.create(', src)
         self.assertIn('Считаю показатели: ', src)
+
+
+class SalaryPageTest(PageRender):
+    def test_strip_monthly_networkwide(self):
+        html = self.render('bonus.html')
+        cfg = self.strip_config(html)
+        self.assertEqual(cfg['mode'], 'monthly')
+        self.assertEqual(cfg['step'], 'month')
+        self.assertEqual(cfg['steps'], ['month'])
+        self.assertEqual(cfg['barMode'], 'none', 'сеть на бары не делится — бар серый')
+        self.assertFalse(cfg['allowFuture'], 'будущий месяц не считается')
+        self.assertEqual(cfg['period']['step'], 'month', 'без выбора — этот месяц (Р2)')
+        self.assertIn('id="ks-bar-name">Все бары<', html)
+        self.assertIn('id="ks-bar-hint">вся сеть<', html)
+
+    def test_week_choice_shows_month_of_thursday(self):
+        """Неделя 26 окт – 1 ноя: показан октябрь (четверг 29.10), подпись в полосе (Р3)."""
+        with self.app.test_request_context('/salary', headers={
+                'Cookie': scope.COOKIE_PERIOD + '=7:2026-10-26_2026-11-01'}):
+            html = render_template('bonus.html')
+        cfg = self.strip_config(html)
+        self.assertEqual(cfg['period'], {'start': '2026-10-01', 'end': '2026-10-31', 'step': 'month'})
+        self.assertIn('по месяцам — показан октябрь 2026', html)
+
+    def test_no_own_controls_and_exports_in_strip(self):
+        html = self.render('bonus.html')
+        self.assert_no_own_period_controls(html, 'bonus.html', month_inputs=1)
+        self.assertNotIn('id="calc-btn"', html)
+        self.assertNotIn('Рассчитать</button>', html)
+        # Выгрузка — в полосе (strip_actions), до расчёта выключена.
+        strip_html = html[html.index('id="kultura-strip"'):html.index('window.KULTURA_STRIP')]
+        self.assertIn('id="export-btn"', strip_html)
+        self.assertIn('id="export-gsheet-btn"', strip_html)
+        self.assertIn('id="export-menu"', strip_html, 'лист выгрузки для телефона')
+        # Редактор целей KPI — правка данных, а не период страницы: его поле месяца остаётся.
+        self.assertIn('id="target-month"', html)
+
+    def test_wiring(self):
+        src = _read('templates/bonus.html')
+        self.assertIn('/static/js/shared/strip_runner.js', src)
+        self.assertIn('calcRunner = KStripRunner.create(', src)
+        self.assertIn('calcRunner.now();', src, 'расчёт сразу при открытии')
+        self.assertIn("strip.onChange(e => { if (e.type === 'period') calcRunner.schedule(); })", src)
+        self.assertIn("'Считаю зарплату за ' + m.phrase", src)
+        self.assertIn('K.monthOf(p)', src)
+        # «Весь текущий месяц» и месяц редактора — с сервера, не с часов устройства.
+        self.assertNotIn('Date.now() + 3 * 3600', src)
+        self.assertNotIn('const now = new Date();', src)
 
 
 @unittest.skipIf(NODE is None, 'node не установлен')

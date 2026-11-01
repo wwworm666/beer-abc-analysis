@@ -34,14 +34,11 @@ class CalendarLimitsTest(unittest.TestCase):
     def test_employee_and_salary_calendars_stop_at_today(self):
         """Своего календаря нет — период из полосы «Бар и период» (этап 4 плана): её пределы —
         последний доступный день и первый день данных с сервера (core/periods.page_config)."""
-        for name in ('employee.html',):
+        for name in ('employee.html', 'bonus.html'):
             with open(os.path.join(ROOT, 'templates', name), encoding='utf-8') as fh:
                 text = fh.read()
             self.assertNotIn('flatpickr', text, name)
             self.assertIn('kultura_strip(', text, name)
-        for name in ('bonus.html',):
-            with open(os.path.join(ROOT, 'templates', name), encoding='utf-8') as fh:
-                self.assertIn("maxDate: 'today'", fh.read(), name)
 
 
 if __name__ == '__main__':
