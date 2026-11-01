@@ -20,7 +20,8 @@ iiko при пересчёте доски заказа, см. routes/stocks.get_
     POST /api/orders/draft/batch        — {items: [...]} (кнопка «Применить рекомендации»)
     POST /api/orders/draft/clear        — {supplier?} — очистить черновик(и)
     POST /api/orders/send               — {supplier, expected_at?, note?} → заказ + текст
-    GET  /api/orders?days=30            — открытые заказы всегда + закрытые за days дней
+    GET  /api/orders?days=30            — открытые заказы всегда + закрытые за days дней;
+                                          history_from / history_to — даты этого окна
     GET  /api/orders/<id>               — один заказ + текст
     POST /api/orders/<id>/received      — {items?: [{product_id, bar, qty}], note?}
     POST /api/orders/<id>/close         — {note?} закрыть без сверки (posted вручную)
@@ -37,7 +38,7 @@ iiko при пересчёте доски заказа, см. routes/stocks.get_
 с кодом orders_unavailable у всех эндпоинтов (запись поверх запрещена).
 """
 import math
-from datetime import date
+from datetime import date, timedelta
 from functools import wraps
 
 from flask import Blueprint, jsonify, request
@@ -323,7 +324,12 @@ def list_orders():
         if unknown:
             return _error(f'неизвестный статус: {", ".join(unknown)}', known_statuses=list(ALL_STATUSES))
     orders = get_order_store().list_orders(days=days, statuses=statuses)
+    # Окно истории датами (то же правило, что OrderStore.list_orders: отправленные не раньше
+    # «сегодня − days» по Москве) — страница подписывает «История за 30 дней: 2 окт – 1 ноя 2026».
+    today = _today()
     return jsonify({'orders': [_with_text(o) for o in orders], 'days': days,
+                    'history_from': (today - timedelta(days=days)).isoformat(),
+                    'history_to': today.isoformat(),
                     'overdue_grace_days': ORDER_OVERDUE_GRACE_DAYS})
 
 

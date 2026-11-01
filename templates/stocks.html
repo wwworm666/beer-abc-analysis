@@ -313,6 +313,9 @@
         .ob-head { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; flex-wrap: wrap; margin-bottom: 12px; }
         .ob-head h2 { margin-bottom: 4px; }
         .ob-meta { font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
+        /* Окно расхода вкладки датами: «Расход в день — за 30 дней: 2 окт – 1 ноя 2026». */
+        .window-note { font-size: 12px; color: var(--text-secondary); line-height: 1.5; margin: -6px 0 12px; }
+        .window-note:empty { display: none; }
         .ob-help { font-size: 12px; color: var(--text-secondary); line-height: 1.5; max-width: 560px; }
         .ob-help summary { cursor: pointer; font-weight: 600; color: var(--text-primary); }
         .ob-controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
@@ -816,25 +819,25 @@
     <div class="container">
         {% set page_title = "Заказы и остатки" %}
         {% set page_subtitle = "Стоки, заказы, оборачиваемость" %}
-        {% include 'shared/nav.html' %}
-
-        <div class="card">
-            <div class="controls">
-                <div class="form-group">
-                    <label for="bar-select">Бар</label>
-                    <select id="bar-select" onchange="loadStocks()">
-                        <option value="">Выберите бар</option>
-                        {% for bar in bars %}
-                        <option value="{{ bar }}">{{ bar }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>&nbsp;</label>
-                    <button class="btn" onclick="loadStocks()">Обновить данные</button>
-                </div>
-            </div>
+        {#- Полоса «Бар и период» (план единого виджета, этап 6): страница «на сейчас» по одному
+            бару — остатки и заказ всегда для одного склада. При «Все бары» на сайте показан
+            последний бар страниц «по одному бару» с подписью в полосе (ответ владельца Р4).
+            Своего выбора бара у страницы нет; справа — «Обновить данные». -#}
+        {% set strip = kultura_strip(mode='now', bar_mode='single') %}
+        {% set strip_actions %}
+        <div class="fb-export">
+            <button type="button" class="fb-ghost" id="stocks-refresh" onclick="loadStocks()"
+                    title="Перечитать остатки iiko, черновик и заказы">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+                <span>Обновить данные</span>
+            </button>
         </div>
+        <button type="button" class="fb-arrow fb-export-mobile" id="stocks-refresh-mobile" onclick="loadStocks()"
+                aria-label="Обновить данные" title="Обновить данные">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+        </button>
+        {% endset %}
+        {% include 'shared/nav.html' %}
 
         <!-- Tabs -->
         <div class="tabs">
@@ -863,14 +866,15 @@
                             по его сроку, а дожить должен до поставки, следующей за ней (заказ в четверг с поставкой в пятницу
                             покрывает выходные до понедельника). Срок и дни доставки — в <a href="/suppliers">справочнике поставщиков</a>.
                             <br><strong>Заказать</strong> = нужно − остаток − в пути, вверх до кратности упаковки. Кеги — целыми бочками (объём из названия, иначе 30 л). Минус в остатке считается пустой полкой.
-                            <br><strong>Расход</strong> = продажи и списания по складу выбранного бара за 30 дней;
+                            <br><strong>Расход</strong> = продажи и списания по складу выбранного бара за окно расхода, делённые на 30.
+                            Окно — 30 полных дней и неполный сегодняшний (сегодня − 30 дней … сегодня), даты — в строке над доской;
                             для товара, которого в начале окна не было, — с первого прихода.
                             Перемещения между барами в расход не входят: это редкая внутренняя ситуация, а не спрос (показаны отдельной строкой в подробностях).
                             <br><strong>В пути</strong> = отправленные поставщику заказы, ещё не оприходованные в iiko (вкладка «К отправке»).
-                            <br><strong>Не заказываем</strong>: партия истекает раньше 14 дней; без движения 30 дней; реже одной продажи в неделю;
+                            <br><strong>Не заказываем</strong>: партия истекает раньше 14 дней; без движения за окно расхода; реже одной продажи в неделю;
                             сорт, которого нет в остатках и расхода по нему больше недели не было (вышел из ротации).
                             <br><strong>Минус в остатке</strong> — товара на полке нет: заказываем полную цель от нуля, а сам минус проверяем в учёте.
-                            <br><strong>Нет строки остатка в iiko</strong> — позиция всё равно на доске, если бар её продавал или списывал за 30 дней: кончилась, значит пора заказывать.
+                            <br><strong>Нет строки остатка в iiko</strong> — позиция всё равно на доске, если бар её продавал или списывал за окно расхода: кончилась, значит пора заказывать.
                             Товар, который только проехал через склад в другой бар, на доску не попадает: это не ассортимент бара.
                             <br><strong>Хватит дн.</strong> = остаток на полке (минус считается нулём) ÷ расход в день, без учёта «в пути».
                         </div>
@@ -934,6 +938,7 @@
 
             <div class="card" id="bottles-content" style="display: none;">
                 <h2>Фасовка и остатки</h2>
+                <div class="window-note" id="bottles-window"></div>
                 <div class="stats-grid" id="bottles-stats"></div>
                 <div id="bottles-groups"></div>
             </div>
@@ -948,6 +953,7 @@
 
             <div class="card" id="expiry-content" style="display: none;">
                 <h2>Сроки годности фасовки (по данным ЧЗ)</h2>
+                <div class="window-note" id="expiry-window"></div>
                 <div id="expiry-meta" style="color: var(--text-secondary); font-size: 13px; margin-bottom: 12px;"></div>
                 <div style="margin-bottom: 16px; display: flex; gap: 12px; align-items: center;">
                     <button class="btn" onclick="refreshChzData()" id="chz-refresh-btn">Обновить данные ЧЗ</button>
@@ -967,6 +973,7 @@
 
             <div class="card" id="kitchen-content" style="display: none;">
                 <h2>Меню кухни и остатки</h2>
+                <div class="window-note" id="kitchen-window"></div>
                 <div class="stats-grid" id="kitchen-stats"></div>
                 <div id="kitchen-groups"></div>
             </div>
@@ -996,7 +1003,7 @@
                 <div id="order-open"></div>
             </div>
             <div class="card">
-                <h2>История за 30 дней</h2>
+                <h2 id="order-history-title">История за 30 дней</h2>
                 <div id="order-history"></div>
             </div>
         </div>
@@ -1016,6 +1023,20 @@
             return String(text === null || text === undefined ? '' : text)
                 .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
                 .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        }
+
+        // Окно без выбора подписано датами (план единого виджета, раздел 3.6): «за 30 дней:
+        // 2 окт – 1 ноя 2026». Даты — с сервера (window_from / window_to, history_from /
+        // history_to ответа: 30 полных дней и неполный сегодняшний), название — общим KPeriod,
+        // как в полосе. Нет дат в ответе — «за 30 дней» без дат, а не выдуманные даты.
+        function windowLabel(days, fromIso, toIso) {
+            const K = window.KPeriod;
+            const n = Number(days);
+            if (!n) return '';
+            const head = 'за ' + n + ' ' + (K ? K.pluralDays(n) : 'дн.');
+            const start = K && fromIso ? K.fromISO(fromIso) : null;
+            const end = K && toIso ? K.fromISO(toIso) : null;
+            return start && end ? head + ': ' + K.customPeriod(start, end).label : head;
         }
 
         // Fetch with retry (handles 502 from Render wake-up / iiko timeouts)
@@ -1073,14 +1094,19 @@
             window.dashboardCheckApi();
             // Recheck connection every 60 seconds
             setInterval(window.dashboardCheckApi, 60000);
-            // Черновик и заказы не зависят от выбранного бара — грузим сразу
-            loadDrafts();
-            loadOrders();
-            // Вход без ритуала: бар выбирается сам, доска грузится сразу
-            const bar = initialBar();
-            if (bar) {
-                document.getElementById('bar-select').value = bar;
-                loadStocks();
+            // Вход без ритуала: бар — из общей полосы, доска грузится сразу. Прежний выбор
+            // страницы ('stocks.bar') переходит в общий бар до первой загрузки.
+            migrateLegacyBar();
+            normalizeUrlBar();
+            if (window.KStrip) {
+                KStrip.onChange(function (e) { if (e.type === 'bar') loadStocks(); });
+            }
+            if (stripBarIiko()) {
+                loadStocks();   // вместе с доской — черновик и заказы
+            } else {
+                // Черновик и заказы не зависят от бара: без полосы (тест страницы) — только они
+                loadDrafts();
+                loadOrders();
             }
         });
 
@@ -1106,28 +1132,49 @@
             renderStickyPanel();
         }
 
-        // Бар: ?bar= → localStorage → первый в списке; выбор запоминается (S-25, вход без ритуала)
-        const BAR_STORAGE_KEY = 'stocks.bar';
-        function initialBar() {
-            const options = [...document.querySelectorAll('#bar-select option')].map(o => o.value).filter(Boolean);
-            const fromUrl = new URLSearchParams(location.search).get('bar');
-            let stored = null;
-            try { stored = localStorage.getItem(BAR_STORAGE_KEY); } catch (e) { stored = null; }
-            return [fromUrl, stored, options[0]].find(b => b && options.includes(b)) || '';
+        // Бар — общая полоса «Бар и период» (templates/shared/scope_strip.html, план единого
+        // виджета docs/planning/period-widget-rollout.md): один выбор на весь сайт, страница
+        // «по одному бару» — в полосе нет «Все бары» (при «Все бары» на сайте сервер показывает
+        // последний бар таких страниц с подписью, ответ владельца Р4). Своего выбора бара и
+        // своего ключа браузера у страницы нет. API склада и черновик заказа принимают имя бара
+        // iiko — ключ полосы переводится по таблице баров (KStrip.barInfo -> iiko_name).
+        const LEGACY_BAR_KEY = 'stocks.bar';   // прежний выбор страницы (имя iiko) — только для перехода
+        function stripBarIiko() {
+            const strip = window.KStrip;
+            const info = strip ? strip.barInfo(strip.get().bar) : null;
+            return info ? info.iiko_name : '';
         }
-        function rememberBar(bar) {
-            try { localStorage.setItem(BAR_STORAGE_KEY, bar); } catch (e) { /* приватный режим */ }
+        // Переход на общий выбор: на сайте бар ещё не выбирали (нет ни ссылки, ни cookie), а в
+        // браузере остался прежний 'stocks.bar' — он один раз становится общим баром и удаляется.
+        function migrateLegacyBar() {
+            const strip = window.KStrip;
+            let legacy = null;
+            try { legacy = localStorage.getItem(LEGACY_BAR_KEY); } catch (e) { legacy = null; }
+            if (!strip || !legacy) return;
+            try { localStorage.removeItem(LEGACY_BAR_KEY); } catch (e) { /* приватный режим */ }
+            const cfg = strip.config || {};
+            if (cfg.barSource !== 'default') return;   // выбор на сайте уже есть — он главнее
+            const row = (cfg.bars || []).find(b => b.iiko_name === legacy);
+            if (row && row.key !== strip.get().bar) strip.setBar(row.key);
+        }
+        // Старые ссылки страницы писали в адрес ?bar=<имя iiko>. Сервер понимает их (синоним
+        // ключа), а в адресе остаётся ключ бара — как у всего сайта.
+        function normalizeUrlBar() {
+            const strip = window.KStrip;
+            if (!strip || !strip.config || strip.config.barSource !== 'url') return;
             const url = new URL(location.href);
-            url.searchParams.set('bar', bar);
-            history.replaceState(null, '', url);
+            const raw = url.searchParams.get('bar');
+            const row = (strip.config.bars || []).find(b => b.iiko_name === raw);
+            if (!row || row.key !== strip.get().bar) return;
+            url.searchParams.set('bar', row.key);
+            history.replaceState(history.state, '', url);
         }
 
         // Смена бара: фильтр над кэшированным снимком сети, а не перезапуск всей страницы
         async function loadStocks() {
-            const bar = document.getElementById('bar-select').value;
+            const bar = stripBarIiko();
             if (!bar) return;
             currentBar = bar;
-            rememberBar(bar);
             tabLoadedFor = {};
             document.querySelectorAll('.tab-error').forEach(b => b.remove());
             const active = document.querySelector('.tab.active');
@@ -1179,7 +1226,7 @@
         async function loadOrderBoard(bar) {
             const content = document.getElementById('order-board-content');
             const seq = ++obRequestSeq;
-            showBoardBanner('loading', 'Считаем, что заказать для «' + bar + '»: остатки и операции iiko за 30 дней...');
+            showBoardBanner('loading', 'Считаем, что заказать для «' + bar + '»: остатки и операции iiko...');
             try {
                 const response = await fetchWithRetry(`/api/stocks/order-board?bar=${encodeURIComponent(bar)}`);
                 let payload = null;
@@ -1242,7 +1289,7 @@
             const scope = data.consumption_scope === 'store' ? 'по складу бара' : 'по всей сети';
             meta.textContent = bar + ' · ' + fmtDate(data.today) + ' · остатки iiko на ' + fmtTime(data.updated_at)
                 + (data.chz_updated_at ? ' · сроки ЧЗ на ' + fmtTime(data.chz_updated_at) : ' · ЧЗ: нет данных')
-                + ' · расход за ' + (data.window_days || 30) + ' дн. ' + scope
+                + ' · расход ' + scope + ' ' + windowLabel(data.window_days, data.window_from, data.window_to)
                 + (data.on_order_count ? ' · в пути: ' + data.on_order_count + ' поз.' : '');
             ordersUnavailable = data.orders_available === false;
             const warning = document.getElementById('ob-orders-warning');
@@ -1324,7 +1371,9 @@
                 } else if (ms.reachable === false && !ms.priced_count) {
                     // Считать нечего: ни у одной позиции поставщика нет ни прихода, ни себестоимости
                     minLine = '<div class="ob-min-order">Сумму заказа не проверить: цены нет ни у одной позиции'
-                        + ' этого поставщика (не было прихода за 30 дн. и остатка со стоимостью).</div>';
+                        + ' этого поставщика (не было прихода ' + windowLabel(orderBoardData.window_days,
+                            orderBoardData.window_from, orderBoardData.window_to)
+                        + ' и остатка со стоимостью).</div>';
                 } else if (ms.reachable === false) {
                     minLine = '<div class="ob-min-order short">До минимума не добрать: рекомендаций на '
                         + fmtMoney(ms.base_sum) + ', даже с запасом на ' + ms.max_extra_days + ' дн. — '
@@ -1680,6 +1729,8 @@
                 const data = await response.json();
                 if (bar !== currentBar) return;   // бар сменили, пока ждали ответ (S-25)
                 clearTabError('bottles');
+                document.getElementById('bottles-window').textContent =
+                    'Расход в день — ' + windowLabel(data.window_days, data.window_from, data.window_to);
 
                 // Update stats
                 const statsHtml = `
@@ -1737,7 +1788,7 @@
                         row.innerHTML = `
                             <td>${escapeHtml(item.name)}</td>
                             <td>${item.stock || 0} ${escapeHtml(item.unit || 'шт')}</td>
-                            <td>${item.avg_sales ? item.avg_sales.toFixed(2) : '0'}${item.is_new ? ' <span title="Товара не было в начале окна: расход усреднён за ' + item.days_in_period + ' дн. с первого прихода, а не за 30">(с прихода, ' + item.days_in_period + ' дн.)</span>' : ''}</td>
+                            <td>${item.avg_sales ? item.avg_sales.toFixed(2) : '0'}${item.is_new ? ' <span title="Товара не было в начале окна: расход усреднён за ' + item.days_in_period + ' дн. с первого прихода, а не за ' + data.window_days + ' дн. окна">(с прихода, ' + item.days_in_period + ' дн.)</span>' : ''}</td>
                             <td><span class="badge ${getStockBadge(item.stock_level)}">${getStockLabel(item.stock_level)}</span></td>
                             <td><input type="number" min="0" step="any" value="0" data-product-id="${escapeHtml(item.product_id)}" data-bar="${escapeHtml(bar)}" style="width: 80px;"></td>
                         `;
@@ -1847,8 +1898,7 @@
                             ? ' ' + String(s.chz_sync.message || '').replace(/^\[WARN\]\s*/, '') + '.' : '';
                         if (s.exit_code === 0) {
                             statusEl.textContent = 'Обновление завершено успешно. Перезагружаем данные...';
-                            const bar = document.getElementById('bar-select').value;
-                            if (bar) await loadExpiry(bar);
+                            if (currentBar) await loadExpiry(currentBar);
                             statusEl.textContent = 'Готово. Кэш ЧЗ обновлён ' + (s.cache_updated_at || '?') + '.' + sync;
                         } else {
                             statusEl.textContent = `Ошибка (exit ${s.exit_code}).${sync} Лог: ${(s.log_tail || '').slice(-300)}`;
@@ -1876,6 +1926,8 @@
                 const data = await response.json();
                 if (bar !== currentBar) return;   // бар сменили, пока ждали ответ (S-25)
                 clearTabError('expiry');
+                document.getElementById('expiry-window').textContent =
+                    'Расход в день — ' + windowLabel(data.window_days, data.window_from, data.window_to);
 
                 const chzDate = data.chz_updated_at
                     ? new Date(data.chz_updated_at).toLocaleString('ru-RU')
@@ -1941,7 +1993,7 @@
                         row.innerHTML = `
                             <td>${escapeHtml(item.name)}</td>
                             <td>${item.stock || 0} ${escapeHtml(item.unit || 'шт')}</td>
-                            <td>${item.avg_sales ? item.avg_sales.toFixed(2) : '0'}${item.is_new ? ' <span title="Товара не было в начале окна: расход усреднён за ' + item.days_in_period + ' дн. с первого прихода, а не за 30">(с прихода, ' + item.days_in_period + ' дн.)</span>' : ''}</td>
+                            <td>${item.avg_sales ? item.avg_sales.toFixed(2) : '0'}${item.is_new ? ' <span title="Товара не было в начале окна: расход усреднён за ' + item.days_in_period + ' дн. с первого прихода, а не за ' + data.window_days + ' дн. окна">(с прихода, ' + item.days_in_period + ' дн.)</span>' : ''}</td>
                             <td>${formatHeadlineExpiry(item)}</td>
                             <td style="font-size: 12px;">${formatBatches(item)}</td>
                         `;
@@ -1973,6 +2025,8 @@
                 const data = await response.json();
                 if (bar !== currentBar) return;   // бар сменили, пока ждали ответ (S-25)
                 clearTabError('kitchen');
+                document.getElementById('kitchen-window').textContent =
+                    'Расход в день — ' + windowLabel(data.window_days, data.window_from, data.window_to);
 
                 // Update stats
                 const statsHtml = `
@@ -2030,7 +2084,7 @@
                         row.innerHTML = `
                             <td>${escapeHtml(item.name)}</td>
                             <td>${item.stock || 0} ${escapeHtml(item.unit || 'шт')}</td>
-                            <td>${item.avg_sales ? item.avg_sales.toFixed(2) : '0'}${item.is_new ? ' <span title="Товара не было в начале окна: расход усреднён за ' + item.days_in_period + ' дн. с первого прихода, а не за 30">(с прихода, ' + item.days_in_period + ' дн.)</span>' : ''}</td>
+                            <td>${item.avg_sales ? item.avg_sales.toFixed(2) : '0'}${item.is_new ? ' <span title="Товара не было в начале окна: расход усреднён за ' + item.days_in_period + ' дн. с первого прихода, а не за ' + data.window_days + ' дн. окна">(с прихода, ' + item.days_in_period + ' дн.)</span>' : ''}</td>
                             <td><span class="badge ${getStockBadge(item.stock_level)}">${getStockLabel(item.stock_level)}</span></td>
                             <td><input type="number" min="0" step="any" value="0" data-product-id="${escapeHtml(item.product_id)}" data-bar="${escapeHtml(bar)}" style="width: 80px;"></td>
                         `;
@@ -2220,6 +2274,8 @@
                 if (!response.ok) throw new Error('Ошибка ' + response.status);
                 const data = await response.json();
                 ordersData = data.orders || [];
+                document.getElementById('order-history-title').textContent =
+                    'История ' + (windowLabel(data.days, data.history_from, data.history_to) || 'заказов');
                 renderOpenOrders();
                 renderOrderHistory();
             } catch (error) {
@@ -2511,7 +2567,7 @@
             if (!box) return;
             const closed = ordersData.filter(o => o.status === 'posted' || o.status === 'cancelled');
             if (closed.length === 0) {
-                box.innerHTML = '<p style="color: var(--text-secondary);">За последние 30 дней закрытых заказов нет.</p>';
+                box.innerHTML = '<p style="color: var(--text-secondary);">Закрытых заказов за это время нет.</p>';
                 return;
             }
             box.innerHTML = '';

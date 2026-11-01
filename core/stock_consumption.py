@@ -77,6 +77,24 @@ def format_period(date_from: date, date_to: date):
     return date_from.strftime(OPS_DATE_FMT), date_to.strftime(OPS_DATE_FMT)
 
 
+def window_meta(snapshot: dict) -> dict:
+    """Окно расхода снимка для подписи на странице: window_days, window_from, window_to (ISO).
+
+    Окно без выбора подписывается датами (docs/period-standard.md, раздел 9; план единого
+    виджета, раздел 3.6): «расход за 30 дней: 2 окт – 1 ноя 2026». Границы — те же, что у
+    запроса storeOperations (period_bounds): сегодня − window_days .. сегодня включительно,
+    то есть 30 полных дней и неполный сегодняшний. Снимок без читаемой даты today —
+    границы None (страница пишет «за 30 дней» без дат), а не выдуманные даты.
+    """
+    days = int(snapshot.get('window_days') or WINDOW_DAYS)
+    try:
+        today = date.fromisoformat(str(snapshot.get('today')))
+    except (TypeError, ValueError):
+        return {'window_days': days, 'window_from': None, 'window_to': None}
+    date_from, date_to = period_bounds(today, days)
+    return {'window_days': days, 'window_from': date_from.isoformat(), 'window_to': date_to.isoformat()}
+
+
 def is_outgoing(record: dict) -> Optional[bool]:
     """True — расход (incoming == 'false'), False — приход, None — направление неизвестно.
 

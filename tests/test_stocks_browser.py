@@ -11,7 +11,11 @@ tests/test_stocks_routes.py (iiko не нужен), хранилища — вр�
 дополняет их: проверяет то, что видит управляющий.
 
 Что проверяется:
-- вход без ритуала по ?bar=, шапка, группы по поставщику с датами поставок,
+- бар — общая полоса «Бар и период» (этап 6 плана единого виджета, 2026-11-01): своего
+  выбора бара нет, прежний ключ страницы 'stocks.bar' один раз переходит в общий бар,
+  старая ссылка ?bar=<имя iiko> открывает этот бар и меняется на ключ, окно расхода
+  подписано датами;
+- вход без ритуала, шапка, группы по поставщику с датами поставок,
   фраза-причина, заметка о новой формуле, свёрнутый блок «без движения»;
 - раскрытие строки: формула в числах, последний приход;
 - «Взять N» → черновик, липкая панель, счётчик, имя автора и желаемая дата;
@@ -43,6 +47,7 @@ os.environ['SESSION_COOKIE_SECURE'] = '0'
 import pytest  # noqa: E402
 
 from flask import Flask, render_template  # noqa: E402
+import core.scope as scope  # noqa: E402
 import routes.stocks as rs  # noqa: E402
 import routes.orders as ro  # noqa: E402
 import routes.suppliers as rsup  # noqa: E402
@@ -91,6 +96,7 @@ def test_stocks_screen_end_to_end():
     snap = fx._snapshot()
     nom = fx._nomenclature()
     saved = {
+        'scope_user': scope._current_user_id,
         'rs': {k: getattr(rs, k) for k in ('get_stock_snapshot', 'get_stocks_nomenclature', 'get_barcode_map',
                                            '_CHZ_CACHE_FILE', 'get_order_store', 'get_supplier_directory')},
         'ss': ss.get_stocks_nomenclature,
@@ -111,9 +117,12 @@ def test_stocks_screen_end_to_end():
     ro.get_supplier_directory = lambda: directory
     rsup.get_supplier_directory = lambda: directory
     rsup.current_user = lambda: user
+    # Полоса «Бар и период» хранит выбор в cookie с номером пользователя — как у вошедшего.
+    scope._current_user_id = lambda: 7
 
     app = Flask('stocks_browser_test', template_folder=os.path.join(REPO, 'templates'),
                 static_folder=os.path.join(REPO, 'static'))
+    scope.init_scope(app)   # kultura_strip(...) в шаблоне, как в app.py
     app.register_blueprint(stocks_bp)
     app.register_blueprint(orders_bp)
     app.register_blueprint(suppliers_bp)
@@ -132,6 +141,7 @@ def test_stocks_screen_end_to_end():
     try:
         _scenario(sync_playwright, BASE, MAI_EXPECTED, store, directory)
     finally:
+        scope._current_user_id = saved['scope_user']
         for k, v in saved['rs'].items():
             setattr(rs, k, v)
         rs.taps_manager.__dict__.pop('get_bar_taps', None)
@@ -155,12 +165,23 @@ def _scenario(sync_playwright, BASE, MAI_EXPECTED, store, directory):
         def tab(name):
             page.click(f'button.tab:has-text("{name}")')
 
-        # 1. Вход без ритуала: ?bar= → доска грузится сама, бар запоминается в URL
-        page.goto(BASE + '/stocks?bar=' + fx.BAR_LIG)
+        # 1. Бар — общая полоса «Бар и период»: своего выбора бара у страницы нет. Прежний ключ
+        # страницы 'stocks.bar' (имя iiko) при первом входе без выбора на сайте становится общим
+        # баром и удаляется; доска грузится сама, в адресе — ключ бара.
+        page.goto(BASE + '/suppliers')
+        page.evaluate("() => localStorage.setItem('stocks.bar', '" + fx.BAR_LIG + "')")
+        page.goto(BASE + '/stocks')
         page.wait_for_selector('#order-board-content', state='visible')
-        assert page.input_value('#bar-select') == fx.BAR_LIG
+        assert page.locator('#bar-select').count() == 0
+        assert page.get_attribute('#kultura-strip', 'data-mode') == 'now'
+        assert page.inner_text('#ks-bar-name') == fx.BAR_LIG
+        assert page.locator('#ks-bar-menu [data-bar=""]').count() == 0, 'страница по одному бару: без «Все бары»'
+        assert page.evaluate("() => localStorage.getItem('stocks.bar')") is None
+        assert 'bar=ligovskiy' in page.url, page.url
         meta = page.inner_text('#ob-meta')
         assert fx.BAR_LIG in meta and 'остатки iiko' in meta and 'ср 05.11' in meta, meta
+        # окно расхода — датами с сервера (сегодня − 30 дней … сегодня)
+        assert 'расход по складу бара за 30 дней: 6 окт – 5 ноя 2025' in meta, meta
         groups = page.eval_on_selector_all('#ob-groups .ob-group h3', 'els => els.map(e => e.textContent)')
         assert groups[0] == 'Лента', groups          # critical P_NEG первым
         assert 'ООО "Май"' in groups, groups
@@ -261,10 +282,12 @@ def _scenario(sync_playwright, BASE, MAI_EXPECTED, store, directory):
         assert page.locator('#order-open button:has-text("Закрыть без сверки")').count() == 1
         tab('К заказу')
 
-        # 6. Смена бара: фильтр над снимком; поздний ответ не ломает; вкладка Фасовка грузится лениво
-        page.select_option('#bar-select', fx.BAR_BOL)
+        # 6. Смена бара в полосе: фильтр над снимком; поздний ответ не ломает; вкладка Фасовка
+        # грузится лениво
+        page.click('#ks-bar-trigger')
+        page.click('#ks-bar-menu [data-bar="bolshoy"]')
         page.wait_for_function(f'() => document.querySelector("#ob-meta").textContent.includes("{fx.BAR_BOL}")')
-        assert 'bar=' in page.url, page.url
+        assert 'bar=bolshoy' in page.url, page.url
         # На Большом у позиции есть перемещение: в расход оно не входит и названо отдельно.
         # Подробности могли остаться раскрытыми с шага 2 — открываем только если скрыты.
         detail_sel = f'tr.ob-detail[data-detail-for="{fx.P_BOTTLE}"]'
@@ -278,6 +301,9 @@ def _scenario(sync_playwright, BASE, MAI_EXPECTED, store, directory):
         assert page.locator('#bottles-content').is_hidden()
         tab('Фасовка')
         page.wait_for_selector('#bottles-content', state='visible')
+        assert page.inner_text('#bottles-window') == 'Расход в день — за 30 дней: 6 окт – 5 ноя 2025'
+        tab('К отправке')
+        assert page.inner_text('#order-history-title').startswith('История за 30 дней: '), page.inner_text('#order-history-title')
         tab('К заказу')
 
         # 7. Мобильная разметка: карточки без заголовка таблицы; скрытые подробности не показываются
@@ -335,8 +361,11 @@ def _scenario(sync_playwright, BASE, MAI_EXPECTED, store, directory):
         mai.locator('[data-action="save"]').click()
         page.wait_for_function('() => document.querySelector("#banner").textContent.includes("Сохранено")')
     
+        # старая ссылка страницы с ?bar=<имя iiko>: сервер понимает её, в адресе остаётся ключ
         page.goto(BASE + '/stocks?bar=' + fx.BAR_LIG)
         page.wait_for_selector('#order-board-content', state='visible')
+        assert page.inner_text('#ks-bar-name') == fx.BAR_LIG
+        assert 'bar=ligovskiy' in page.url, page.url
         lenta_head = page.inner_text('#ob-groups .ob-group:has-text("Лента") .ob-group-head')
         assert 'срок 3 дн.' in lenta_head and 'поставка пн 10.11' in lenta_head, lenta_head
         # соус (ИП Ромашка) теперь в группе Лента: кг не бывает slow, хватает → виден с переключателем

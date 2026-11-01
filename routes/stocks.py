@@ -12,7 +12,7 @@ from datetime import date, datetime
 from core.iiko_barcodes import get_barcode_map, invert_to_product_gtins
 from core.dashboard_analysis import DashboardMetrics
 from core.stock_consumption import (INTERNAL_TRANSFER as INTERNAL_TRANSFER_TYPE,
-                                    aggregate_consumption, is_outgoing)
+                                    aggregate_consumption, is_outgoing, window_meta)
 from core.purchase_price import line_sum, resolve_prices
 from core.stock_snapshot import get_stock_snapshot, get_stocks_nomenclature
 from core.order_store import get_order_store
@@ -893,11 +893,12 @@ def _nearest_expiry(expiration_dates, today):
 
 
 def _stock_items_response(bar, snapshot, target_store_id, items, low_stock_count, extra=None):
+    # window_from / window_to — даты окна расхода для подписи вкладки («за 30 дней: 2 окт – 1 ноя»).
     payload = {
         'bar': bar,
         'updated_at': snapshot['fetched_at'],
         'consumption_scope': 'store' if target_store_id else 'network',
-        'window_days': snapshot['window_days'],
+        **window_meta(snapshot),
         'total_items': len(items),
         'low_stock_count': low_stock_count,
         'items': items,
@@ -1783,7 +1784,8 @@ def get_order_board():
             'updated_at': snapshot['fetched_at'],
             'chz_updated_at': chz_updated_at,
             'consumption_scope': 'store' if target_store_id else 'network',
-            'window_days': snapshot['window_days'],
+            # window_days и даты окна расхода (window_from / window_to) — для подписи на доске.
+            **window_meta(snapshot),
             'safety_days': SAFETY_DAYS,
             'min_order_max_extra_days': MIN_ORDER_MAX_EXTRA_DAYS,
             'near_expiry_block_days': NEAR_EXPIRY_BLOCK_DAYS,
