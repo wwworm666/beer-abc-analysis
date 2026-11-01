@@ -56,6 +56,7 @@ Beer ABC/XYZ Analysis (Flask + iiko + ЧЗ)
 | [context.md](context.md) | Быстрый контекст для Claude | ✅ |
 | [docs/overview.md](../docs/overview.md) | Архитектура, blueprints, core-модули, внешние API, деплой Selectel | ✅ |
 | [docs/PROJECT_STRUCTURE.md](../docs/PROJECT_STRUCTURE.md) | Дерево репозитория | ✅ |
+| [docs/period-standard.md](../docs/period-standard.md) | **Стандарт выбора периода** (проект, 2026-11-01): инвентаризация, одно «сегодня» по рабочим суткам, модель `date_from`/`date_to`, правила открытия страниц, один элемент «Период», адрес страницы, неполный период, сравнение, таблица страниц, фазы перехода, решения владельца | Проект, ждёт решений владельца (2026-11-01) |
 | [docs/dashboard.md](../docs/dashboard.md) | Дашборд План/Факт — 20 метрик в 5 группах (с 2026-09-04 группа «Лояльность»: чеки с картой / без карты из того же OLAP-запроса; раскрытие карточки — вкладки «Сотрудники» и детали метрики из того же кэша, литры как на /draft, краны), AI-анализ; с 2026-09-28 — комментарий к периоду в отдельном `period_comments.json` (без 500), честное сравнение периодов `/api/comparison/periods`, выгрузки Excel/PDF в единицах экрана, «сегодня» по Москве | ✅ |
 | [docs/monthly-report.md](../docs/monthly-report.md) | Вкладка «Месячный отчёт» — помесячная динамика, 16 графиков, YoY, кэш | ✅ |
 | [docs/employee.md](../docs/employee.md) | Employee Dashboard — аналитика сотрудников, KPI, бонусы | ✅ |
@@ -150,6 +151,7 @@ Beer ABC/XYZ Analysis (Flask + iiko + ЧЗ)
 
 ## Changelog (по версиям документации)
 
+- **2026-11-01 (2):** **Стандарт выбора периода (проект).** Запись CHANGELOG 2026-11-01 (2). Новый [period-standard.md](../docs/period-standard.md).
 - **2026-11-01:** **«Маркетинг»: один выбор периода.** Запись CHANGELOG 2026-11-01. [guests.md](../docs/guests.md) — «Выбор периода на странице», «Графики за», «Что сломается», Changelog; [lessons.md](../docs/lessons.md) — период по умолчанию и второй переключатель.
 - **2026-10-30 (3):** **«Отток»: бары на одном экране, кого потеряли, длина графиков.** Запись CHANGELOG 2026-10-30 (3). [guests.md](../docs/guests.md) — «Кого потеряли», «Бары рядом», «Графики за», «Расчёт и кэш», словарь, API, «Что сломается», Changelog; [mcp.md](../docs/mcp.md) — `CHURN_SERIES_AGENT_MAX`, `favorite_store`; [lessons.md](../docs/lessons.md) — GIL и параллельные запросы.
 - **2026-10-30 (2):** **«Отток»: кликабельные плитки.** Запись CHANGELOG 2026-10-30 (2). [guests.md](../docs/guests.md) — «Гости плитки поимённо», API (`churn-guests`), «Что сломается», Changelog; [mcp.md](../docs/mcp.md) — `analytics_guests_churn_guests` вместо `analytics_guests_churn_slowing`.
