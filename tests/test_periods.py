@@ -66,12 +66,30 @@ class TestModel(unittest.TestCase):
 
     def test_shift(self):
         self.assertEqual(P.shift(P.period_for('month', d('2026-01-31')), 1).start, d('2026-02-01'))
-        self.assertEqual(P.shift(P.period_for('quarter', d('2026-11-14')), 1).start,
+        self.assertEqual(P.shift(P.period_for('month', d('2026-12-14')), 1).start,
                          d('2027-01-01'), 'через границу года')
         self.assertEqual(P.shift(P.period_for('week', d('2026-12-30')), 1).start, d('2027-01-04'))
         custom = P.from_bounds(d('2026-10-12'), d('2026-10-25'))
         self.assertEqual((P.shift(custom, -1).start, P.shift(custom, -1).end),
                          (d('2026-09-28'), d('2026-10-11')), 'свой период — на свою длину')
+
+    def test_no_quarters(self):
+        """Кварталов нет (решение владельца 2026-11-01): 1 июля – 30 сентября — свой период."""
+        self.assertNotIn('quarter', P.STEPS)
+        self.assertEqual(P.detect_step(d('2026-07-01'), d('2026-09-30')), 'custom')
+        self.assertEqual(P.period_for('quarter', d('2026-08-15')).step, 'day',
+                         'неизвестный шаг — день, а не квартал')
+
+    def test_month_of(self):
+        for c in CASES['month_of']:
+            p = P.from_bounds(d(c['from']), d(c['to']))
+            self.assertEqual(P.month_of(p).start.isoformat(), c['month'], c)
+
+    def test_reversed_dates_are_an_error(self):
+        with self.assertRaises(P.PeriodError):
+            P.parse_period({'date_from': '2026-10-31', 'date_to': '2026-10-01'})
+        self.assertEqual(P.parse_period({'date_from': '2026-10-01', 'date_to': '2026-10-31'}).step,
+                         'month')
 
     def test_key_matches_weeks_api(self):
         self.assertEqual(P.period_for('week', d('2026-10-28')).key, '2026-10-26_2026-11-01')

@@ -19,7 +19,7 @@ import { state } from '../core/state.js';
 
 const K = window.KPeriod;
 
-const ALL_STEPS = ['day', 'week', 'month', 'quarter', 'year', 'custom'];
+const ALL_STEPS = ['day', 'week', 'month', 'year', 'custom'];   // кварталов нет (2026-11-01)
 const TAB_STEPS = {
     'tab-analytics': ALL_STEPS,
     'analytics': ALL_STEPS,
@@ -30,9 +30,8 @@ const TAB_STEPS = {
 const STEP_NOTES = {
     'tab-plans': 'Планы задаются на месяц — здесь доступны месяц и год'
 };
-// Быстрый выбор дашборда — тот же набор, что был в списке до 2026-11-01.
-const QUICK = ['today', 'yesterday', 'current_week', 'last_closed_week', 'current_month',
-    'last_closed_month', 'current_quarter', 'current_year'];
+// Быстрый выбор — один набор на сайт (KPeriod.SITE_QUICK, план единого виджета, раздел 3.3).
+const QUICK = K.SITE_QUICK;
 
 class PeriodControls {
     constructor() {

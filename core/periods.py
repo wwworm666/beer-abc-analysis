@@ -1,9 +1,10 @@
 """Периоды по стандарту сайта (docs/period-standard.md) — одна модель для всех страниц.
 
 Период — это date_from и date_to, обе даты ВКЛЮЧИТЕЛЬНО, в учётных днях бара (рабочие
-сутки до 06:00 МСК, core/msk_time.business_today). Шаг (день, неделя, месяц, квартал, год)
-определяется по границам: 1–31 октября — месяц, понедельник–воскресенье — неделя; иначе —
-свой период (custom). Неделя — ISO, с понедельника.
+сутки до 06:00 МСК, core/msk_time.business_today). Шаг (день, неделя, месяц, год) определяется
+по границам: 1–31 октября — месяц, понедельник–воскресенье — неделя; иначе — свой период
+(custom). Неделя — ISO, с понедельника. Кварталов нет (решение владельца 2026-11-01): 1 июля —
+30 сентября — свой период.
 
 Три даты страницы (page_config):
 - today — текущий учётный день;
@@ -15,9 +16,13 @@
 Состояние периода: complete — весь не позже last_full_day; partial — начался не позже
 max_date, а кончается позже last_full_day («идёт»); future — начинается позже max_date.
 
-Правила открытия страницы (стандарт, раздел 3): last_closed — последний закрытый период
-шага (отчёты), current — период, где лежит max_date (рабочие страницы), last_days — последние
-N полных дней (ABC/XYZ).
+Правило открытия страницы (стандарт, раздел 3; ответ владельца Р2, 2026-11-01): текущий
+период шага страницы — current, где лежит max_date (у живых данных — сегодня, у витрины —
+последний полный день); у ABC/XYZ — last_days (последние 30 полных дней). last_closed —
+последний закрытый период (сравнения, ежемесячный отчёт).
+
+Месяц выбранного периода (month_of, ответ Р3) — для страниц, где бывает только месяц:
+у периода до 31 дня — месяц его середины (у недели — месяц четверга), у длинного — последний.
 
 Подписи — те же, что у static/js/shared/period/period_core.js: обе стороны проверяются
 одним набором примеров (tests/fixtures/period_labels.json).
@@ -28,7 +33,7 @@ from datetime import date, timedelta
 
 from core import msk_time
 
-STEPS = ('day', 'week', 'month', 'quarter', 'year')
+STEPS = ('day', 'week', 'month', 'year')
 CUSTOM = 'custom'
 
 MONTHS_NOMINATIVE = ('январь', 'февраль', 'март', 'апрель', 'май', 'июнь', 'июль', 'август',
@@ -36,7 +41,6 @@ MONTHS_NOMINATIVE = ('январь', 'февраль', 'март', 'апрель
 MONTHS_GENITIVE = ('января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа',
                    'сентября', 'октября', 'ноября', 'декабря')
 MONTHS_SHORT = ('янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек')
-QUARTER_ROMAN = ('I', 'II', 'III', 'IV')
 # Тире диапазона — короткое с пробелами («26 окт – 1 ноя 2026»), одно на сайт.
 DASH = ' – '
 
@@ -93,9 +97,6 @@ def period_for(step, anchor):
         return Period('week', start, start + timedelta(days=6))
     if step == 'month':
         return Period('month', anchor.replace(day=1), _month_end(anchor.year, anchor.month))
-    if step == 'quarter':
-        first = (anchor.month - 1) // 3 * 3 + 1
-        return Period('quarter', date(anchor.year, first, 1), _month_end(anchor.year, first + 2))
     if step == 'year':
         return Period('year', date(anchor.year, 1, 1), date(anchor.year, 12, 31))
     return Period('day', anchor, anchor)
@@ -111,7 +112,11 @@ def detect_step(start, end):
 
 
 def from_bounds(start, end):
-    """Период по границам: шаг определяется сам, порядок дат нормализуется."""
+    """Период по границам: шаг определяется сам, порядок дат нормализуется.
+
+    Для внутренних вызовов; даты из запроса разбирает parse_period — там перевёрнутые даты —
+    ошибка 400, а не молчаливая перестановка.
+    """
     if start > end:
         start, end = end, start
     return Period(detect_step(start, end), start, end)
@@ -123,10 +128,9 @@ def shift(period, n):
         return period_for('day', period.start + timedelta(days=n))
     if period.step == 'week':
         return period_for('week', period.start + timedelta(days=7 * n))
-    if period.step in ('month', 'quarter'):
-        months = n * (3 if period.step == 'quarter' else 1)
-        index = period.start.year * 12 + period.start.month - 1 + months
-        return period_for(period.step, date(index // 12, index % 12 + 1, 1))
+    if period.step == 'month':
+        index = period.start.year * 12 + period.start.month - 1 + n
+        return period_for('month', date(index // 12, index % 12 + 1, 1))
     if period.step == 'year':
         return period_for('year', date(period.start.year + n, 1, 1))
     delta = timedelta(days=period.days * n)
@@ -147,6 +151,19 @@ def current(step, max_date):
 def last_days(n, last_full_day):
     """Последние n полных дней: ровно n дат, последняя — последний полный день."""
     return from_bounds(last_full_day - timedelta(days=n - 1), last_full_day)
+
+
+def month_of(period):
+    """Месяц, который показывает страница «только месяц» при другом выборе (ответ Р3).
+
+    Период до 31 дня — месяц его середины: у недели середина — четверг, поэтому неделя
+    27 окт – 2 ноя даёт октябрь (там 5 её дней из 7). Длиннее — последний месяц периода:
+    весь 2025 год даёт декабрь 2025. Месяц даёт сам себя.
+    """
+    if period.days <= 31:
+        middle = period.start + timedelta(days=(period.days - 1) // 2)
+        return period_for('month', middle)
+    return period_for('month', period.end)
 
 
 # ---------------------------------------------------------------- состояние
@@ -187,8 +204,6 @@ def period_title(step, start, end):
         return str(start.day) + ' ' + MONTHS_GENITIVE[start.month - 1] + ' ' + str(start.year)
     if step == 'month':
         return MONTHS_NOMINATIVE[start.month - 1].capitalize() + ' ' + str(start.year)
-    if step == 'quarter':
-        return QUARTER_ROMAN[(start.month - 1) // 3] + ' квартал ' + str(start.year)
     if step == 'year':
         return str(start.year)
     return _range_title(start, end)
@@ -200,8 +215,6 @@ def period_short(step, start, end):
         return start.strftime('%d.%m')
     if step == 'month':
         return MONTHS_SHORT[start.month - 1] + ' ' + start.strftime('%y')
-    if step == 'quarter':
-        return QUARTER_ROMAN[(start.month - 1) // 3] + ' кв ' + start.strftime('%y')
     if step == 'year':
         return str(start.year)
     return start.strftime('%d.%m') + '–' + end.strftime('%d.%m')
@@ -247,8 +260,9 @@ def _parse_iso(raw, name):
 def parse_period(args, default=None):
     """Период из параметров запроса: date_from и date_to (включительно); иначе default.
 
-    Синоним: key / period_key = 'YYYY-MM-DD_YYYY-MM-DD' (ключ /api/weeks). Неверные даты
-    или одна из двух — PeriodError (ответ 400). Порядок дат нормализуется.
+    Синоним: key / period_key = 'YYYY-MM-DD_YYYY-MM-DD' (ключ /api/weeks). Неверные даты,
+    одна из двух или date_from позже date_to — PeriodError (ответ 400): молчаливая перестановка
+    прятала бы ошибку в ссылке или у агента.
     """
     raw_from, raw_to = args.get('date_from'), args.get('date_to')
     if not raw_from and not raw_to:
@@ -262,7 +276,10 @@ def parse_period(args, default=None):
         return default
     if not raw_from or not raw_to:
         raise PeriodError('Нужны обе даты: date_from и date_to')
-    return from_bounds(_parse_iso(raw_from, 'date_from'), _parse_iso(raw_to, 'date_to'))
+    start, end = _parse_iso(raw_from, 'date_from'), _parse_iso(raw_to, 'date_to')
+    if start > end:
+        raise PeriodError('date_from позже date_to: ' + start.isoformat() + ' > ' + end.isoformat())
+    return from_bounds(start, end)
 
 
 def page_config(live=True, last_full_day=None, data_start=None, today=None):

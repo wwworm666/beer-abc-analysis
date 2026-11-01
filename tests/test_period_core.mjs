@@ -77,9 +77,9 @@ test('часы страницы — с сервера, а не с устройс
     K.configure({});
 });
 
-test('шаг стрелки — через границы месяца, квартала и года; свой период — на свою длину', () => {
+test('шаг стрелки — через границы месяца и года; свой период — на свою длину', () => {
     assert.equal(K.shiftPeriod(K.periodFor('month', d('2026-01-31')), 1).start, '2026-02-01');
-    assert.equal(K.shiftPeriod(K.periodFor('quarter', d('2026-11-14')), 1).start, '2027-01-01');
+    assert.equal(K.shiftPeriod(K.periodFor('month', d('2026-12-14')), 1).start, '2027-01-01');
     assert.equal(K.shiftPeriod(K.periodFor('week', d('2026-12-30')), 1).start, '2027-01-04');
     const custom = K.fromBounds(d('2026-10-12'), d('2026-10-25'));
     const back = K.shiftPeriod(custom, -1);
@@ -109,8 +109,72 @@ test('адрес страницы: date_from и date_to включительно
     assert.deepEqual([p.granularity, p.start, p.end], ['month', '2026-10-01', '2026-10-31']);
     assert.equal(K.readUrlPeriod('?date_from=2026-10-01'), null);
     assert.equal(K.readUrlPeriod('?date_from=2026-02-30&date_to=2026-03-01'), null, '30 февраля нет');
-    assert.equal(K.readUrlPeriod('?date_to=2026-10-01&date_from=2026-10-31').start, '2026-10-01',
-        'порядок дат нормализуется');
+    assert.equal(K.readUrlPeriod('?date_to=2026-10-01&date_from=2026-10-31'), null,
+        'перевёрнутые даты — неверная ссылка, как 400 на сервере');
+});
+
+test('кварталов нет: 1 июля – 30 сентября — свой период', () => {
+    assert.ok(!K.GRANULARITIES.includes('quarter'));
+    assert.equal(K.fromBounds(d('2026-07-01'), d('2026-09-30')).granularity, 'custom');
+    for (const id of Object.keys(K.QUICK)) assert.ok(!/quarter/.test(id), id);
+});
+
+test('месяц выбранного периода — как на сервере (общие примеры)', () => {
+    for (const c of CASES.month_of) {
+        const p = K.fromBounds(d(c.from), d(c.to));
+        assert.equal(K.monthOf(p).start, c.month, JSON.stringify(c));
+    }
+});
+
+test('свой период цифрами: маска, разбор, вставка диапазона', () => {
+    assert.equal(K.maskTyped('01032024'), '01.03.2024');
+    assert.equal(K.maskTyped('0103'), '01.03');
+    assert.equal(K.maskTyped('01a03b2024999'), '01.03.2024', 'только цифры, не длиннее даты');
+    assert.equal(K.maskTyped('2024-03-01'), '2024-03-01', 'готовую дату не трогает');
+    // Набор по одной цифре — как в поле: каждая следующая буква к уже замаскированному тексту.
+    let typed = '';
+    for (const ch of '01032024') typed = K.maskTyped(typed + ch);
+    assert.equal(typed, '01.03.2024', 'точки ставятся по мере набора');
+    assert.equal(K.maskTyped('1.3.2024'), '1.3.2024', 'точки, набранные вручную, не трогает');
+    assert.equal(K.maskTyped('01.03.'), '01.03.', 'стирание назад не возвращает цифры');
+    assert.equal(K.maskTyped('01.03.20245'), '01.03.2024');
+    for (const raw of ['01.03.2024', '1.3.2024', '01.03.24', '01/03/2024', '2024-03-01', '01032024']) {
+        assert.equal(K.toISO(K.parseTyped(raw)), '2024-03-01', raw);
+    }
+    assert.equal(K.parseTyped('31.02.2026'), null, '31 февраля нет');
+    assert.equal(K.parseTyped('12.2026'), null);
+    assert.deepEqual(K.parseTypedRange('01.03.2024 – 31.10.2026').map(K.toISO), ['2024-03-01', '2026-10-31']);
+    assert.deepEqual(K.parseTypedRange('с 1.3.24 по 31.10.26').map(K.toISO), ['2024-03-01', '2026-10-31']);
+    assert.equal(K.parseTypedRange('01.03.2024'), null, 'одна дата — не диапазон');
+    assert.equal(K.formatTyped(d('2024-03-01')), '01.03.2024');
+});
+
+test('свой период цифрами: ошибки текстом, длина не ограничена', () => {
+    K.configure({ today: '2026-11-01', last_full_day: '2026-10-31', max_date: '2026-11-01',
+                  data_start: '2017-12-18' });
+    assert.equal(K.validateRange('01.03.2024', '31.10.2026'), null, 'больше года — можно');
+    assert.equal(K.validateRange('31.02.2026', '01.03.2026'), 'Такой даты нет: 31.02.2026');
+    assert.equal(K.validateRange('', '01.03.2026'), 'Введите первую дату');
+    assert.equal(K.validateRange('31.10.2026', '01.03.2024'), 'Первая дата позже второй');
+    assert.equal(K.validateRange('01.01.2010', '01.03.2024'), 'Раньше начала данных: данные с 18.12.2017');
+    assert.equal(K.validateRange('01.10.2026', '05.11.2026'), 'Позже последнего дня с данными: 01.11.2026');
+    assert.equal(K.validateRange('01.10.2026', '05.11.2026', { allowFuture: true }), null, 'планирование');
+    assert.equal(K.validateRange('01.01.2025', '31.10.2026', { maxDays: 366, maxReason: 'дольше iiko не отвечает' }),
+        'Здесь — не больше 366 дней: дольше iiko не отвечает');
+    K.configure({});
+});
+
+test('быстрый выбор сайта: 12 целых месяцев, всё время, без кварталов', () => {
+    K.configure({ today: '2026-11-15', last_full_day: '2026-11-14', max_date: '2026-11-15',
+                  data_start: '2017-12-18' });
+    assert.equal(K.QUICK.last12m.build().key, '2025-11-01_2026-10-31', 'по последний закрытый месяц');
+    assert.equal(K.QUICK.all.build().key, '2017-12-18_2026-11-15');
+    assert.deepEqual(K.SITE_QUICK, ['today', 'yesterday', 'current_week', 'last_closed_week', 'current_month',
+        'last_closed_month', 'last30', 'last90', 'last12m', 'ytd', 'last_closed_year', 'all']);
+    for (const id of K.SITE_QUICK) assert.ok(K.QUICK[id], id);
+    K.configure({ today: '2026-11-15', last_full_day: '2026-11-14', max_date: '2026-11-15' });
+    assert.equal(K.QUICK.all.build(), null, 'без первого дня данных «Всё время» недоступно');
+    K.configure({});
 });
 
 test('быстрый выбор — подсветка совпадающего пункта', () => {
