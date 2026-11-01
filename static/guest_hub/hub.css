@@ -1416,8 +1416,9 @@ button.gh-toast-a {
     .gh-scope { --gh-ctl-h: 42px; }
 
     .gh-wrap { padding: 14px 16px calc(48px + env(safe-area-inset-bottom, 0px)); }
-    /* Края содержимого — по краям карточки заголовка и полосы «Бар и период»
-       (поле .container на телефоне — 12px, static/dashboard/styles/base.css). */
+    /* Края содержимого — по краям карточки заголовка и полосы «Бар и период»:
+       поле .container на телефоне — 12px (static/dashboard/styles/base.css), уже
+       480px — 8px (static/dashboard/styles/mobile.css; правило — после этого блока). */
     body.gh-page .gh-wrap { padding-top: 0; padding-left: 12px; padding-right: 12px; }
 
     /* Вкладки раздела — во всю ширину, счётчики — строкой ниже. */
@@ -1539,6 +1540,11 @@ button.gh-toast-a {
     }
     .gh-toast { animation-name: ghToastInTop; }
     .gh-toast.is-out { transform: translateY(-6px); }
+}
+/* Узкий телефон: поле .container — 8px (static/dashboard/styles/mobile.css), края
+   содержимого раздела — по нему же, под краями карточки заголовка и полосы. */
+@media (max-width: 480px) {
+    body.gh-page .gh-wrap { padding-left: 8px; padding-right: 8px; }
 }
 @keyframes ghToastInTop {
     from { opacity: 0; transform: translateY(-8px); }
