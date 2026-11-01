@@ -78,7 +78,7 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
-    // Чужие origin (CDN flatpickr/chart и т.п.) не трогаем — пусть браузер сам кэширует.
+    // Чужие origin (CDN-библиотеки и т.п.) не трогаем — пусть браузер сам кэширует.
     // Иначе их легко залочить в свой кэш устаревшими/opaque-ответами.
     if (url.origin !== self.location.origin) {
         return;

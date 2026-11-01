@@ -678,62 +678,6 @@ input:focus, select:focus, textarea:focus {
     outline-offset: -2px;
 }
 
-/* --- Календарь Flatpickr под тему сайта ---
-   Библиотека и её CSS тянутся с CDN и знают только светлую тему: без этих правил
-   календарь в тёмной теме оставался белым. С 2026-11-01 дашборд Flatpickr не грузит
-   (свой календарь в общем элементе «Период», static/shared/period.css); правила нужны
-   страницам, которые ещё не перешли на стандарт периодов (/employee). */
-
-.flatpickr-calendar {
-    font-family: var(--font-family);
-    border: 1px solid var(--border-color);
-    border-radius: var(--border-radius-sm);
-    box-shadow: var(--shadow-lg);
-}
-
-[data-theme="dark"] .flatpickr-calendar,
-[data-theme="dark"] .flatpickr-months,
-[data-theme="dark"] .flatpickr-month,
-[data-theme="dark"] .flatpickr-weekdays,
-[data-theme="dark"] span.flatpickr-weekday {
-    background: var(--bg-secondary);
-    color: var(--text-secondary);
-}
-
-[data-theme="dark"] .flatpickr-current-month .flatpickr-monthDropdown-months,
-[data-theme="dark"] .flatpickr-current-month input.cur-year,
-[data-theme="dark"] .flatpickr-prev-month,
-[data-theme="dark"] .flatpickr-next-month,
-[data-theme="dark"] .flatpickr-day {
-    color: var(--text-primary);
-    fill: var(--text-primary);
-}
-
-[data-theme="dark"] .flatpickr-day:hover {
-    background: var(--bg-tertiary);
-    border-color: var(--bg-tertiary);
-}
-
-[data-theme="dark"] .flatpickr-day.prevMonthDay,
-[data-theme="dark"] .flatpickr-day.nextMonthDay,
-[data-theme="dark"] .flatpickr-day.flatpickr-disabled {
-    color: var(--text-tertiary);
-}
-
-.flatpickr-day.selected,
-.flatpickr-day.startRange,
-.flatpickr-day.endRange {
-    background: var(--accent);
-    border-color: var(--accent);
-    color: var(--bg-secondary);
-}
-
-.flatpickr-day.inRange {
-    background: var(--accent-light);
-    border-color: transparent;
-    box-shadow: -5px 0 0 var(--accent-light), 5px 0 0 var(--accent-light);
-}
-
 /* Экспорт — второстепенное действие, отбиваем его к правому краю строки,
    чтобы он не читался как часть контрола периода. */
 .control-group-button {
