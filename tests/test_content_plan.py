@@ -2145,6 +2145,39 @@ def test_approve_preview_origin_filter():
         assert c.get(url + '&origin=robot').status_code == 400
 
 
+def test_page_old_month_links_redirect_to_strip_dates():
+    """Месяц плана — полоса «Бар и период» (с 2026-11-01). Старые ссылки ?month=YYYY-MM (бот, агент,
+    закладки, ?open=) -> 302 с date_from/date_to месяца одним шагом, остальные параметры на месте;
+    сквозной вид (?state=overdue|failed без периода в адресе) — таблица, с периодом — календарь."""
+    calls = []
+    saved_render = rcp.render_template
+    rcp.render_template = lambda name, **ctx: calls.append(ctx.get('cp_view')) or 'ok'
+    try:
+        app = Flask('test_content_plan_links')
+        app.register_blueprint(content_plan_bp)
+        c = app.test_client()
+        r = c.get('/content-plan?month=2026-12&open=m1&origin=agent')
+        assert r.status_code == 302
+        assert r.headers['Location'].endswith(
+            '/content-plan?open=m1&origin=agent&date_from=2026-12-01&date_to=2026-12-31')
+        r = c.get('/content-plan/table?month=2026-02')
+        assert r.headers['Location'].endswith('/content-plan/table?date_from=2026-02-01&date_to=2026-02-28')
+        # Старый ?view=table и месяц — одним переходом.
+        r = c.get('/content-plan?view=table&month=2026-10&state=failed')
+        assert r.headers['Location'].endswith(
+            '/content-plan/table?state=failed&date_from=2026-10-01&date_to=2026-10-31')
+        # Сквозной вид — только без периода в адресе; с периодом — фильтр состояния в календаре.
+        assert c.get('/content-plan?state=overdue').headers['Location'].endswith('/content-plan/table?state=overdue')
+        r = c.get('/content-plan?state=overdue&month=2026-10')
+        assert r.headers['Location'].endswith('/content-plan?state=overdue&date_from=2026-10-01&date_to=2026-10-31')
+        assert c.get('/content-plan?state=overdue&date_from=2026-10-01&date_to=2026-10-31').status_code == 200
+        assert c.get('/content-plan?month=oops').headers['Location'].endswith('/content-plan')
+        assert c.get('/content-plan/table?state=failed').status_code == 200
+        assert calls == ['calendar', 'table']
+    finally:
+        rcp.render_template = saved_render
+
+
 def test_page_route_renders_template():
     calls = []
     saved_render = rcp.render_template
@@ -2162,9 +2195,12 @@ def test_page_route_renders_template():
             _skip('templates/content_plan.html ещё нет — настоящая отрисовка не проверена')
             return
         from werkzeug.routing import BuildError
+        from core.scope import init_scope
         app = Flask('test_content_plan_page_real', template_folder=os.path.join(REPO, 'templates'),
                     static_folder=os.path.join(REPO, 'static'))
         app.register_blueprint(content_plan_bp)
+        # Как в app.py: полоса «Бар и период» (core/scope.py) — шаблон объявляет её через kultura_strip.
+        init_scope(app)
         app.context_processor(lambda: {'current_user': USER})
         try:
             r = app.test_client().get('/content-plan')
@@ -2174,6 +2210,13 @@ def test_page_route_renders_template():
         assert r.status_code == 200
         html = r.get_data(as_text=True)
         assert 'Контент-план' in html and 'abc123' in html
+        # С 2026-11-01: общая карточка заголовка, под ней помесячная полоса «Бар и период» (будущие
+        # месяцы можно), под ней полоса раздела; своих стрелок месяца и меню бара нет.
+        assert 'id="kultura-strip" data-mode="monthly"' in html, 'нет помесячной полосы «Бар и период»'
+        assert '"allowFuture": true' in html, 'в полосе нельзя выбрать будущий месяц'
+        assert html.index('class="header-bar"') < html.index('id="kultura-strip"') < html.index('class="gh-scope gh-embed"')
+        for gone in ('id="cpPrev"', 'id="cpNext"', 'id="cpMonthBtn"', 'id="cpBarBtn"', 'class="gh-head"'):
+            assert gone not in html, gone
     finally:
         rcp.render_template = saved_render
         if saved_ext is None:

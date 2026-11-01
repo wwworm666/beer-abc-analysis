@@ -2,16 +2,18 @@
 
    Внешний вид повторяет /draft (static/draft/draft.css): тёплая палитра
    (фон #F7F5F1, белые карточки с границей #EAE6DF, текст #1D1A16), подписи и
-   текст — IBM Plex Sans, числа — IBM Plex Mono, карточки со скруглением 16px,
-   своя шапка вместо общей .header-bar.
+   текст — IBM Plex Sans, числа — IBM Plex Mono, карточки со скруглением 16px.
+   Карточка заголовка и полоса «Бар и период» — общие для сайта (shared/nav.html,
+   с 2026-11-01, план единого виджета): своей шапки у раздела больше нет.
 
    Токены `--gh-*` объявлены на `.gh-scope`, а не на body: полоса раздела
    встраивается и в /guests, где body свой. Страницы раздела ставят на body
    оба класса: `gh-page gh-scope`. Элементы, которые common.js добавляет в body
    сам (тосты, диалоги, подсказка, затемнения), тоже получают класс gh-scope.
 
-   Встроенная полоса (/guests): <div class="gh-scope gh-embed"> вокруг
-   shared/guest_hub_strip.html — правила `.gh-embed` подгоняют отступы.
+   Полоса раздела (вкладки и «требует внимания») на всех трёх страницах — в
+   <div class="gh-scope gh-embed"> вокруг shared/guest_hub_strip.html сразу под
+   общей полосой «Бар и период»; правила `.gh-embed` подгоняют отступы.
    Классы на <html>, которые ставит common.js: gh-lock (открыт слой —
    страница не прокручивается), gh-drawer-open (открыта выдвижная карточка —
    тосты уходят с её нижней панели).
@@ -118,12 +120,11 @@
     --gh-shadow-modal: 0 24px 64px rgba(28, 25, 23, .22);
     --gh-backdrop: rgba(28, 25, 23, .34);
 
-    /* радиусы: шапка/диалог 18, карточка 16, меню 14, бургер 13,
-       вложенное 12, плитка 10, поле 10, бейдж 6 */
+    /* радиусы: диалог 18, карточка 16, меню 14, вложенное 12, плитка 10,
+       поле 10, бейдж 6 */
     --gh-r-head: 18px;
     --gh-r-card: 16px;
     --gh-r-menu: 14px;
-    --gh-r-burger: 13px;
     --gh-r-in: 12px;
     --gh-r-tile: 10px;
     --gh-r-ctl: 10px;
@@ -192,13 +193,17 @@
 
 /* ==================== Каркас страницы ==================== */
 
-/* Общий каркас приложения на страницах раздела не нужен: своя шапка вместо
-   .header-bar, сайдбар открывается гамбургером из неё. Типографика и цвет
-   ссылок задаются внутри .gh-wrap, а не на body: сайдбар лежит в том же body,
-   и правило `body a` перекрасило бы всё меню (дефект ловили на /me). */
+/* Страницы раздела (/content-plan, /reviews) — на общем каркасе сайта, как /guests
+   и дашборд (план единого виджета, этап 5): карточка заголовка и полоса «Бар и
+   период» стоят в .container из shared/nav.html на том же месте и той же ширины,
+   что на других страницах, и при переходе между страницами не сдвигаются. Под
+   ними — .gh-wrap: полоса раздела и содержимое, без верхнего поля (отступ даёт
+   нижнее поле полосы «Бар и период», как на /guests). Типографика и цвет ссылок
+   задаются внутри .gh-wrap, а не на body: сайдбар лежит в том же body, и правило
+   `body a` перекрасило бы всё меню (дефект ловили на /me). */
 body.gh-page { background: var(--gh-bg); }
-body.gh-page .header-bar { display: none; }
-body.gh-page .container { padding: 0; }
+body.gh-page > .container { padding-bottom: 0; }
+body.gh-page .gh-wrap { padding-top: 0; }
 
 /* Пока открыт диалог или выдвижная карточка, страница под ними не скроллится. */
 html.gh-lock,
@@ -220,69 +225,6 @@ html.gh-lock body { overflow: hidden; }
     text-rendering: optimizeLegibility;
 }
 .gh-wrap ::selection { background: color-mix(in srgb, var(--gh-accent) 22%, transparent); }
-
-/* ==================== Шапка ==================== */
-
-.gh-head {
-    display: flex;
-    align-items: center;
-    gap: 13px;
-    background: var(--gh-card);
-    border: 1px solid var(--gh-line);
-    border-radius: var(--gh-r-head);
-    box-shadow: var(--gh-shadow);
-    padding: 11px 18px 11px 12px;
-    font-family: var(--gh-sans);
-    color: var(--gh-ink);
-}
-.gh-burger {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 3.5px;
-    width: 42px;
-    height: 42px;
-    border: none;
-    border-radius: var(--gh-r-burger);
-    background: var(--gh-accent);
-    cursor: pointer;
-    flex: none;
-    transition: background .15s ease;
-}
-.gh-burger:hover { background: var(--gh-accent-h); }
-.gh-burger:focus-visible { outline: 2px solid var(--gh-accent-ink); outline-offset: 2px; }
-.gh-burger span {
-    width: 16px;
-    height: 2px;
-    border-radius: 2px;
-    background: var(--gh-on-accent);
-}
-.gh-burger span:last-child { width: 10px; align-self: flex-start; margin-left: 13px; }
-.gh-title { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
-.gh-title-n {
-    font: 600 15px/1.2 var(--gh-sans);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-.gh-title-s {
-    font: 400 12px/1.2 var(--gh-sans);
-    color: var(--gh-ink4);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-.gh-logo {
-    font: 600 15px/1 var(--gh-mono);
-    letter-spacing: .4px;
-    white-space: nowrap;
-    flex: none;
-    color: var(--gh-ink);
-}
-.gh-logo i { color: var(--gh-accent); font-style: normal; }
-.gh-logo b { color: var(--gh-accent); font-weight: 600; animation: ghBlink .9s step-end infinite; }
-@keyframes ghBlink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
 
 /* ==================== Вкладки раздела и «требует внимания» ==================== */
 
@@ -381,12 +323,12 @@ html.gh-lock body { overflow: hidden; }
 .gh-attn-item.is-hot .gh-attn-n { color: var(--gh-t-ink); }
 .gh-attn.is-loading .gh-attn-n { color: var(--gh-faint); }
 
-/* Полоса, встроенная в чужую страницу (/guests: <div class="gh-scope gh-embed">).
-   Встаёт на место первой строки страницы (отступ сверху 18px — как был у
-   .guests-controls) и отделена линией: вкладки раздела — уровень выше, чем
-   переключатели периода и вкладки отчётов под ней, а по форме они похожи. */
+/* Полоса раздела под общей полосой «Бар и период» (<div class="gh-scope gh-embed">
+   на /content-plan, /reviews и /guests). Сверху без поля — отступ даёт нижнее поле
+   полосы «Бар и период»; снизу отделена линией: вкладки раздела — уровень выше,
+   чем фильтры страницы и вкладки отчётов под ней, а по форме они похожи. */
 .gh-embed .gh-strip {
-    margin-top: 18px;
+    margin-top: 0;
     padding-bottom: 14px;
     border-bottom: 1px solid var(--gh-rule);
 }
@@ -1474,7 +1416,10 @@ button.gh-toast-a {
     .gh-scope { --gh-ctl-h: 42px; }
 
     .gh-wrap { padding: 14px 16px calc(48px + env(safe-area-inset-bottom, 0px)); }
-    .gh-head { gap: 10px; padding: 9px 12px 9px 9px; }
+    /* Края содержимого — по краям карточки заголовка и полосы «Бар и период»:
+       поле .container на телефоне — 12px (static/dashboard/styles/base.css), уже
+       480px — 8px (static/dashboard/styles/mobile.css; правило — после этого блока). */
+    body.gh-page .gh-wrap { padding-top: 0; padding-left: 12px; padding-right: 12px; }
 
     /* Вкладки раздела — во всю ширину, счётчики — строкой ниже. */
     .gh-strip { flex-direction: column; align-items: stretch; }
@@ -1596,6 +1541,11 @@ button.gh-toast-a {
     .gh-toast { animation-name: ghToastInTop; }
     .gh-toast.is-out { transform: translateY(-6px); }
 }
+/* Узкий телефон: поле .container — 8px (static/dashboard/styles/mobile.css), края
+   содержимого раздела — по нему же, под краями карточки заголовка и полосы. */
+@media (max-width: 480px) {
+    body.gh-page .gh-wrap { padding-left: 8px; padding-right: 8px; }
+}
 @keyframes ghToastInTop {
     from { opacity: 0; transform: translateY(-8px); }
     to { opacity: 1; transform: none; }
@@ -1604,11 +1554,7 @@ button.gh-toast-a {
     from { opacity: .6; transform: translateY(24px); }
     to { opacity: 1; transform: none; }
 }
-@media (max-width: 640px) {
-    .gh-logo-tail { display: none; }
-}
-
 @media (prefers-reduced-motion: reduce) {
     .gh-drawer, .gh-modal, .gh-modal-box, .gh-backdrop, .gh-toast,
-    .gh-menu, .gh-menu-scrim, .gh-logo b { animation: none; }
+    .gh-menu, .gh-menu-scrim { animation: none; }
 }
