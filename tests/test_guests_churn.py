@@ -432,6 +432,15 @@ class TestDataTo(ChurnBase):
     def test_meta_without_receipts(self):
         self.assertIsNone(ga.data_to({'coverage_to': None}))
 
+    def test_page_opens_on_the_last_full_day(self):
+        """Период при открытии страницы — где последний полный день, а не «сегодня»."""
+        with mock.patch('core.msk_time.business_today', return_value=date(2026, 6, 1)):
+            self.assertEqual(ga.last_full_day(self.store), '2026-05-20',
+                             '1 июня: последний чек 20.05 — страница откроет май, а не пустой июнь')
+        with mock.patch('core.msk_time.business_today', return_value=date(2026, 5, 20)):
+            self.assertEqual(ga.last_full_day(self.store), '2026-05-19',
+                             'неполный сегодняшний день не считается')
+
 
 class TestEmptyStore(ChurnBase):
     GUESTS = {}
@@ -444,6 +453,7 @@ class TestEmptyStore(ChurnBase):
         period, meta = self.ctx()
         for group in ga.CHURN_GUEST_GROUPS:
             self.assertFalse(ga.churn_guests(self.store, period, meta, group)['total'], group)
+        self.assertIsNone(ga.last_full_day(self.store), 'без чеков страница откроет сегодня')
 
 
 class TestLtvOnDate(ChurnBase):

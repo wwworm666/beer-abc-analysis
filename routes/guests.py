@@ -93,8 +93,21 @@ def guests_page():
     Ключи витрины (bolshoy/ligovskiy/...) в контекст НЕ передаются: витринные
     отчёты получают их вместе с данными (например `venues` в ответе
     /api/guests/rfm), и второй список в шаблоне разъезжался бы с первым.
+
+    `last_full_day` — последний полный день данных: страница открывается на периоде,
+    где он лежит, а не на сегодняшнем (1-го числа сегодняшний месяц ещё пуст).
     """
-    return render_template('guests.html', app_version=APP_VERSION, bars=BARS)
+    return render_template('guests.html', app_version=APP_VERSION, bars=BARS,
+                           last_full_day=_page_last_full_day())
+
+
+def _page_last_full_day():
+    """Последний полный день данных для периода по умолчанию; витрина недоступна — None
+    (страница откроется на сегодняшнем периоде, как раньше)."""
+    try:
+        return ga.last_full_day(get_store())
+    except Exception:
+        return None
 
 
 # ------------------------------------------------------------------ отчёты
