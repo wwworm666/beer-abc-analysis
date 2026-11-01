@@ -580,8 +580,10 @@
     «Большой пр В.О.», имена KPI-целей) — это данные, а не выбор бара;
   - мёртвые шаблоны (`templates/discounts.html`, `templates/taps.html`,
     `templates/dashboard/components/{comment_section,export_buttons,stats_bar,venue_selector,week_selector}.html`,
-    `templates/shared/guest_hub_head.html`) — ни один не подключён; удаление — с согласия
-    владельца (песочница не дала удалить без него);
+    `templates/shared/guest_hub_head.html`) — ни один не подключён; владелец согласился удалить
+    (2026-11-01), но настройки разрешений сессии удаление файлов заблокировали — удалить отдельной
+    правкой (`git rm` восьми файлов; тест `tests/test_guest_hub_render.mjs` читает
+    `guest_hub_head.html` — заменить проверку на «файла нет»);
   - проверка всей ветки: pytest 2765 пройдено, 33 набора Node-тестов, охват MCP; обход 38 страниц
     на 1280 и 390 px в светлой и тёмной теме — ошибок страниц нет (в main было 4 — старый
     календарь), прокрутки вбок не больше, чем в main (вики и пользователи на телефоне — как
