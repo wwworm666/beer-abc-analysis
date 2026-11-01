@@ -1,5 +1,19 @@
 ﻿# Changelog
 
+### 2026-11-01 (10) — Этапы 4–5: сотрудники, зарплата, цели, график, «Мои смены», чистота на полосе
+
+План — `docs/planning/period-widget-rollout.md`, этапы 4 и 5 (контент-план и отзывы — отдельно).
+
+| Что | Почему | Где | Что сломается при неверной правке |
+|---|---|---|---|
+| «Сотрудники»: бар и период из полосы, анализ и сравнение считаются сразу (пауза 350 мс, устаревший ответ отбрасывается); список сотрудников — за период и бар полосы; Flatpickr и CDN убраны, Chart.js — локальная копия | Один выбор на сайт; ответ Р5 | `templates/employee.html`, `routes/employee.py`, `routes/pages.py`, `core/mcp/tools/staff.py` | Список сотрудников за свои 30 дней при другом периоде полосы — анализ «пустого» сотрудника |
+| «Расчёт ЗП»: помесячная полоса, расчёт сразу при открытии и смене месяца («Считаю зарплату за …»); выгрузка Excel и Google — в полосе, выключена до готового расчёта; «нет кассовых смен» — пояснение | Ответ Р5 | `templates/bonus.html` | — |
+| «Цели», «График», «Чистота»: месяц из полосы по рабочим суткам (в ночь на 1-е до 06:00 — ещё прошлый); график держит все точки и выделяет точку бара (Р9); у чистоты плитки — по точке бара (`totals_by_location`) | Р9; одно «сегодня» | `templates/goals.html`, `templates/schedule.html`, `static/js/schedule/*.js`, `templates/cleanliness.html`, `static/js/cleanliness/view.js`, `routes/cleanliness.py` | Месяц по часам устройства в ночь на 1-е — пустой новый месяц |
+| «Я»: общий заголовок и полоса; стрелка назад — прошлый (зарплатный) месяц; у месяца без снимка — понятная подпись (`refresh.month_buildable`) | Общий макет; `docs/me.md` | `templates/me.html`, `static/me/me.css`, `static/js/me/*.js`, `routes/me.py` | — |
+| Сервер: «сегодня» по рабочим суткам в часах ЗП, списке сотрудников, блюдах KPI, выгрузке ЗП и нагрузке графика; MCP `staff_employees_list` — `date_from`, `date_to`, `bar` | Наивная дата UTC сдвигала день данных | `core/shifts_manager.py`, `core/salary_payload.py`, `core/salary_scheduler.py`, `routes/employee.py`, `routes/schedule.py` | Ночные прогоны (07:00, 08:40 МСК) — прежний результат (тесты) |
+| Общий помощник тяжёлых страниц `KStripRunner` (считать сразу, пауза, отбрасывание устаревших ответов); выключенные кнопки полосы — общий вид | Одна реализация Р5 на все страницы | `static/js/shared/strip_runner.js`, `static/shared/period.css` | — |
+| Тесты и документация | Правило проекта | `tests/test_business_today_staff.py`, `tests/test_staff_pages_strip.py`, `tests/test_strip_runner.mjs`, `tests/test_schedule_strip_runtime.mjs`, `tests/test_cleanliness_strip_runtime.mjs`, `tests/test_bar_acceptance.py`, `tests/test_me_routes.py`; `docs/employee.md`, `goals.md`, `schedule.md`, `me.md`, `cleanliness.md`, `frontend.md`, `period-standard.md`, `lessons.md` | — |
+
 ### 2026-11-01 (9) — Этап 6: страницы «на сейчас» на общей полосе
 
 План — `docs/planning/period-widget-rollout.md`, этап 6. Режим «на сейчас»: период в полосе серый

@@ -32,9 +32,8 @@
         .form-group { display: flex; flex-direction: column; gap: 8px; }
         .form-group label { text-align: left; }
 
-        /* Выгрузка в полосе «Бар и период»: пока расчёт не готов, кнопки выключены. */
-        .ks .fb-ghost:disabled, .ks .fb-menu-item:disabled { opacity: 0.45; cursor: default; }
-        .ks .fb-ghost:disabled:hover { background: transparent; color: var(--text-secondary); }
+        /* Выгрузка в полосе «Бар и период»: пока расчёт не готов, кнопки выключены — вид
+           выключенной кнопки общий для полосы (static/shared/period.css). */
         /* «За ноябрь кассовых смен ещё нет» — не ошибка, а пояснение на месте расчёта. */
         .empty-message { display: none; text-align: center; color: var(--text-secondary); padding: 40px 32px; }
         .empty-message.active { display: block; }

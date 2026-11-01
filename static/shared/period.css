@@ -709,6 +709,19 @@
     background: transparent;
 }
 
+/* Кнопки страницы в полосе (выгрузка, синк, печать), пока действие недоступно — результат
+   ещё считается или идёт синк: видно, что нажать нельзя. */
+.ks .fb-ghost:disabled,
+.ks .fb-menu-item:disabled {
+    opacity: 0.45;
+    cursor: default;
+}
+
+.ks .fb-ghost:disabled:hover {
+    background: transparent;
+    color: var(--text-secondary);
+}
+
 /* Выбор применён ко всему сайту: короткая подсветка рамки полосы. */
 @keyframes ks-applied {
     0% { box-shadow: 0 0 0 0 var(--accent-light), var(--shadow-sm); border-color: var(--accent); }
