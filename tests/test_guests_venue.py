@@ -26,6 +26,7 @@ import os
 import sys
 import tempfile
 import unittest
+from datetime import date
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -78,8 +79,12 @@ class VenueBase(unittest.TestCase):
             except OSError:
                 pass
 
-    def ctx(self, period_type='month', anchor='2026-03-15', venue=None):
-        period = ga.resolve_period(period_type, anchor)
+    def ctx(self, period_type='month', anchor='2026-03-15', venue=None, rng=None):
+        """rng=('YYYY-MM-DD', 'YYYY-MM-DD') — свой отрезок дат, как из общей полосы сайта."""
+        if rng:
+            period = ga.period_from_range(date.fromisoformat(rng[0]), date.fromisoformat(rng[1]))
+        else:
+            period = ga.resolve_period(period_type, anchor)
         return period, ga.build_meta(self.store, period, venue)
 
 
@@ -102,7 +107,7 @@ class TestVenueParam(VenueBase):
 class TestGrowthAndActivity(VenueBase):
     def test_registrations_by_bar_add_up_to_network(self):
         """Регистрация — за баром первой покупки: по барам в сумме ровно сеть."""
-        period, meta = self.ctx('quarter', '2026-02-01')
+        period, meta = self.ctx(rng=('2026-01-01', '2026-03-31'))
         net = ga.base_growth(self.store, period, meta)['period']['registrations']
         per_bar = {v: ga.base_growth(self.store, period, meta, v)['period']['registrations']
                    for v in PHYSICAL_VENUES}
@@ -113,7 +118,7 @@ class TestGrowthAndActivity(VenueBase):
 
     def test_first_orders_are_first_check_in_this_bar(self):
         """Новый гость бара — первый чек В ЭТОМ баре, поэтому сумма по барам больше сети."""
-        period, meta = self.ctx('quarter', '2026-02-01')
+        period, meta = self.ctx(rng=('2026-01-01', '2026-03-31'))
         net = ga.base_growth(self.store, period, meta)['period']['first_orders']
         bolshoy = ga.base_growth(self.store, period, meta, 'bolshoy')['period']['first_orders']
         ligovskiy = ga.base_growth(self.store, period, meta, 'ligovskiy')['period']['first_orders']
@@ -151,16 +156,16 @@ class TestGrowthAndActivity(VenueBase):
 
     def test_churn_balance_holds_per_bar(self):
         """Отток (§17) по каждому бару: баланс сходится, «новый» — первый визит в бар."""
-        period, meta = self.ctx()
+        period, meta = self.ctx(rng=('2026-01-01', '2026-03-31'))
         for venue in (None,) + tuple(PHYSICAL_VENUES):
             for dead_days in ga.CHURN_DEAD_DAYS_CHOICES:
-                rows = ga.churn(self.store, period, meta, dead_days, 3, venue)['series']
+                rows = ga.churn(self.store, period, meta, dead_days, 'month', venue)['series']
                 for row in rows:
                     self.assertEqual(row['end_alive'], row['start_alive'] + row['new']
                                      + row['reactivated'] - row['died'] - row['new_died'],
                                      (venue, dead_days, row))
         lig = {r['p_start'][:7]: r
-               for r in ga.churn(self.store, period, meta, 30, 3, 'ligovskiy')['series']}
+               for r in ga.churn(self.store, period, meta, 30, 'month', 'ligovskiy')['series']}
         self.assertEqual(lig['2026-01']['new'], 1, 'A — новый гость Лиговского в январе')
         self.assertEqual(lig['2026-02']['died'], 1, 'A не был в Лиговском с 20.01 — к 28.02 ушёл')
         self.assertEqual(lig['2026-03']['new'], 1, 'B')
@@ -223,7 +228,7 @@ class TestLtvProductsVenues(VenueBase):
         self.assertEqual(bol['by_venue'], [], 'сравнение баров — только для всей сети')
 
     def test_products_first_is_first_visit_to_the_bar(self):
-        period, meta = self.ctx('quarter', '2026-02-01')
+        period, meta = self.ctx(rng=('2026-01-01', '2026-03-31'))
         lig = {i['dish_name']: i['guests'] for i in
                ga.products(self.store, period, meta, 'first', venue='ligovskiy')['items']}
         self.assertEqual(lig, {'Пиво Б': 2, 'Сыр': 1},
@@ -237,7 +242,7 @@ class TestLtvProductsVenues(VenueBase):
 
     def test_products_top_and_order_of_ties(self):
         """Равные по главному показателю — по названию (детерминированный порядок)."""
-        period, meta = self.ctx('quarter', '2026-02-01')
+        period, meta = self.ctx(rng=('2026-01-01', '2026-03-31'))
         top = ga.products(self.store, period, meta, 'top', venue='bolshoy')['items']
         self.assertEqual([i['dish_name'] for i in top], ['Пиво А', 'Сыр'])
         first = ga.products(self.store, period, meta, 'first')['items']

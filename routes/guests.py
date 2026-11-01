@@ -6,8 +6,10 @@
 пользователю — тултипы и блок «Как считается» (static/js/guests/formulas.js).
 
 Параметры периода (одинаково у всех отчётных эндпоинтов):
-    ?period_type=week|month|quarter|year&anchor=YYYY-MM-DD
-anchor — любая дата внутри периода; дефолт: текущий календарный месяц.
+    ?date_from=YYYY-MM-DD&date_to=YYYY-MM-DD — любой отрезок, обе даты включительно (общая
+    полоса сайта «Бар и период», core/periods.parse_period; перевёрнутые даты — 400);
+    или по-старому ?period_type=week|month|year&anchor=YYYY-MM-DD (anchor — любая дата внутри
+    периода; квартал из старых ссылок — те же даты своим периодом); без них — текущий месяц.
 Бар (с 2026-09-29, у всех отчётов витрины, кроме «Не купивших» и карточки
 гостя): ?store=<ключ бара из PHYSICAL_VENUES> — отчёт считается только по чекам
 этого бара (правила — докстринг core/guest_analytics.py); без него или с
@@ -30,7 +32,7 @@ import threading
 from flask import Blueprint, Response, jsonify, render_template, request
 
 from core import guest_analytics as ga
-from core import guest_sync
+from core import guest_sync, periods
 from core.auth_guard import admin_required
 from core.guest_store import get_store
 from core.venues_config import PHYSICAL_VENUES, VENUES
@@ -51,17 +53,30 @@ def _churn_calc(fn, *args):
         return fn(*args)
 
 
+def _error(e):
+    """Ответ на исключение отчёта: неверный параметр (даты, шаг ряда) — 400, иначе 500."""
+    if isinstance(e, (periods.PeriodError, ga.ParamError)):
+        return jsonify({'error': str(e)}), 400
+    return jsonify({'error': f'{type(e).__name__}: {e}'}), 500
+
+
 def _ctx(by_venue=True):
     """Общий разбор параметров: (store, period, meta, venue).
 
-    store — витрина; venue — ключ бара из ?store= или None (вся сеть).
-    by_venue=False — отчёт на бары не делится (Orderia, карточка гостя): ?store=
-    не читается, и meta.venue = None честно говорит, что ответ по всей сети.
+    Период — ?date_from=&date_to= (общая полоса сайта; любой отрезок, шаг по границам,
+    ga.period_from_range) или ?period_type=&anchor= (старые ссылки и агенты). store — витрина;
+    venue — ключ бара из ?store= или None (вся сеть). by_venue=False — отчёт на бары не делится
+    (Orderia, карточка гостя): ?store= не читается, и meta.venue = None честно говорит, что ответ
+    по всей сети.
     """
     store = get_store()
-    period = ga.resolve_period(
-        request.args.get('period_type', 'month'),
-        request.args.get('anchor'))
+    # Свой отрезок полосы: обе даты включительно; одна из двух или перевёрнутые — PeriodError (400).
+    chosen = periods.parse_period({'date_from': request.args.get('date_from'),
+                                   'date_to': request.args.get('date_to')})
+    if chosen is not None:
+        period = ga.period_from_range(chosen.start, chosen.end)
+    else:
+        period = ga.resolve_period(request.args.get('period_type', 'month'), request.args.get('anchor'))
     venue = ga.resolve_venue(request.args.get('store')) if by_venue else None
     meta = ga.build_meta(store, period, venue)
     return store, period, meta, venue
@@ -94,11 +109,18 @@ def guests_page():
     отчёты получают их вместе с данными (например `venues` в ответе
     /api/guests/rfm), и второй список в шаблоне разъезжался бы с первым.
 
-    `last_full_day` — последний полный день данных: страница открывается на периоде,
-    где он лежит, а не на сегодняшнем (1-го числа сегодняшний месяц ещё пуст).
+    Бар и период — общая полоса сайта (templates/guests.html объявляет её через kultura_strip):
+    `last_full_day` — последний полный день данных (витрина с ночной загрузкой: «текущий»
+    месяц — по нему, 1-го числа — ещё прошлый, а не пустой), `coverage_from` — первый день
+    данных («Всё время» в быстром выборе и нижняя граница своего периода).
     """
+    coverage_from = None
+    try:
+        coverage_from = get_store().coverage().get('date_from')
+    except Exception:
+        coverage_from = None
     return render_template('guests.html', app_version=APP_VERSION, bars=BARS,
-                           last_full_day=_page_last_full_day())
+                           last_full_day=_page_last_full_day(), coverage_from=coverage_from)
 
 
 def _page_last_full_day():
@@ -124,7 +146,7 @@ def api_summary():
                            lambda: ga.summary(store, period, meta, venue))
         return jsonify({'meta': meta, 'data': data})
     except Exception as e:
-        return jsonify({'error': f'{type(e).__name__}: {e}'}), 500
+        return _error(e)
 
 
 @guests_bp.route('/api/guests/base-growth')
@@ -134,27 +156,28 @@ def api_base_growth():
         store, period, meta, venue = _ctx()
         return jsonify({'meta': meta, 'data': ga.base_growth(store, period, meta, venue)})
     except Exception as e:
-        return jsonify({'error': f'{type(e).__name__}: {e}'}), 500
+        return _error(e)
 
 
 @guests_bp.route('/api/guests/churn')
 def api_churn():
-    """Отток (§17, заменил §13 «Динамику базы»). ?dead_days=30|60|90|180&periods=N
+    """Отток (§17, заменил §13 «Динамику базы»). ?dead_days=30|60|90|180&step=day|week|month|year
 
-    Расчёт идёт сразу для всех четырёх порогов и кэшируется одной записью (кэш общий с
-    дорогими ответами дашборда — 64 ключа), а отдаётся только запрошенный порог: все
-    четыре не поместились бы в предел моста MCP. В ключе — последний полный день данных:
-    он сдвигается в 06:00 МСК и без нового синка.
+    Плитки — весь выбранный период, график — он же по шагам (без step — по длине периода,
+    ga.series_step). Расчёт идёт сразу для всех четырёх порогов и кэшируется одной записью (кэш
+    общий с дорогими ответами дашборда — 64 ключа), а отдаётся только запрошенный порог: все
+    четыре не поместились бы в предел моста MCP. В ключе — последний полный день данных: он
+    сдвигается в 06:00 МСК и без нового синка.
     """
     try:
         store, period, meta, venue = _ctx()
         dead_days = ga.parse_dead_days(request.args.get('dead_days'))
-        periods = ga.parse_series_len(request.args.get('periods'), period['type'])
-        full = cached_olap(_cache_key('churn', meta, periods, ga.data_to(meta)),
-                           lambda: _churn_calc(ga.churn_all, store, period, meta, periods, venue))
+        step = ga.series_step(period, request.args.get('step'))
+        full = cached_olap(_cache_key('churn', meta, step, ga.data_to(meta)),
+                           lambda: _churn_calc(ga.churn_all, store, period, meta, step, venue))
         return jsonify({'meta': meta, 'data': ga.churn_view(full, dead_days)})
     except Exception as e:
-        return jsonify({'error': f'{type(e).__name__}: {e}'}), 500
+        return _error(e)
 
 
 @guests_bp.route('/api/guests/churn-guests')
@@ -209,7 +232,7 @@ def api_churn_guests():
         data['limit'] = limit
         return jsonify({'meta': meta, 'data': data})
     except Exception as e:
-        return jsonify({'error': f'{type(e).__name__}: {e}'}), 500
+        return _error(e)
 
 
 @guests_bp.route('/api/guests/activity')
@@ -219,7 +242,7 @@ def api_activity():
         store, period, meta, venue = _ctx()
         return jsonify({'meta': meta, 'data': ga.activity(store, period, meta, venue)})
     except Exception as e:
-        return jsonify({'error': f'{type(e).__name__}: {e}'}), 500
+        return _error(e)
 
 
 @guests_bp.route('/api/guests/frequency')
@@ -229,7 +252,7 @@ def api_frequency():
         store, period, meta, venue = _ctx()
         return jsonify({'meta': meta, 'data': ga.frequency(store, period, meta, venue)})
     except Exception as e:
-        return jsonify({'error': f'{type(e).__name__}: {e}'}), 500
+        return _error(e)
 
 
 @guests_bp.route('/api/guests/cohorts/lifecycle')
@@ -237,11 +260,12 @@ def api_cohorts_lifecycle():
     """Когорты жизненного цикла от регистрации (ТЗ §2)."""
     try:
         store, period, meta, venue = _ctx()
-        data = cached_olap(_cache_key('lifecycle', meta),
-                           lambda: ga.lifecycle_cohorts(store, period, meta, venue=venue))
+        months = ga.cohort_months(period, meta)
+        data = cached_olap(_cache_key('lifecycle', meta, months[0], len(months)),
+                           lambda: ga.lifecycle_cohorts(store, period, meta, venue=venue, months=months))
         return jsonify({'meta': meta, 'data': data})
     except Exception as e:
-        return jsonify({'error': f'{type(e).__name__}: {e}'}), 500
+        return _error(e)
 
 
 @guests_bp.route('/api/guests/retention')
@@ -252,12 +276,13 @@ def api_retention():
         if basis not in ('first_order', 'registration'):
             basis = 'first_order'
         store, period, meta, venue = _ctx()
-        data = cached_olap(_cache_key('retention', meta, basis),
+        months = ga.cohort_months(period, meta)
+        data = cached_olap(_cache_key('retention', meta, basis, months[0], len(months)),
                            lambda: ga.cohort_retention(store, period, meta, basis,
-                                                       venue=venue))
+                                                       venue=venue, months=months))
         return jsonify({'meta': meta, 'data': data})
     except Exception as e:
-        return jsonify({'error': f'{type(e).__name__}: {e}'}), 500
+        return _error(e)
 
 
 @guests_bp.route('/api/guests/cohorts/revenue')
@@ -268,12 +293,13 @@ def api_cohorts_revenue():
         if basis not in ('registration', 'first_order'):
             basis = 'registration'
         store, period, meta, venue = _ctx()
-        data = cached_olap(_cache_key('cohort_rev', meta, basis),
+        months = ga.cohort_months(period, meta)
+        data = cached_olap(_cache_key('cohort_rev', meta, basis, months[0], len(months)),
                            lambda: ga.cohort_revenue(store, period, meta, basis,
-                                                     venue=venue))
+                                                     venue=venue, months=months))
         return jsonify({'meta': meta, 'data': data})
     except Exception as e:
-        return jsonify({'error': f'{type(e).__name__}: {e}'}), 500
+        return _error(e)
 
 
 def _rfm_list_filter():
@@ -352,22 +378,22 @@ def api_rfm():
                     f"attachment; filename=rfm_{meta['asof']}{suffix}.csv"})
         return jsonify({'meta': meta, 'data': data})
     except Exception as e:
-        return jsonify({'error': f'{type(e).__name__}: {e}'}), 500
+        return _error(e)
 
 
 @guests_bp.route('/api/guests/ltv')
 def api_ltv():
-    """LTV на дату (ТЗ §8): средний, из чего состоит, ряд по периодам, YTD, по точкам.
+    """LTV на дату (ТЗ §8): средний, из чего состоит, ряд по шагам выбранного периода, YTD, по точкам.
 
-    ?periods=N — длина ряда, как у оттока. Без кэша: ряд — один SQL по дням и
-    накопленные суммы.
+    ?step=day|week|month|year — шаг ряда, как у оттока (без него — по длине периода). Без кэша:
+    ряд — один SQL по дням и накопленные суммы.
     """
     try:
         store, period, meta, venue = _ctx()
-        periods = ga.parse_series_len(request.args.get('periods'), period['type'])
-        return jsonify({'meta': meta, 'data': ga.ltv(store, period, meta, venue, periods)})
+        step = ga.series_step(period, request.args.get('step'))
+        return jsonify({'meta': meta, 'data': ga.ltv(store, period, meta, venue, step)})
     except Exception as e:
-        return jsonify({'error': f'{type(e).__name__}: {e}'}), 500
+        return _error(e)
 
 
 @guests_bp.route('/api/guests/products')
@@ -382,7 +408,7 @@ def api_products():
                            lambda: ga.products(store, period, meta, mode, venue=venue))
         return jsonify({'meta': meta, 'data': data})
     except Exception as e:
-        return jsonify({'error': f'{type(e).__name__}: {e}'}), 500
+        return _error(e)
 
 
 @guests_bp.route('/api/guests/product-pairs')
@@ -398,7 +424,7 @@ def api_product_pairs():
                                                     venue=venue))
         return jsonify({'meta': meta, 'data': data})
     except Exception as e:
-        return jsonify({'error': f'{type(e).__name__}: {e}'}), 500
+        return _error(e)
 
 
 @guests_bp.route('/api/guests/venues')
@@ -410,7 +436,7 @@ def api_venues():
                            lambda: ga.venues_analytics(store, period, meta, venue))
         return jsonify({'meta': meta, 'data': data})
     except Exception as e:
-        return jsonify({'error': f'{type(e).__name__}: {e}'}), 500
+        return _error(e)
 
 
 @guests_bp.route('/api/guests/never')
@@ -445,7 +471,7 @@ def api_never_buyers():
                            lambda: ga.never_buyers(store, period, meta))
         return jsonify({'meta': meta, 'data': data})
     except Exception as e:
-        return jsonify({'error': f'{type(e).__name__}: {e}'}), 500
+        return _error(e)
 
 
 @guests_bp.route('/api/guests/search')
@@ -457,7 +483,7 @@ def api_search():
             return jsonify({'guests': []})
         return jsonify({'guests': ga.search_guests(get_store(), q)})
     except Exception as e:
-        return jsonify({'error': f'{type(e).__name__}: {e}'}), 500
+        return _error(e)
 
 
 @guests_bp.route('/api/guests/guest/<guest_id>')
@@ -471,7 +497,7 @@ def api_guest_card(guest_id):
             return jsonify({'error': 'Гость не найден'}), 404
         return jsonify({'meta': meta, 'data': data})
     except Exception as e:
-        return jsonify({'error': f'{type(e).__name__}: {e}'}), 500
+        return _error(e)
 
 
 # ------------------------------------------------------------------ сервис

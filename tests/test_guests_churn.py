@@ -19,13 +19,17 @@
 
 С 2026-10-30 — ущерб от оттока, «Стали ходить реже» (своя витрина SLOWING) и подсказка к
 порогу (паузы перед повторными визитами); ожидаемые числа сверены ручным расчётом.
+
+С 2026-11-01 период — любой отрезок дат (общая полоса сайта, ?date_from=&date_to=), а ряд —
+выбранный период по шагам (series_step, range_steps): март по умолчанию — по неделям, крайние
+недели обрезаны границами месяца. Кварталов нет: прежний «квартал» — свой отрезок дат.
 """
 
 import os
 import sys
 import tempfile
 import unittest
-from datetime import date
+from datetime import date, timedelta
 from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -84,14 +88,18 @@ class ChurnBase(unittest.TestCase):
             except OSError:
                 pass
 
-    def ctx(self, period_type='month', anchor='2026-03-15', venue=None):
-        period = ga.resolve_period(period_type, anchor)
+    def ctx(self, period_type='month', anchor='2026-03-15', venue=None, rng=None):
+        """rng=('YYYY-MM-DD', 'YYYY-MM-DD') — свой отрезок дат, как из общей полосы сайта."""
+        if rng:
+            period = ga.period_from_range(date.fromisoformat(rng[0]), date.fromisoformat(rng[1]))
+        else:
+            period = ga.resolve_period(period_type, anchor)
         return period, ga.build_meta(self.store, period, venue)
 
     def churn(self, dead_days=30, period_type='month', anchor='2026-03-15', venue=None,
-              periods=None):
-        period, meta = self.ctx(period_type, anchor, venue)
-        return ga.churn(self.store, period, meta, dead_days, periods, venue)
+              step=None, rng=None):
+        period, meta = self.ctx(period_type, anchor, venue, rng)
+        return ga.churn(self.store, period, meta, dead_days, step, venue)
 
 
 class TestMainNumbers(ChurnBase):
@@ -149,8 +157,9 @@ class TestMainNumbers(ChurnBase):
         self.assertIsNone(p['newbie_no_return_pct'], '31.03 + 60 = 30.05 — позже 20.05')
         self.assertEqual(p['newbie_matures_on'], '2026-05-30')
 
-    def test_quarter_new_guests_can_leave_in_the_same_period(self):
-        p = self.churn(30, 'quarter', '2026-02-01')['period']
+    def test_long_period_new_guests_can_leave_in_the_same_period(self):
+        """Свой отрезок 01.01–31.03 (прежний «I квартал»)."""
+        p = self.churn(30, rng=('2026-01-01', '2026-03-31'))['period']
         self.assertEqual(
             (p['start_alive'], p['died'], p['new'], p['new_died'], p['end_alive']),
             (1, 1, 6, 2, 4), 'E жив на 31.12 (пауза ровно 30) и ушёл; B и F новые и ушли')
@@ -176,36 +185,72 @@ class TestMainNumbers(ChurnBase):
         self.assertEqual((p['start_alive'], p['new']), (0, 1))
         self.assertIsNone(p['churn_pct'], '0 живых на начало — прочерк, а не 0%')
 
+    def test_series_is_the_chosen_period_by_steps(self):
+        """Март — по неделям (до 92 дней); 01.03 — воскресенье, 30–31.03 — начало недели."""
+        d = self.churn(30)
+        self.assertEqual(d['step'], 'week')
+        series = d['series']
+        self.assertEqual([(r['p_start'], r['p_end'], r['clipped']) for r in series], [
+            ('2026-03-01', '2026-03-01', True), ('2026-03-02', '2026-03-08', False),
+            ('2026-03-09', '2026-03-15', False), ('2026-03-16', '2026-03-22', False),
+            ('2026-03-23', '2026-03-29', False), ('2026-03-30', '2026-03-31', True)],
+            'крайние недели обрезаны границами месяца — и помечены')
+        self.assertEqual(series[0]['start_alive'], d['period']['start_alive'],
+                         'начало первой точки = начало периода')
+        self.assertEqual(series[-1]['end_alive'], d['period']['end_alive'],
+                         'конец последней точки = конец периода')
+        self.assertEqual(sum(r['new'] for r in series), d['period']['new'],
+                         'новые по точкам в сумме = плитка «Новые»')
+
     def test_series_order_and_trim(self):
-        series = self.churn(30)['series']
+        series = self.churn(30, rng=('2025-10-01', '2026-03-31'), step='month')['series']
         self.assertEqual([r['p_start'] for r in series],
                          ['2025-12-01', '2026-01-01', '2026-02-01', '2026-03-01'],
                          'от старых к новым, раньше первого чека витрины — ничего')
 
+    def test_previous_period_for_comparison(self):
+        """prev — прошлый такой же период у месяца, у своего отрезка — той же длины перед ним."""
+        self.assertEqual((self.churn(30)['prev']['p_start'], self.churn(30)['prev']['p_end']),
+                         ('2026-02-01', '2026-02-28'))
+        prev = self.churn(30, rng=('2026-03-10', '2026-03-31'))['prev']
+        self.assertEqual((prev['p_start'], prev['p_end']), ('2026-02-16', '2026-03-09'),
+                         '22 дня перед 10.03')
+        self.assertEqual(prev['end_alive'],
+                         self.churn(30, rng=('2026-03-10', '2026-03-31'))['period']['start_alive'],
+                         'конец прошлого = начало выбранного')
+
 
 class TestInvariants(ChurnBase):
     def test_balance_holds_in_every_row(self):
+        cases = (dict(period_type='week', anchor='2026-03-15'),
+                 dict(period_type='month', anchor='2026-05-15'),
+                 dict(period_type='year', anchor='2026-05-15'),
+                 dict(rng=('2026-01-01', '2026-05-31')),
+                 dict(rng=('2026-01-20', '2026-04-10'), step='day'))
         for dead_days in ga.CHURN_DEAD_DAYS_CHOICES:
-            for period_type, anchor in (('week', '2026-03-15'), ('month', '2026-05-15'),
-                                        ('quarter', '2026-05-15'), ('year', '2026-05-15')):
-                for row in self.churn(dead_days, period_type, anchor)['series']:
+            for case in cases:
+                d = self.churn(dead_days, **case)
+                for row in d['series'] + [d['period'], d['prev']]:
                     if row['state'] == 'future':
                         continue
                     self.assertEqual(row['end_alive'],
                                      row['start_alive'] + row['new'] + row['reactivated']
                                      - row['died'] - row['new_died'],
-                                     (dead_days, period_type, row))
+                                     (dead_days, case, row))
 
     def test_end_of_period_is_start_of_next(self):
+        # Дни — 120 точек (потолок SERIES_STEPS_MAX), недели и месяцы — вся история витрины.
+        ranges = {'day': ('2026-01-10', '2026-05-09'), 'week': ('2025-12-01', '2026-05-31'),
+                  'month': ('2025-12-01', '2026-05-31')}
         for dead_days in ga.CHURN_DEAD_DAYS_CHOICES:
-            for period_type in ('week', 'month', 'quarter'):
+            for step, rng in ranges.items():
                 for venue in (None, 'bolshoy'):
-                    rows = [r for r in self.churn(dead_days, period_type, '2026-05-15', venue,
-                                                  periods=60)['series']
+                    rows = [r for r in self.churn(dead_days, venue=venue, step=step,
+                                                  rng=rng)['series']
                             if r['state'] == 'complete']
                     for prev, nxt in zip(rows, rows[1:]):
                         self.assertEqual(prev['end_alive'], nxt['start_alive'],
-                                         (dead_days, period_type, venue, nxt['p_start']))
+                                         (dead_days, step, venue, nxt['p_start']))
 
     def test_x30_alive_is_active_and_new_is_first_orders(self):
         # И для закрытого месяца, и для неполного (май, срез 20.05): дата среза одна на все
@@ -236,12 +281,12 @@ class TestRetentionComplement(ChurnBase):
     """
 
     def test_both_tabs_agree_for_every_window(self):
-        for anchor in ('2026-03-15', '2026-05-15'):
+        for anchor, end in (('2026-03-15', '2026-03-31'), ('2026-05-15', '2026-05-31')):
             period, meta = self.ctx('month', anchor)
             cohorts = {c['cohort']: c
                        for c in ga.cohort_retention(self.store, period, meta)['cohorts']}
             for x in ga.CHURN_DEAD_DAYS_CHOICES:
-                for row in self.churn(x, 'month', anchor)['series']:
+                for row in self.churn(x, rng=('2025-12-01', end), step='month')['series']:
                     cohort = cohorts.get(row['p_start'][:7])
                     if cohort is None:
                         self.assertFalse(row['new'], (anchor, x, row['p_start']))
@@ -416,7 +461,8 @@ class TestVenue(ChurnBase):
         self.assertEqual((bol['state'], bol['asof']), ('complete', '2026-03-31'))
 
     def test_venue_series_starts_with_first_check_of_the_bar(self):
-        lig = self.churn(30, venue='ligovskiy')['series']
+        lig = self.churn(30, venue='ligovskiy', rng=('2026-01-01', '2026-03-31'),
+                         step='month')['series']
         self.assertEqual(lig[0]['p_start'], '2026-03-01', 'первый чек Лиговского — 15.03')
 
 
@@ -459,9 +505,9 @@ class TestEmptyStore(ChurnBase):
 class TestLtvOnDate(ChurnBase):
     """LTV на дату (§8): суммы по чекам не позже среза, LTV = средний чек × чеков на гостя."""
 
-    def ltv(self, anchor='2026-03-15', period_type='month', venue=None, periods=None):
-        period, meta = self.ctx(period_type, anchor, venue)
-        return ga.ltv(self.store, period, meta, venue, periods)
+    def ltv(self, anchor='2026-03-15', period_type='month', venue=None, step=None, rng=None):
+        period, meta = self.ctx(period_type, anchor, venue, rng)
+        return ga.ltv(self.store, period, meta, venue, step)
 
     def test_march_numbers_and_structure(self):
         d = self.ltv()
@@ -475,7 +521,8 @@ class TestLtvOnDate(ChurnBase):
         self.assertEqual(round(life['avg_check'] * life['checks_per_guest']), 2217)
 
     def test_series_and_decomposition(self):
-        rows = {r['p_start'][:7]: r for r in self.ltv()['series']}
+        rows = {r['p_start'][:7]: r
+                for r in self.ltv(rng=('2025-12-01', '2026-03-31'), step='month')['series']}
         feb, mar = rows['2026-02'], rows['2026-03']
         self.assertEqual((feb['ltv'], feb['avg_check'], feb['checks_per_guest']), (1600, 1000, 1.6))
         self.assertEqual((mar['delta'], mar['check_effect'], mar['frequency_effect']),
@@ -499,8 +546,16 @@ class TestLtvOnDate(ChurnBase):
                          'чек 10.04 не должен менять LTV на 31.03')
         self.assertEqual(after['by_venue'], before['by_venue'])
 
+    def test_series_by_weeks_of_the_month(self):
+        """Ряд — выбранный месяц по неделям; последняя точка — LTV на дату среза плиток."""
+        d = self.ltv()
+        self.assertEqual(d['step'], 'week')
+        self.assertEqual([r['p_start'] for r in d['series']][:2], ['2026-03-01', '2026-03-02'])
+        self.assertEqual(d['series'][-1]['ltv'], d['lifetime']['avg_ltv'])
+
     def test_partial_and_future_rows(self):
-        rows = {r['p_start'][:7]: r for r in self.ltv('2026-06-15')['series']}
+        rows = {r['p_start'][:7]: r
+                for r in self.ltv(rng=('2026-04-01', '2026-06-30'), step='month')['series']}
         self.assertEqual((rows['2026-05']['state'], rows['2026-05']['asof']),
                          ('partial', '2026-05-20'))
         self.assertEqual(rows['2026-06']['state'], 'future')
@@ -563,16 +618,31 @@ class TestParams(unittest.TestCase):
         for bad in (None, '', '45', 'abc', '30.5', '-30'):
             self.assertEqual(ga.parse_dead_days(bad), ga.CHURN_DEAD_DAYS_DEFAULT, bad)
 
-    def test_series_len(self):
-        self.assertEqual(ga.parse_series_len(None, 'month'), 24)
-        self.assertEqual(ga.parse_series_len('x', 'week'), 26)
-        self.assertEqual(ga.parse_series_len('', 'quarter'), 12)
-        self.assertEqual(ga.parse_series_len('1', 'month'), ga.CHURN_SERIES_MIN)
-        self.assertEqual(ga.parse_series_len('99999', 'year'), ga.CHURN_SERIES_MAX)
-        self.assertEqual(ga.parse_series_len('12', 'month'), 12)
-        self.assertEqual(ga.parse_series_len('120', 'month'), 120, 'больше 60 — для страницы')
-        for raw in ('all', 'ALL', ' all '):
-            self.assertEqual(ga.parse_series_len(raw, 'week'), ga.CHURN_SERIES_MAX, raw)
+    def test_series_step_by_length(self):
+        """Шаг по умолчанию: до 7 дней — дни, до 92 — недели, до 5 лет — месяцы, дальше годы."""
+        def step(start, end, raw=None):
+            return ga.series_step(ga.period_from_range(date.fromisoformat(start),
+                                                       date.fromisoformat(end)), raw)
+        self.assertEqual(step('2026-03-02', '2026-03-08'), 'day')
+        self.assertEqual(step('2026-03-02', '2026-03-09'), 'week', '8 дней')
+        self.assertEqual(step('2026-01-01', '2026-04-02'), 'week', '92 дня')
+        self.assertEqual(step('2026-01-01', '2026-04-03'), 'month', '93 дня')
+        self.assertEqual(step('2021-01-01', '2026-01-01'), 'month', '1 827 дней — пять лет')
+        self.assertEqual(step('2021-01-01', '2026-01-02'), 'year')
+        self.assertEqual(step('2026-01-01', '2026-12-31', 'week'), 'week', 'шаг из запроса')
+        for bad in ('quarter', 'x', '', None):
+            self.assertEqual(step('2026-03-01', '2026-03-31', bad), 'week', bad)
+
+    def test_too_many_steps_is_a_request_error(self):
+        """Ровно SERIES_STEPS_MAX точек — можно, на одну больше — ParamError (ответ 400)."""
+        start = date(2026, 1, 1)
+        edge = ga.period_from_range(start, start + timedelta(days=ga.SERIES_STEPS_MAX - 1))
+        self.assertEqual(len(ga.range_steps(edge, 'day')), ga.SERIES_STEPS_MAX)
+        over = ga.period_from_range(start, start + timedelta(days=ga.SERIES_STEPS_MAX))
+        with self.assertRaises(ga.ParamError) as caught:
+            ga.range_steps(over, 'day')
+        self.assertIn('Слишком много точек', str(caught.exception))
+        self.assertTrue(issubclass(ga.ParamError, ValueError))
 
 
 class RouteMixin:
@@ -596,6 +666,32 @@ class RouteMixin:
         super().tearDown()
 
 
+class TestCohortMonths(RouteMixin, ChurnBase):
+    """Когорты, «Возвраты» и тренд товаров — по месяцам выбранного периода (ответ владельца Р8)."""
+
+    def test_months_of_the_period(self):
+        period, meta = self.ctx(rng=('2026-01-10', '2026-03-31'))
+        self.assertEqual(ga.cohort_months(period, meta), ['2026-03', '2026-02', '2026-01'])
+
+    def test_one_month_falls_back_to_twelve(self):
+        """Таблица из одной когорты ничего не сравнивает — последние 12 месяцев."""
+        period, meta = self.ctx()
+        months = ga.cohort_months(period, meta)
+        self.assertEqual((len(months), months[0], months[-1]), (12, '2026-03', '2025-04'))
+
+    def test_months_stop_at_the_cut_off(self):
+        """Срез — последний полный день данных (20.05): месяцы после него — не когорты."""
+        period, meta = self.ctx(rng=('2026-04-01', '2026-12-31'))
+        self.assertEqual(ga.cohort_months(period, meta), ['2026-05', '2026-04'])
+
+    def test_route_shows_only_months_of_the_period(self):
+        response = self.client.get('/api/guests/retention', query_string={
+            'date_from': '2026-01-01', 'date_to': '2026-02-28'})
+        self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
+        cohorts = [c['cohort'] for c in response.get_json()['data']['cohorts']]
+        self.assertEqual(cohorts, ['2026-02', '2026-01'], 'C и F — январь, A и B — февраль')
+
+
 class TestChurnRoute(RouteMixin, ChurnBase):
     def get(self, **params):
         query = dict({'period_type': 'month', 'anchor': '2026-03-15'}, **params)
@@ -612,9 +708,10 @@ class TestChurnRoute(RouteMixin, ChurnBase):
         self.assertEqual(x60['choices'], list(ga.CHURN_DEAD_DAYS_CHOICES))
 
     def test_bad_params_fall_back(self):
-        d = self.get(dead_days='45', periods='много')
+        d = self.get(dead_days='45', step='quarter')
         self.assertEqual(d['dead_days'], 30)
-        self.assertEqual(len(d['series']), 4, 'длина по умолчанию, обрезанная началом витрины')
+        self.assertEqual((d['step'], len(d['series'])), ('week', 6),
+                         'неизвестный шаг — по длине периода: март по неделям')
 
     def test_heavy_calculations_run_one_at_a_time(self):
         """Шесть запросов вкладки разом не делят GIL: расчёт идёт под замком процесса."""
@@ -631,30 +728,62 @@ class TestChurnRoute(RouteMixin, ChurnBase):
 
         with mock.patch.object(ga, 'churn_all', spy_all), \
                 mock.patch.object(ga, 'churn_guests', spy_guests):
-            self.get(periods='5')
+            self.get(step='month')
             response = self.client.get('/api/guests/churn-guests', query_string={
                 'period_type': 'month', 'anchor': '2026-03-15', 'group': 'left'})
         self.assertEqual(response.status_code, 200)
         self.assertEqual(seen, [('churn_all', True), ('churn_guests', True)])
         self.assertFalse(self.rg._CHURN_CALC_LOCK.locked(), 'замок отпущен после расчёта')
 
-    def test_all_periods_is_whole_history(self):
-        """«Всё время»: ряд от первого чека витрины (01.12.2025), а не два года."""
-        self.assertEqual(len(self.get(periods='3')['series']), 3)
-        series = self.get(periods='all')['series']
-        self.assertEqual([r['p_start'] for r in series],
-                         ['2025-12-01', '2026-01-01', '2026-02-01', '2026-03-01'])
-        weeks = self.get(periods='all', period_type='week')['series']
-        self.assertEqual((weeks[0]['p_start'], len(weeks)), ('2025-12-01', 15),
-                         'недели с понедельника 01.12.2025 по неделю 09–15.03')
+    def range_get(self, path='/api/guests/churn', **params):
+        """Запрос со своим отрезком дат — как страница с общей полосой (без period_type)."""
+        response = self.client.get(path, query_string=params)
+        return response.status_code, response.get_json()
 
-    def test_ltv_route_reads_periods(self):
-        response = self.client.get('/api/guests/ltv', query_string={
-            'period_type': 'month', 'anchor': '2026-03-15', 'periods': '3'})
-        self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
-        series = response.get_json()['data']['series']
-        self.assertEqual([r['p_start'] for r in series],
+    def test_custom_range_is_the_chart(self):
+        """Свой отрезок 01.10.2025–31.03.2026: плитки — весь отрезок, график — он же по шагам."""
+        status, body = self.range_get(date_from='2025-10-01', date_to='2026-03-31')
+        self.assertEqual(status, 200, body)
+        d = body['data']
+        self.assertEqual((body['meta']['p_start'], body['meta']['p_end']),
+                         ('2025-10-01', '2026-03-31'))
+        self.assertEqual((d['period']['p_start'], d['period']['p_end']), ('2025-10-01', '2026-03-31'))
+        self.assertEqual((d['prev']['p_start'], d['prev']['p_end']), ('2025-04-02', '2025-09-30'),
+                         'прошлый — 182 дня перед выбранным')
+        self.assertEqual(d['step'], 'month', '182 дня — по месяцам')
+        self.assertEqual([r['p_start'] for r in d['series']],
+                         ['2025-12-01', '2026-01-01', '2026-02-01', '2026-03-01'],
+                         'месяцы до первого чека витрины (01.12.2025) отброшены')
+        status, body = self.range_get(date_from='2025-10-01', date_to='2026-03-31', step='week')
+        weeks = body['data']['series']
+        self.assertEqual((weeks[0]['p_start'], weeks[-1]['p_start'], weeks[-1]['p_end'], len(weeks)),
+                         ('2025-12-01', '2026-03-30', '2026-03-31', 18),
+                         'недели с понедельника 01.12.2025; последняя обрезана 31.03')
+        self.assertTrue(weeks[-1]['clipped'])
+
+    def test_range_errors_are_400(self):
+        status, body = self.range_get(date_from='2026-03-31', date_to='2026-03-01')
+        self.assertEqual(status, 400)
+        self.assertIn('позже', body['error'])
+        status, body = self.range_get(date_from='2026-03-01')
+        self.assertEqual(status, 400, 'одна дата из двух')
+        status, body = self.range_get(date_from='2025-01-01', date_to='2026-05-20', step='day')
+        self.assertEqual(status, 400)
+        self.assertIn('Слишком много точек', body['error'])
+
+    def test_old_quarter_link_still_opens(self):
+        """Ссылка со старым period_type=quarter — те же даты своим периодом."""
+        d = self.get(period_type='quarter', anchor='2026-02-01')
+        self.assertEqual((d['period']['p_start'], d['period']['p_end']), ('2026-01-01', '2026-03-31'))
+        self.assertEqual(d['period']['new_died'], 2)
+
+    def test_ltv_route_reads_step(self):
+        status, body = self.range_get('/api/guests/ltv', date_from='2026-01-01',
+                                      date_to='2026-03-31', step='month')
+        self.assertEqual(status, 200, body)
+        self.assertEqual([r['p_start'] for r in body['data']['series']],
                          ['2026-01-01', '2026-02-01', '2026-03-01'])
+        self.assertEqual(body['data']['step'], 'month')
 
 
 class TestChurnGuests(ChurnBase):
