@@ -141,7 +141,7 @@ const percentInStackPlugin = {
         ctx.save();
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.font = '600 10px "IBM Plex Mono", "Courier New", monospace';
+        ctx.font = '600 10px "IBM Plex Mono", ui-monospace, monospace';
         ctx.fillStyle = '#fff';
         datasets.forEach((ds, di) => {
             const meta = chart.getDatasetMeta(di);

@@ -69,21 +69,21 @@ test('шаблон без наследования: свой title, общий n
 
 test('свои CSS и JS подключены с ?v={{ app_version }}, CSS страницы — последним', () => {
     const links = [...html.matchAll(/<link rel="stylesheet" href="([^"]+)">/g)].map((m) => m[1]);
+    // Общие стили тоже с меткой версии (2026-11-01): Caddy разрешает браузеру 30 дней не
+    // перепроверять /static/, и без метки телефон месяц жил бы со старыми стилями.
     assert.deepEqual(links, [
-        '/static/dashboard/styles/fonts.css',
-        '/static/dashboard/styles/variables.css',
-        '/static/dashboard/styles/base.css',
-        '/static/dashboard/styles/sidebar.css',
-        '/static/dashboard/styles/mobile.css',
-        '/static/logo.css',
+        '/static/dashboard/styles/fonts.css?v={{ app_version }}',
+        '/static/dashboard/styles/variables.css?v={{ app_version }}',
+        '/static/dashboard/styles/base.css?v={{ app_version }}',
+        '/static/dashboard/styles/sidebar.css?v={{ app_version }}',
+        '/static/dashboard/styles/mobile.css?v={{ app_version }}',
+        '/static/logo.css?v={{ app_version }}',
         '/static/receiving/review.css?v={{ app_version }}',
     ]);
     const scripts = [...html.matchAll(/<script src="([^"]+)"><\/script>/g)].map((m) => m[1]);
-    assert.deepEqual(scripts, ['/static/logo.js', '/static/js/receiving/review.js?v={{ app_version }}']);
+    assert.deepEqual(scripts, ['/static/logo.js?v={{ app_version }}', '/static/js/receiving/review.js?v={{ app_version }}']);
     for (const ref of [...links, ...scripts]) {
-        if (/\/static\/(receiving|js\/receiving)\//.test(ref)) {
-            assert.match(ref, /\?v=\{\{ app_version \}\}$/, `${ref} без кэш-бастинга`);
-        }
+        assert.match(ref, /\?v=\{\{ app_version \}\}$/, `${ref} без кэш-бастинга`);
     }
     assert.ok(!/<script>(?!\s*<\/script>)/.test(html), 'инлайновый скрипт в шаблоне');
     assert.ok(!/<style>/.test(html), 'инлайновые стили в шаблоне');

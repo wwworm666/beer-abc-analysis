@@ -11,7 +11,9 @@ Self-runnable: `py -3 tests/test_mobile_layout_browser.py` (совместимо
   строки (core/periods.period_title_compact, period_core.js), название не обрезано; у страницы
   «на сейчас» периода нет, бар — полным именем;
 - раздел «Гости»: строки счётчиков нет, числа — значками на вкладках;
-- «Маркетинг»: вкладки — одна строка с прокруткой вбок.
+- «Маркетинг»: вкладки — одна строка с прокруткой вбок;
+- шрифт сайта IBM Plex Mono загружен из лёгкого woff2, а не из TTF по 135 КБ (2026-11-01: на
+  телефоне владельца сайт шёл запасной «печатной машинкой»).
 На компьютере (1280 px) всё как было: полные подписи, строка счётчиков, значков нет.
 """
 
@@ -35,6 +37,7 @@ CHROMIUM = os.environ.get('STOCKS_TEST_CHROMIUM') or '/opt/pw-browsers/chromium'
 USER_ID = 7
 PAGE = """<!doctype html><html lang="ru"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/static/dashboard/styles/fonts.css">
 <link rel="stylesheet" href="/static/dashboard/styles/variables.css">
 <link rel="stylesheet" href="/static/dashboard/styles/base.css">
 <link rel="stylesheet" href="/static/dashboard/styles/sidebar.css">
@@ -131,6 +134,17 @@ def _scenario(sync_playwright, base):
         assert not _box(page, '#ks-bar-name')['shown']
         header = _box(page, '.header-bar')
         assert header['h'] <= 56, 'карточка заголовка на телефоне выше 52 px: %s' % header['h']
+        fonts = page.evaluate("""async () => {
+            await document.fonts.ready;
+            const faces = [...document.fonts].filter((f) => f.family.replace(/["']/g, '') === 'IBM Plex Mono');
+            const res = performance.getEntriesByType('resource').map((r) => r.name);
+            return {loaded: faces.filter((f) => f.status === 'loaded').map((f) => String(f.weight)),
+                    woff2: res.filter((n) => n.endsWith('.site.woff2')).length,
+                    ttf: res.filter((n) => n.endsWith('.ttf')).length,
+                    family: getComputedStyle(document.querySelector('#ks-period .kp-title-c')).fontFamily};
+        }""")
+        assert '400' in fonts['loaded'] and fonts['woff2'] >= 1 and fonts['ttf'] == 0, fonts
+        assert fonts['family'].startswith('"IBM Plex Mono"') and 'courier' not in fonts['family'].lower(), fonts
 
         # Длинный свой период и бар — короткие подписи, ничего не обрезано
         phone.add_cookies([
