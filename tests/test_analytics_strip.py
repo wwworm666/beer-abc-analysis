@@ -7,6 +7,9 @@
    нужно не меньше трёх недель); выбор за последний час и ссылка — сильнее правила.
 2. Маршруты /api/draft-kegs, /api/packaging, /api/kitchen принимают бар и ключом
    (ligovskiy -> «Лиговский» по таблице баров), имя iiko и '' работают как раньше.
+3. Ежемесячный отчёт (/monthly-report) — помесячная полоса: шаги месяц и год, без выбора —
+   последний закрытый месяц (в январе — декабрь прошлого года); своих списков года, месяца
+   ТОП-10 и бара у графиков нет.
 Сеть не трогается: загрузчики подменены, «сегодня» — 01.11.2026.
 
 Запуск:
@@ -137,6 +140,32 @@ class AbcRoutesBarTest(unittest.TestCase):
                     response = self.client.post(url, json=dict(self.PERIOD, bar=raw))
                 self.assertEqual(502, response.status_code, url)
                 loader.assert_called_once_with(expected, '2026-10-02', '2026-10-31')
+
+
+class MonthlyReportPageTest(StripPageTestCase):
+    def test_monthly_strip_without_own_selects(self):
+        html = self.page('/monthly-report')
+        cfg = strip_config(html)
+        self.assertEqual(('monthly', 'last_closed_month'), (cfg['mode'], cfg['step']))
+        self.assertEqual(['month', 'year'], cfg['steps'])
+        self.assertEqual({'start': '2026-10-01', 'end': '2026-10-31', 'step': 'month'}, cfg['period'],
+                         'без выбора — последний закрытый месяц')
+        for gone in ('id="mr-year"', 'id="mr-top-month"', 'mr-bar-select', '<select'):
+            self.assertNotIn(gone, html)
+        self.assertIn('id="mr-top-guests-sub"', html)
+
+    def test_january_opens_on_previous_year(self):
+        with patch('core.msk_time.business_today', return_value=date(2027, 1, 2)):
+            cfg = strip_config(self.page('/monthly-report'))
+        self.assertEqual({'start': '2026-12-01', 'end': '2026-12-31', 'step': 'month'}, cfg['period'])
+
+    def test_chosen_week_shows_its_month(self):
+        """Помесячная полоса показывает месяц выбранного (у недели — месяц четверга, ответ Р3)."""
+        self.client.set_cookie(scope.COOKIE_PERIOD, '7:2026-10-26_2026-11-01')
+        html = self.page('/monthly-report')
+        cfg = strip_config(html)
+        self.assertEqual({'start': '2026-10-01', 'end': '2026-10-31', 'step': 'month'}, cfg['period'])
+        self.assertIn('по месяцам — показан октябрь 2026', html)
 
 
 if __name__ == '__main__':

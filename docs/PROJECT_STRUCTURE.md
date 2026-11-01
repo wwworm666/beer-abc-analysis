@@ -53,7 +53,8 @@ beer-abc-analysis/
 │                           #   test_docs_secrets_moved.py; приёмка на РЦ: test_receiving_*.py,
 │                           #   test_receiving_*.mjs, fixtures/receiving_codes.json (паритет Python/JS);
 │                           #   аналитика на полосе «Бар и период»: test_analytics_strip.py,
-│                           #   abc_strip_stub.mjs (не тест: полоса для test_{draft,packaging,kitchen}_runtime.mjs);
+│                           #   test_explorer_runtime.mjs, test_monthly_report_scope.mjs, abc_strip_stub.mjs
+│                           #   (не тест: полоса для test_{draft,packaging,kitchen,explorer}_runtime.mjs);
 │                           #   conftest.py — пустые боевые токены
 │                           #   для каждого прогона pytest)
 ├── docs/                   # Документация проекта (SoT)
