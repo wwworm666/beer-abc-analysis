@@ -790,9 +790,11 @@
             onError: (error) => {
                 if (error.noData) {
                     const current = K.currentPeriod('month');
+                    // Сервер отвечает 404 и когда смен нет, и когда iiko не ответил на вход —
+                    // поэтому «iiko не вернул», а не «смен нет».
                     showEmpty(error.month.from === current.start
-                        ? 'За ' + error.month.phrase + ' кассовых смен в iiko ещё нет — расчёт появится после первой закрытой смены. Прошлый месяц — стрелкой назад в полосе.'
-                        : 'За ' + error.month.phrase + ' кассовых смен в iiko нет — считать нечего.');
+                        ? 'За ' + error.month.phrase + ' iiko не вернул кассовых смен: в начале месяца их ещё нет — расчёт появится после первой закрытой смены. Прошлый месяц — стрелкой назад в полосе.'
+                        : 'За ' + error.month.phrase + ' iiko не вернул кассовых смен — расчёта нет.');
                     return;
                 }
                 console.error('Error:', error);
