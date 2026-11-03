@@ -127,12 +127,17 @@ DASHBOARD_FRONTEND_KEYS = {
     'nocard_checks': 'nocardChecks',
     'card_checks_share': 'cardChecksShare',
     'card_revenue': 'cardRevenue',
-    'nocard_revenue': 'nocardRevenue'
+    'nocard_revenue': 'nocardRevenue',
+    # Крепкий алкоголь (2026-11-03): группа «Крепкий алкоголь» на дашборде
+    'strong_share': 'strongShare',
+    'strong_revenue': 'revenueStrong',
+    'strong_markup': 'markupStrong'
 }
 
 # Наценка в расчёте — дробь (2.2448 = 224.48 %), в планах и на экране — проценты.
 # Множитель 100 применяется ровно к этим ключам и ровно здесь.
-MARKUP_FRONTEND_KEYS = ('markupPercent', 'markupDraft', 'markupPackaged', 'markupKitchen')
+MARKUP_FRONTEND_KEYS = ('markupPercent', 'markupDraft', 'markupPackaged', 'markupKitchen',
+                        'markupStrong')
 
 
 def map_dashboard_metrics(metrics):
@@ -816,7 +821,7 @@ def plans_export():
     """
     Экспорт всех планов одним flat-листом xlsx.
 
-    Возвращает xlsx со строками `<period> × <venue>` и 16 метриками в столбцах.
+    Возвращает xlsx со строками `<period> × <venue>` и метриками PLAN_SCHEMA в столбцах.
     Источник данных — plansdashboard.json (через plans_manager.get_all_plans()).
     Сортировка: Period ASC, Venue ASC.
     """
@@ -858,6 +863,11 @@ def plans_export():
             # План доли чеков с картой (2026-09-05): у старых месяцев подставлен дефолт
             # PLAN_DEFAULTS через get_all_plans, поэтому колонка всегда заполнена.
             'cardChecksShare': 'Доля чеков с картой (%)',
+            # Крепкий алкоголь (2026-11-03): у месяцев без плана — 0 (PLAN_DEFAULTS,
+            # «план не задан»).
+            'strongShare': 'Доля крепкого алкоголя (%)',
+            'revenueStrong': 'Выручка крепкий алкоголь (₽)',
+            'markupStrong': 'Наценка крепкий алкоголь (%)',
         }
 
         rows = []

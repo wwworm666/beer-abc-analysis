@@ -75,7 +75,11 @@ class PlansManager:
         'markupKitchen': (float, int),
         'loyaltyWriteoffs': (float, int),
         'tapActivity': (float, int),
-        'cardChecksShare': (float, int)
+        'cardChecksShare': (float, int),
+        # Крепкий алкоголь (2026-11-03): доля выручки, %; выручка, ₽; наценка, %.
+        'strongShare': (float, int),
+        'revenueStrong': (float, int),
+        'markupStrong': (float, int)
     }
 
     # Необязательные поля схемы и их значения по умолчанию.
@@ -85,7 +89,24 @@ class PlansManager:
     # старые клиенты/скрипты без поля получают дефолт на чтении (with_defaults) и при
     # сохранении (save_plan). Фронт-зеркало - константа в
     # static/js/dashboard/modules/plans.js.
-    PLAN_DEFAULTS = {'cardChecksShare': 70.0}
+    #
+    # strongShare / revenueStrong / markupStrong - план группы «Крепкий алкоголь»
+    # (2026-11-03). Категория есть не у всех баров (с 09.10.2026 только на Лиговском),
+    # поэтому поля необязательные, и дефолт 0 = «план не задан»: карточка показывает
+    # «План не задан» (план 0 на экране = нет плана), доля 0 не меняет сумму долей
+    # старых планов.
+    PLAN_DEFAULTS = {
+        'cardChecksShare': 70.0,
+        'strongShare': 0.0,
+        'revenueStrong': 0.0,
+        'markupStrong': 0.0,
+    }
+
+    # Доли выручки, которые вместе дают 100 ± 1 % (проверка _validate_plan_data).
+    SHARE_FIELDS = ('draftShare', 'packagedShare', 'kitchenShare', 'strongShare')
+
+    # Поля плана в процентах от целого: не больше 100.
+    PERCENT_OF_WHOLE_FIELDS = ('cardChecksShare', 'strongShare')
 
     # Ключ месячного плана: <venue>_<YYYY-MM> (bolshoy_2026-05, легаси all_2025-09).
     # Прочие ключи (недельные вида 2025-11-17_2025-11-23) миграция дефолтов пропускает.
@@ -308,19 +329,16 @@ class PlansManager:
             if value < 0:
                 raise ValueError(f"Field '{field}' cannot be negative: {value}")
 
-            # Доля чеков с картой - процент от всех чеков: не больше 100
-            # (отрицательное отсечено выше)
-            if field == 'cardChecksShare' and value > 100:
+            # Доля чеков с картой и доля крепкого алкоголя - проценты от целого:
+            # не больше 100 (отрицательное отсечено выше)
+            if field in self.PERCENT_OF_WHOLE_FIELDS and value > 100:
                 raise ValueError(
-                    f"Field 'cardChecksShare' is a percent and must be within 0..100, got {value}"
+                    f"Field '{field}' is a percent and must be within 0..100, got {value}"
                 )
 
-        # Проверяем что сумма долей примерно равна 100%
-        shares_sum = (
-            plan_data['draftShare'] +
-            plan_data['packagedShare'] +
-            plan_data['kitchenShare']
-        )
+        # Проверяем что сумма долей примерно равна 100%: розлив + фасовка + кухня
+        # + крепкий алкоголь (с 2026-11-03; у старых планов его доля 0 - сумма прежняя).
+        shares_sum = sum(plan_data.get(field) or 0 for field in self.SHARE_FIELDS)
 
         # Допускаем погрешность ±1% (из-за округления)
         if not (99.0 <= shares_sum <= 101.0):
@@ -711,21 +729,32 @@ class PlansManager:
             # Абсолютные метрики (суммируются пропорционально)
             absolute_metrics = [
                 'revenue', 'profit', 'checks', 'loyaltyWriteoffs',
-                'revenueDraft', 'revenuePackaged', 'revenueKitchen'
+                'revenueDraft', 'revenuePackaged', 'revenueKitchen', 'revenueStrong'
             ]
 
             # Относительные метрики (усредняются с весом).
             # cardChecksShare у месяца без поля = PLAN_DEFAULTS (get_plan -> with_defaults),
             # поэтому такой месяц не пропускается и среднее не размывается.
+            # strongShare - как остальные доли, с нулями: у бара и месяца без крепкого
+            # алкоголя его доля и правда 0 (сеть: 3% Лиговского и 0 у трёх баров = 0,75%).
             relative_metrics = [
                 'averageCheck', 'draftShare', 'packagedShare', 'kitchenShare',
                 'markupPercent', 'markupDraft', 'markupPackaged', 'markupKitchen',
-                'tapActivity', 'cardChecksShare'
+                'tapActivity', 'cardChecksShare', 'strongShare'
             ]
+
+            # Относительные метрики, которые усредняются ТОЛЬКО по месяцам и барам, где
+            # они запланированы (> 0). Наценка крепкого 0 = «не задана», а не «наценка
+            # 0%»: среднее с нулями баров без крепкого занизило бы план сети (один бар
+            # из четырёх - вчетверо). Это совпадает с агрегатом по себестоимости: бар
+            # без крепкого не даёт ни выручки, ни себестоимости крепкого.
+            planned_only_metrics = ['markupStrong']
 
             # Инициализация результата
             result = {metric: 0.0 for metric in absolute_metrics}
             weighted_sums = {metric: 0.0 for metric in relative_metrics}
+            planned_sums = {metric: 0.0 for metric in planned_only_metrics}
+            planned_weights = {metric: 0.0 for metric in planned_only_metrics}
             total_weight = 0.0
             months_found = 0
 
@@ -761,6 +790,12 @@ class PlansManager:
                             if metric in month_plan:
                                 weighted_sums[metric] += month_plan[metric] * weight
 
+                        for metric in planned_only_metrics:
+                            value = month_plan.get(metric)
+                            if isinstance(value, (int, float)) and value > 0:
+                                planned_sums[metric] += value * weight
+                                planned_weights[metric] += weight
+
             if months_found == 0:
                 print(f"[PLANS] Нет месячных планов для периода {start_date_str} - {end_date_str}")
                 return None
@@ -769,6 +804,9 @@ class PlansManager:
             if total_weight > 0:
                 for metric in relative_metrics:
                     result[metric] = weighted_sums[metric] / total_weight
+            for metric in planned_only_metrics:
+                result[metric] = (planned_sums[metric] / planned_weights[metric]
+                                  if planned_weights[metric] > 0 else 0.0)
 
             # Округляем значения
             for key in result:

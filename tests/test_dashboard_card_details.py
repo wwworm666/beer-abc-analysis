@@ -74,6 +74,7 @@ def olap_row(order_id, store, day, dish, category, revenue, cost, units=1, disco
 
 
 DRAFT, BOTTLES, KITCHEN, OTHER = "Напитки Розлив", "Напитки Фасовка", "ЕДА", "Чай/Кофе"
+STRONG = "Крепкий алкоголь"
 LIG, KREM = "Лиговский", "Кременчугская"
 CARD_1, CARD_2 = "79161234567", "100001"
 
@@ -167,6 +168,11 @@ class RegistryAndInvariants(unittest.TestCase):
         ("cardChecksShare", "revenue_split"): ("total_revenue", "money"),
         ("cardChecksShare", "guests"): ("card_checks", "number"),
         ("cardChecksShare", "stores"): ("card_checks_share", "percent"), ("cardChecksShare", "days"): ("card_checks_share", "percent"),
+        # Крепкий алкоголь (2026-11-03): в этой фикстуре его нет - итоги нули, но связка
+        # «секция -> ключ карточки» проверена; ненулевые числа - tests/test_dashboard_strong_alcohol.py.
+        ("revenueStrong", "top_revenue"): ("strong_revenue", "money"), ("revenueStrong", "days"): ("strong_revenue", "money"),
+        ("strongShare", "top_units"): ("units:" + STRONG, "number"),
+        ("markupStrong", "top_margin"): ("strong_margin", "money"), ("markupStrong", "low_markup"): ("strong_markup", "markup"),
     }
 
     def test_sections_sum_to_total_and_total_equals_card(self):

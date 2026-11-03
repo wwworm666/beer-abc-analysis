@@ -8,11 +8,15 @@ class DashboardMetrics:
     """Класс для расчета всех метрик дашборда из сырых OLAP данных"""
 
     # Значения DishGroup.TopParent («Группа блюда 1-го уровня» в iiko).
-    # Кухня = строго группа «ЕДА»; всё, что не попало в три именованные
-    # категории (НАБОРЫ, Чай/Кофе, Газ и Пэт, ...), уходит в «Прочее».
+    # Кухня = строго группа «ЕДА»; всё, что не попало в четыре именованные
+    # категории (НАБОРЫ, Чай/Кофе, Газ и Пэт, Сервисный сбор, ...), уходит в «Прочее».
     TOP_PARENT_DRAFT = 'Напитки Розлив'
     TOP_PARENT_BOTTLES = 'Напитки Фасовка'
     TOP_PARENT_KITCHEN = 'ЕДА'
+    # Крепкий алкоголь (с 2026-11-03): группа iiko «Крепкий алкоголь» — порции виски,
+    # рома, водки, мескаля, портвейна и вина. Продаётся с 09.10.2026 только на
+    # Лиговском; до 2026-11-03 её строки молча уходили в «Прочее».
+    TOP_PARENT_STRONG = 'Крепкий алкоголь'
 
     def __init__(self):
         """Инициализация калькулятора метрик"""
@@ -21,7 +25,8 @@ class DashboardMetrics:
     def calculate_metrics(self, all_sales_data):
         """
         Рассчитать все метрики из комплексных OLAP данных.
-        Один запрос содержит все категории (розлив + фасовка + кухня + прочее).
+        Один запрос содержит все категории (розлив + фасовка + кухня + крепкий
+        алкоголь + прочее).
 
         Args:
             all_sales_data: dict - сырой ответ от get_all_sales_report()
@@ -30,11 +35,14 @@ class DashboardMetrics:
                 - "Напитки Розлив" - разливное
                 - "Напитки Фасовка" - фасовка
                 - "ЕДА" - кухня
+                - "Крепкий алкоголь" - крепкий алкоголь (strong_*)
                 - прочие (НАБОРЫ, Чай/Кофе, Газ и Пэт, ...) - «Прочее»
 
         Returns:
             dict с метриками. Категория «Прочее» (other_*) считается,
-            но на дашборде пока не отображается (нет в get_table_data).
+            но на дашборде не отображается (нет в get_table_data).
+            Пять категорий не пересекаются: их выручки и маржи в сумме дают
+            total_revenue и total_margin, доли - 100%.
         """
 
         # Извлекаем все записи
@@ -44,6 +52,7 @@ class DashboardMetrics:
         draft_records = []
         bottles_records = []
         kitchen_records = []
+        strong_records = []
         other_records = []
 
         for record in all_records:
@@ -54,22 +63,26 @@ class DashboardMetrics:
                 bottles_records.append(record)
             elif category == self.TOP_PARENT_KITCHEN:
                 kitchen_records.append(record)
+            elif category == self.TOP_PARENT_STRONG:
+                strong_records.append(record)
             else:
                 other_records.append(record)
 
-        # 1-4. Выручка по категориям
+        # 1-5. Выручка по категориям
         draft_revenue = self._sum_revenue(draft_records)
         bottles_revenue = self._sum_revenue(bottles_records)
         kitchen_revenue = self._sum_revenue(kitchen_records)
+        strong_revenue = self._sum_revenue(strong_records)
         other_revenue = self._sum_revenue(other_records)
 
-        total_revenue = draft_revenue + bottles_revenue + kitchen_revenue + other_revenue
+        total_revenue = draft_revenue + bottles_revenue + kitchen_revenue + strong_revenue + other_revenue
 
-        # 5-8. Доли категорий (%). Сумма четырёх долей = 100%,
-        # но на экране показываются только розлив/фасовка/кухня.
+        # Доли категорий (%). Сумма пяти долей = 100%; на экране — розлив,
+        # фасовка, кухня и крепкий алкоголь, «Прочее» — только в деталях карточек.
         draft_share = (draft_revenue / total_revenue * 100) if total_revenue > 0 else 0
         bottles_share = (bottles_revenue / total_revenue * 100) if total_revenue > 0 else 0
         kitchen_share = (kitchen_revenue / total_revenue * 100) if total_revenue > 0 else 0
+        strong_share = (strong_revenue / total_revenue * 100) if total_revenue > 0 else 0
         other_share = (other_revenue / total_revenue * 100) if total_revenue > 0 else 0
 
         # Количество чеков - считаем из уже полученных данных (без дополнительного OLAP запроса)
@@ -82,6 +95,7 @@ class DashboardMetrics:
         draft_markup = self._calculate_markup(draft_records)
         bottles_markup = self._calculate_markup(bottles_records)
         kitchen_markup = self._calculate_markup(kitchen_records)
+        strong_markup = self._calculate_markup(strong_records)
         other_markup = self._calculate_markup(other_records)
 
         # Средняя наценка по всем записям (включая «Прочее») —
@@ -92,8 +106,9 @@ class DashboardMetrics:
         draft_margin = self._sum_margin(draft_records)
         bottles_margin = self._sum_margin(bottles_records)
         kitchen_margin = self._sum_margin(kitchen_records)
+        strong_margin = self._sum_margin(strong_records)
         other_margin = self._sum_margin(other_records)
-        total_margin = draft_margin + bottles_margin + kitchen_margin + other_margin
+        total_margin = draft_margin + bottles_margin + kitchen_margin + strong_margin + other_margin
 
         # Списания баллов (сумма скидок из DiscountSum)
         loyalty_points = self._sum_discounts(all_records)
@@ -119,27 +134,31 @@ class DashboardMetrics:
             'draft_share': round(draft_share, 2),
             'bottles_share': round(bottles_share, 2),
             'kitchen_share': round(kitchen_share, 2),
+            'strong_share': round(strong_share, 2),
             'other_share': round(other_share, 2),
 
             'draft_revenue': round(draft_revenue, 2),
             'bottles_revenue': round(bottles_revenue, 2),
             'kitchen_revenue': round(kitchen_revenue, 2),
+            'strong_revenue': round(strong_revenue, 2),
             'other_revenue': round(other_revenue, 2),
 
             'avg_markup': round(avg_markup, 4),
             'total_margin': round(total_margin, 2),
 
-            # Маржа по категориям (2026-09-04): сумма четырёх == total_margin.
+            # Маржа по категориям (2026-09-04): сумма пяти == total_margin.
             # Питает секцию «Прибыль по категориям» внутри карточки «Прибыль»
             # (core/dashboard_details.py); frontend_mapping лишние ключи игнорирует.
             'draft_margin': round(draft_margin, 2),
             'bottles_margin': round(bottles_margin, 2),
             'kitchen_margin': round(kitchen_margin, 2),
+            'strong_margin': round(strong_margin, 2),
             'other_margin': round(other_margin, 2),
 
             'draft_markup': round(draft_markup, 4),
             'bottles_markup': round(bottles_markup, 4),
             'kitchen_markup': round(kitchen_markup, 4),
+            'strong_markup': round(strong_markup, 4),
             'other_markup': round(other_markup, 4),
 
             'loyalty_points_written_off': loyalty_points,
@@ -191,7 +210,12 @@ class DashboardMetrics:
             {'metric': 'Чеки с картой', 'value': metrics['card_checks'], 'unit': 'шт', 'format': 'number'},
             {'metric': 'Чеки без карты', 'value': metrics['nocard_checks'], 'unit': 'шт', 'format': 'number'},
             {'metric': 'Доля чеков с картой', 'value': metrics['card_checks_share'], 'unit': '%', 'format': 'percent'},
-            {'metric': 'Выручка по картам', 'value': metrics['card_revenue'], 'unit': '₽', 'format': 'money'}
+            {'metric': 'Выручка по картам', 'value': metrics['card_revenue'], 'unit': '₽', 'format': 'money'},
+
+            # Крепкий алкоголь (2026-11-03) — в конце, чтобы прежние строки не сдвинулись.
+            {'metric': 'Доля крепкого алкоголя', 'value': metrics['strong_share'], 'unit': '%', 'format': 'percent'},
+            {'metric': 'Выручка крепкий алкоголь', 'value': metrics['strong_revenue'], 'unit': '₽', 'format': 'money'},
+            {'metric': 'Наценка крепкий алкоголь', 'value': metrics['strong_markup'], 'unit': '%', 'format': 'percent'}
         ]
 
         return table

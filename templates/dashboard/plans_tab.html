@@ -228,10 +228,14 @@
                             <input type="number" id="plan-packagedShare" class="form-input share-input" step="0.01" min="0" max="100">
                         </div>
                         <div class="form-group">
-                            <label>Кухня (%) <span class="auto-calc-badge">авто</span></label>
-                            <input type="number" id="plan-kitchenShare" class="form-input" step="0.01" min="0" max="100" readonly title="100 - розлив - фасовка">
+                            <label>Крепкий алкоголь (%)</label>
+                            <input type="number" id="plan-strongShare" class="form-input share-input" step="0.01" min="0" max="100" value="0" title="Доля выручки группы iiko «Крепкий алкоголь»; 0 — план не задан (бар без крепкого)">
                         </div>
                         <div class="form-group">
+                            <label>Кухня (%) <span class="auto-calc-badge">авто</span></label>
+                            <input type="number" id="plan-kitchenShare" class="form-input" step="0.01" min="0" max="100" readonly title="100 - розлив - фасовка - крепкий алкоголь">
+                        </div>
+                        <div class="form-group form-group-wide">
                             <label id="shares-sum-label" class="shares-sum">Сумма: 0%</label>
                         </div>
                     </div>
@@ -252,6 +256,10 @@
                         <div class="form-group">
                             <label>Кухня</label>
                             <input type="number" id="plan-revenueKitchen" class="form-input" step="0.01" min="0" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label>Крепкий алкоголь</label>
+                            <input type="number" id="plan-revenueStrong" class="form-input" step="0.01" min="0" readonly title="Выручка x доля крепкого алкоголя / 100">
                         </div>
                     </div>
                 </div>
@@ -275,6 +283,10 @@
                         <div class="form-group">
                             <label>Кухня (%)</label>
                             <input type="number" id="plan-markupKitchen" class="form-input" step="0.01" min="0">
+                        </div>
+                        <div class="form-group">
+                            <label>Крепкий алкоголь (%)</label>
+                            <input type="number" id="plan-markupStrong" class="form-input" step="0.01" min="0" value="0" title="Наценка крепкого алкоголя; обязательна, если задана его доля; 0 — план не задан">
                         </div>
                     </div>
                 </div>
@@ -818,6 +830,12 @@
 
 .shares-sum.error {
     color: var(--danger);
+}
+
+/* Подпись суммы долей — на всю строку под полями: с долей крепкого алкоголя (2026-11-03)
+   в ряду четыре поля, и подпись пятым элементом сжималась в узкую колонку. */
+.form-group-wide {
+    grid-column: 1 / -1;
 }
 
 /* Validation error */

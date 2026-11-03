@@ -184,7 +184,7 @@ class ComparisonModule {
         const container = document.getElementById('comparison-metrics-grid');
         if (!container) return;
 
-        const metrics = this.getMetricsConfig();
+        const metrics = this.visibleMetrics();
 
         container.innerHTML = metrics.map(metric => {
             const val1 = this.getMetricValue(this.period1Data, metric);
@@ -266,8 +266,24 @@ class ComparisonModule {
             { key: 'nocardChecks', altKey: 'nocard_checks', label: 'Чеки без карты', formatter: formatCount },
             { key: 'cardChecksShare', altKey: 'card_checks_share', label: 'Доля чеков с картой', formatter: formatPercent },
             { key: 'cardRevenue', altKey: 'card_revenue', label: 'Выручка по картам', formatter: formatMoney },
-            { key: 'tapActivity', altKey: 'tap_activity', label: 'Активность кранов', formatter: formatPercent }
+            { key: 'tapActivity', altKey: 'tap_activity', label: 'Активность кранов', formatter: formatPercent },
+            // Крепкий алкоголь (2026-11-03): optional — строка видна, только если хотя бы в
+            // одном периоде значение не ноль (как группа «Крепкий алкоголь» на «Аналитике»).
+            { key: 'revenueStrong', altKey: 'strong_revenue', label: 'Выручка крепкий алкоголь', formatter: formatMoney, optional: true },
+            { key: 'strongShare', altKey: 'strong_share', label: 'Доля крепкого алкоголя', formatter: formatPercent, optional: true },
+            { key: 'markupStrong', altKey: 'strong_markup', label: 'Наценка крепкий алкоголь', formatter: formatPercent, optional: true }
         ];
+    }
+
+    /**
+     * Метрики, которые показываются для выбранных периодов: необязательная (optional)
+     * скрыта, если в обоих периодах она равна нулю — у бара без крепкого алкоголя три
+     * строки «0 → 0» были бы шумом.
+     */
+    visibleMetrics() {
+        return this.getMetricsConfig().filter(metric => !metric.optional
+            || this.getMetricValue(this.period1Data, metric) !== 0
+            || this.getMetricValue(this.period2Data, metric) !== 0);
     }
 
     /**
@@ -366,7 +382,7 @@ class ComparisonModule {
         const tbody = document.getElementById('comparison-table-body');
         if (!tbody) return;
 
-        const metrics = this.getMetricsConfig();
+        const metrics = this.visibleMetrics();
 
         tbody.innerHTML = metrics.map(metric => {
             const val1 = this.getMetricValue(this.period1Data, metric);

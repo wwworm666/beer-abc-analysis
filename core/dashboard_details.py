@@ -81,7 +81,7 @@ METRIC_IDS = [
     'revenue', 'checks', 'averageCheck', 'markupPercent', 'draftShare', 'revenueDraft',
     'markupDraft', 'packagedShare', 'revenuePackaged', 'markupPackaged', 'kitchenShare',
     'revenueKitchen', 'markupKitchen', 'profit', 'loyaltyWriteoffs', 'tapActivity',
-    'cardChecksShare',
+    'cardChecksShare', 'revenueStrong', 'strongShare', 'markupStrong',
 ]
 
 # Ленивые секции: в bulk-ответе метрики отдаются заглушкой, грузятся по клику.
@@ -99,13 +99,21 @@ CATEGORIES = [
     ('draft', 'Розлив', DashboardMetrics.TOP_PARENT_DRAFT),
     ('bottles', 'Фасовка', DashboardMetrics.TOP_PARENT_BOTTLES),
     ('kitchen', 'Кухня', DashboardMetrics.TOP_PARENT_KITCHEN),
+    ('strong', 'Крепкий алкоголь', DashboardMetrics.TOP_PARENT_STRONG),
     ('other', 'Прочее', None),
 ]
 CATEGORY_LABEL = {key: label for key, label, _ in CATEGORIES}
 CATEGORY_TOP_PARENT = {key: top_parent for key, _label, top_parent in CATEGORIES}
 
+# Категории, строка которых в секциях «Категории» есть, только если за период у неё
+# были строки продаж. Крепкий алкоголь продаётся не во всех барах (с 09.10.2026 только
+# на Лиговском), и строка «0 ₽» у трёх баров из четырёх была бы шумом. Четыре прежние
+# категории показываются всегда, как до 2026-11-03.
+OPTIONAL_CATEGORIES = frozenset({'strong'})
+
 # Единица штук/порций в подписях по категории.
-UNIT_WORD = {'draft': 'порц.', 'bottles': 'шт', 'kitchen': 'порц.', 'other': 'шт', None: 'шт'}
+UNIT_WORD = {'draft': 'порц.', 'bottles': 'шт', 'kitchen': 'порц.', 'strong': 'порц.', 'other': 'шт',
+             None: 'шт'}
 
 _calc = DashboardMetrics()
 
@@ -325,6 +333,7 @@ class DetailsContext:
         self._by_day = None
         self._by_store = None
         self._dishes = {}
+        self._present = None
 
     # Дни периода включительно: делитель для средних по дням недели и правило «все дни».
     def period_days(self):
@@ -377,6 +386,13 @@ class DetailsContext:
         """Значение метрики категории из calculate_metrics: draft_revenue, bottles_markup, ..."""
         return self.metrics.get(f'{category}_{key}', 0.0)
 
+    def categories_shown(self):
+        """CATEGORIES без необязательных категорий, у которых за период нет ни одной строки."""
+        if self._present is None:
+            self._present = {category_of(record) for record in self.records}
+        return [entry for entry in CATEGORIES
+                if entry[0] not in OPTIONAL_CATEGORIES or entry[0] in self._present]
+
 
 # ---------- значения для групповых секций (дни, бары) ----------
 
@@ -386,6 +402,7 @@ GROUP_VALUES = {
     'checks': ('total_checks', 'number', True),
     'avg_check': ('avg_check', 'money', False),
     'kitchen_revenue': ('kitchen_revenue', 'money', True),
+    'strong_revenue': ('strong_revenue', 'money', True),
     'margin': ('total_margin', 'money', True),
     'discount': ('loyalty_points_written_off', 'money', True),
     'card_checks': ('card_checks', 'number', True),
@@ -399,6 +416,7 @@ GROUP_FORMULAS = {
     'checks': 'Чеки = число уникальных заказов (UniqOrderId.Id) в разрезе; чек принадлежит одному дню и бару, сумма = карточка',
     'avg_check': 'Средний чек = выручка разреза / чеки разреза. «Итого» - по всем чекам периода, не среднее строк',
     'kitchen_revenue': 'Выручка кухни = Σ DishDiscountSumInt по строкам группы «ЕДА» в разрезе',
+    'strong_revenue': 'Выручка крепкого алкоголя = Σ DishDiscountSumInt по строкам группы «Крепкий алкоголь» в разрезе',
     'margin': 'Прибыль = Σ (выручка - себестоимость) по строкам разреза; сумма строк = карточка',
     'discount': 'Списания = Σ DiscountSum по строкам разреза (все скидки чека, как и карточка)',
     'card_checks': 'Чек с картой = непустой номер карты лояльности хотя бы в одной строке чека',
@@ -424,6 +442,8 @@ def _group_sub(value, m, plan=None):
         return f"средний чек {_fmt_money(m['avg_check'])}"
     if value == 'kitchen_revenue':
         return f"{_fmt_pct(m['kitchen_share'])} выручки"
+    if value == 'strong_revenue':
+        return f"{_fmt_pct(m['strong_share'])} выручки"
     if value == 'margin':
         return f"наценка {_fmt_pct(m['avg_markup'] * 100)}"
     if value == 'card_checks':
@@ -529,11 +549,17 @@ def sec_stores(ctx, value='revenue'):
 # ---------- категории ----------
 
 def sec_categories(ctx, value='revenue', title='Категории'):
-    """Розлив / Фасовка / Кухня / Прочее: выручка, маржа, наценка или списания."""
+    """Розлив / Фасовка / Кухня / Крепкий алкоголь / Прочее: выручка, маржа, наценка или списания.
+
+    Строка «Крепкий алкоголь» есть, только если за период он продавался
+    (OPTIONAL_CATEGORIES); его выручка, маржа и скидки в этом случае и так нули,
+    поэтому сумма строк = карточка в обоих случаях.
+    """
     m = ctx.metrics
+    categories = ctx.categories_shown()
     items = []
     if value == 'discount':
-        for cat, label, _top in CATEGORIES:
+        for cat, label, _top in categories:
             items.append({'name': label, 'value': _calc._sum_discounts(_rows_of(ctx.records, cat)),
                           'sub': f"{_fmt_pct(m[f'{cat}_share'])} выручки"})
         return _top_section('categories', title, 'Списания по категориям',
@@ -541,7 +567,7 @@ def sec_categories(ctx, value='revenue', title='Категории'):
                             'money', items, 'value', m['loyalty_points_written_off'],
                             sub_fn=lambda it: it['sub'], top_n=len(items))
     if value == 'margin':
-        for cat, label, _top in CATEGORIES:
+        for cat, label, _top in categories:
             items.append({'name': label, 'value': m[f'{cat}_margin'],
                           'sub': f"наценка {_fmt_pct(m[f'{cat}_markup'] * 100)}"})
         return _top_section('categories', title, 'Прибыль по категориям',
@@ -550,7 +576,7 @@ def sec_categories(ctx, value='revenue', title='Категории'):
                             sub_fn=lambda it: it['sub'], top_n=len(items))
     if value == 'markup':
         rows = []
-        for cat, label, _top in CATEGORIES:
+        for cat, label, _top in categories:
             if not m['total_revenue']:
                 break  # период без продаж - «Нет данных», а не четыре нуля
             rows.append({'name': label, 'value': round(m[f'{cat}_markup'] * 100, 1),
@@ -562,12 +588,13 @@ def sec_categories(ctx, value='revenue', title='Категории'):
                         'Наценка категории = (Σ выручка - Σ себестоимость) / Σ себестоимость × 100 по её строкам; '
                         'позиции без себестоимости участвуют выручкой', 'percent', rows,
                         additive=False, total=total)
-    for cat, label, _top in CATEGORIES:
+    for cat, label, _top in categories:
         items.append({'name': label, 'value': m[f'{cat}_revenue'],
                       'sub': f"наценка {_fmt_pct(m[f'{cat}_markup'] * 100)}"})
     return _top_section('categories', title, 'Выручка по категориям',
                         'Выручка категории = Σ DishDiscountSumInt по строкам с этой группой 1-го уровня; '
-                        'кухня = строго «ЕДА», наборы и чай/кофе - «Прочее»; сумма = карточка',
+                        'кухня = строго «ЕДА», крепкий алкоголь = группа «Крепкий алкоголь» (строка есть, '
+                        'если он продавался), наборы и чай/кофе - «Прочее»; сумма = карточка',
                         'money', items, 'value', m['total_revenue'],
                         sub_fn=lambda it: it['sub'], top_n=len(items))
 
@@ -831,6 +858,13 @@ CARD_SECTIONS = {
                         partial(sec_top_guests, value='checks'),
                         partial(sec_stores, value='card_share'),
                         partial(sec_days, value='card_share', order='asc')],
+    # Крепкий алкоголь (2026-11-03) - те же вкладки, что у кухни: позиции и дни у
+    # выручки, порции у доли, лидеры маржи и слабая наценка у наценки.
+    'revenueStrong': [partial(sec_top_dishes, category='strong'),
+                      partial(sec_days, value='strong_revenue')],
+    'strongShare': [partial(sec_top_dishes, category='strong', value='units', title='По порциям')],
+    'markupStrong': [partial(sec_top_dishes, category='strong', value='margin'),
+                     partial(sec_low_markup, category='strong')],
 }
 
 

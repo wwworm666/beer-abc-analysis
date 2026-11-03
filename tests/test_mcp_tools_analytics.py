@@ -691,10 +691,11 @@ def test_constants_match_code():
     assert _prop('analytics_comment_save', 'comment')['maxLength'] == plans_manager.COMMENT_MAX_LEN
     assert '{:,}'.format(plans_manager.COMMENT_MAX_LEN).replace(',', ' ') in \
         texts['analytics_comment_save']
-    # Сравнение периодов: те же 20 метрик, что строки выгрузки и вкладка «Сравнение».
+    # Сравнение периодов: те же 23 метрики (с 2026-11-03 — и крепкий алкоголь), что строки
+    # выгрузки и вкладка «Сравнение».
     from core import comparison_calculator, export_manager
-    assert '20 метрикам' in texts['analytics_compare_periods']
-    assert len(comparison_calculator.COMPARISON_METRICS) == 20
+    assert '23 метрикам' in texts['analytics_compare_periods']
+    assert len(comparison_calculator.COMPARISON_METRICS) == 23
     assert {key for key, _l, _u in comparison_calculator.COMPARISON_METRICS} == \
         {key for key, _l, _u in export_manager.DASHBOARD_EXPORT_METRICS}
     activity = [(lo, hi) for _name, lo, hi in guest_analytics.ACTIVITY_SEGMENTS]

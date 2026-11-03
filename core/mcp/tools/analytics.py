@@ -92,7 +92,7 @@ DASHBOARD_METRIC_IDS: Tuple[str, ...] = (
     'revenue', 'checks', 'averageCheck', 'markupPercent', 'draftShare', 'revenueDraft',
     'markupDraft', 'packagedShare', 'revenuePackaged', 'markupPackaged', 'kitchenShare',
     'revenueKitchen', 'markupKitchen', 'profit', 'loyaltyWriteoffs', 'tapActivity',
-    'cardChecksShare',
+    'cardChecksShare', 'revenueStrong', 'strongShare', 'markupStrong',
 )
 # Ленивые секции карточки (core/dashboard_details.LAZY_SECTIONS).
 CARD_LAZY_SECTIONS: Tuple[str, ...] = ('draft_liters', 'taps')
@@ -143,13 +143,15 @@ CHURN_GUEST_GROUPS: Tuple[str, ...] = ('left', 'reactivated', 'new', 'newbie_no_
 CHURN_LEAVER_BUCKETS: Tuple[str, ...] = ('1', '2-3', '4-8', '9+')
 
 # Поля месячного плана (core/plans_manager.PlansManager.PLAN_SCHEMA).
-# cardChecksShare необязателен: PLAN_DEFAULTS подставляет 70.
+# Необязательные = PLAN_DEFAULTS: cardChecksShare (подставляется 70) и три поля крепкого
+# алкоголя (подставляется 0 = план не задан).
 PLAN_REQUIRED_FIELDS: Tuple[str, ...] = (
     'revenue', 'checks', 'averageCheck', 'draftShare', 'packagedShare', 'kitchenShare',
     'revenueDraft', 'revenuePackaged', 'revenueKitchen', 'markupPercent', 'profit',
     'markupDraft', 'markupPackaged', 'markupKitchen', 'loyaltyWriteoffs', 'tapActivity',
 )
-PLAN_OPTIONAL_FIELDS: Tuple[str, ...] = ('cardChecksShare',)
+PLAN_OPTIONAL_FIELDS: Tuple[str, ...] = ('cardChecksShare', 'strongShare', 'revenueStrong',
+                                         'markupStrong')
 
 # Форматы дат и ключей.
 DATE_PATTERN = r'^\d{4}-\d{2}-\d{2}$'
@@ -421,7 +423,9 @@ _T_DASHBOARD = [
             'себестоимость × 100), profit (выручка − себестоимость, ₽), loyaltyWriteoffs (все '
             'скидки чеков, ₽), tapActivity (% активных дней кранов), cardChecks / nocardChecks / '
             'cardChecksShare / cardRevenue / nocardRevenue (чеки и выручка с картой лояльности и '
-            'без) и table_data (те же числа строками; наценка там дробью: 2.24 = 224%). Плана в '
+            'без), revenueStrong / strongShare / markupStrong (крепкий алкоголь — группа iiko '
+            '«Крепкий алкоголь», с 09.10.2026 только на Лиговском; у бара без него нули) и '
+            'table_data (те же числа строками; наценка там дробью: 2.24 = 224%). Плана в '
             'ответе нет: план за те же даты — analytics_plan_calculate, % выполнения = факт / '
             'план × 100 (у списаний баллов план — потолок, меньше = лучше). Пустой период даёт '
             'нули, а не ошибку; формулы — dashboard.md (common_docs_read).'),
@@ -461,7 +465,8 @@ _T_DASHBOARD = [
                                 'revenuePackaged, markupPackaged, kitchenShare, revenueKitchen, '
                                 'markupKitchen, profit, loyaltyWriteoffs, tapActivity, '
                                 'cardChecksShare (внутри неё — чеки и выручка с картой / без, '
-                                'гости).'),
+                                'гости), revenueStrong, strongShare, markupStrong (крепкий '
+                                'алкоголь: позиции, дни, порции, лидеры маржи, слабая наценка).'),
             },
             'section': {
                 'type': 'string', 'enum': list(CARD_LAZY_SECTIONS),
@@ -513,7 +518,7 @@ _T_DASHBOARD = [
         name='analytics_compare_periods',
         title='Сравнение двух периодов',
         description=(
-            'Сравнение двух периодов по всем 20 метрикам «Аналитики» одним вызовом — те же '
+            'Сравнение двух периодов по всем 23 метрикам «Аналитики» одним вызовом — те же '
             'числа, что вкладка «Сравнение» дашборда. Числа каждого периода — ровно '
             'analytics_dashboard за эти даты (общий кэш iiko 10 минут; ответ: period1 / '
             'period2 — key, date_from, date_to, metrics). Направление как на вкладке: период 2 '
@@ -672,7 +677,8 @@ _PLAN_FIELD_DOCS = {
     'revenue': 'Выручка, ₽.',
     'checks': 'Чеки, шт — целое число.',
     'averageCheck': 'Средний чек, ₽.',
-    'draftShare': 'Доля розлива, % выручки (три доли вместе = 100 ± 1).',
+    'draftShare': ('Доля розлива, % выручки (доли розлива, фасовки, кухни и крепкого алкоголя '
+                   'вместе = 100 ± 1).'),
     'packagedShare': 'Доля фасовки, % выручки.',
     'kitchenShare': 'Доля кухни, % выручки.',
     'revenueDraft': 'Выручка розлива, ₽.',
@@ -686,6 +692,11 @@ _PLAN_FIELD_DOCS = {
     'loyaltyWriteoffs': 'Списания баллов (все скидки), ₽ — бюджет-потолок; форма ставит 5% выручки.',
     'tapActivity': 'Активность кранов, %.',
     'cardChecksShare': 'Доля чеков с картой, % (0–100); не передан — 70.',
+    'strongShare': ('Доля крепкого алкоголя, % выручки (0–100); не передан — 0 = план не задан '
+                    '(бар без крепкого).'),
+    'revenueStrong': 'Выручка крепкого алкоголя, ₽ (форма: выручка × доля / 100); не передан — 0.',
+    'markupStrong': ('Наценка крепкого алкоголя, %; не передан — 0 = не задана. Форма требует её, '
+                     'если доля крепкого больше 0.'),
 }
 
 
@@ -694,7 +705,7 @@ def _plan_body_props() -> dict:
     for field in PLAN_REQUIRED_FIELDS + PLAN_OPTIONAL_FIELDS:
         node = {'type': 'integer' if field == 'checks' else 'number', 'minimum': 0,
                 'description': _PLAN_FIELD_DOCS[field]}
-        if field == 'cardChecksShare':
+        if field in ('cardChecksShare', 'strongShare'):
             node['maximum'] = 100
         props[field] = node
     return props
@@ -708,13 +719,15 @@ _T_PLANS = [
         name='analytics_plan_get',
         title='План месяца по бару',
         description=(
-            'Месячный план (как во вкладке «Планы» дашборда): 17 метрик — revenue, profit, '
-            'revenueDraft / revenuePackaged / revenueKitchen, loyaltyWriteoffs (₽), checks (шт), '
-            'averageCheck (₽), draftShare / packagedShare / kitchenShare, markupPercent / '
-            'markupDraft / markupPackaged / markupKitchen, tapActivity, cardChecksShare (%), плюс '
+            'Месячный план (как во вкладке «Планы» дашборда): 20 метрик — revenue, profit, '
+            'revenueDraft / revenuePackaged / revenueKitchen / revenueStrong, loyaltyWriteoffs '
+            '(₽), checks (шт), averageCheck (₽), draftShare / packagedShare / kitchenShare / '
+            'strongShare, markupPercent / markupDraft / markupPackaged / markupKitchen / '
+            'markupStrong, tapActivity, cardChecksShare (%), плюс '
             "createdAt / updatedAt. venue_key='all' — сумма планов четырёх баров за месяц "
             '(отдельно не хранится; поля _calculated, _months_used). Нет плана — 404 «Plan not '
-            'found»; cardChecksShare без записи в файле показывается как 70 (план по умолчанию). '
+            'found»; cardChecksShare без записи в файле показывается как 70 (план по умолчанию), '
+            'поля крепкого алкоголя (*Strong) — как 0 = план не задан. '
             'Формат и формулы — venues-plans.md.'),
         method='GET', path='/api/plans/<venue_key>/<period_key>', body='none',
         path_params=('venue_key', 'period_key'),
@@ -730,10 +743,13 @@ _T_PLANS = [
         title='План за произвольный период',
         description=(
             'План за любой диапазон дат, как его считает дашборд: абсолютные метрики (revenue, '
-            'profit, checks, loyaltyWriteoffs, revenueDraft / revenuePackaged / revenueKitchen) = '
+            'profit, checks, loyaltyWriteoffs, revenueDraft / revenuePackaged / revenueKitchen / '
+            'revenueStrong) = '
             'месячный план × доля взвешенных дней периода в месяце (обычный день 1, пт/сб 2, '
             'праздник или закрытый день — ручной вес); относительные (доли, наценки, averageCheck, '
-            "tapActivity, cardChecksShare) — средневзвешенные по этим долям. venue_key='all' — "
+            'tapActivity, cardChecksShare) — средневзвешенные по этим долям; markupStrong — '
+            'только по месяцам и барам, где она задана (> 0). '
+            "venue_key='all' — "
             'сумма четырёх баров; _months_used — сколько месячных планов (бар × месяц) нашлось, '
             'месяцы без плана в сумму не попадают. Нет ни одного плана — 404. Это знаменатель '
             '«% выполнения» к факту analytics_dashboard за те же даты.'),
@@ -765,9 +781,11 @@ _T_PLANS = [
         title='Сохранить план месяца',
         description=(
             'ЗАПИСЬ. Создаёт или ЦЕЛИКОМ заменяет месячный план бара (как «Сохранить» в форме '
-            'планов): передайте все 16 обязательных метрик, cardChecksShare необязателен '
-            '(по умолчанию 70). Проверки сервиса: значения ≥ 0, checks — целое, draftShare + '
-            'packagedShare + kitchenShare = 100 ± 1, cardChecksShare ≤ 100, иначе 400 «Validation '
+            'планов): передайте все 16 обязательных метрик; cardChecksShare (по умолчанию 70) и '
+            'поля крепкого алкоголя strongShare / revenueStrong / markupStrong (по умолчанию 0 — '
+            'план не задан) необязательны. Проверки сервиса: значения ≥ 0, checks — целое, '
+            'draftShare + packagedShare + kitchenShare + strongShare = 100 ± 1, cardChecksShare и '
+            'strongShare ≤ 100, иначе 400 «Validation '
             'error». После сохранения пересчитываются дневные планы бара за этот месяц — задним '
             'числом меняются планы дней и премии барменов за уже отработанные смены. Только по '
             'прямой просьбе владельца: сначала прочитайте текущий план (analytics_plan_get), '
@@ -1692,7 +1710,8 @@ INSTRUCTIONS = """\
 Словарь метрик (формулы: dashboard.md, monthly-report.md, guests.md — common_docs_read)
 - Выручка = сумма DishDiscountSumInt: оплачено гостем со скидкой, все категории.
 - Чеки = уникальные заказы; средний чек = выручка / чеки.
-- Доли = выручка категории / вся выручка × 100; кухня = строго группа «ЕДА».
+- Доли = выручка категории / вся выручка × 100; кухня = строго группа «ЕДА»; крепкий
+  алкоголь = группа «Крепкий алкоголь» (с 09.10.2026 только на Лиговском).
 - Наценка = (выручка − себестоимость) / себестоимость × 100, агрегатом; прибыль =
   выручка − себестоимость, ₽.
 - Списания баллов = все скидки чека, ₽; бюджетная метрика: план — потолок, меньше = лучше.
