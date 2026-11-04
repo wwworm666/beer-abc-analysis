@@ -48,8 +48,8 @@ Claude на компьютере и телефоне, задачи Claude по �
 | `/mcp/content` | Контент и отзывы | 70 | 46 | 35 | 51 | 3 (в `…/read` — 2) | `kultura-content` |
 | `/mcp/stocks` | Остатки, заказы, краны, меню и приёмка на РЦ | 86 | 48 | 47 | 76 | 4 (в `…/read` — 3) | `kultura-analyst` |
 | `/mcp/analytics` | Продажи, планы и гости | 74 | 63 | 63 | 58 | 3 | `kultura-analyst` |
-| `/mcp/staff` | Сотрудники, график и зарплаты | 73 | 45 | 45 | 58 | 3 | `kultura-payroll` |
-| `/mcp` | Все разделы | 253 | 161 | 149 | — | 13 (в `…/read` — 11) | общий агент (без отдельного файла) |
+| `/mcp/staff` | Сотрудники, график и зарплаты | 74 | 46 | 46 | 59 | 3 | `kultura-payroll` |
+| `/mcp` | Все разделы | 254 | 162 | 150 | — | 13 (в `…/read` — 11) | общий агент (без отдельного файла) |
 
 Числа — сколько инструментов видит агент в каждом режиме: в «чтении» — все инструменты чтения и
 сообщение владельцу; в «черновиках» — ещё 12 инструментов записи черновиков: 11 в разделе «Контент и
@@ -79,7 +79,7 @@ Untappd» в коннекторе `…/read` не показываются (им
 | content | `routes/content_plan.py` (37: с 2026-09-28 — каналы и отправка, zip для Instagram, аудитория бота, правки владельца; с 2026-10-02 — поиск картинок к постам, коллаж вариантов и прикрепление найденного; с 2026-10-09 — набор гифок к таплисту), `routes/reviews.py` (10, включая полосу `/api/guest-hub/attention` и ответ гостю `send-reply`) | 47 |
 | stocks | `routes/stocks.py` (9), `routes/orders.py` (10), `routes/suppliers.py` (4), `routes/expiration.py` (1), `routes/taps.py` (22, включая `/feeds/taplist.yml`, `/feeds/kitchen.yml` и с 2026-10-04 связи с Untappd `/api/untappd/*`), `routes/yml_feeds.py` (7, включая `/feeds/kitchen/<bar_id>`), `routes/menu_editor.py` (8, `/menu/api/*`), `routes/receiving.py` (15, приёмка на РЦ) | 76 |
 | analytics | `routes/dashboard.py` (26), `routes/analysis.py` (5), `routes/explorer.py` (8: с 2026-09-29 — конструктор OLAP-отчётов iiko: каталог полей, значения, отчёт, Excel, отчёты iikoOffice, сохранённые отчёты — [explorer.md](explorer.md)), `routes/guests.py` (19) | 58 |
-| staff | `routes/employee.py` (10), `routes/salary.py` (4), `routes/schedule.py` (32, включая `/schedule/cal.ics`), `routes/me.py` (3), `routes/cleanliness.py` (4), `routes/temperature.py` (2), `routes/open_check.py` (1), `routes/auth.py` (2: список аккаунтов, имя и сокращение) | 58 |
+| staff | `routes/employee.py` (11, с 2026-11-04 — план/факт смен по дням недели за период до года), `routes/salary.py` (4), `routes/schedule.py` (32, включая `/schedule/cal.ics`), `routes/me.py` (3), `routes/cleanliness.py` (4), `routes/temperature.py` (2), `routes/open_check.py` (1), `routes/auth.py` (2: список аккаунтов, имя и сокращение) | 59 |
 | common | `routes/misc.py` (1: `/api/connection-status`) + 8 служебных инструментов без маршрута (с 2026-10-18 — `common_chart_send`, график в Telegram, [tg-miniapp.md](tg-miniapp.md)) | 9 |
 
 HTML-страницы в охват не входят: агент получает данные, а не разметку.
@@ -936,8 +936,8 @@ blueprint'ами сервиса (`routes.register_blueprints` + mcp + mcp_oauth)
 `/api/bot/`, `/mcp` или `/oauth`; в `PUBLIC_ENDPOINTS` есть 7 MCP-эндпоинтов, а
 `mcp_oauth.authorize` — нет.
 
-На 2026-10-30 (`py -3 -m core.mcp.coverage`): 268 пар — 236 инструментами и 32 исключениями;
-инструментов всего 253 (9 служебных без маршрута — среди них `common_chart_send` и
+На 2026-11-04 (`py -3 -m core.mcp.coverage`): 269 пар — 237 инструментами и 32 исключениями;
+инструментов всего 254 (9 служебных без маршрута — среди них `common_chart_send` и
 `common_report_send` — и инструменты редактора меню на `/menu/api/*`, которые описаны
 добровольно: этот префикс в обязательный охват не входит). Из 42 записей `EXCLUDED` в охват
 попадают 32, остальные 10 — маршруты `/telegram/*` (см. «Исключения»).
@@ -1333,6 +1333,13 @@ py -3 scripts/mcp_eval.py          # сухой план эталонного п
 
 ## Changelog
 
+- **2026-11-04** — `staff_shift_plan_weekdays` (`POST /api/shift-plan-weekdays`, [employee.md](employee.md)):
+  план/факт кассовых смен по дням недели за период до 400 дней одним вызовом — выходные против
+  остальных дней по людям, барам и месяцам и норма графика человека (сравнение с коллегами на тех
+  же сменах). Тот же расчёт премий в процессе, своей логики нет; тяжёлый, только чтение. Бот не мог
+  сравнить людей за год: `staff_bonus_calculate` помесячный, ~36 000 символов на месяц. Описание
+  `staff_bonus_calculate` и правила раздела staff называют новый инструмент для квартала и года.
+  Охват — 269 пар: 237 инструментами и 32 исключениями; инструментов 254, у `/mcp/staff` — 74.
 - **2026-11-01 (общая полоса «Бар и период», этап 2)** — [guests.md](guests.md): все гостевые
   инструменты (`analytics_guests_*`) и `analytics_guest_card` принимают свой период
   `date_from` + `date_to` (обе даты включительно, любой длины) — так выбирает период страница;
