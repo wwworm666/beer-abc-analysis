@@ -38,7 +38,9 @@ REPO_ROOT = os.path.join(os.path.dirname(__file__), "..")
 sys.path.insert(0, REPO_ROOT)
 
 from core.comparison_calculator import COMPARISON_METRICS, ComparisonCalculator  # noqa: E402
-from core.export_manager import DASHBOARD_EXPORT_METRICS, ExportManager  # noqa: E402
+from core.export_manager import (  # noqa: E402
+    DASHBOARD_EXPORT_METRICS, OPTIONAL_EXPORT_GROUP, ExportManager,
+)
 from extensions import DASHBOARD_OLAP_CACHE  # noqa: E402
 from routes.dashboard import dashboard_bp  # noqa: E402
 
@@ -130,7 +132,8 @@ class PageParity(unittest.TestCase):
         self.assertEqual(200, response.status_code, response.get_data(as_text=True))
         body = response.get_json()
         self.assertEqual('period2', body['base'])
-        self.assertEqual(20, len(body['comparison']))
+        # 20 прежних + три метрики крепкого алкоголя (2026-11-03; здесь нули)
+        self.assertEqual(23, len(body['comparison']))
         page_new, page_base = self.page(WEEK_NEW), self.page(WEEK_BASE)
         for metric_key, _label, _unit in COMPARISON_METRICS:
             row = body['comparison'][metric_key]
@@ -267,9 +270,24 @@ class ExportRows(unittest.TestCase):
         return {row['key']: row for row in ExportManager().dashboard_rows(plan, fact)}
 
     def test_order_and_units(self):
-        rows = ExportManager().dashboard_rows({}, {})
+        # Факт крепкого алкоголя не ноль — выгружаются все строки, порядок как в списке.
+        rows = ExportManager().dashboard_rows({}, {'revenueStrong': 100.0})
         self.assertEqual([k for k, _l, _u in DASHBOARD_EXPORT_METRICS], [r['key'] for r in rows])
         self.assertEqual({k for k, _l, _u in COMPARISON_METRICS}, {r['key'] for r in rows})
+
+    def test_strong_rows_follow_screen_rule(self):
+        """Крепкий алкоголь: три строки есть, только если у одной из них план или факт не ноль."""
+        strong = set(OPTIONAL_EXPORT_GROUP)
+        self.assertEqual({'revenueStrong', 'strongShare', 'markupStrong'}, strong)
+        empty = [row['key'] for row in ExportManager().dashboard_rows({'strongShare': 0}, {'markupStrong': 0})]
+        self.assertEqual([k for k, _l, _u in DASHBOARD_EXPORT_METRICS if k not in strong], empty)
+        by_plan = self.rows({'strongShare': 3.0, 'revenueStrong': 30000.0}, {})
+        self.assertTrue(strong <= set(by_plan))
+        self.assertEqual((3.0, 'bad'), (by_plan['strongShare']['plan'], by_plan['strongShare']['status']))
+        self.assertIsNone(by_plan['markupStrong']['plan'], 'план 0 — не задан')
+        by_fact = self.rows({}, {'revenueStrong': 37988.76, 'strongShare': 3.35, 'markupStrong': 255.7})
+        self.assertEqual((37988.76, 'none'), (by_fact['revenueStrong']['fact'], by_fact['revenueStrong']['status']))
+        self.assertEqual(['₽', '%', '%'], [by_fact[k]['unit'] for k in OPTIONAL_EXPORT_GROUP])
 
     def test_plan_and_fact_in_same_units(self):
         rows = self.rows({'markupPercent': 200.0, 'revenue': 1000.0},

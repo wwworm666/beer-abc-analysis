@@ -1434,7 +1434,12 @@ def _breakdown_row(name, m):
         'nocardChecks': m['nocard_checks'],
         'cardChecksShare': round(m['card_checks_share'], 1),
         'cardRevenue': round(m['card_revenue'], 0),
-        'nocardRevenue': round(m['nocard_revenue'], 0)
+        'nocardRevenue': round(m['nocard_revenue'], 0),
+        # Крепкий алкоголь (2026-11-03): вкладка «Сотрудники» у трёх карточек группы
+        # «Крепкий алкоголь» - из тех же строк, сумма выручки по сотрудникам = карточке.
+        'strongShare': round(m['strong_share'], 1),
+        'revenueStrong': round(m['strong_revenue'], 0),
+        'markupStrong': pct(m['strong_markup'])
     }
 
 

@@ -15,7 +15,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { METRICS, METRIC_GROUPS, HEADLINE_METRIC_IDS } from '../static/js/dashboard/core/config.js';
-import { getStatus, scorePercent } from '../static/js/dashboard/core/utils.js';
+import { getStatus, scorePercent, isGroupVisible } from '../static/js/dashboard/core/utils.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -38,10 +38,11 @@ const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 
 console.log('\n--- группировка метрик ---');
 
-test('все 17 карточек на месте', () => {
+test('все 20 карточек на месте', () => {
     // 16 базовых + «Доля чеков с картой» (с 2026-09-05 четыре карточки лояльности
-    // свёрнуты в одну; их числа остались в API, сравнении и экспорте).
-    assert.equal(METRICS.length, 17);
+    // свёрнуты в одну; их числа остались в API, сравнении и экспорте) + три карточки
+    // крепкого алкоголя (2026-11-03).
+    assert.equal(METRICS.length, 20);
 });
 
 test('у каждой метрики есть существующая группа', () => {
@@ -59,10 +60,10 @@ test('в каждой группе есть метрики', () => {
     }
 });
 
-test('четыре группы по 4 метрики заполняют ряд целиком, «Лояльность» — одна карточка', () => {
-    assert.equal(METRIC_GROUPS.length, 5);
+test('четыре группы по 4 метрики заполняют ряд целиком, «Лояльность» — одна, «Крепкий алкоголь» — три', () => {
+    assert.equal(METRIC_GROUPS.length, 6);
     const counts = METRIC_GROUPS.map(g => METRICS.filter(m => m.group === g.id).length);
-    assert.deepEqual(counts, [4, 4, 4, 4, 1]);
+    assert.deepEqual(counts, [4, 4, 4, 4, 1, 3]);
 });
 
 test('итог группы идёт первым', () => {
@@ -110,14 +111,16 @@ const LOYALTY_IDS = ['cardChecksShare'];
 /** Бывшие карточки лояльности — теперь вкладки внутри «Доли чеков с картой». */
 const FOLDED_LOYALTY_IDS = ['cardChecks', 'nocardChecks', 'cardRevenue'];
 
-test('группа «Лояльность» последняя, в ней одна карточка «Доля чеков с картой»', () => {
-    const last = METRIC_GROUPS[METRIC_GROUPS.length - 1];
-    assert.equal(last.id, 'loyalty');
-    assert.equal(last.name, 'Лояльность');
+test('группа «Лояльность» — последняя из постоянных, в ней одна карточка «Доля чеков с картой»', () => {
+    // С 2026-11-03 за ней стоит только необязательная группа «Крепкий алкоголь».
+    const loyalty = METRIC_GROUPS[METRIC_GROUPS.length - 2];
+    assert.equal(loyalty.id, 'loyalty');
+    assert.equal(loyalty.name, 'Лояльность');
+    assert.ok(!loyalty.optional, 'лояльность показывается всегда');
     const ids = METRICS.filter(m => m.group === 'loyalty').map(m => m.id);
     assert.deepEqual(ids, LOYALTY_IDS);
-    // Карточка дописана в конец массива — прежние 16 не сдвинуты.
-    assert.deepEqual(METRICS.slice(-1).map(m => m.id), LOYALTY_IDS);
+    // Карточка дописана в конец прежнего массива — прежние 16 не сдвинуты.
+    assert.deepEqual(METRICS.slice(16, 17).map(m => m.id), LOYALTY_IDS);
     for (const id of FOLDED_LOYALTY_IDS) {
         assert.ok(!METRICS.some(m => m.id === id), `${id}: карточка должна быть свёрнута во вкладку`);
     }
@@ -164,6 +167,79 @@ test('comparison.js сравнивает метрики лояльности п�
     ]) {
         assert.ok(js.includes(`key: '${key}', altKey: '${altKey}'`), `нет ${key}/${altKey}`);
     }
+});
+
+console.log('\n--- крепкий алкоголь (2026-11-03) ---');
+
+/** Карточки группы «Крепкий алкоголь» в порядке на экране. */
+const STRONG_IDS = ['revenueStrong', 'strongShare', 'markupStrong'];
+
+test('группа «Крепкий алкоголь» последняя, необязательная, три карточки в конце массива', () => {
+    const last = METRIC_GROUPS[METRIC_GROUPS.length - 1];
+    assert.deepEqual([last.id, last.name, last.optional], ['strong', 'Крепкий алкоголь', true]);
+    // Только эта группа необязательная: остальные ряды на месте у любого бара.
+    assert.deepEqual(METRIC_GROUPS.filter(g => g.optional).map(g => g.id), ['strong']);
+    assert.deepEqual(METRICS.filter(m => m.group === 'strong').map(m => m.id), STRONG_IDS);
+    // Дописаны в конец: места прежних 17 карточек не сдвинулись.
+    assert.deepEqual(METRICS.slice(-3).map(m => m.id), STRONG_IDS);
+    const formats = Object.fromEntries(METRICS.filter(m => m.group === 'strong').map(m => [m.id, m.format]));
+    assert.deepEqual(formats, { revenueStrong: 'money', strongShare: 'percent', markupStrong: 'percent' });
+    for (const id of STRONG_IDS) {
+        const m = METRICS.find(x => x.id === id);
+        assert.ok(typeof m.hint === 'string' && m.hint.includes('репк'), `${id}: подсказка не про крепкий алкоголь`);
+        assert.ok(!m.budget, `${id}: не бюджетная метрика`);
+        assert.ok(!HEADLINE_METRIC_IDS.includes(id), `${id} не входит в «Главное»`);
+    }
+});
+
+test('isGroupVisible: обычная группа всегда; необязательная — при плане или ненулевом факте', () => {
+    const strong = METRIC_GROUPS.find(g => g.id === 'strong');
+    const markup = METRIC_GROUPS.find(g => g.id === 'markup');
+    const stat = (hasPlan, actualValue) => ({ hasPlan, actualValue });
+    // Обычная группа видна и без данных.
+    assert.equal(isGroupVisible(markup, [stat(false, 0)]), true);
+    assert.equal(isGroupVisible(markup, []), true);
+    // Бар без крепкого: плана нет, факт ноль (или пусто) — группы нет.
+    assert.equal(isGroupVisible(strong, [stat(false, 0), stat(false, 0), stat(false, 0)]), false);
+    assert.equal(isGroupVisible(strong, [stat(false, null), stat(false, undefined)]), false);
+    assert.equal(isGroupVisible(strong, []), false);
+    // Лиговский: продажи есть — группа видна, даже без плана.
+    assert.equal(isGroupVisible(strong, [stat(false, 37988.76), stat(false, 3.4), stat(false, 0)]), true);
+    // План есть, продаж ещё нет (первые дни месяца) — видна, чтобы был виден недобор.
+    assert.equal(isGroupVisible(strong, [stat(true, 0), stat(false, 0), stat(false, 0)]), true);
+    // Возвраты дают отрицательную выручку — это тоже данные.
+    assert.equal(isGroupVisible(strong, [stat(false, -500)]), true);
+});
+
+test('analytics.js: скрытие группы через visibleStats до отрисовки и средних', () => {
+    const js = read('static/js/dashboard/modules/analytics.js');
+    assert.ok(js.includes('isGroupVisible'), 'analytics.js не использует isGroupVisible');
+    assert.ok(js.includes('const stats = this.visibleStats(this.buildStats(plan, actual));'),
+        'displayComparison рисует группы без фильтра видимости');
+    assert.ok(/visibleStats\(stats\) \{/.test(js), 'нет метода visibleStats');
+});
+
+test('карточки крепкого раскрываются, у всех есть «Сотрудники», выручка складывается', () => {
+    const js = read('static/js/dashboard/modules/analytics.js');
+    const list = (name) => js.match(new RegExp(`const ${name} = \\[([^\\]]+)\\]`))[1]
+        .match(/'([^']+)'/g).map(s => s.slice(1, -1));
+    for (const id of STRONG_IDS) {
+        assert.ok(list('EXPANDABLE_METRICS').includes(id), `${id} не раскрывается`);
+        assert.ok(list('EMPLOYEE_METRICS').includes(id), `${id}: нет вкладки «Сотрудники»`);
+    }
+    const additive = list('ADDITIVE_METRICS');
+    assert.ok(additive.includes('revenueStrong'), 'выручка крепкого складывается по сотрудникам');
+    assert.ok(!additive.includes('strongShare') && !additive.includes('markupStrong'), 'доля и наценка не складываются');
+});
+
+test('comparison.js: крепкий алкоголь под ключами API, строки без данных скрыты', () => {
+    const js = read('static/js/dashboard/modules/comparison.js');
+    for (const [key, altKey] of [['revenueStrong', 'strong_revenue'], ['strongShare', 'strong_share'],
+                                 ['markupStrong', 'strong_markup']]) {
+        assert.ok(new RegExp(`key: '${key}', altKey: '${altKey}'[^\\n]*optional: true`).test(js), `нет ${key}/${altKey} с optional`);
+    }
+    // Карточки и таблица — только видимые метрики; топ изменений и так пропускает 0 и 0.
+    assert.equal(js.split('const metrics = this.visibleMetrics();').length - 1, 2, 'карточки или таблица без visibleMetrics');
 });
 
 console.log('\n--- покрытие стилями ---');
@@ -328,7 +404,7 @@ test('классы деталей карточки описаны в CSS', () =>
     assert.ok(CSS.includes('.breakdown-tab.active'), 'нет стиля активной вкладки');
 });
 
-test('раскрываются все 17 карточек; «Сотрудники» — у всех, кроме кранов', () => {
+test('раскрываются все 20 карточек; «Сотрудники» — у всех, кроме кранов', () => {
     const js = read('static/js/dashboard/modules/analytics.js');
     const list = (name) => js.match(new RegExp(`const ${name} = \\[([^\\]]+)\\]`))[1]
         .match(/'([^']+)'/g).map(s => s.slice(1, -1));

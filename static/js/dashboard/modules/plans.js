@@ -27,6 +27,12 @@ const LOYALTY_WRITEOFF_RATE = 0.05;
 // Зеркало core/plans_manager.py PlansManager.PLAN_DEFAULTS.
 const CARD_CHECKS_SHARE_DEFAULT = 70;
 
+// Поля плана группы «Крепкий алкоголь» (2026-11-03). 0 = «план не задан»: так их
+// подставляет бэкенд планам без полей (зеркало core/plans_manager.py
+// PlansManager.PLAN_DEFAULTS: strongShare, revenueStrong, markupStrong = 0), так их
+// понимает дашборд («План не задан»), и в таблице планов вместо 0 стоит «—».
+const STRONG_PLAN_FIELDS = ['strongShare', 'revenueStrong', 'markupStrong'];
+
 /**
  * Годы в списке формы плана (с 2026-11-01 вместо зашитых в шаблоне 2025–2027): текущий год
  * −1…+1 по часам сервера, плюс годы из extraYears — год выбранного периода и годы, на которые
@@ -85,13 +91,16 @@ class PlansViewer {
             draftShare: document.getElementById('plan-draftShare'),
             packagedShare: document.getElementById('plan-packagedShare'),
             kitchenShare: document.getElementById('plan-kitchenShare'),
+            strongShare: document.getElementById('plan-strongShare'),
             revenueDraft: document.getElementById('plan-revenueDraft'),
             revenuePackaged: document.getElementById('plan-revenuePackaged'),
             revenueKitchen: document.getElementById('plan-revenueKitchen'),
+            revenueStrong: document.getElementById('plan-revenueStrong'),
             markupPercent: document.getElementById('plan-markupPercent'),
             markupDraft: document.getElementById('plan-markupDraft'),
             markupPackaged: document.getElementById('plan-markupPackaged'),
             markupKitchen: document.getElementById('plan-markupKitchen'),
+            markupStrong: document.getElementById('plan-markupStrong'),
             loyaltyWriteoffs: document.getElementById('plan-loyaltyWriteoffs'),
             cardChecksShare: document.getElementById('plan-cardChecksShare'),
             tapActivity: document.getElementById('plan-tapActivity')
@@ -193,6 +202,7 @@ class PlansViewer {
         this.formFields.markupDraft?.addEventListener('input', () => this.autoCalculateDerivedMetrics());
         this.formFields.markupPackaged?.addEventListener('input', () => this.autoCalculateDerivedMetrics());
         this.formFields.markupKitchen?.addEventListener('input', () => this.autoCalculateDerivedMetrics());
+        this.formFields.markupStrong?.addEventListener('input', () => this.autoCalculateDerivedMetrics());
 
         // Авто-расчёт при изменении выручки и среднего чека (от них зависят чеки/прибыль/наценка)
         this.formFields.revenue?.addEventListener('input', () => {
@@ -204,25 +214,29 @@ class PlansViewer {
     }
 
     /**
-     * Доля кухни считается автоматически (добивает розлив+фасовку до 100%),
-     * поэтому здесь же её и пересчитываем, и показываем сумму/предупреждение.
+     * Доля кухни считается автоматически (добивает розлив + фасовку + крепкий
+     * алкоголь до 100%), поэтому здесь же её и пересчитываем, и показываем
+     * сумму/предупреждение. Крепкий алкоголь (2026-11-03) по умолчанию 0 — у бара без
+     * него кухня считается как раньше.
      */
     updateSharesSum() {
         const draft = parseFloat(this.formFields.draftShare?.value) || 0;
         const packaged = parseFloat(this.formFields.packagedShare?.value) || 0;
+        const strong = parseFloat(this.formFields.strongShare?.value) || 0;
+        const entered = draft + packaged + strong;
 
-        // Доля кухни = 100 - розлив - фасовка (не уходим в минус)
-        const kitchen = Math.max(0, 100 - draft - packaged);
+        // Доля кухни = 100 - розлив - фасовка - крепкий алкоголь (не уходим в минус)
+        const kitchen = Math.max(0, 100 - entered);
         if (this.formFields.kitchenShare) {
             this.formFields.kitchenShare.value = kitchen.toFixed(2);
         }
 
-        const sum = draft + packaged + kitchen;
+        const enteredLabel = strong > 0 ? 'Розлив + фасовка + крепкий' : 'Розлив + фасовка';
         this.sharesSumLabel.textContent =
-            `Розлив + фасовка: ${(draft + packaged).toFixed(1)}% · Кухня (авто): ${kitchen.toFixed(1)}%`;
+            `${enteredLabel}: ${entered.toFixed(1)}% · Кухня (авто): ${kitchen.toFixed(1)}%`;
 
-        // Ошибка только если розлив+фасовка превысили 100% (кухне не из чего взяться)
-        if (draft + packaged > 100 + 0.01) {
+        // Ошибка только если введённые доли превысили 100% (кухне не из чего взяться)
+        if (entered > 100 + 0.01) {
             this.sharesSumLabel.classList.add('error');
         } else {
             this.sharesSumLabel.classList.remove('error');
@@ -238,6 +252,9 @@ class PlansViewer {
      *   себестоимость_кат = выручка_кат / (1 + наценка_кат/100)   (наценка% = маржа/себест.×100)
      *   прибыль         = выручка − Σ себестоимость_кат
      *   % наценки       = 100 × выручка / Σ себестоимость − 100   (взвешена по себестоимости)
+     *
+     * Категории: розлив, фасовка, кухня и (с 2026-11-03) крепкий алкоголь; при доле
+     * крепкого 0 его выручка и себестоимость — нули, расчёт прежний.
      */
     autoCalculateDerivedMetrics() {
         const revenue = parseFloat(this.formFields.revenue?.value) || 0;
@@ -245,6 +262,7 @@ class PlansViewer {
         const draftShare = parseFloat(this.formFields.draftShare?.value) || 0;
         const packagedShare = parseFloat(this.formFields.packagedShare?.value) || 0;
         const kitchenShare = parseFloat(this.formFields.kitchenShare?.value) || 0;
+        const strongShare = parseFloat(this.formFields.strongShare?.value) || 0;
 
         // Чеки = выручка / средний чек (целое)
         if (this.formFields.checks) {
@@ -260,14 +278,17 @@ class PlansViewer {
         const revenueDraft = revenue * draftShare / 100;
         const revenuePackaged = revenue * packagedShare / 100;
         const revenueKitchen = revenue * kitchenShare / 100;
+        const revenueStrong = revenue * strongShare / 100;
         if (this.formFields.revenueDraft) this.formFields.revenueDraft.value = revenueDraft.toFixed(2);
         if (this.formFields.revenuePackaged) this.formFields.revenuePackaged.value = revenuePackaged.toFixed(2);
         if (this.formFields.revenueKitchen) this.formFields.revenueKitchen.value = revenueKitchen.toFixed(2);
+        if (this.formFields.revenueStrong) this.formFields.revenueStrong.value = revenueStrong.toFixed(2);
 
         // Наценки по категориям
         const markupDraft = parseFloat(this.formFields.markupDraft?.value) || 0;
         const markupPackaged = parseFloat(this.formFields.markupPackaged?.value) || 0;
         const markupKitchen = parseFloat(this.formFields.markupKitchen?.value) || 0;
+        const markupStrong = parseFloat(this.formFields.markupStrong?.value) || 0;
 
         // Себестоимость категории = выручка_кат / (1 + наценка_кат/100)
         const costOf = (rev, markup) => {
@@ -276,7 +297,8 @@ class PlansViewer {
         };
         const totalCost = costOf(revenueDraft, markupDraft)
             + costOf(revenuePackaged, markupPackaged)
-            + costOf(revenueKitchen, markupKitchen);
+            + costOf(revenueKitchen, markupKitchen)
+            + costOf(revenueStrong, markupStrong);
 
         // Прибыль (маржа) = выручка − себестоимость
         if (this.formFields.profit) {
@@ -415,15 +437,15 @@ class PlansViewer {
             },
             {
                 name: 'Доли категорий',
-                metrics: ['draftShare', 'packagedShare', 'kitchenShare']
+                metrics: ['draftShare', 'packagedShare', 'kitchenShare', 'strongShare']
             },
             {
                 name: 'Выручка по категориям',
-                metrics: ['revenueDraft', 'revenuePackaged', 'revenueKitchen']
+                metrics: ['revenueDraft', 'revenuePackaged', 'revenueKitchen', 'revenueStrong']
             },
             {
                 name: 'Наценка и прибыль',
-                metrics: ['markupPercent', 'profit', 'markupDraft', 'markupPackaged', 'markupKitchen']
+                metrics: ['markupPercent', 'profit', 'markupDraft', 'markupPackaged', 'markupKitchen', 'markupStrong']
             },
             {
                 name: 'Прочее',
@@ -459,6 +481,11 @@ class PlansViewer {
                 if (metric.id === 'cardChecksShare' && plan
                     && (planValue === null || planValue === undefined)) {
                     planValue = CARD_CHECKS_SHARE_DEFAULT;
+                }
+
+                // Крепкий алкоголь: 0 или нет поля — план не задан, в таблице «—».
+                if (STRONG_PLAN_FIELDS.includes(metric.id) && !planValue) {
+                    planValue = null;
                 }
 
                 const row = this.createMetricRow(metric, planValue);
@@ -680,6 +707,15 @@ class PlansViewer {
         if (this.formFields.cardChecksShare && (share === null || share === undefined)) {
             this.formFields.cardChecksShare.value = CARD_CHECKS_SHARE_DEFAULT.toFixed(2);
         }
+
+        // Крепкий алкоголь: нет поля в плане — 0 (план не задан), а не цифра от
+        // прошлого открытого плана (например, Лиговского).
+        STRONG_PLAN_FIELDS.forEach((key) => {
+            const value = planData[key];
+            if (this.formFields[key] && (value === null || value === undefined)) {
+                this.formFields[key].value = (0).toFixed(2);
+            }
+        });
     }
 
     /**
@@ -703,7 +739,11 @@ class PlansViewer {
             markupKitchen: 160,
             loyaltyWriteoffs: 0,
             cardChecksShare: CARD_CHECKS_SHARE_DEFAULT,
-            tapActivity: 100
+            tapActivity: 100,
+            // Крепкий алкоголь: 0 — план не задан (есть не у всех баров)
+            strongShare: 0,
+            revenueStrong: 0,
+            markupStrong: 0
         };
     }
 
@@ -778,7 +818,8 @@ class PlansViewer {
             'draftShare', 'packagedShare', 'kitchenShare',
             'revenueDraft', 'revenuePackaged', 'revenueKitchen',
             'markupPercent', 'markupDraft', 'markupPackaged', 'markupKitchen',
-            'loyaltyWriteoffs', 'cardChecksShare', 'tapActivity'
+            'loyaltyWriteoffs', 'cardChecksShare', 'tapActivity',
+            'strongShare', 'revenueStrong', 'markupStrong'
         ];
 
         for (const field of requiredFields) {
@@ -791,10 +832,18 @@ class PlansViewer {
             }
         }
 
-        // Проверка суммы долей
-        const sharesSum = (planData.draftShare || 0) + (planData.packagedShare || 0) + (planData.kitchenShare || 0);
+        // Проверка суммы долей: розлив + фасовка + кухня + крепкий алкоголь
+        // (бэкенд: PlansManager.SHARE_FIELDS, тот же допуск ±1)
+        const sharesSum = (planData.draftShare || 0) + (planData.packagedShare || 0)
+            + (planData.kitchenShare || 0) + (planData.strongShare || 0);
         if (Math.abs(sharesSum - 100) > 1) {
             return { valid: false, message: `Сумма долей категорий должна быть 100% (сейчас ${sharesSum.toFixed(1)}%)` };
+        }
+
+        // Доля крепкого задана — нужна и его наценка: иначе прибыль и общая наценка
+        // плана посчитаются так, будто крепкий продаётся по себестоимости.
+        if ((planData.strongShare || 0) > 0 && !((planData.markupStrong || 0) > 0)) {
+            return { valid: false, message: 'Укажите наценку крепкого алкоголя: его доля в плане задана' };
         }
 
         // Доля чеков с картой — процент от всех чеков, потолок 100%
@@ -828,7 +877,10 @@ class PlansViewer {
             markupKitchen: 'Наценка кухня',
             loyaltyWriteoffs: 'Списания баллов',
             cardChecksShare: 'Доля чеков с картой',
-            tapActivity: 'Активность кранов'
+            tapActivity: 'Активность кранов',
+            strongShare: 'Доля крепкого алкоголя',
+            revenueStrong: 'Выручка крепкий алкоголь',
+            markupStrong: 'Наценка крепкий алкоголь'
         };
         return labels[key] || key;
     }

@@ -16,7 +16,8 @@ from core.plans_manager import BUDGET_METRICS, plan_score
 # Строки выгрузки дашборда: (ключ экрана, подпись, единица). Ключ один для плана и
 # факта — как planKey/actualKey в static/js/dashboard/core/config.js. Порядок —
 # прежний порядок выгрузки: 16 базовых метрик, четыре метрики лояльности,
-# активность кранов последней. У «Чеков с картой», «Чеков без карты» и «Выручки по
+# активность кранов, затем три метрики крепкого алкоголя (2026-11-03; у бара без
+# него — нули и пустой план). У «Чеков с картой», «Чеков без карты» и «Выручки по
 # картам» плана нет (на экране это вкладки карточки «Доля чеков с картой»).
 DASHBOARD_EXPORT_METRICS = (
     ('revenue', 'Выручка', '₽'),
@@ -39,7 +40,15 @@ DASHBOARD_EXPORT_METRICS = (
     ('cardChecksShare', 'Доля чеков с картой', '%'),
     ('cardRevenue', 'Выручка по картам', '₽'),
     ('tapActivity', 'Активность кранов', '%'),
+    ('revenueStrong', 'Выручка крепкий алкоголь', '₽'),
+    ('strongShare', 'Доля крепкого алкоголя', '%'),
+    ('markupStrong', 'Наценка крепкий алкоголь', '%'),
 )
+
+# Строки необязательной группы «Крепкий алкоголь» (2026-11-03) — по правилу экрана
+# (static/js/dashboard/core/utils.js isGroupVisible): выгружаются, только если хотя бы
+# у одной из них есть план или факт не ноль; у бара без крепкого трёх строк нулей нет.
+OPTIONAL_EXPORT_GROUP = ('revenueStrong', 'strongShare', 'markupStrong')
 
 # План активности кранов, если он не задан (нет плана за период или 0): 100 % —
 # правило экрана (analytics.js buildStats: «план всегда 100 %, если не задан вручную»).
@@ -83,7 +92,9 @@ class ExportManager:
             - без плана: plan, percent, diff = None («План не задан» на экране,
               «—» в PDF, пустая ячейка в Excel);
             - status: 'ok' | 'warn' | 'bad' по plan_score (у бюджетной метрики —
-              списаний баллов — план служит потолком), 'none' без плана.
+              списаний баллов — план служит потолком), 'none' без плана;
+            - строки OPTIONAL_EXPORT_GROUP (крепкий алкоголь) пропускаются все три,
+              если ни у одной нет плана и все факты — нули (группа скрыта и на экране).
             Значения не округляются: округляет печать (Excel — 2 знака).
 
         Returns:
@@ -118,6 +129,9 @@ class ExportManager:
                 'percent': percent, 'diff': diff,
                 'budget': budget, 'score': score, 'status': status,
             })
+        optional = [row for row in rows if row['key'] in OPTIONAL_EXPORT_GROUP]
+        if not any(row['plan'] is not None or row['fact'] != 0 for row in optional):
+            rows = [row for row in rows if row['key'] not in OPTIONAL_EXPORT_GROUP]
         return rows
 
     def prepare_excel_data(

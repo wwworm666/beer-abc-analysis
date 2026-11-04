@@ -5,7 +5,8 @@
 Что защищают тесты:
 
 1. PLAN_SCHEMA знает cardChecksShare, а 16 прежних полей по-прежнему обязательны;
-   PLAN_DEFAULTS = {'cardChecksShare': 70.0}; with_defaults не меняет исходник.
+   PLAN_DEFAULTS = {'cardChecksShare': 70.0} и (с 2026-11-03) три поля крепкого
+   алкоголя = 0.0 («план не задан»); with_defaults не меняет исходник.
 
 2. Чтение: get_plan/get_all_plans отдают 70.0 старому месяцу без поля и 55 месяцу
    со значением, файл при этом не меняется.
@@ -17,8 +18,9 @@
    ValueError, файл не меняется.
 
 5. Миграция файла fill_missing_defaults: dry-run только перечисляет, боевой прогон
-   дописывает 70.0 только там, где не было (в т.ч. легаси all_YYYY-MM), 55 не трогает,
-   мусорный недельный ключ пропускает, делает .backup, второй прогон - updated == [].
+   дописывает 70.0 и нули крепкого только там, где их не было (в т.ч. легаси
+   all_YYYY-MM), 55 не трогает, план со всеми полями не трогает, мусорный недельный
+   ключ пропускает, делает .backup, второй прогон - updated == [].
    CLI scripts/fill_plan_defaults.py печатает отчёт и завершается кодом 0.
 
 Файлы проекта в data/ не трогаются: планы во временном каталоге, проверка
@@ -69,6 +71,9 @@ def legacy_plan(**overrides):
 
 JUNK_KEY = '2025-11-17_2025-11-23'
 
+# Необязательные поля крепкого алкоголя (2026-11-03): дефолт 0 = «план не задан».
+STRONG_DEFAULTS = {'strongShare': 0.0, 'revenueStrong': 0.0, 'markupStrong': 0.0}
+
 FIXTURE = {
     'plans': {
         'bolshoy_2026-01': legacy_plan(),                                    # без поля
@@ -76,6 +81,10 @@ FIXTURE = {
                                        updatedAt='2026-08-02T10:00:00'),    # со значением
         'ligovskiy_2026-01': legacy_plan(cardChecksShare=55),
         'all_2025-09': legacy_plan(),                                        # легаси месячный
+        # Все необязательные поля уже есть - миграции нечего дописывать.
+        'kremenchugskaya_2025-12': legacy_plan(cardChecksShare=60, kitchenShare=22.0,
+                                               strongShare=3.0, revenueStrong=30000.0,
+                                               markupStrong=300.0),
         JUNK_KEY: {'loyaltyWriteoffs': 1},                                   # мусорный недельный
     },
     'metadata': {'version': '1.0', 'lastUpdate': '2026-08-02T10:00:00'},
@@ -114,7 +123,7 @@ class SchemaAndDefaults(PlansDefaultsCase):
 
     def test_schema_has_card_checks_share_and_legacy_fields_required(self):
         self.assertIn('cardChecksShare', PlansManager.PLAN_SCHEMA)
-        self.assertEqual({'cardChecksShare': 70.0}, PlansManager.PLAN_DEFAULTS)
+        self.assertEqual(dict({'cardChecksShare': 70.0}, **STRONG_DEFAULTS), PlansManager.PLAN_DEFAULTS)
         self.assertEqual(set(LEGACY_FIELDS),
                          set(PlansManager.PLAN_SCHEMA) - set(PlansManager.PLAN_DEFAULTS))
         # 16 прежних полей по-прежнему обязательны
@@ -221,8 +230,9 @@ class SavePlan(PlansDefaultsCase):
 
 class FillMissingDefaults(PlansDefaultsCase):
 
-    EXPECTED_UPDATED = ['bolshoy_2026-01', 'all_2025-09']
-    EXPECTED_UNCHANGED = ['bolshoy_2026-02', 'ligovskiy_2026-01']
+    # С 2026-11-03 планам с cardChecksShare (55) дописываются нули крепкого алкоголя.
+    EXPECTED_UPDATED = ['bolshoy_2026-01', 'bolshoy_2026-02', 'ligovskiy_2026-01', 'all_2025-09']
+    EXPECTED_UNCHANGED = ['kremenchugskaya_2025-12']
 
     def test_dry_run_lists_keys_and_keeps_file(self):
         before = self.file_bytes()
@@ -248,14 +258,19 @@ class FillMissingDefaults(PlansDefaultsCase):
         self.assertEqual(70.0, plans['all_2025-09']['cardChecksShare'])
         self.assertEqual(55, plans['bolshoy_2026-02']['cardChecksShare'])
         self.assertEqual(55, plans['ligovskiy_2026-01']['cardChecksShare'])
+        for key in self.EXPECTED_UPDATED:
+            for field, value in STRONG_DEFAULTS.items():
+                self.assertEqual(value, plans[key][field], (key, field))
+        self.assertEqual(FIXTURE['plans']['kremenchugskaya_2025-12'], plans['kremenchugskaya_2025-12'])
         self.assertEqual({'loyaltyWriteoffs': 1}, plans[JUNK_KEY])
         # Таймстампы не тронуты: у старого не появились, у нового прежние
         self.assertNotIn('updatedAt', plans['bolshoy_2026-01'])
         self.assertEqual('2026-08-02T10:00:00', plans['bolshoy_2026-02']['updatedAt'])
-        # Остальные поля как были
+        # Остальные поля как были: дописаны только недостававшие поля PLAN_DEFAULTS
         for key in self.EXPECTED_UPDATED:
+            added = set(PlansManager.PLAN_DEFAULTS) - set(FIXTURE['plans'][key])
             self.assertEqual(FIXTURE['plans'][key],
-                             {k: v for k, v in plans[key].items() if k != 'cardChecksShare'})
+                             {k: v for k, v in plans[key].items() if k not in added})
         # Бэкап - файл до миграции
         with open(self.path + '.backup', 'rb') as f:
             self.assertEqual(before, f.read())
@@ -290,14 +305,14 @@ class CliScript(PlansDefaultsCase):
         self.assertEqual(0, code)
         self.assertEqual(before, self.file_bytes())
         self.assertIn('dry-run', text)
-        self.assertIn('Будет обновлено (2)', text)
+        self.assertIn('Будет обновлено (4)', text)
         self.assertIn('  bolshoy_2026-01', text)
         self.assertIn('Пропущено (не месячный ключ) (1)', text)
         self.assertIn(JUNK_KEY, text)
 
         code, text = self.run_script('--file', self.path)
         self.assertEqual(0, code)
-        self.assertIn('Обновлено (2)', text)
+        self.assertIn('Обновлено (4)', text)
         self.assertEqual(70.0, self.read_plans()['bolshoy_2026-01']['cardChecksShare'])
 
 

@@ -232,6 +232,21 @@ export function setLoading(element, loading) {
 }
 
 /**
+ * Показывать ли группу метрик (config.js METRIC_GROUPS). Обычная группа — всегда.
+ * Необязательная (optional: true — «Крепкий алкоголь», 2026-11-03) — только если
+ * хотя бы у одной её карточки за период есть план или факт не равен нулю: на
+ * барах, где категории нет, ряд из нулей с «План не задан» был бы шумом.
+ *
+ * groupStats — элементы analytics.buildStats этой группы ({hasPlan, actualValue}).
+ * Скрытая группа никогда не имеет плана, поэтому общий процент выполнения от
+ * скрытия не меняется.
+ */
+export function isGroupVisible(group, groupStats) {
+    if (!group || group.optional !== true) return true;
+    return (groupStats || []).some(s => s.hasPlan || (Number(s.actualValue) || 0) !== 0);
+}
+
+/**
  * Валидация суммы долей (должна быть ~100%)
  */
 export function validateShares(draftShare, packagedShare, kitchenShare) {

@@ -15,11 +15,12 @@ import {
     calculatePercent,
     calculateDiff,
     getStatus,
-    scorePercent
+    scorePercent,
+    isGroupVisible
 } from '../core/utils.js';
 
 /**
- * Метрики, у которых карточка раскрывается (с 2026-09-04 — все 20, см. config.js).
+ * Метрики, у которых карточка раскрывается (с 2026-09-04 — все карточки config.js).
  * Внутри — вкладки: «Сотрудники» и секции метрики с сервера (/api/dashboard-card-details).
  */
 const EXPANDABLE_METRICS = [
@@ -28,7 +29,8 @@ const EXPANDABLE_METRICS = [
     'packagedShare', 'revenuePackaged', 'markupPackaged',
     'kitchenShare', 'revenueKitchen', 'markupKitchen',
     'profit', 'loyaltyWriteoffs', 'tapActivity',
-    'cardChecksShare'
+    'cardChecksShare',
+    'revenueStrong', 'strongShare', 'markupStrong'
 ];
 
 /**
@@ -41,7 +43,8 @@ const EMPLOYEE_METRICS = [
     'revenueDraft', 'revenuePackaged', 'revenueKitchen',
     'profit', 'markupPercent', 'markupDraft', 'markupPackaged', 'markupKitchen',
     'loyaltyWriteoffs',
-    'cardChecksShare'
+    'cardChecksShare',
+    'revenueStrong', 'strongShare', 'markupStrong'
 ];
 
 /**
@@ -52,7 +55,7 @@ const EMPLOYEE_METRICS = [
  */
 const ADDITIVE_METRICS = [
     'revenue', 'checks', 'revenueDraft', 'revenuePackaged', 'revenueKitchen',
-    'profit', 'loyaltyWriteoffs'
+    'profit', 'loyaltyWriteoffs', 'revenueStrong'
 ];
 
 /**
@@ -315,6 +318,19 @@ class Analytics {
     }
 
     /**
+     * Показатели без скрытых групп: необязательная группа (config.js `optional: true`)
+     * остаётся, только если у её карточки есть план или ненулевой факт
+     * (utils.js isGroupVisible). У скрытых карточек плана нет, поэтому средний процент
+     * и счётчики «в плане / отстают» от скрытия не меняются.
+     */
+    visibleStats(stats) {
+        const hidden = new Set(METRIC_GROUPS
+            .filter(g => !isGroupVisible(g, stats.filter(s => s.metric.group === g.id)))
+            .map(g => g.id));
+        return stats.filter(s => !hidden.has(s.metric.group));
+    }
+
+    /**
      * Отобразить сравнение план vs факт.
      * Рисует обе версии разметки; какую показать, решает CSS по ширине экрана
      * (.mv-desktop / .mv-mobile) — так же, как сделано на странице графика смен.
@@ -324,7 +340,9 @@ class Analytics {
         this.hideNoPlan();
         this.showMetricsGrid();
 
-        const stats = this.buildStats(plan, actual);
+        // Необязательная группа без плана и факта («Крепкий алкоголь» на баре, где его
+        // нет) не рисуется ни на десктопе, ни на телефоне — см. visibleStats.
+        const stats = this.visibleStats(this.buildStats(plan, actual));
         this.currentStats = stats;
 
         this.metricsGrid.innerHTML = '';
@@ -543,7 +561,7 @@ class Analytics {
 
     /**
      * Мобильный экран (макет 1a): сверху один ответ на вопрос «как идёт период»,
-     * ниже три главные метрики крупно, остальные 17 свёрнуты в группы.
+     * ниже три главные метрики крупно, остальные свёрнуты в группы (необязательная группа — только при данных, visibleStats).
      */
     renderMobile(stats) {
         const root = document.createElement('div');
