@@ -340,6 +340,21 @@ def test_agents_and_prompts_load():
     assert system.endswith('ПРАВИЛА САЙТА')
 
 
+def test_prompts_name_only_existing_site_tools():
+    """Инструменты сайта, названные в инструкциях бота и агентов, есть на сайте: иначе модель ищет
+    несуществующий инструмент (имена с «*» — шаблоны, их не проверяем)."""
+    import re
+    from core.mcp.tools import analytics, common, content, staff, stocks
+    names = {t.name for module in (analytics, common, content, staff, stocks) for t in module.TOOLS}
+    texts = [config.bot_prompt(), config.agent_prompt()] + [a.instructions for a in config.load_agents().values()]
+    for text in texts:
+        for name in re.findall(r'\b(?:common|staff|analytics|stocks|content)_[a-z_]*[a-z]\b', text):
+            assert name in names, name
+    # Сравнение людей за год — одним вызовом (2026-11-04: бот собирал помесячно и не успел).
+    assert 'staff_shift_plan_weekdays' in config.bot_prompt()
+    assert 'в первой строке' in agent.QUESTION_BUDGET_NOTE
+
+
 @pytest.mark.parametrize('text_value,error', [
     ('name: x', 'начинается со строки «---»'),
     ('---\nname: pp\n', 'не закрыт строкой'),

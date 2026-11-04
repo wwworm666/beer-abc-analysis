@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, current_app, request, jsonify
 import time
 from datetime import datetime, timedelta
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -722,9 +722,11 @@ def bonus_calculate():
                 # План на этот день из daily_plans.json (автоматический расчёт пт/сб = 2x)
                 location = shift_locations.get(date_str, '')
                 day_plan = 0.0
+                day_venue = ''
                 if location:
                     normalized = normalize_bar_name(location)
                     mapped_name = BAR_NAME_MAPPING.get(normalized, location)
+                    day_venue = mapped_name
                     # Получаем план из daily_plans.json
                     day_plan = get_daily_plan_for_date(date_str, mapped_name)
 
@@ -766,7 +768,11 @@ def bonus_calculate():
                     'cash_rule_applies': date_str >= HANDOVER_CASH_RULE_FROM,
                     # Ручной штраф кассы: владелец снял премию за этот день
                     'manual_cash_penalty': date_str in emp_manual,
-                    'manual_cash_penalty_note': emp_manual.get(date_str)
+                    'manual_cash_penalty_note': emp_manual.get(date_str),
+                    # Бар смены — ключ плана (kremenchugskaya, ...; '' — точки нет):
+                    # по нему сводка по дням недели (/api/shift-plan-weekdays) делит
+                    # смены по барам и сравнивает человека с коллегами того же бара.
+                    'venue': day_venue
                 })
 
             # Формула бонуса: 1000 за каждую успешную смену + 5% от перевыполнения
@@ -845,6 +851,38 @@ def bonus_calculate():
         import traceback
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
+
+
+@employee_bp.route('/api/shift-plan-weekdays', methods=['POST'])
+def shift_plan_weekdays():
+    """План/факт кассовых смен по дням недели за период до года (core/shift_plan_weekdays.py).
+
+    Смены, выручка и планы — из того же расчёта премий: bonus_calculate вызывается в процессе
+    (как ночная выгрузка ЗП, core/salary_payload._call_view), поэтому числа совпадают со
+    страницей ЗП. Здесь только сводка: выходные против остальных дней, дни недели, бары,
+    месяцы и норма графика человека. Тело: date_from, date_to, weekend_days, venue_key.
+    """
+    from core import shift_plan_weekdays as spw
+    from core.salary_payload import NoDataForPeriod, _call_view
+
+    data = request.get_json(silent=True) or {}
+    try:
+        date_from, date_to = spw.parse_period(data.get('date_from'), data.get('date_to'))
+        weekend_days = spw.parse_weekend(data.get('weekend_days'))
+        venue_key = spw.parse_venue(data.get('venue_key'))
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    try:
+        payload = _call_view(current_app._get_current_object(), bonus_calculate,
+                             '/api/bonus-calculate', method='POST',
+                             json={'date_from': date_from, 'date_to': date_to})
+    except NoDataForPeriod:
+        return jsonify({'error': 'Нет кассовых смен за выбранный период'}), 404
+    except Exception as e:
+        print(f"[ERROR] /api/shift-plan-weekdays: {e}")
+        return jsonify({'error': f'Расчёт премий не удался: {e}'}), 500
+    return jsonify(spw.summarize(payload.get('employees') or [], date_from, date_to,
+                                 weekend_days, venue_key))
 
 
 def _find_employee_in_olap(data_dict, emp_name):

@@ -348,9 +348,38 @@ _PAYROLL_TOOLS = [
         'штраф за опоздания (250 x n(n+1)/2 ₽), кассовые смены, часы iiko и разбор по дням '
         '(days: выручка, план, касса сдана, ручной штраф). Ключ человека — employee_id (iiko '
         'GUID), имя — снимок. Часы оплаты, такси и KPI — в staff_schedule_hours_by_role и '
-        'staff_kpi_calculate; период — один календарный месяц, формулы — '
-        'common_docs_read("employee").',
+        'staff_kpi_calculate; период — один календарный месяц (ЗП), формулы — '
+        'common_docs_read("employee"). Сравнить людей за квартал или год (план/факт смен, '
+        'выходные против остальных дней) — staff_shift_plan_weekdays одним вызовом.',
         'POST', '/api/bonus-calculate', _schema(_PERIOD_PROPS, _PERIOD_REQ),
+        body='json', idempotent=True, heavy=True),
+    _tool(
+        'staff_shift_plan_weekdays', 'План/факт смен по дням недели за период до года',
+        'Кассовые смены расчёта премий (staff_bonus_calculate) за период до 400 дней одним '
+        'вызовом: сравнить людей за квартал или год, проверить, зависит ли их % плана от '
+        'числа пятниц и суббот. Блок total / weekend / weekdays: shifts, plan и revenue (₽), '
+        'percent (% плана, 0,1), met (смен с выполненным планом — за них премия), bonus '
+        '(премии за план, ₽); weekend — дни weekend_days (по умолчанию пт и сб, вес 2 в плане '
+        'дня), weekdays — остальные; weekend_share — доля смен в выходные, %. Срезы: network '
+        '(сеть) и venues (бары) — плюс by_weekday по 7 дням; months — по месяцам; employees — '
+        'по человеку (by_weekday: shifts, percent, met) и norm: % плана коллег на тех же барах, '
+        'в те же месяцы и группы дней (percent), его % на тех же сменах (fact_percent), '
+        'diff — разница, п.п. (плюс — лучше коллег при том же графике; weekend_diff, '
+        'weekdays_diff — по группам), coverage — доля его плана, где было с кем сравнить, '
+        'expected_revenue, ₽. Смены без плана — no_plan, в проценты не входят. Формулы — '
+        'common_docs_read("employee").',
+        'POST', '/api/shift-plan-weekdays',
+        _schema(dict(
+            _PERIOD_PROPS,
+            weekend_days={
+                'type': 'array', 'minItems': 1, 'maxItems': 6, 'uniqueItems': True,
+                'items': {'type': 'integer', 'minimum': 0, 'maximum': 6},
+                'description': 'Дни группы weekend, номера 0..6 (0 = пн, 6 = вс). По умолчанию '
+                               '[4, 5] — пт и сб (вес 2 в плане дня); сб и вс — [5, 6]. '
+                               'Остальные дни — группа weekdays.'},
+            venue_key=_str('Один бар — ключ заведения; по умолчанию all (все бары, нормы — '
+                           'внутри каждого бара). ' + BARS_REF, enum=list(VENUE_KEYS))),
+            _PERIOD_REQ),
         body='json', idempotent=True, heavy=True),
     _tool(
         'staff_kpi_calculate', 'KPI-премии',
@@ -1061,13 +1090,16 @@ INSTRUCTIONS = '\n'.join([
     '',
     'ПЕРИОД — КАЛЕНДАРНЫЙ МЕСЯЦ. ЗП считают и выгружают помесячно: date_from — 1-е число,',
     'date_to — последний день. KPI берёт цели по месяцу date_from, выгрузка в Google принимает',
-    'только целый месяц. Нужен квартал — три расчёта по месяцам.',
+    'только целый месяц. Нужен квартал ЗП — три расчёта по месяцам. Сравнить людей за квартал',
+    'или год (план/факт смен, выходные против остальных дней, норма графика) — один вызов',
+    'staff_shift_plan_weekdays (до 400 дней), а не расчёты премий по месяцам.',
     '',
     'ОТКУДА ФАКТЫ',
     '- iiko: кассовые смены (выручка смены, точка, опоздания, число смен) и OLAP (KPI,',
     '  аналитика). План дня — конвейер планов (веса дней), не iiko.',
     '- Тяжёлые вызовы (живой iiko, 10-70 с; сервер пускает не больше двух сразу):',
-    '  staff_bonus_calculate, staff_kpi_calculate, staff_employees_list, аналитика',
+    '  staff_bonus_calculate, staff_shift_plan_weekdays, staff_kpi_calculate,',
+    '  staff_employees_list, аналитика',
     '  staff_employee_*, staff_kpi_dishes, staff_schedule_plans, staff_schedule_summary,',
     '  staff_me_refresh, staff_open_check_run_now и все синхронизации. По одному на период.',
     '- График: смены, факт часов, касса (вводит дневной бармен; правка в модалке 72 часа, позже —',
@@ -1084,6 +1116,7 @@ INSTRUCTIONS = '\n'.join([
     '  за один период -> свести по employee_id -> пробелы: staff_schedule_cash_register,',
     '  staff_schedule_widgets, staff_schedule_audit.',
     '- Сотрудник: staff_employee_analytics + его строки из расчёта ЗП + staff_schedule_month.',
+    '- Люди за квартал или год, «% плана зависит от пятниц и суббот?»: staff_shift_plan_weekdays.',
     '- Цели месяца: staff_kpi_targets_get + staff_schedule_plans (как памятка /goals).',
     '',
     'ЧУВСТВИТЕЛЬНОСТЬ. Полные имена, зарплаты, штрафы, телефоны гостей показываются как на',

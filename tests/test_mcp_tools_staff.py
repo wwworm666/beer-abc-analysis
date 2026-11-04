@@ -65,8 +65,12 @@ HEAVY_MARKERS = ('IikoAPI(', 'OlapReports(', 'load_dashboard_sales(', '_month_in
 READ_ONLY_POST = {
     'staff_employee_analytics', 'staff_employee_compare', 'staff_employee_discount_checks',
     'staff_employee_metrics_breakdown', 'staff_bonus_calculate', 'staff_kpi_calculate',
-    'staff_salary_export_xlsx',
+    'staff_salary_export_xlsx', 'staff_shift_plan_weekdays',
 }
+
+# Маршруты, которые зовут тяжёлый view в процессе (core/salary_payload._call_view), а не
+# IikoAPI напрямую: тяжесть — у вызываемого view, его исходник проверяется вместе с ними.
+HEAVY_VIA_VIEW = {'staff_shift_plan_weekdays': 'bonus_calculate'}
 DESTRUCTIVE = {
     'staff_kpi_targets_save', 'staff_salary_handover_penalty', 'staff_salary_export_gsheet',
     'staff_salary_sync_gsheet', 'staff_schedule_employees_sync',
@@ -368,6 +372,10 @@ def test_read_only_light_tools_have_examples():
 def test_heavy_matches_iiko_usage():
     for spec in _tools():
         src = _view_source(_rule_for(spec))
+        inner = HEAVY_VIA_VIEW.get(spec.name)
+        if inner:
+            assert '_call_view(' in src and inner in src, spec.name
+            src += inspect.getsource(_app().view_functions['employee.' + inner])
         hits = [m for m in HEAVY_MARKERS if m in src]
         if hits:
             assert spec.heavy, '%s ходит в iiko (%s), а heavy=False' % (spec.name, hits)
