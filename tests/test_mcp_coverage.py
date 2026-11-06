@@ -92,7 +92,9 @@ def test_access_management_is_not_exposed():
         assert pair in exclusions and 'доступом к себе' in exclusions[pair], pair
     # API сервера бота (/api/bot/*): вход только по ключу сервера бота, отдаёт секреты — агенту закрыт
     bot_pairs = [pair for pair in report.required if pair[1].startswith('/api/bot/')]
-    assert len(bot_pairs) == 6, bot_pairs      # с 2026-10-29 — GET /api/bot/replied (продолжение работы)
+    # с 2026-10-29 — GET /api/bot/replied (продолжение работы); с 2026-11-06 — вид ответов в чате
+    # (GET и POST /api/bot/chat-format) и пример графика для /rich (POST /api/bot/rich-demo)
+    assert len(bot_pairs) == 9, bot_pairs
     for pair in bot_pairs:
         assert pair in exclusions and 'сервера бота' in exclusions[pair], pair
     tool_paths = {t.path for t in registry.all_tools() if t.route_backed}

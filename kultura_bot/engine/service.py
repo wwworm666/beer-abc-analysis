@@ -61,6 +61,22 @@ Anthropic — понятный текст в чат (claude.describe_error); д�
   REPORT_MAX_TOOL_ROUNDS шагов, в служебной строке «режим: отчёт»: модель собирает страницу
   common_report_send, в чат уходит выжимка с кнопкой «Открыть отчёт».
 
+## Богатые сообщения (решение владельца 2026-11-06, docs/kultura-bot.md «Богатые сообщения»)
+
+Вид ответов выбирают в каждом чате командой /rich: бот присылает три примера в новом виде и
+спрашивает кнопками, как они показались (выбор хранит сайт — по нему он шлёт и графики).
+В чате с новым видом (chat_rich):
+- ответ — одно богатое сообщение (engine/rich.py): заголовок, таблица, «Как считается»
+  свёрнутым блоком прямо в сообщении (без записки на сайте), подвал, кнопки; служебная строка
+  говорит модели «оформление: богатое сообщение» (prompts/bot.md). Telegram отказал — тот же
+  ответ прежним видом; текст ответа — в своей базе (store.save_sent): у богатого сообщения в
+  Telegram нет поля text, а ответ на него — продолжение той работы;
+- в личке, пока бот работает, — черновик «Думаю…» с кнопкой «Остановить» (progress.Reporter);
+  нажали — работа останавливается до следующего шага (agent.Stopped), диалог не пишется.
+
+Кнопки следующего шага («[[По дням]]» в ответе, formatting.split_buttons) — в обоих видах;
+нажатие — новый вопрос с текстом кнопки ответом на то сообщение (callback «ask:…»).
+
 ## Отчёт сайту
 
 Состояние (starting, waiting, paused, running, conflict, error, stopped, последняя ошибка
@@ -79,8 +95,8 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 from typing import Any, Dict, List, Optional
 
-from kultura_bot import links, settings
-from kultura_bot.engine import agent, claude, config, formatting, progress, report_text, tools
+from kultura_bot import links, rich_demo, settings
+from kultura_bot.engine import agent, claude, config, formatting, progress, report_text, rich, tools
 from kultura_bot.engine.site import SiteError
 from kultura_bot.engine.store import msk_day, msk_now
 from kultura_bot.engine.telegram_io import TelegramIO
@@ -92,6 +108,9 @@ IDLE_RECHECK_S = 30              # нет ключей или пауза — п�
 CONFLICT_RETRY_S = 15            # токеном пользуется другая программа — пробовать снова
 HEARTBEAT_S = 60                 # отчёт сайту не реже раза в минуту
 ACTOR_CACHE_S = 60               # ответ сайта «кто пишет» помнится минуту
+FORMAT_CACHE_S = 60              # вид ответов в чате (/rich) помнится минуту
+PRESS_DEDUP_S = 15               # двойное нажатие кнопки следующего шага — один вопрос
+DEMO_DRAFT_ID = 1                # черновик «Готовлю примеры…» команды /rich
 REFUSAL_EVERY_S = 3600           # незнакомцу «закрытый бот» — не чаще раза в час
 INTERRUPTED_MAX_AGE_S = 1800     # сообщить об оборванном ответе, если вопрос моложе 30 минут
 PHOTO_MIME = 'image/jpeg'        # Telegram пережимает фото в JPEG
@@ -108,6 +127,8 @@ HELP_TEXT = ('Я помощник сети «Культура»: отвечаю 
              'странице (графики, таблицы), в чат пришлю выжимку с кнопкой «Открыть отчёт».\n\n'
              'Вернуться к прошлой работе — ответьте на моё сообщение с отчётом или графиком («Ответить»): '
              'вопрос — отвечу с опорой на неё, «/report …» — соберу новую версию отчёта.\n\n'
+             '/rich — новый вид ответов: таблицы, «Как считается» прямо в ответе, график и текст одним '
+             'сообщением; пришлю примеры и спрошу, включать ли.\n'
              '/new — начать новый диалог')
 REPORT_EMPTY_TEXT = 'Напишите вопрос для отчёта: «/report как прошёл сентябрь по барам».'
 # Ответ на сообщение бота (2026-10-29, продолжение работы): текст обычного сообщения — не длиннее.
@@ -127,6 +148,12 @@ UNSUPPORTED_FILE_TEXT = ('Этот файл я не читаю: понимаю �
 NEW_DIALOG_TEXT = 'Начинаю новый диалог.'
 INTERRUPTED_TEXT = 'Ответ на прошлый вопрос прервался: сервер перезапускался. Повторите вопрос, пожалуйста.'
 RESTARTING_TEXT = 'Сервер перезапускается — повторите вопрос через минуту.'
+STOPPED_TEXT = 'Остановил. Уточните вопрос — отвечу заново.'
+STOPPING_TEXT = 'Останавливаю: доделаю текущий шаг и дальше не пойду.'
+RICH_OFF_TEXT = 'Новый вид ответов выключен в настройках бота (RICH_MESSAGES в kultura_bot/settings.py).'
+RICH_ON_DONE = ('Готово: ответы в этом чате — в новом виде (таблицы, «Как считается» раскрывающимся блоком, график и '
+                'текст одним сообщением). Вернуть прежний — /rich.')
+RICH_OFF_DONE = 'Оставил прежний вид ответов в этом чате. Посмотреть новый ещё раз — /rich.'
 SITE_DOWN_TEXT = 'Сайт сейчас не отвечает, без него я не вижу данных. Повторите вопрос через пару минут.'
 # Пометки над ответом, когда бот начал разговор заново посреди переписки (2026-10-29: говорят, что
 # это значит для человека и как продолжить; пауза дольше DIALOG_IDLE_MINUTES — без пометки).
@@ -217,6 +244,9 @@ class Service:
         self.catalog_at = 0.0
         self.catalog_lock = threading.Lock()
         self.actor_cache: Dict[str, tuple] = {}
+        self.format_cache: Dict[str, tuple] = {}         # chat_id -> (когда, слать ли богатые сообщения)
+        self.running: Dict[str, tuple] = {}              # chat_id -> (job_id = id черновика, Event «Остановить», {notice})
+        self.pressed: Dict[tuple, float] = {}            # (chat_id, message_id, data) -> когда нажали
         self.refused_at: Dict[str, float] = {}
         self._interrupted_checked = False
 
@@ -401,6 +431,25 @@ class Service:
         self.actor_cache[tg_user_id] = (now, actor)
         return actor
 
+    def chat_rich(self, chat_id: str, fresh: bool = False) -> bool:
+        """Слать ли в чат богатые сообщения: выбор чата на сайте (/rich), помнится FORMAT_CACHE_S.
+        Сайт не ответил — прежний вид (надёжнее)."""
+        if not settings.RICH_MESSAGES:
+            return False
+        now = time.time()
+        cached = self.format_cache.get(chat_id)
+        if cached is not None and not fresh and now - cached[0] < FORMAT_CACHE_S:
+            return cached[1]
+        try:
+            value = bool(self.site.chat_format(chat_id).get('rich'))
+        except SiteError as exc:
+            log.warning('[BOT] вид ответов чата не узнал: %s', exc.text)
+            return cached[1] if cached is not None else False
+        if len(self.format_cache) > 5000:
+            self.format_cache.clear()
+        self.format_cache[chat_id] = (now, value)
+        return value
+
     def refusal_due(self, tg_user_id: str, now: Optional[float] = None) -> bool:
         """Пора ли ответить незнакомцу «закрытый бот» (не чаще раза в REFUSAL_EVERY_S)."""
         now = time.time() if now is None else now
@@ -440,6 +489,10 @@ class Service:
         if not replied or not self._from_bot(replied):
             return ''
         quoted = str(replied.get('text') or replied.get('caption') or '').strip()
+        if not quoted and replied.get('message_id'):
+            # Богатое сообщение: текста в Telegram нет — ответ из своей базы, иначе текст блоков.
+            quoted = self.store.get_sent(chat_id, replied['message_id']) or \
+                rich.plain_text((replied.get('rich_message') or {}).get('blocks') or [])
         found = None
         if replied.get('message_id'):
             try:
@@ -478,6 +531,12 @@ class Service:
         return parts[0][1:].split('@', 1)[0].lower(), rest
 
     def handle_update(self, update: Dict[str, Any]) -> None:
+        if update.get('callback_query'):
+            self.handle_callback(update['callback_query'])
+            return
+        if update.get('stopped_message_generation'):
+            self.handle_stop(update['stopped_message_generation'])
+            return
         message = update.get('message')
         if not message:
             return
@@ -528,6 +587,15 @@ class Service:
         if command == 'help':
             self.tg.send_plain(chat_id, HELP_TEXT)
             return
+        if command == 'rich':
+            choice = rest.strip().lower()
+            if choice in ('on', 'вкл', 'включить', 'off', 'выкл', 'выключить'):
+                self.set_format(chat_id, 'rich' if choice in ('on', 'вкл', 'включить') else 'plain', tg_user_id)
+                return
+            # Через очередь чата: примеры — несколько сообщений и запрос к сайту (картинка графика).
+            self.enqueue(chat_id, {'kind': 'rich', 'message': message, 'actor': actor, 'text': '',
+                                   'chat_type': chat_type})
+            return
         has_file = bool(message.get('photo') or (message.get('document') or {}).get('mime_type') in DOCUMENT_MIMES)
         mode = 'answer'
         if command == settings.REPORT_COMMAND:
@@ -546,7 +614,7 @@ class Service:
     # ---------------------------------------------------------------- очередь
 
     def enqueue(self, chat_id: str, job: Dict[str, Any]) -> None:
-        if job.get('kind') != 'new':
+        if job.get('kind') not in ('new', 'rich'):
             # Вопрос записан сразу ('queued'): остановка, пока он ждёт очереди, не потеряет его
             # молча — после запуска чат получит «повторите вопрос» (store.take_interrupted_jobs).
             job['job_id'] = self.store.start_job(chat_id, job['actor']['tg_user_id'], status='queued')
@@ -589,7 +657,128 @@ class Service:
             self.store.delete_dialog(chat_id)
             self.tg.send_plain(chat_id, NEW_DIALOG_TEXT)
             return
+        if job.get('kind') == 'rich':
+            self.rich_demo(chat_id)
+            return
         self.answer(chat_id, job)
+
+    # ---------------------------------------------------------------- вид ответов (/rich)
+
+    def _demo_message(self, markdown: str, labels) -> Dict[str, Any]:
+        visible, how = formatting.split_how(markdown)
+        return rich.message(visible, how=how, button_rows=rich_demo.demo_buttons(labels))
+
+    def rich_demo(self, chat_id: str) -> None:
+        """/rich: три примера в новом виде (третий с графиком шлёт сайт) и вопрос кнопками."""
+        if not settings.RICH_MESSAGES:
+            self.tg.send_plain(chat_id, RICH_OFF_TEXT)
+            return
+        if not links.is_group(chat_id):
+            self.tg.send_rich_draft(chat_id, DEMO_DRAFT_ID, rich.draft('Готовлю примеры…'))
+        message_id, reason = self.tg.send_rich(chat_id, self._demo_message(rich_demo.WEEK, rich_demo.WEEK_BUTTONS))
+        if message_id is None:
+            if reason != 'unknown':
+                self.tg.send_plain(chat_id, f'Telegram не принял новый вид ответов ({reason}). Оставляю прежний.')
+            return
+        try:
+            self.site.rich_demo(chat_id)
+        except SiteError as exc:
+            self.tg.send_plain(chat_id, f'Пример с графиком не пришёл: {exc.text}')
+        self.tg.send_rich(chat_id, self._demo_message(rich_demo.PEOPLE, rich_demo.PEOPLE_BUTTONS))
+        now_rich = self.chat_rich(chat_id, fresh=True)
+        current = '\n\nСейчас в этом чате — ' + ('новый вид.' if now_rich else 'прежний вид.')
+        self.tg.send_plain(chat_id, rich_demo.QUESTION + current, reply_markup={'inline_keyboard': [[
+            {'text': rich_demo.CHOICE_RICH, 'callback_data': 'fmt:rich'},
+            {'text': rich_demo.CHOICE_PLAIN, 'callback_data': 'fmt:plain'}]]})
+
+    def set_format(self, chat_id: str, fmt: str, tg_user_id: str, *, edit_message_id: Optional[int] = None,
+                   callback_id: str = '') -> None:
+        """Выбор вида ответов (кнопка под примерами или «/rich on|off») -> сайт; ответ в чат."""
+        try:
+            data = self.site.set_chat_format(chat_id, fmt, tg_user_id)
+        except SiteError as exc:
+            log.warning('[BOT] вид ответов не сохранился: %s', exc.text)
+            if callback_id:
+                self.tg.answer_callback(callback_id, 'Сайт не ответил — нажмите ещё раз через минуту')
+            else:
+                self.tg.send_plain(chat_id, SITE_DOWN_TEXT)
+            return
+        enabled = bool(data.get('rich'))
+        self.format_cache[chat_id] = (time.time(), enabled)
+        text = RICH_ON_DONE if fmt == 'rich' else RICH_OFF_DONE
+        if fmt == 'rich' and not enabled:
+            text = RICH_OFF_TEXT
+        if callback_id:
+            self.tg.answer_callback(callback_id, 'Включил новый вид' if enabled else 'Оставил прежний вид')
+        if edit_message_id is not None and self.tg.edit_plain(chat_id, edit_message_id, text):
+            return
+        self.tg.send_plain(chat_id, text)
+
+    # ---------------------------------------------------------------- кнопки и «Остановить»
+
+    def handle_callback(self, query: Dict[str, Any]) -> None:
+        """Нажатие кнопки под сообщением бота: выбор вида, подсказка примера, вопрос следующего шага."""
+        callback_id = str(query.get('id') or '')
+        data = str(query.get('data') or '')
+        author = query.get('from') or {}
+        message = query.get('message') or {}
+        chat = message.get('chat') or {}
+        chat_id = str(chat.get('id') or '')
+        if not callback_id or author.get('is_bot') or not author.get('id') or not chat_id:
+            return
+        if data.startswith(rich_demo.DEMO_PREFIX):
+            label = data[len(rich_demo.DEMO_PREFIX):]
+            self.tg.answer_callback(callback_id, rich_demo.DEMO_HINTS.get(
+                label, 'Это пример: в настоящем ответе кнопка задаст боту этот вопрос.'))
+            return
+        if chat.get('type') in ('group', 'supergroup') and not settings.ANSWER_IN_GROUPS:
+            self.tg.answer_callback(callback_id)
+            return
+        tg_user_id = str(author['id'])
+        try:
+            actor = self.actor(tg_user_id)
+        except SiteError as exc:
+            log.warning('[BOT] сайт не ответил на вопрос о доступе: %s', exc.text)
+            self.tg.answer_callback(callback_id, 'Сайт не отвечает — нажмите ещё раз через пару минут')
+            return
+        if actor is None:
+            self.tg.answer_callback(callback_id, 'Это закрытый бот сети «Культура»')
+            return
+        if data in ('fmt:rich', 'fmt:plain'):
+            self.set_format(chat_id, data[4:], tg_user_id, edit_message_id=message.get('message_id'),
+                            callback_id=callback_id)
+            return
+        if not data.startswith(formatting.ASK_PREFIX):
+            self.tg.answer_callback(callback_id)
+            return
+        question = data[len(formatting.ASK_PREFIX):].strip()
+        key = (chat_id, message.get('message_id'), data)
+        now = time.time()
+        if not question or now - self.pressed.get(key, 0.0) < PRESS_DEDUP_S:
+            self.tg.answer_callback(callback_id)
+            return
+        if len(self.pressed) > 5000:
+            self.pressed.clear()
+        self.pressed[key] = now
+        self.tg.answer_callback(callback_id, f'Спрашиваю: «{question}»')
+        # Как будто человек ответил (Reply) на это сообщение текстом кнопки: продолжение той работы.
+        asked = {'chat': chat, 'from': author, 'text': question, 'reply_to_message': message}
+        self.enqueue(chat_id, {'message': asked, 'actor': actor, 'text': question, 'chat_type': chat.get('type'),
+                               'mode': 'answer', 'reply_to': message.get('message_id')})
+
+    def handle_stop(self, update: Dict[str, Any]) -> None:
+        """Нажали «Остановить» у черновика: остановить работу этого чата (если черновик — её)."""
+        chat_id = str((update.get('chat') or {}).get('id') or '')
+        draft_id = update.get('draft_id')
+        with self.lock:
+            running = self.running.get(chat_id)
+        if running is None or running[0] != draft_id or running[1].is_set():
+            return
+        log.info('[BOT] чат %s: нажали «Остановить»', chat_id)
+        running[1].set()
+        # Сразу видно, что нажатие дошло: идущий шаг модели может длиться до минуты. Потом это
+        # сообщение станет «Остановил» (answer).
+        running[2]['notice'] = self.tg.send_plain(chat_id, STOPPING_TEXT)
 
     # ---------------------------------------------------------------- ответ
 
@@ -639,11 +828,12 @@ class Service:
         return blocks
 
     @staticmethod
-    def header(actor: Dict[str, Any], mode: str = 'answer', limit: Optional[float] = None) -> str:
+    def header(actor: Dict[str, Any], mode: str = 'answer', limit: Optional[float] = None, rich_view: bool = False) -> str:
         now = msk_now()
         limit = settings.REPORT_BUDGET_USD if limit is None else limit
         report = f' · режим: отчёт — страница common_report_send, предел ${limit:.2f}' if mode == 'report' else ''
-        return (f'[{WEEKDAYS[now.weekday()]} {now.strftime("%d.%m.%Y %H:%M")} МСК · {calendar_text(now)}{report} · '
+        view = ' · оформление: богатое сообщение' if rich_view else ''
+        return (f'[{WEEKDAYS[now.weekday()]} {now.strftime("%d.%m.%Y %H:%M")} МСК · {calendar_text(now)}{report}{view} · '
                 f'пишет {actor["display_name"]} ({actor["login"]})]')
 
     def how_link(self, chat_id: str, visible: str, how: str):
@@ -678,17 +868,22 @@ class Service:
             return self.catalog
 
     def deliver(self, chat_id: str, answer: str, *, ctx: tools.ToolContext, spend: agent.Spend,
-                notice: str = '', reply_to: Optional[int] = None) -> None:
-        """Ответ модели -> Telegram: «Как считается» за ссылкой, строка цены, уведомление.
+                notice: str = '', reply_to: Optional[int] = None, rich_view: bool = False) -> None:
+        """Ответ модели -> Telegram: «Как считается» за ссылкой, строка цены, уведомление, кнопки.
 
         График или отчёт уже ушли подписью-ответом, а текста нет — второго сообщения нет
-        (кроме уведомления и строки цены, пока она включена)."""
+        (кроме уведомления и строки цены, пока она включена). rich_view — богатым сообщением
+        (deliver_rich); Telegram отказал — прежним видом."""
         visible, how = formatting.split_how(answer or '')
         if ctx.report_mode and ctx.reports_sent:
             # Режим отчёта: ответ — страница; текст модели после неё («Отчёт отправлен») не нужен.
             if visible.strip():
                 log.info('[BOT] отчёт ушёл страницей, текст после него не отправлен: %s', visible[:200])
             visible, how = '', ''
+        visible, ask = formatting.split_buttons(visible)
+        if rich_view and self.deliver_rich(chat_id, visible, how, ask, ctx=ctx, spend=spend, notice=notice,
+                                           reply_to=reply_to):
+            return
         markup = None
         if how:
             visible, markup = self.how_link(chat_id, visible, how)
@@ -701,8 +896,38 @@ class Service:
         limit = spend.budget()
         if settings.SHOW_COST or (limit and spend.usd >= limit):
             text = f'{text}\n\n{cost_line(spend)}' if text else cost_line(spend)
+        markup = formatting.button_markup(ask, markup)
         if text or markup:
             self.tg.send_markdown(chat_id, text or links.HOW_TEXT, reply_to=reply_to, reply_markup=markup)
+
+    def deliver_rich(self, chat_id: str, visible: str, how: str, ask: List[str], *, ctx: tools.ToolContext,
+                     spend: agent.Spend, notice: str = '', reply_to: Optional[int] = None) -> bool:
+        """Ответ одним богатым сообщением: «Как считается» — свёрнутым блоком внутри, строка цены — подвалом,
+        кнопки — внутри. True — ушло (или могло уйти: Telegram не ответил — второй раз не шлём); False —
+        Telegram отказал или ответ велик: вызывающий шлёт прежним видом."""
+        sent_card = bool(ctx.charts_sent or ctx.reports_sent)
+        text = visible or ('' if sent_card or how else 'Готово.')
+        if notice and text:
+            text = f'*{notice}*\n\n{text}'
+        limit = spend.budget()
+        if settings.SHOW_COST or (limit and spend.usd >= limit):
+            text = f'{text}\n\n{cost_line(spend)}' if text else cost_line(spend)
+        if not text and not how and not ask:
+            return True
+        try:
+            message = rich.message(text, how=how, button_rows=formatting.ask_buttons(ask))
+        except rich.RichError as exc:
+            log.info('[BOT] ответ не собрался богатым сообщением (%s) — прежним видом', exc)
+            return False
+        message_id, reason = self.tg.send_rich(chat_id, message, reply_to=reply_to)
+        if message_id is None:
+            return reason == 'unknown'
+        try:
+            stored = text + (f'\n\nКак считается:\n{how}' if how else '')
+            self.store.save_sent(chat_id, message_id, stored)
+        except Exception:  # noqa: BLE001 — ответ уже в чате; без записи только продолжение будет по блокам
+            log.exception('[BOT] не записал текст ответа')
+        return True
 
     def finish_report(self, client, persona, ctx: tools.ToolContext, result: agent.TurnResult,
                       question: str):
@@ -772,7 +997,7 @@ class Service:
 
     def answer(self, chat_id: str, job: Dict[str, Any]) -> None:
         message = job['message']
-        reply_to = message.get('message_id') if job['chat_type'] != 'private' else None
+        reply_to = job.get('reply_to') or (message.get('message_id') if job['chat_type'] != 'private' else None)
         job_id = job.get('job_id') or self.store.start_job(chat_id, job['actor']['tg_user_id'])
         self.store.run_job(job_id)
         try:
@@ -792,19 +1017,27 @@ class Service:
         mode = 'report' if report_mode else 'answer'
         limit = self.question_limit(report_mode)
         spend = agent.Spend(limit=limit)
+        rich_view = self.chat_rich(chat_id)
+        stop = threading.Event()                   # «Остановить» у черновика (handle_stop)
         ctx = tools.ToolContext(site=self.site, chat_id=chat_id, allowed=catalog.bot.toolset.names, spend=spend,
-                                report_mode=report_mode)
+                                report_mode=report_mode, stop=stop)
+        stop_notice: Dict[str, Any] = {}
+        with self.lock:
+            self.running[chat_id] = (job_id, stop, stop_notice)
         # Прогресс в чате (engine/progress.py): «печатает…», а дольше PROGRESS_AFTER_S — сообщение
         # «что делаю, сколько осталось»; убирается, когда ушёл ответ (finally).
         tracker = progress.Tracker(mode, spend, limit=limit, durations=self.store.recent_durations(mode),
                                    tool_typical=self._tool_typical(), titles=catalog.titles,
                                    is_finishing=lambda: ctx.report_only)
         ctx.progress = tracker
+        draft = rich_view and job['chat_type'] == 'private'   # черновики Telegram — только в личке
         reporter = progress.Reporter(self.tg, chat_id, tracker, after_s=settings.PROGRESS_AFTER_S.get(mode, 10),
                                      every_s=settings.PROGRESS_EDIT_EVERY_S, reply_to=reply_to,
-                                     enabled=settings.PROGRESS).start()
+                                     enabled=settings.PROGRESS, draft_id=job_id if draft else None,
+                                     draft_every_s=settings.RICH_DRAFT_EVERY_S, make_draft=rich.draft,
+                                     stopped=stop.is_set).start()
         try:
-            header = self.header(actor, mode, limit)
+            header = self.header(actor, mode, limit, rich_view=rich_view)
             reply = self.reply_block(chat_id, message)
             user_content = [{'type': 'text', 'text': f'{header}\n{reply}{job["text"] or "(без текста)"}'}]
             files = self._files(message)
@@ -858,12 +1091,19 @@ class Service:
                     notice = f'{notice} ' if notice else ''
                     notice += f'Страницу отчёта собрать не удалось ({path}) — ответ ниже сообщением.'
             self.store.save_dialog(chat_id, persona.fingerprint, started_at, result.messages, turns + 1)
-            self.deliver(chat_id, result.text, ctx=ctx, spend=spend, notice=notice, reply_to=reply_to)
+            self.deliver(chat_id, result.text, ctx=ctx, spend=spend, notice=notice, reply_to=reply_to,
+                         rich_view=rich_view)
             if self.status['claude_error']:             # Claude снова отвечает — ошибку со страницы убрать
                 self.set_status(self.status['state'], self.status['detail'], claude_error='')
         except agent.BudgetExceeded as exc:
             status, error = 'error', 'budget'
             self.tg.send_plain(chat_id, str(exc), reply_to=reply_to)
+        except agent.Stopped:
+            # «Остановить»: диалог не пишется — следующий вопрос продолжает разговор до этого.
+            status, error = 'error', 'stopped'
+            notice_id = stop_notice.get('notice')
+            if not (notice_id and self.tg.edit_plain(chat_id, notice_id, STOPPED_TEXT)):
+                self.tg.send_plain(chat_id, STOPPED_TEXT, reply_to=reply_to)
         except Exception as exc:  # noqa: BLE001 — любая беда -> понятный ответ в чат
             kind, text = claude.describe_error(exc, secrets=self._secrets())
             status, error = 'error', f'{kind}: {text}'
@@ -880,6 +1120,9 @@ class Service:
                 # пока следующий ответ не получится.
                 self.set_status(self.status['state'], self.status['detail'], claude_error=text)
         finally:
+            with self.lock:
+                if (self.running.get(chat_id) or (None,))[0] == job_id:
+                    self.running.pop(chat_id, None)
             reporter.stop()                            # ответ уже в чате — сообщение о прогрессе убрать
             if status == 'done':
                 self._save_stats(job_id, tracker)

@@ -15,6 +15,8 @@
                     created_ts, expires_ts; срок — LINK_CODE_TTL_S, использованный удаляется
     bot_usage       расход по дням (МСК) и моделям из отчётов сервера бота: day + model (PK),
                     requests, input_tokens, output_tokens, cache_read, cache_write, cost_usd
+    bot_chat_format вид ответов в чате (2026-11-06, команда /rich): chat_id (PK) -> format
+                    (rich | plain), set_at, set_by (tg_user_id); нет строки — RICH_DEFAULT
 
 Состояние сервера бота — ключ kultura_bot_status в settings (JSON из последнего отчёта и
 время его прихода).
@@ -55,6 +57,12 @@ SCHEMA = (
         cache_write   INTEGER NOT NULL DEFAULT 0,
         cost_usd      REAL NOT NULL DEFAULT 0,
         PRIMARY KEY (day, model)
+    )''',
+    '''CREATE TABLE IF NOT EXISTS bot_chat_format (
+        chat_id TEXT PRIMARY KEY,
+        format  TEXT NOT NULL,
+        set_at  TEXT NOT NULL,
+        set_by  TEXT NOT NULL DEFAULT ''
     )''',
 )
 
@@ -172,6 +180,38 @@ def usage_summary(days: int = 30) -> Dict[str, Any]:
 
     return {'today': total([r for r in rows if r['day'] == today.isoformat()]),
             'period': total(rows), 'days': days}
+
+
+# ------------------------------------------------------------------ вид ответов в чате
+
+CHAT_FORMATS = ('rich', 'plain')
+
+
+def get_chat_format(chat_id: str) -> Optional[str]:
+    """Выбор вида ответов в чате: 'rich', 'plain' или None (не выбирали)."""
+    _ensure()
+    with db.read() as conn:
+        row = conn.execute('SELECT format FROM bot_chat_format WHERE chat_id = ?', (str(chat_id),)).fetchone()
+    return row['format'] if row and row['format'] in CHAT_FORMATS else None
+
+
+def set_chat_format(chat_id: str, fmt: str, by: str = '') -> None:
+    if fmt not in CHAT_FORMATS:
+        raise ValueError(f'format — один из {list(CHAT_FORMATS)}')
+    _ensure()
+    with db.write() as conn:
+        conn.execute('INSERT INTO bot_chat_format (chat_id, format, set_at, set_by) VALUES (?, ?, ?, ?) '
+                     'ON CONFLICT(chat_id) DO UPDATE SET format = excluded.format, set_at = excluded.set_at, '
+                     'set_by = excluded.set_by', (str(chat_id), fmt, _now_iso(), str(by or '')[:40]))
+
+
+def chat_rich(chat_id: str) -> bool:
+    """Слать ли в этот чат богатые сообщения: общий выключатель, выбор чата, иначе умолчание."""
+    from kultura_bot import settings
+    if not settings.RICH_MESSAGES:
+        return False
+    fmt = get_chat_format(chat_id)
+    return fmt == 'rich' if fmt else bool(settings.RICH_DEFAULT)
 
 
 # ------------------------------------------------------------------ состояние для страницы

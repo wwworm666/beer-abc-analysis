@@ -149,6 +149,12 @@ EXCLUDED = {
                                                  'отчёт или график чата текстом для модели — продолжение работы)',
     ('POST', '/api/bot/note'): _ENGINE_REASON + ' (записка «Как считается» из ответа бота; агенту — поле how '
                                                 'у common_chart_send и common_report_send)',
+    ('GET', '/api/bot/chat-format'): _ENGINE_REASON + ' (вид ответов в чате, команда /rich бота: выбирает человек '
+                                                     'кнопкой под примерами, а не агент)',
+    ('POST', '/api/bot/chat-format'): _ENGINE_REASON + ' (вид ответов в чате, команда /rich бота: выбирает человек '
+                                                      'кнопкой под примерами, а не агент)',
+    ('POST', '/api/bot/rich-demo'): _ENGINE_REASON + ' (пример графика богатым сообщением для команды /rich; '
+                                                    'агенту — common_chart_send)',
 }
 
 _NO_ARGS = {'type': 'object', 'properties': {}, 'additionalProperties': False}

@@ -246,3 +246,106 @@ def test_mcp_tool_flags_and_modes():
             assert 'common_chart_send' in [t.name for t in registry.tools_for(domain)], domain
     finally:
         registry.reset()
+
+
+# ------------------------------------------------------------------ богатые сообщения (2026-11-06)
+
+class FakeRich:
+    """sendRichMessage сайта (send._transport_rich): поля, файлы, ответ Telegram."""
+
+    OK = {'ok': True, 'result': {'message_id': 88}}
+
+    def __init__(self, reply=OK, outcome=None):
+        self.calls = []
+        self.reply = reply                         # None — Telegram не ответил
+        self.outcome = outcome
+
+    def __call__(self, fields, files, token, outcome):
+        self.calls.append({'fields': json.loads(json.dumps(fields)), 'files': list(files), 'token': token})
+        if self.outcome:
+            outcome.append(self.outcome)
+        return self.reply
+
+
+RICH_CAPTION = ('## Выручка: 98% плана\nвсе бары\n\n| Бар | % плана |\n|---|---|\n| Лиговский | 104% |\n\n'
+                '[[По барам]]\n\n>> Как считается\n>> % плана = факт / план × 100.')
+
+
+def note_rows():
+    from kultura_bot.charts import reports
+    reports._ensure()
+    with db.read() as conn:
+        return conn.execute('SELECT COUNT(*) FROM tg_reports').fetchone()[0]
+
+
+def test_chat_format_choice_and_switches(setup):
+    from kultura_bot import store as bot_store
+    mp = setup['monkeypatch']
+    mp.setattr(bot_settings, 'RICH_DEFAULT', False)
+    assert bot_store.get_chat_format(OWNER) is None and bot_store.chat_rich(OWNER) is False
+    bot_store.set_chat_format(OWNER, 'rich', by='555')
+    assert bot_store.get_chat_format(OWNER) == 'rich' and bot_store.chat_rich(OWNER) is True
+    mp.setattr(bot_settings, 'RICH_MESSAGES', False)
+    assert bot_store.chat_rich(OWNER) is False, 'общий выключатель важнее выбора чата'
+    mp.setattr(bot_settings, 'RICH_MESSAGES', True)
+    bot_store.set_chat_format(OWNER, 'plain')
+    mp.setattr(bot_settings, 'RICH_DEFAULT', True)
+    assert bot_store.chat_rich(OWNER) is False and bot_store.chat_rich(GROUP) is True, 'выбор чата важнее умолчания'
+    with pytest.raises(ValueError):
+        bot_store.set_chat_format(OWNER, 'html')
+
+
+def test_rich_chat_gets_chart_in_one_rich_message(setup):
+    from kultura_bot import store as bot_store
+    mp = setup['monkeypatch']
+    rich_tg = FakeRich()
+    mp.setattr(tg_chart_send, '_transport_rich', rich_tg)
+    mp.setattr(bot_settings, 'CHART_BUTTON', True)
+    bot_store.set_chat_format(OWNER, 'rich')
+    result = tg_chart_send.send_chart(dict(FIXTURES)['revenue'], chat_id=OWNER, caption=RICH_CAPTION,
+                                      token_id='st_owner')
+    assert result['format'] == 'rich' and result['message_id'] == 88 and result['how'] == {'shown_as': 'details'}
+    assert setup['tg'].calls == [], 'отдельной картинки нет'
+    [call] = rich_tg.calls
+    assert call['files'] == [('chart', 'chart.png', PNG, 'image/png')] and call['token'] == 'test-mcp-bot-token'
+    blocks = call['fields']['rich_message']['blocks']
+    assert [b['type'] for b in blocks] == ['heading', 'photo', 'paragraph', 'table', 'details', 'buttons']
+    assert blocks[1]['photo']['media'] == 'attach://chart'
+    assert blocks[-1]['buttons'] == [
+        {'text': 'Открыть интерактивно', 'web_app': {'url': f'https://beerkultura.ru/tg/chart?id={result["chart_id"]}'}},
+        {'text': 'По барам', 'callback_data': 'ask:По барам'}]
+    stored = tg_charts.get(result['chart_id'])
+    assert (stored['sent'], stored['message_id']) == (1, 88)
+    assert note_rows() == 0, '«Как считается» — внутри сообщения, записки нет'
+
+
+def test_rich_refused_sends_chart_the_old_way(setup):
+    from kultura_bot import store as bot_store
+    mp = setup['monkeypatch']
+    mp.setattr(tg_chart_send, '_transport_rich', FakeRich(reply={'ok': False, 'description': 'Bad Request: rich'}))
+    bot_store.set_chat_format(OWNER, 'rich')
+    long_caption = RICH_CAPTION.replace('все бары', 'все бары. ' + 'Очень длинное пояснение. ' * 80)
+    result = tg_chart_send.send_chart(dict(FIXTURES)['revenue'], chat_id=OWNER, caption=long_caption)
+    assert result['format'] == 'plain' and result['rich_failed'] == 'Bad Request: rich'
+    assert len(rows()) == 1, 'описание первой попытки удалено, осталось одно'
+    fields = setup['tg'].calls[0]['fields']
+    assert len(fields['caption']) <= tg_chart_send.CAPTION_MAX and '[[' not in fields['caption']
+    markup = json.loads(fields['reply_markup'])
+    assert markup['inline_keyboard'][-1] == [{'text': 'По барам', 'callback_data': 'ask:По барам'}]
+    assert note_rows() == 1, 'в прежнем виде «Как считается» — запиской'
+
+    mp.setattr(tg_chart_send, '_transport_rich', FakeRich(reply={'ok': False, 'description': 'Bad Request: rich'}))
+    with pytest.raises(tg_chart_send.ChartSendError, match='не принял богатое сообщение'):
+        tg_chart_send.send_chart(dict(FIXTURES)['revenue'], chat_id=OWNER, caption=RICH_CAPTION, rich=True,
+                                 rich_fallback=False)
+    mp.setattr(tg_chart_send, '_transport_rich', FakeRich(reply=None, outcome='unknown'))
+    with pytest.raises(tg_chart_send.ChartSendError, match='Статус неизвестен'):
+        tg_chart_send.send_chart(dict(FIXTURES)['revenue'], chat_id=OWNER, caption=RICH_CAPTION)
+
+
+def test_plain_chat_chart_buttons_under_picture(setup):
+    result = tg_chart_send.send_chart(dict(FIXTURES)['revenue'], chat_id=OWNER, caption='Итог.\n\n[[По барам]]')
+    fields = setup['tg'].calls[0]['fields']
+    assert result['format'] == 'plain' and fields['caption'] == 'Итог.'
+    assert json.loads(fields['reply_markup']) == {'inline_keyboard': [[{'text': 'По барам',
+                                                                        'callback_data': 'ask:По барам'}]]}

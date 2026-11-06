@@ -28,6 +28,16 @@ settings.PROGRESS_EDIT_EVERY_S и удаляет, как только ушёл �
 - «Сделано» — запросы к модели и вызовы инструментов, бот и агенты вместе; расход — как в строке
   цены (пока settings.SHOW_COST).
 
+## Черновик вместо сообщения (2026-11-06, богатые сообщения)
+
+В личке, где выбран новый вид ответов (команда /rich), прогресс — не отдельное сообщение, а
+черновик Telegram (sendRichMessageDraft) с блоком «Думаю…»: «Смотрю «Сравнение периодов»…» и
+строка «0:40 · ≈ 1 мин осталось» — те же числа, что выше. Он виден сразу, без «печатает…»;
+Telegram держит черновик ~30 с, бот обновляет его раз в settings.RICH_DRAFT_EVERY_S; готовый
+ответ его заменяет. У черновика кнопка «Остановить» (can_stop): нажали — Telegram присылает
+stopped_message_generation, бот останавливает работу (agent.Stopped). Telegram не принял
+черновик — до конца ответа прежнее сообщение о прогрессе.
+
 ## Точность
 
 При первом показе запоминается, сколько бот обещал (shown_eta) и на какой секунде (shown_at);
@@ -225,6 +235,21 @@ class Tracker:
             lines.append(done)
             return '\n'.join(lines)
 
+    def draft_lines(self) -> Tuple[str, str]:
+        """Черновик: (что делаю — для блока «Думаю…», «0:40 · ≈ 1 мин осталось»)."""
+        with self._lock:
+            label, _since, tool = self._activity
+            elapsed = self.clock() - self.started
+        doing = f'Смотрю {label}' if tool and label.startswith('«') else label[:1].upper() + label[1:]
+        est, _bound = self.estimate()
+        if self.is_finishing():
+            left = 'заканчиваю'
+        elif est is None:
+            left = 'дольше обычного'
+        else:
+            left = f'{left_text(est)} осталось'
+        return f'{doing}…', f'{clock_text(elapsed)} · {left}'
+
     def mark_shown(self) -> None:
         """Первый показ: запомнить обещание — по нему считается точность оценки."""
         est, _ = self.estimate()
@@ -239,8 +264,15 @@ class Reporter:
     мешают ответу: прогресс — подсказка, а не часть ответа."""
 
     def __init__(self, tg: Any, chat_id: str, tracker: Tracker, *, after_s: float, every_s: float,
-                 reply_to: Optional[int] = None, enabled: bool = True):
+                 reply_to: Optional[int] = None, enabled: bool = True, draft_id: Optional[int] = None,
+                 draft_every_s: float = 4.0, make_draft: Optional[Callable[[str, str], Dict[str, Any]]] = None,
+                 stopped: Callable[[], bool] = lambda: False):
         self.tg = tg
+        self.stopped = stopped                     # нажали «Остановить»: черновик больше не показываем
+        self.draft_id = draft_id                   # черновик вместо сообщения (личка, новый вид ответов)
+        self.draft_every_s = draft_every_s
+        self.make_draft = make_draft
+        self._next_draft = 0.0
         self.chat_id = chat_id
         self.tracker = tracker
         self.after_s = after_s
@@ -257,6 +289,19 @@ class Reporter:
     def tick(self) -> None:
         """Один шаг потока (тесты зовут его сами с подменённым временем)."""
         now = self.tracker.clock()
+        if self.draft_id is not None and self.enabled and self.make_draft is not None:
+            if now < self._next_draft or self.stopped():
+                return                             # остановили — черновик не возвращаем, пока шаг доходит
+            doing, detail = self.tracker.draft_lines()
+            ok = self._safe(self.tg.send_rich_draft, self.chat_id, self.draft_id, self.make_draft(doing, detail),
+                            can_stop=True)
+            if ok:
+                if self.tracker.shown_at is None:
+                    self.tracker.mark_shown()
+                self._next_draft = now + self.draft_every_s
+                return
+            log.warning('[BOT] черновик не принят — прогресс отдельным сообщением')
+            self.draft_id = None                   # Telegram не принял черновик: дальше прежний прогресс
         if now >= self._next_typing:
             self._safe(self.tg.typing, self.chat_id)
             self._next_typing = now + TYPING_EVERY_S

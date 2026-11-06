@@ -117,6 +117,17 @@ class BudgetExceeded(Exception):
     """Дневной предел расхода исчерпан."""
 
 
+class Stopped(Exception):
+    """Человек нажал «Остановить» у черновика (2026-11-06): дальше не считаем и не тратим."""
+
+
+def check_stop(ctx: tools.ToolContext) -> None:
+    """Нажали «Остановить» (ctx.stop — общий у бота и его агентов) — Stopped. Проверка — перед каждым
+    запросом к модели и перед вызовами инструментов: идущий шаг доходит до конца, следующего нет."""
+    if ctx.stop is not None and ctx.stop.is_set():
+        raise Stopped()
+
+
 @dataclass
 class Spend:
     """Расход одного вопроса: бот и его агенты вместе (ToolContext.spend)."""
@@ -309,6 +320,7 @@ def run_turn(client: Any, *, system_text: str, tool_list: List[Dict[str, Any]], 
     finish_left = -1          # режим отчёта, предел исчерпан: сколько ещё шагов «только отчёт» (-1 — не начаты)
     while True:
         check_budget(store)
+        check_stop(ctx)
         if ctx.progress is not None:
             ctx.progress.model_start()
         response = create_message(client, lambda: request_params(
@@ -390,6 +402,7 @@ def run_turn(client: Any, *, system_text: str, tool_list: List[Dict[str, Any]], 
                 final = True
                 continue
         sent_before = len(ctx.charts_sent) + len(ctx.reports_sent)
+        check_stop(ctx)
         results = [tools.execute(b, ctx) for b in tool_uses]
         if not ctx.is_agent and len(ctx.charts_sent) + len(ctx.reports_sent) > sent_before:
             # Карточка (график с подписью-ответом или отчёт) ушла — она и есть ответ: текст до неё
@@ -424,7 +437,8 @@ def run_agent(client: Any, persona: tools.Persona, task: str, *, parent: tools.T
     """Поручение агенту: отдельный разговор с его инструкциями и инструментами. Вернуть отчёт."""
     ctx = tools.ToolContext(site=parent.site, chat_id=parent.chat_id, allowed=persona.toolset.names,
                             is_agent=True, charts_sent=parent.charts_sent, reports_sent=parent.reports_sent,
-                            spend=parent.spend, report_mode=parent.report_mode, progress=parent.progress)
+                            spend=parent.spend, report_mode=parent.report_mode, progress=parent.progress,
+                            stop=parent.stop)
     text = (header + '\n' if header else '') + task
     result = run_turn(client, system_text=persona.system, tool_list=persona.toolset.defs, history=[],
                       user_content=[{'type': 'text', 'text': text}], ctx=ctx, store=store,

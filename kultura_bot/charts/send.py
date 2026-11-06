@@ -39,6 +39,16 @@ how — «Как считается» к этому ответу (Markdown): с�
 и не занимает места в подписи: ссылка «Как считается» в конце подписи (есть короткое
 имя мини-приложения) или кнопка рядом с «Открыть интерактивно» (личка) — kultura_bot/links.py.
 
+## Богатое сообщение (2026-11-06, kultura_bot/engine/rich.py)
+
+Чат выбрал новый вид (команда /rich бота; выбор — kultura_bot/store.chat_rich): график уходит
+одним богатым сообщением sendRichMessage — заголовок, картинка (тот же PNG, attach://chart),
+таблица и текст подписи без предела в 1024 знака, «Как считается» раскрывающимся блоком (без
+записки на сайте), кнопка «Открыть интерактивно» внутри. Telegram отказал — тот же график
+прежним видом (картинка с подписью; подпись по абзацам укорачивается до 1024 знаков).
+Строка «[[Текст]]» в подписи — кнопки следующего шага (formatting.split_buttons): в богатом
+сообщении внутри, в прежнем — рядом под картинкой; нажатие ловит сервер бота.
+
 ## Отчёт (send_report)
 
 Большой ответ — страница отчёта (charts/reports.py): сайт сохраняет отчёт, в чат уходит
@@ -220,6 +230,54 @@ def _transport_message(payload: Dict[str, Any], token: str, outcome: list):
     return api_call('sendMessage', payload, timeout=20, token=token, safe_resend=True, outcome=outcome)
 
 
+def _transport_rich(fields: Dict[str, Any], files: list, token: str, outcome: list):
+    """sendRichMessage тем же путём: с картинкой — multipart (поле rich_message строкой JSON, файл под
+    именем из attach://), без картинки — JSON (тесты подменяют)."""
+    from core.open_check_telegram import api_call, api_call_files
+    if files:
+        form = dict(fields, rich_message=json.dumps(fields['rich_message'], ensure_ascii=False))
+        return api_call_files('sendRichMessage', form, files, token=token, safe_resend=True, outcome=outcome)
+    return api_call('sendRichMessage', fields, timeout=20, token=token, safe_resend=True, outcome=outcome)
+
+
+def chat_rich(chat: str) -> bool:
+    """Слать ли в этот чат богатые сообщения (выбор чата на сайте); база недоступна — прежний вид."""
+    try:
+        from kultura_bot import store as bot_store
+        return bot_store.chat_rich(chat)
+    except Exception as exc:  # noqa: BLE001 — выбор не прочитался: прежний вид надёжнее
+        log.warning('[TG-CHART] вид ответов чата не прочитан: %s', exc)
+        return False
+
+
+def _split_buttons(markdown: str):
+    from kultura_bot.engine import formatting
+    return formatting.split_buttons(markdown)
+
+
+def _ask_buttons(texts) -> list:
+    from kultura_bot.engine import formatting
+    return formatting.ask_buttons(texts)
+
+
+def _fit(markdown: str, limit: int) -> str:
+    """Подпись в прежнем виде, когда богатое сообщение не прошло: целые абзацы, пока видимый текст
+    не длиннее limit; первый абзац длиннее — он же, обрезанный простым текстом."""
+    paragraphs = [p for p in re.split(r'\n{2,}', markdown or '') if p.strip()]
+    out = ''
+    for paragraph in paragraphs:
+        candidate = f'{out}\n\n{paragraph}' if out else paragraph
+        if _visible_len(_html(candidate)) > limit:
+            break
+        out = candidate
+    return out or _cut(_plain(markdown or ''), limit)
+
+
+def _rich_message(markdown: str, **kwargs) -> Dict[str, Any]:
+    from kultura_bot.engine import rich
+    return rich.message(markdown, **kwargs)
+
+
 def _render(spec: Dict[str, Any]) -> bytes:
     from kultura_bot.charts import png
     return png.render_png(spec)
@@ -227,11 +285,14 @@ def _render(spec: Dict[str, Any]) -> bytes:
 
 def send_chart(raw_spec: Any, *, chat_id: Any = None, caption: Optional[str] = None, how: Optional[str] = None,
                token_id: str = '', text_filter: Optional[TextFilter] = None,
-               page_filter: Optional[TextFilter] = None) -> Dict[str, Any]:
-    """Нарисовать и отправить график. Вернуть {chart_id, chat_id, message_id, button, ...}.
+               page_filter: Optional[TextFilter] = None, rich: Optional[bool] = None,
+               rich_fallback: bool = True) -> Dict[str, Any]:
+    """Нарисовать и отправить график. Вернуть {chart_id, chat_id, message_id, button, format, ...}.
 
     caption — ответ (Markdown бота), how — «Как считается» (Markdown, уходит запиской).
     text_filter — над тем, что уходит в Telegram; page_filter — над текстом записки.
+    rich — богатым сообщением (None — как выбрано в чате, chat_rich); rich_fallback=False — Telegram не
+    принял богатое сообщение -> ошибка, а не прежний вид (пример /rich: показать надо именно новый).
     Ошибка настройки, проверки или отправки — ChartSendError с понятным текстом.
     """
     token = _token()
@@ -245,7 +306,12 @@ def send_chart(raw_spec: Any, *, chat_id: Any = None, caption: Optional[str] = N
         text = text_filter(text)
     text, cut_how = _split_how(text)              # «>> Как считается» в подписи — тоже за ссылку
     how = _join_how(how, cut_how) or None
+    text, ask = _split_buttons(text)              # «[[Текст]]» — кнопки следующего шага
     text = text or spec['title']
+    if chat_rich(chat) if rich is None else rich:
+        return _send_chart_rich(raw_spec, spec, chat=chat, text=text, how=how, ask=ask, token=token,
+                                token_id=token_id, text_filter=text_filter, page_filter=page_filter,
+                                allow_fallback=rich_fallback)
     if _visible_len(_html(text)) > CAPTION_MAX:
         raise ChartSendError(f'caption длиннее {CAPTION_MAX} знаков без разметки ({_visible_len(_html(text))}): '
                              'сократи подпись — пояснение расчёта передай в how, оно не занимает места')
@@ -298,7 +364,12 @@ def send_chart(raw_spec: Any, *, chat_id: Any = None, caption: Optional[str] = N
         raise ChartSendError(f'Картинка не нарисована: {type(exc).__name__}: {exc}') from None
 
     fields = {'chat_id': chat, 'caption': _html(text), 'parse_mode': 'HTML'}
-    markup = {'inline_keyboard': [row]} if row else None
+
+    def keyboard():
+        rows = ([row] if row else []) + ([_ask_buttons(ask)] if ask else [])
+        return {'inline_keyboard': rows} if rows else None
+
+    markup = keyboard()
     if markup is not None:
         fields['reply_markup'] = json.dumps(markup, ensure_ascii=False)
     outcome: list = []
@@ -313,7 +384,7 @@ def send_chart(raw_spec: Any, *, chat_id: Any = None, caption: Optional[str] = N
             fallback = links.button(links.HOW_TEXT, chat, how_id, credentials.bot_username(), site_fallback=True)
             if fallback:
                 row.append(fallback)
-                fields['reply_markup'] = json.dumps({'inline_keyboard': [row]}, ensure_ascii=False)
+                fields['reply_markup'] = json.dumps(keyboard(), ensure_ascii=False)
                 how_kind = 'button'
             suffix = ''
         fields['caption'] = _cut(plain, CAPTION_MAX - len(suffix.encode('utf-16-le')) // 2) + suffix
@@ -339,6 +410,7 @@ def send_chart(raw_spec: Any, *, chat_id: Any = None, caption: Optional[str] = N
         'expires_at': record['expires_at'],
         'sent_today': record['used_today'],
         'daily_limit': limit,
+        'format': 'plain',
     }
     if how_id:
         result['how'] = {'id': how_id, 'shown_as': how_kind}
@@ -348,14 +420,80 @@ def send_chart(raw_spec: Any, *, chat_id: Any = None, caption: Optional[str] = N
     return result
 
 
+def _send_chart_rich(raw_spec: Any, spec: Dict[str, Any], *, chat: str, text: str, how: Optional[str], ask: list,
+                     token: str, token_id: str, text_filter: Optional[TextFilter],
+                     page_filter: Optional[TextFilter], allow_fallback: bool = True) -> Dict[str, Any]:
+    """График богатым сообщением; Telegram отказал — тем же графиком в прежнем виде (send_chart, rich=False)."""
+    def fallback(reason: str) -> Dict[str, Any]:
+        if not allow_fallback:
+            raise ChartSendError(f'Telegram не принял богатое сообщение: {reason}')
+        log.warning('[TG-CHART] богатое сообщение не прошло (%s) — график в прежнем виде', reason)
+        short = _fit(text, CAPTION_MAX - 60)        # запас под ссылку «Как считается»
+        if ask:
+            short += '\n\n' + ' '.join(f'[[{label}]]' for label in ask)
+        result = send_chart(raw_spec, chat_id=chat, caption=short, how=how, token_id=token_id,
+                            text_filter=text_filter, page_filter=page_filter, rich=False)
+        result['rich_failed'] = reason[:200]
+        return result
+
+    limit = settings.CHART_DAILY_LIMIT
+    try:
+        record = chart_spec.create(spec, chat_id=chat, token_id=token_id, daily_limit=limit)
+    except chart_spec.ChartLimitError as exc:
+        raise ChartSendError(f'Лимит: не больше {limit} графиков в сутки — сегодня уже {exc.used}.') from None
+    chart_id = record['id']
+    try:
+        png = _render(spec)
+    except Exception as exc:  # noqa: BLE001 — картинки нет, значит и описание не нужно
+        chart_spec.delete(chart_id)
+        log.warning('[TG-CHART] картинка не нарисована: %s: %s', type(exc).__name__, exc)
+        raise ChartSendError(f'Картинка не нарисована: {type(exc).__name__}: {exc}') from None
+    row = []
+    chart_btn = chart_button(chat, chart_id)
+    if chart_btn:
+        row.append(chart_btn)
+    row += _ask_buttons(ask)
+    how_text = text_filter(how) if (how and text_filter) else (how or '')   # уходит в Telegram, как подпись
+    try:
+        message = _rich_message(text, how=how_text, button_rows=row, photo_name='chart')
+    except ValueError as exc:                     # rich.RichError: велико для одного сообщения
+        chart_spec.delete(chart_id)
+        return fallback(str(exc))
+    outcome: list = []
+    data = _transport_rich({'chat_id': chat, 'rich_message': message}, [('chart', 'chart.png', png, 'image/png')],
+                           token, outcome)
+    if data is None and 'unknown' in outcome:
+        raise ChartSendError(f'Статус неизвестен: Telegram не ответил, сообщение могло дойти. Не повторяйте '
+                             f'отправку, пока владелец не проверит чат (график {chart_id}).')
+    if not data or not data.get('ok'):
+        chart_spec.delete(chart_id)
+        return fallback(str((data or {}).get('description') or 'нет связи с Telegram'))
+    message_id = (data.get('result') or {}).get('message_id')
+    chart_spec.mark_sent(chart_id, message_id)
+    result = {
+        'chart_id': chart_id,
+        'chat_id': chat,
+        'message_id': message_id,
+        'button': ('url' if chat.startswith('-') else 'web_app') if chart_btn is not None else None,
+        'expires_at': record['expires_at'],
+        'sent_today': record['used_today'],
+        'daily_limit': limit,
+        'format': 'rich',
+    }
+    if how_text:
+        result['how'] = {'shown_as': 'details'}
+    return result
+
+
 def send_report(raw_report: Any, *, chat_id: Any = None, token_id: str = '',
                 text_filter: Optional[TextFilter] = None,
-                page_filter: Optional[TextFilter] = None) -> Dict[str, Any]:
+                page_filter: Optional[TextFilter] = None, rich: Optional[bool] = None) -> Dict[str, Any]:
     """Сохранить отчёт и отправить в чат выжимку с кнопкой «Открыть отчёт».
 
     Обложка — первый график отчёта (фото, выжимка — подписью, предел 1024 знака); графиков
-    нет — сообщение (предел 4096). Вернуть {report_id, chat_id, message_id, url, ...}.
-    Ошибка — ChartSendError с понятным текстом."""
+    нет — сообщение (предел 4096). Чат выбрал новый вид (rich=None — как выбрано, chat_rich) —
+    одно богатое сообщение: обложка, выжимка и кнопка внутри; Telegram отказал — прежним видом.
+    Вернуть {report_id, chat_id, message_id, url, format, ...}. Ошибка — ChartSendError с понятным текстом."""
     token = _token()
     chat = _chat(chat_id)
     try:
@@ -366,6 +504,9 @@ def send_report(raw_report: Any, *, chat_id: Any = None, token_id: str = '',
     if cut_how:
         body['summary'] = summary or body['title']
         body['how'] = _join_how(body['how'], page_filter(cut_how) if page_filter else cut_how)
+    summary, ask = _split_buttons(body['summary'])   # «[[…]]» — кнопки под выжимкой, не текст страницы
+    if ask:
+        body['summary'] = summary or body['title']
     cover = reports.cover_chart(body)
     summary_html = _html(body['summary'])
     limit = CAPTION_MAX if cover else MESSAGE_MAX
@@ -381,8 +522,10 @@ def send_report(raw_report: Any, *, chat_id: Any = None, token_id: str = '',
                              f'сегодня уже {exc.used}.') from None
     report_id = record['id']
     button = links.button(links.REPORT_TEXT, chat, report_id, credentials.bot_username(), site_fallback=True)
-    markup = {'inline_keyboard': [[button]]} if button else None
+    rows = ([[button]] if button else []) + ([_ask_buttons(ask)] if ask else [])
+    markup = {'inline_keyboard': rows} if rows else None
     outcome: list = []
+    png = None
     if cover:
         try:
             png = _render(cover)
@@ -390,6 +533,27 @@ def send_report(raw_report: Any, *, chat_id: Any = None, token_id: str = '',
             reports.delete(report_id)
             log.warning('[TG-REPORT] обложка не нарисована: %s: %s', type(exc).__name__, exc)
             raise ChartSendError(f'Обложка отчёта не нарисована: {type(exc).__name__}: {exc}') from None
+    data, fmt = None, 'plain'
+    if chat_rich(chat) if rich is None else rich:
+        try:
+            message = _rich_message(body['summary'], button_rows=([button] if button else []) + _ask_buttons(ask),
+                                    photo_name='cover' if png else '')
+        except ValueError as exc:                 # rich.RichError
+            message = None
+            log.warning('[TG-REPORT] выжимка не собралась богатым сообщением: %s', exc)
+        if message is not None:
+            files = [('cover', 'cover.png', png, 'image/png')] if png else []
+            data = _transport_rich({'chat_id': chat, 'rich_message': message}, files, token, outcome)
+            if data is None and 'unknown' in outcome:
+                raise ChartSendError(f'Статус неизвестен: Telegram не ответил, сообщение могло дойти. Не повторяйте '
+                                     f'отправку, пока владелец не проверит чат (отчёт {report_id}).')
+            if data and data.get('ok'):
+                fmt = 'rich'
+            else:
+                log.warning('[TG-REPORT] богатое сообщение не прошло (%s) — выжимка в прежнем виде',
+                            (data or {}).get('description'))
+                data, outcome = None, []
+    if data is None and cover:
         fields = {'chat_id': chat, 'caption': summary_html, 'parse_mode': 'HTML'}
         if markup:
             fields['reply_markup'] = json.dumps(markup, ensure_ascii=False)
@@ -399,7 +563,7 @@ def send_report(raw_report: Any, *, chat_id: Any = None, token_id: str = '',
             fields['caption'] = _cut(_plain(body['summary']), CAPTION_MAX)
             outcome = []
             data = _transport(fields, png, token, outcome)
-    else:
+    elif data is None:
         payload: Dict[str, Any] = {'chat_id': chat, 'text': summary_html, 'parse_mode': 'HTML',
                                    'link_preview_options': {'is_disabled': True}}
         if markup:
@@ -428,4 +592,5 @@ def send_report(raw_report: Any, *, chat_id: Any = None, token_id: str = '',
         'url': links.site_page(report_id),
         'sections': len(body['sections']),
         'expires_at': record['expires_at'],
+        'format': fmt,
     }

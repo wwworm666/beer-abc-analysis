@@ -115,6 +115,10 @@ class FakeSite:
         self.replied_found = {}             # (chat_id, message_id) -> {kind, id, title, text}
         self.replied_error = None
         self.replied_calls = []
+        self.formats = {}                   # chat_id -> 'rich' | 'plain' (команда /rich)
+        self.format_calls = []              # (chat_id, format, tg_user_id)
+        self.demo_calls = []                # чаты, куда сайт слал пример графика
+        self.demo_error = None
 
     def _check(self):
         if self.down:
@@ -156,6 +160,24 @@ class FakeSite:
         if self.replied_error is not None:
             raise self.replied_error
         return copy.deepcopy(self.replied_found.get((str(chat_id), int(message_id))))
+
+    def chat_format(self, chat_id):
+        self._check()
+        fmt = self.formats.get(str(chat_id))
+        return {'format': fmt, 'rich': fmt == 'rich'}
+
+    def set_chat_format(self, chat_id, fmt, tg_user_id=''):
+        self._check()
+        self.formats[str(chat_id)] = fmt
+        self.format_calls.append((str(chat_id), fmt, str(tg_user_id)))
+        return {'ok': True, 'format': fmt, 'rich': fmt == 'rich'}
+
+    def rich_demo(self, chat_id):
+        self._check()
+        if self.demo_error is not None:
+            raise self.demo_error
+        self.demo_calls.append(str(chat_id))
+        return {'message_id': 55, 'chart_id': 'Y' * 22, 'format': 'rich'}
 
     def instructions(self, connector='/mcp'):
         self._check()
@@ -243,6 +265,13 @@ class FakeTelegram:
         self.status_edits = []
         self.deleted = []
         self.files = {}
+        self.rich = []          # богатые сообщения: (chat_id, rich_message, reply_to)
+        self.rich_reply = None  # (None, причина) — Telegram отказал богатому сообщению
+        self.drafts = []        # черновики: (chat_id, draft_id, rich_message, can_stop)
+        self.draft_ok = True
+        self.callbacks = []     # answerCallbackQuery: (id, текст)
+        self.edits = []         # edit_plain: (chat_id, message_id, текст)
+        self.plain_markups = [] # кнопки у send_plain
 
     def get_me(self):
         return {'ok': True, 'result': {'id': 999, 'username': 'MCPkulturabot'}}
@@ -272,9 +301,27 @@ class FakeTelegram:
         self.deleted.append(message_id)
         return True
 
-    def send_plain(self, chat_id, text_value, reply_to=None):
+    def send_plain(self, chat_id, text_value, reply_to=None, reply_markup=None):
         self.sent.append((str(chat_id), text_value, reply_to))
+        self.plain_markups.append(reply_markup)
         return 1
+
+    def send_rich(self, chat_id, rich_message, reply_to=None, reply_markup=None):
+        if self.rich_reply is not None:
+            return self.rich_reply
+        self.rich.append((str(chat_id), copy.deepcopy(rich_message), reply_to))
+        return 700 + len(self.rich), ''
+
+    def send_rich_draft(self, chat_id, draft_id, rich_message, can_stop=False):
+        self.drafts.append((str(chat_id), draft_id, copy.deepcopy(rich_message), can_stop))
+        return self.draft_ok
+
+    def answer_callback(self, callback_id, text_value=''):
+        self.callbacks.append((callback_id, text_value))
+
+    def edit_plain(self, chat_id, message_id, text_value):
+        self.edits.append((str(chat_id), message_id, text_value))
+        return True
 
     def send_markdown(self, chat_id, markdown, reply_to=None, reply_markup=None):
         self.sent.append((str(chat_id), markdown, reply_to))
@@ -1703,3 +1750,174 @@ def test_agents_build_no_report_pages(bot):
     bot.svc.handle_update(message('/report зарплата за сентябрь'))
     agent_first = bot.client.calls[1]['messages'][0]['content'][0]['text']
     assert 'режим: отчёт' not in agent_first and 'последние 7 дней' in agent_first
+
+
+# ------------------------------------------------------------------ богатые сообщения (2026-11-06)
+
+RICH_ANSWER = ('## Неделя 27 окт – 2 ноя: 4 412 тыс. ₽, 98% плана\nвсе бары\n\n'
+               '| Бар | тыс. ₽ | % плана |\n|---|---|---|\n| Лиговский | 1 412 | 104% |\n\n'
+               '*iiko · данные на 3 ноя, 09:12 МСК*\n\n'
+               '[[По дням]] [[По сотрудникам]]\n\n'
+               '>> Как считается\n>> % плана = 4 412 / 4 497 = 98%.')
+
+
+def kinds(rich_message):
+    return [b['type'] for b in rich_message['blocks']]
+
+
+def test_rich_chat_answers_with_one_rich_message(bot):
+    bot.env.site.formats[OWNER_TG] = 'rich'
+    bot.client.script += [resp(text(RICH_ANSWER))]
+    bot.svc.handle_update(message('как прошла неделя?'))
+    asked = bot.client.calls[-1]['messages'][-1]['content'][0]['text']
+    assert '· оформление: богатое сообщение ·' in asked, 'модель знает вид ответа'
+    assert bot.tg.sent == [] and len(bot.tg.rich) == 1
+    chat_id, sent, reply_to = bot.tg.rich[0]
+    assert chat_id == OWNER_TG and reply_to is None
+    assert kinds(sent) == ['heading', 'paragraph', 'table', 'details', 'footer', 'buttons']
+    assert sent['blocks'][3]['blocks'][0]['text'] == '% плана = 4 412 / 4 497 = 98%.'
+    assert sent['blocks'][5]['buttons'] == [{'text': 'По дням', 'callback_data': 'ask:По дням'},
+                                            {'text': 'По сотрудникам', 'callback_data': 'ask:По сотрудникам'}]
+    assert bot.env.site.notes == [], '«Как считается» внутри сообщения — записка на сайте не нужна'
+    stored = bot.env.store.get_sent(OWNER_TG, 701)
+    assert stored.startswith('## Неделя') and 'Как считается:\n% плана' in stored and '[[' not in stored
+
+
+def test_rich_refused_falls_back_to_plain_view(bot):
+    bot.env.site.formats[OWNER_TG] = 'rich'
+    bot.tg.rich_reply = (None, 'Bad Request: rich messages are not supported')
+    bot.client.script += [resp(text(RICH_ANSWER))]
+    bot.svc.handle_update(message('как прошла неделя?'))
+    assert len(bot.tg.sent) == 1 and '[[' not in bot.tg.sent[0][1], 'тот же ответ прежним видом'
+    assert bot.env.site.notes, '«Как считается» в прежнем виде — записка и ссылка'
+    assert bot.tg.markups[-1]['inline_keyboard'][-1] == [{'text': 'По дням', 'callback_data': 'ask:По дням'},
+                                                         {'text': 'По сотрудникам', 'callback_data': 'ask:По сотрудникам'}]
+    bot.tg.rich_reply = (None, 'unknown')                      # Telegram не ответил — второй раз не шлём
+    bot.client.script += [resp(text(RICH_ANSWER))]
+    bot.svc.handle_update(message('ещё раз'))
+    assert len(bot.tg.sent) == 1
+
+
+def test_plain_chat_buttons_go_under_the_message(bot):
+    bot.client.script += [resp(text('Итог недели — 98% плана.\n\n[[По дням]]'))]
+    bot.svc.handle_update(message('как прошла неделя?'))
+    assert bot.tg.rich == [] and bot.tg.sent[-1][1] == 'Итог недели — 98% плана.'
+    assert bot.tg.markups[-1] == {'inline_keyboard': [[{'text': 'По дням', 'callback_data': 'ask:По дням'}]]}
+    assert 'оформление' not in bot.client.calls[-1]['messages'][-1]['content'][0]['text']
+
+
+def test_rich_command_sends_examples_and_asks(bot):
+    bot.svc.handle_update(message('/rich'))
+    assert bot.tg.drafts and bot.tg.drafts[0][2]['blocks'][0]['type'] == 'thinking', '«Готовлю примеры…»'
+    assert len(bot.tg.rich) == 2 and bot.env.site.demo_calls == [OWNER_TG], 'два примера бот, график — сайт'
+    for _, sample, _ in bot.tg.rich:
+        assert 'table' in kinds(sample) and 'details' in kinds(sample)
+        assert all(b['callback_data'].startswith('demo:') for b in sample['blocks'][-1]['buttons'])
+    question = bot.tg.sent[-1][1]
+    assert 'три примера' in question and 'прежний вид' in question
+    assert bot.tg.plain_markups[-1] == {'inline_keyboard': [[{'text': 'Всё видно — включить', 'callback_data': 'fmt:rich'},
+                                                             {'text': 'Оставить прежний вид', 'callback_data': 'fmt:plain'}]]}
+    assert bot.client.calls == [], 'примеры — без запросов к модели'
+
+    bot.tg.rich_reply = (None, 'Bad Request: method not found')
+    bot.svc.handle_update(message('/rich'))
+    assert 'не принял новый вид' in bot.tg.sent[-1][1] and len(bot.env.site.demo_calls) == 1
+
+
+def callback(data, chat_id=OWNER_TG, user_id=OWNER_TG, message_id=70, chat_type='private', **msg_extra):
+    msg = {'message_id': message_id, 'chat': {'id': int(chat_id), 'type': chat_type}, 'from': BOT_AUTHOR}
+    msg.update(msg_extra)
+    return {'update_id': 5, 'callback_query': {'id': 'cb1', 'from': {'id': int(user_id), 'first_name': 'Анна'},
+                                               'message': msg, 'chat_instance': 'x', 'data': data}}
+
+
+def test_format_choice_by_button_and_command(bot):
+    bot.svc.handle_update(callback('fmt:rich'))
+    assert bot.env.site.format_calls == [(OWNER_TG, 'rich', OWNER_TG)]
+    assert bot.tg.callbacks == [('cb1', 'Включил новый вид')]
+    assert bot.tg.edits[-1][:2] == (OWNER_TG, 70) and 'в новом виде' in bot.tg.edits[-1][2]
+    bot.client.script += [resp(text('## Итог'))]
+    bot.svc.handle_update(message('итог?'))
+    assert len(bot.tg.rich) == 1, 'выбор действует сразу, без ожидания кэша'
+    bot.svc.handle_update(message('/rich off'))
+    assert bot.env.site.format_calls[-1] == (OWNER_TG, 'plain', OWNER_TG) and 'прежний вид' in bot.tg.sent[-1][1]
+    bot.svc.handle_update(callback('fmt:rich', user_id='777'))
+    assert bot.tg.callbacks[-1] == ('cb1', 'Это закрытый бот сети «Культура»') and len(bot.env.site.format_calls) == 2
+    bot.svc.handle_update(callback('demo:По дням'))
+    assert bot.tg.callbacks[-1][1].startswith('В настоящем ответе бот разложит')
+
+
+def test_next_step_button_asks_with_context(bot):
+    bot.env.store.save_sent(OWNER_TG, 70, '## Неделя: 98% плана\n| Бар | % |\n| Лиговский | 104% |')
+    bot.client.script += [resp(text('По дням: пятница — 96%.'))]
+    bot.svc.handle_update(callback('ask:По дням', rich_message={'blocks': []}))
+    assert bot.tg.callbacks == [('cb1', 'Спрашиваю: «По дням»')]
+    asked = bot.client.calls[-1]['messages'][-1]['content'][0]['text']
+    assert '[Ответ на сообщение бота' in asked and '<<<\n## Неделя: 98% плана' in asked and asked.endswith('По дням')
+    assert bot.tg.sent[-1] == (OWNER_TG, 'По дням: пятница — 96%.', 70), 'ответ — на то сообщение'
+    bot.svc.handle_update(callback('ask:По дням'))
+    assert len(bot.client.calls) == 1, 'двойное нажатие — один вопрос'
+
+
+def test_reply_to_rich_message_without_saved_text(bot):
+    blocks = [{'type': 'heading', 'text': 'Итог', 'size': 3},
+              {'type': 'table', 'cells': [[{'text': 'Лиговский', 'align': 'left', 'valign': 'middle'},
+                                           {'text': '104%', 'align': 'right', 'valign': 'middle'}]]}]
+    bot.client.script += [resp(text('Ок'))]
+    bot.svc.handle_update(message('а почему?', reply_to_message={'message_id': 80, 'from': BOT_AUTHOR,
+                                                                'rich_message': {'blocks': blocks}}))
+    asked = bot.client.calls[-1]['messages'][-1]['content'][0]['text']
+    assert '<<<\nИтог\nЛиговский | 104%\n>>>' in asked
+
+
+def test_stop_button_stops_the_work(bot):
+    bot.env.site.formats[OWNER_TG] = 'rich'
+    original = bot.env.site.call_tool
+
+    def press_stop(name, args):
+        if name == 'common_whoami':                    # пока идёт вызов инструмента — нажали «Остановить»
+            job_id = bot.svc.running[OWNER_TG][0]
+            bot.svc.handle_update({'update_id': 9, 'stopped_message_generation': {
+                'chat': {'id': int(OWNER_TG), 'type': 'private'}, 'draft_id': job_id}})
+        return original(name, args)
+
+    bot.env.site.call_tool = press_stop
+    bot.client.script += [resp(use('common_whoami', {}, 't1'), stop='tool_use'), resp(text('не дойдёт'))]
+    bot.svc.handle_update(message('долгий вопрос'))
+    assert bot.tg.sent[-1][1] == service.STOPPING_TEXT, 'нажатие дошло — сразу видно'
+    assert bot.tg.edits[-1] == (OWNER_TG, 1, service.STOPPED_TEXT), 'потом то же сообщение — «Остановил»'
+    assert len(bot.client.calls) == 1, 'следующего шага нет'
+    assert bot.env.store.get_dialog(OWNER_TG) is None, 'остановленный ответ в диалог не пишется'
+    assert OWNER_TG not in bot.svc.running
+    job = bot.env.store.recent_jobs(1)[0]
+    assert (job['status'], job['error']) == ('error', 'stopped')
+    # чужой черновик (старый id) ничего не останавливает
+    bot.svc.handle_update({'update_id': 10, 'stopped_message_generation': {'chat': {'id': int(OWNER_TG)}, 'draft_id': 1}})
+
+
+def test_progress_draft_in_private_rich_chat():
+    clock = Clock()
+    tg = FakeTelegram()
+    tracker = progress.Tracker('answer', agent.Spend(), limit=2.0, durations=[], tool_typical={},
+                               titles={'analytics_compare_periods': 'Сравнение периодов'}, clock=clock)
+    from kultura_bot.engine import rich as rich_mod
+    reporter = progress.Reporter(tg, '555', tracker, after_s=10, every_s=6, draft_id=42, draft_every_s=4,
+                                 make_draft=rich_mod.draft)
+    reporter.tick()
+    assert tg.typing_count == 0 and len(tg.drafts) == 1, 'черновик сразу, без «печатает…»'
+    chat_id, draft_id, draft, can_stop = tg.drafts[0]
+    assert (chat_id, draft_id, can_stop) == ('555', 42, True)
+    assert draft['blocks'][0] == {'type': 'thinking', 'text': 'Разбираю вопрос…'}
+    assert draft['blocks'][1]['text'].startswith('0:00 · ')
+    tracker.tool_start('analytics_compare_periods')
+    clock.now += 2
+    reporter.tick()
+    assert len(tg.drafts) == 1, 'обновление не чаще раза в draft_every_s'
+    clock.now += 2
+    reporter.tick()
+    assert tg.drafts[-1][2]['blocks'][0]['text'] == 'Смотрю «Сравнение периодов»…'
+    tg.draft_ok = False
+    clock.now += 10
+    reporter.tick()
+    assert reporter.draft_id is None and len(tg.status_sent) == 1, 'черновик не принят — прежний прогресс'
+    reporter.stop()

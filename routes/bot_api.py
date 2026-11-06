@@ -20,6 +20,12 @@ core/mcp/tools/common.py).
                                         что было в сообщении бота, на которое человек ответил в
                                         Telegram (продолжение работы, 2026-10-29): отчёт или
                                         график этого чата текстом для модели (reports.reply_context)
+    GET  /api/bot/chat-format?chat_id=  {format: rich|plain|null, rich: bool} — вид ответов в чате
+                                        (2026-11-06, команда /rich бота): выбор чата, итог с учётом
+                                        умолчания и выключателя (kultura_bot/store.chat_rich)
+    POST /api/bot/chat-format           {chat_id, format: rich|plain, tg_user_id} -> {ok, format, rich}
+    POST /api/bot/rich-demo             {chat_id} -> {message_id, chart_id} — пример графика богатым
+                                        сообщением для /rich (kultura_bot/rich_demo.py): картинки рисует сайт
 
 401 — нет ключа или не тот; 400 — ошибка ввода. Ответы не кэшируются (Cache-Control:
 no-store): в config — секреты.
@@ -145,3 +151,64 @@ def note():
         return _error(429, f'Не больше {settings.REPORT_DAILY_LIMIT} записок и отчётов в сутки — сегодня уже '
                            f'{exc.used}')
     return _no_store(jsonify({'id': record['id'], 'expires_at': record['expires_at']}))
+
+
+def _chat_id(value) -> str:
+    chat_id = str(value or '').strip()
+    if not chat_id.lstrip('-').isdigit() or len(chat_id) > 21:
+        raise ValueError('chat_id — число (у групп со знаком минус)')
+    return chat_id
+
+
+@bot_api_bp.route('/api/bot/chat-format', methods=['GET'])
+def chat_format_get():
+    """Вид ответов в чате: выбор (/rich) и итог — слать ли богатые сообщения."""
+    if _engine() is None:
+        return _denied()
+    from kultura_bot import store
+    try:
+        chat_id = _chat_id(request.args.get('chat_id'))
+    except ValueError as exc:
+        return _error(400, str(exc))
+    return _no_store(jsonify({'format': store.get_chat_format(chat_id), 'rich': store.chat_rich(chat_id)}))
+
+
+@bot_api_bp.route('/api/bot/chat-format', methods=['POST'])
+def chat_format_set():
+    """Запомнить выбор вида ответов (кнопка под примерами /rich)."""
+    if _engine() is None:
+        return _denied()
+    from kultura_bot import store
+    try:
+        data = _body()
+        chat_id = _chat_id(data.get('chat_id'))
+        fmt = str(data.get('format') or '')
+        by = str(data.get('tg_user_id') or '')[:20]
+        store.set_chat_format(chat_id, fmt, by=by)
+    except ValueError as exc:
+        return _error(400, str(exc))
+    log.info('[BOT] вид ответов в чате %s: %s (выбрал %s)', chat_id, fmt, by or '—')
+    return _no_store(jsonify({'ok': True, 'format': fmt, 'rich': store.chat_rich(chat_id)}))
+
+
+@bot_api_bp.route('/api/bot/rich-demo', methods=['POST'])
+def rich_demo():
+    """Пример графика богатым сообщением (команда /rich): рисует и шлёт сайт — у него браузер для картинок."""
+    principal = _engine()
+    if principal is None:
+        return _denied()
+    from core.mcp.tools.common import _strip_foreign_links
+    from kultura_bot import rich_demo as demo
+    from kultura_bot.charts import send as chart_send
+    try:
+        chat_id = _chat_id(_body().get('chat_id'))
+    except ValueError as exc:
+        return _error(400, str(exc))
+    try:
+        sent = chart_send.send_chart(demo.CHART_SPEC, chat_id=chat_id, caption=demo.CHART_CAPTION, how=demo.CHART_HOW,
+                                     token_id=principal.token_id, text_filter=_strip_foreign_links, rich=True,
+                                     rich_fallback=False)
+    except chart_send.ChartSendError as exc:
+        return _error(502, str(exc))
+    return _no_store(jsonify({'message_id': sent.get('message_id'), 'chart_id': sent.get('chart_id'),
+                              'format': sent.get('format')}))
