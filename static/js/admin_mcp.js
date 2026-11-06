@@ -403,9 +403,12 @@
         var version = (data.status || {}).version;
         // Точность прогресса «≈ осталось» у последних отчётов: насколько ему можно верить.
         var eta = (data.status || {}).eta || {};
+        // Имя, описание или аватарка бота не встали в Telegram (engine sync_profile) — почему.
+        var profile = (data.status || {}).profile;
         node.textContent = status.text + (version ? ' Версия кода: ' + version.slice(0, 7) + '.' : '') +
-            (eta.n ? ' Оценка «осталось» у отчётов точнее минуты в ' + eta.ok + ' из ' + eta.n + ' последних.' : '');
-        node.className = 'mcp-note ' + (status.bad ? 'mcp-state-bad' : 'mcp-state-good');
+            (eta.n ? ' Оценка «осталось» у отчётов точнее минуты в ' + eta.ok + ' из ' + eta.n + ' последних.' : '') +
+            (profile ? ' Профиль в Telegram ' + profile + '.' : '');
+        node.className = 'mcp-note ' + (status.bad || profile ? 'mcp-state-bad' : 'mcp-state-good');
 
         var tg = data.telegram || {};
         setText('mcpBotTokenHint', tg.configured

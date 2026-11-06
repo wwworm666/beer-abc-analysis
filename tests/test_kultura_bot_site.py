@@ -360,6 +360,11 @@ def test_report_checked_summed_and_shown(site_env):
     for bad in ({'n': 2, 'ok': 5}, {'n': '12', 'ok': 1}, {'n': True, 'ok': 0}, 'много'):
         call(env, 'POST', '/api/bot/report', key, json={'status': dict(running, eta=bad)})
         assert site_api.page_view()['status']['eta'] == {}, bad
+    problem = 'не обновился: аватарка — Bad Request: PHOTO_INVALID'
+    call(env, 'POST', '/api/bot/report', key, json={'status': dict(running, profile=problem)})
+    assert site_api.page_view()['status']['profile'] == problem, 'имя или аватарка не встали — на странице'
+    call(env, 'POST', '/api/bot/report', key, json={'status': dict(running, profile='x' * 900)})
+    assert len(site_api.page_view()['status']['profile']) == 500
 
     denied = 'Anthropic отказал (403): проверьте ключ в консоли Anthropic'
     call(env, 'POST', '/api/bot/report', key, json={'status': dict(running, claude_error=denied)})

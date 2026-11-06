@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Аватарка бота kultura.os (решение владельца 2026-11-06): знак сайта ›_ (static/favicon.svg)
+       в облачке чата. Telegram показывает её кругом, поэтому знак — внутри вписанного круга.
+       avatar.jpg (640×640) собирается из этого файла: scripts/render_bot_avatar.py. -->
+  <rect width="512" height="512" fill="#FAF9F7"/>
+  <rect x="112" y="144" width="288" height="204" rx="52" fill="#151314"/>
+  <path d="M162,336 L140,398 L220,346 Z" fill="#151314"/>
+  <polygon points="156,200 195,199 257,246 193,293 157,293 218,246" fill="#FAF9F7"/>
+  <polygon points="260,293 266,273 356,273 350,293" fill="#F93705"/>
+</svg>

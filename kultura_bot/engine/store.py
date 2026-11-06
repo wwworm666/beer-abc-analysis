@@ -14,6 +14,8 @@
              error; хранятся JOBS_KEEP_DAYS дней
     usage    расход по дням (МСК) и моделям: day + model (PK), requests, input_tokens,
              output_tokens, cache_read, cache_write, cost_usd — для общего дневного предела
+    meta     служебные пары ключ — значение (2026-11-06): хеш аватарки, которую сервер бота уже
+             поставил в Telegram (avatar_sha256:<id бота>) — второй раз тот же файл не грузится
     user_usage расход по дням (МСК) и людям (2026-11-06, предел на человека): day + tg_user_id
              (PK), requests, cost_usd — вопросы человека, бот и агенты вместе; STATS_KEEP_DAYS дней
     job_stats  удачные работы для оценки «сколько осталось» (engine/progress.py, 2026-10-29):
@@ -103,6 +105,10 @@ SCHEMA = (
         requests   INTEGER NOT NULL DEFAULT 0,
         cost_usd   REAL NOT NULL DEFAULT 0,
         PRIMARY KEY (day, tg_user_id)
+    )''',
+    '''CREATE TABLE IF NOT EXISTS meta (
+        key   TEXT PRIMARY KEY,
+        value TEXT NOT NULL
     )''',
     '''CREATE TABLE IF NOT EXISTS journal_outbox (
         uid     TEXT PRIMARY KEY,
@@ -325,3 +331,12 @@ class Store:
         rows = self._rows('SELECT cost_usd FROM user_usage WHERE day = ? AND tg_user_id = ?',
                           (day or msk_day(), str(tg_user_id)))
         return float(rows[0]['cost_usd']) if rows else 0.0
+
+    def get_meta(self, key: str) -> Optional[str]:
+        rows = self._rows('SELECT value FROM meta WHERE key = ?', (key,))
+        return str(rows[0]['value']) if rows else None
+
+    def set_meta(self, key: str, value: str) -> None:
+        with self._lock:
+            self._conn.execute('INSERT INTO meta (key, value) VALUES (?, ?) '
+                               'ON CONFLICT(key) DO UPDATE SET value = excluded.value', (key, str(value)))

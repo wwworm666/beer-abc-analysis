@@ -152,7 +152,7 @@ def accept_report(payload: Any) -> None:
     version = str(status.get('version') or '')
     store.set_status(status['state'], _short(status.get('detail')), claude_error=_short(status.get('claude_error')),
                      bot=_short(status.get('bot'), 64), version=version if VERSION_RE.fullmatch(version) else '',
-                     eta=_eta(status.get('eta')))
+                     eta=_eta(status.get('eta')), profile=_short(status.get('profile')))
 
 
 def _eta(value: Any) -> Dict[str, int]:
