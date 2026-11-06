@@ -1943,3 +1943,67 @@ def test_progress_draft_in_private_rich_chat():
     reporter.tick()
     assert reporter.draft_id is None and len(tg.status_sent) == 1, 'черновик не принят — прежний прогресс'
     reporter.stop()
+
+
+# ------------------------------------------------------------------ предел на человека (2026-11-06)
+
+def test_user_usage_is_counted_per_person_and_day(env):
+    env.store.add_user_usage('555', 1.25, day='2026-11-06')
+    env.store.add_user_usage('555', 0.75, day='2026-11-06')
+    env.store.add_user_usage('777', 3.0, day='2026-11-06')
+    assert env.store.spent_by('555', day='2026-11-06') == pytest.approx(2.0)
+    assert env.store.spent_by('777', day='2026-11-06') == pytest.approx(3.0)
+    assert env.store.spent_by('555', day='2026-11-07') == 0.0
+    env.store.add_user_usage('555', 1.0, day='2027-03-01')
+    assert env.store.spent_by('555', day='2026-11-06') == 0.0, 'старше STATS_KEEP_DAYS — удалено'
+
+
+def test_person_over_limit_is_stopped_others_are_answered(bot):
+    mp = bot.env.monkeypatch
+    mp.setattr(settings, 'DAILY_BUDGET_USD', 0)
+    mp.setattr(settings, 'USER_DAILY_BUDGET_USD', 15.0)
+    bot.env.site.links['777'] = {'tg_user_id': '777', 'user_id': 2, 'login': 'anna', 'display_name': 'Анна'}
+    bot.env.store.add_user_usage(OWNER_TG, 15.0)
+    bot.client.script += [resp(text('Ответ Анне.'))]
+    bot.svc.handle_update(message('вопрос', user_id=OWNER_TG))
+    assert bot.tg.sent[-1][1].startswith('Ваш дневной предел расхода исчерпан: 15.00 $ из 15.00 $ на человека')
+    assert bot.client.calls == [], 'модель не спрашивали'
+    bot.svc.handle_update(message('вопрос', chat_id='777', user_id='777'))
+    assert bot.tg.sent[-1] == ('777', 'Ответ Анне.', None), 'у другого человека свой предел'
+    assert bot.env.store.spent_by('777') > 0 and bot.env.store.spent_by(OWNER_TG) == pytest.approx(15.0)
+    assert bot.env.site.journal_records[0]['status'] == 'budget'
+
+
+def test_question_limit_follows_the_persons_rest(env):
+    mp = env.monkeypatch
+    mp.setattr(settings, 'DAILY_BUDGET_USD', 0)
+    mp.setattr(settings, 'USER_DAILY_BUDGET_USD', 15.0)
+    mp.setattr(settings, 'DAILY_RESERVE_USD', 1.0)
+    svc = service.Service(env.site, env.store, io_factory=lambda token: FakeTelegram(),
+                          check_key=lambda key: ('ok', ''))
+    assert svc.question_limit(False, '555') == settings.QUESTION_BUDGET_USD
+    env.store.add_user_usage('555', 13.5)
+    assert svc.question_limit(False, '555') == pytest.approx(0.5), 'остаток человека минус запас'
+    assert svc.question_limit(False, '777') == settings.QUESTION_BUDGET_USD, 'у другого — свой остаток'
+    mp.setattr(settings, 'DAILY_BUDGET_USD', 14.0)
+    env.store.add_usage('m', {}, 13.8)
+    assert svc.question_limit(False, '777') == pytest.approx(0.01), 'общий предел, если задан, — тоже'
+    agent.check_budget(env.store, '777')             # 13.80 из 14.00 — ещё можно
+    env.store.add_usage('m', {}, 0.3)
+    with pytest.raises(agent.BudgetExceeded, match='Общий дневной предел'):
+        agent.check_budget(env.store, '777')
+    svc.executor.shutdown(wait=False)
+
+
+def test_person_limit_is_shared_with_agents(bot):
+    """Предел человека — вопросы этого человека целиком: шаги агентов идут в тот же расход."""
+    bot.env.monkeypatch.setattr(settings, 'DAILY_BUDGET_USD', 0)
+    bot.client.script += [
+        resp(use(tools.ASK_AGENT, {'agent': 'payroll', 'task': 'Проверь ЗП'}), stop='tool_use'),
+        resp(text('Отчёт агента.')), resp(text('Готово.'))]
+    bot.svc.handle_update(message('зарплата'))
+    steps = len(bot.client.calls)
+    one = claude.cost_usd('claude-opus-5-5', {'input_tokens': 1000, 'output_tokens': 200})
+    assert steps == 3, 'вопрос, шаг агента, итог'
+    assert bot.env.store.spent_by(OWNER_TG) == pytest.approx(steps * one)
+    assert bot.env.store.spent_by(OWNER_TG) == pytest.approx(bot.env.store.spent_on()), 'весь расход — на спросившего'

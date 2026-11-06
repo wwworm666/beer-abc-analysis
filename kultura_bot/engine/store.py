@@ -13,7 +13,9 @@
              status (queued — ждёт очереди чата | running | done | error | interrupted),
              error; хранятся JOBS_KEEP_DAYS дней
     usage    расход по дням (МСК) и моделям: day + model (PK), requests, input_tokens,
-             output_tokens, cache_read, cache_write, cost_usd — для дневного предела
+             output_tokens, cache_read, cache_write, cost_usd — для общего дневного предела
+    user_usage расход по дням (МСК) и людям (2026-11-06, предел на человека): day + tg_user_id
+             (PK), requests, cost_usd — вопросы человека, бот и агенты вместе; STATS_KEEP_DAYS дней
     job_stats  удачные работы для оценки «сколько осталось» (engine/progress.py, 2026-10-29):
              вид (answer | report), сколько шла работа, шагов модели, вызовов инструментов,
              расход; что обещал прогресс при первом показе (shown_eta, shown_at) — для точности;
@@ -95,6 +97,13 @@ SCHEMA = (
         ts      REAL NOT NULL
     )''',
     'CREATE INDEX IF NOT EXISTS idx_tool_stats_name ON tool_stats(name, ts)',
+    '''CREATE TABLE IF NOT EXISTS user_usage (
+        day        TEXT NOT NULL,
+        tg_user_id TEXT NOT NULL,
+        requests   INTEGER NOT NULL DEFAULT 0,
+        cost_usd   REAL NOT NULL DEFAULT 0,
+        PRIMARY KEY (day, tg_user_id)
+    )''',
     '''CREATE TABLE IF NOT EXISTS journal_outbox (
         uid     TEXT PRIMARY KEY,
         payload TEXT NOT NULL,
@@ -300,3 +309,19 @@ class Store:
     def spent_on(self, day: Optional[str] = None) -> float:
         rows = self._rows('SELECT COALESCE(SUM(cost_usd), 0) AS total FROM usage WHERE day = ?', (day or msk_day(),))
         return float(rows[0]['total'] or 0)
+
+    def add_user_usage(self, tg_user_id: str, cost_usd: float, day: Optional[str] = None) -> None:
+        """Шаг модели по вопросу этого человека (бот или его агент) — в расход человека за сутки."""
+        day = day or msk_day()
+        with self._lock:
+            self._conn.execute('INSERT INTO user_usage (day, tg_user_id, requests, cost_usd) VALUES (?, ?, 1, ?) '
+                               'ON CONFLICT(day, tg_user_id) DO UPDATE SET requests = requests + 1, '
+                               'cost_usd = cost_usd + excluded.cost_usd', (day, str(tg_user_id), float(cost_usd)))
+            old = (datetime.fromisoformat(day) - timedelta(days=STATS_KEEP_DAYS)).date().isoformat()
+            self._conn.execute('DELETE FROM user_usage WHERE day < ?', (old,))
+
+    def spent_by(self, tg_user_id: str, day: Optional[str] = None) -> float:
+        """Расход человека за сутки МСК (бот и агенты по его вопросам)."""
+        rows = self._rows('SELECT cost_usd FROM user_usage WHERE day = ? AND tg_user_id = ?',
+                          (day or msk_day(), str(tg_user_id)))
+        return float(rows[0]['cost_usd']) if rows else 0.0

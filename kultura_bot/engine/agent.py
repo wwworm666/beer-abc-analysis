@@ -55,7 +55,8 @@ Anthropic («Echoing fallback turns back»): до последнего блок�
 - settings.MAX_TOOL_ROUNDS шагов с инструментами на вопрос (агенту —
   AGENT_MAX_TOOL_ROUNDS): исчерпаны — последний запрос с tool_choice none, модель
   отвечает тем, что уже узнала;
-- дневной расход settings.DAILY_BUDGET_USD: перед каждым шагом сверяется со своей базой
+- дневной расход на человека settings.USER_DAILY_BUDGET_USD (и общий DAILY_BUDGET_USD, если задан):
+  перед каждым шагом сверяется со своей базой
   сервера бота (store.usage); исчерпан — BudgetExceeded (бот отвечает «лимит на сегодня»);
   расход каждого шага пишется туда же и уходит сайту в отчёте (on_usage);
 - расход вопроса settings.QUESTION_BUDGET_USD (отчёта — REPORT_BUDGET_USD, Spend.limit) — бот
@@ -282,12 +283,22 @@ def _texts(content: List[Dict[str, Any]]) -> str:
                        (b.get('text') or '').strip())
 
 
-def check_budget(store) -> None:
+def check_budget(store, user: str = '') -> None:
+    """Предел на сутки МСК: на человека (USER_DAILY_BUDGET_USD — вопросы этого человека, бот и агенты
+    вместе) и общий (DAILY_BUDGET_USD, если задан). Исчерпан — BudgetExceeded с текстом для чата."""
     limit = settings.DAILY_BUDGET_USD
-    spent = store.spent_on()
-    if limit and spent >= limit:
-        raise BudgetExceeded(f'Дневной предел расхода на Claude исчерпан: {spent:.2f} $ из {limit:.2f} $ '
-                             f'(DAILY_BUDGET_USD в kultura_bot/settings.py). Бот снова ответит после полуночи МСК.')
+    if limit:
+        spent = store.spent_on()
+        if spent >= limit:
+            raise BudgetExceeded(f'Общий дневной предел расхода на Claude исчерпан: {spent:.2f} $ из {limit:.2f} $ '
+                                 f'(DAILY_BUDGET_USD в kultura_bot/settings.py). Бот снова ответит после полуночи МСК.')
+    personal = settings.USER_DAILY_BUDGET_USD
+    if personal and user:
+        spent = store.spent_by(user)
+        if spent >= personal:
+            raise BudgetExceeded(f'Ваш дневной предел расхода исчерпан: {spent:.2f} $ из {personal:.2f} $ на человека '
+                                 f'(USER_DAILY_BUDGET_USD в kultura_bot/settings.py). Бот снова ответит вам после '
+                                 f'полуночи МСК.')
 
 
 UsageHook = Callable[[str, Dict[str, int], float], None]
@@ -319,7 +330,7 @@ def run_turn(client: Any, *, system_text: str, tool_list: List[Dict[str, Any]], 
     final = False
     finish_left = -1          # режим отчёта, предел исчерпан: сколько ещё шагов «только отчёт» (-1 — не начаты)
     while True:
-        check_budget(store)
+        check_budget(store, ctx.user)
         check_stop(ctx)
         if ctx.progress is not None:
             ctx.progress.model_start()
@@ -334,6 +345,8 @@ def run_turn(client: Any, *, system_text: str, tool_list: List[Dict[str, Any]], 
         spend.steps += 1
         try:
             store.add_usage(served_by, usage, cost)
+            if ctx.user:
+                store.add_user_usage(ctx.user, cost)
             if on_usage is not None:
                 on_usage(served_by, usage, cost)
         except Exception:  # noqa: BLE001 — учёт не должен ронять ответ
@@ -438,7 +451,7 @@ def run_agent(client: Any, persona: tools.Persona, task: str, *, parent: tools.T
     ctx = tools.ToolContext(site=parent.site, chat_id=parent.chat_id, allowed=persona.toolset.names,
                             is_agent=True, charts_sent=parent.charts_sent, reports_sent=parent.reports_sent,
                             spend=parent.spend, report_mode=parent.report_mode, progress=parent.progress,
-                            stop=parent.stop, calls=parent.calls, cards=parent.cards)
+                            stop=parent.stop, calls=parent.calls, cards=parent.cards, user=parent.user)
     text = (header + '\n' if header else '') + task
     result = run_turn(client, system_text=persona.system, tool_list=persona.toolset.defs, history=[],
                       user_content=[{'type': 'text', 'text': text}], ctx=ctx, store=store,

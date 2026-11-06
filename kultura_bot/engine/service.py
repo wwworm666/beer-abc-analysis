@@ -1033,7 +1033,7 @@ class Service:
             иначе      причина, почему страница не собралась (текст уходит сообщением)"""
         if ctx.report_unknown:
             return result, 'unknown'
-        if not ctx.report_only and 'refusal' not in result.notes and self._daily_budget_left():
+        if not ctx.report_only and 'refusal' not in result.notes and self._daily_budget_left(ctx.user):
             ctx.report_only = True
             log.warning('[BOT] отчёт: модель ответила текстом — прошу оформить его страницей')
             try:
@@ -1065,20 +1065,26 @@ class Service:
             return result, reason.strip()[:300] or 'сайт не ответил'
         return dataclasses.replace(result, text=''), 'auto'
 
-    def question_limit(self, report_mode: bool) -> float:
-        """Предел расхода на этот вопрос: обычный или отчёта, но не больше остатка дня минус
-        DAILY_RESERVE_USD — вопрос завершается ответом (страницей) раньше дневной остановки."""
+    def question_limit(self, report_mode: bool, user: str = '') -> float:
+        """Предел расхода на этот вопрос: обычный или отчёта, но не больше остатка дня этого человека
+        (USER_DAILY_BUDGET_USD) и всех (DAILY_BUDGET_USD, если задан) минус DAILY_RESERVE_USD — вопрос
+        завершается ответом (страницей) раньше дневной остановки."""
         limit = settings.REPORT_BUDGET_USD if report_mode else settings.QUESTION_BUDGET_USD
+        rests = []
         if settings.DAILY_BUDGET_USD:
+            rests.append(settings.DAILY_BUDGET_USD - self.store.spent_on())
+        if settings.USER_DAILY_BUDGET_USD and user:
+            rests.append(settings.USER_DAILY_BUDGET_USD - self.store.spent_by(user))
+        for rest in rests:
             # Остаток дня не меньше цента: 0 значил бы «без предела».
-            left = max(settings.DAILY_BUDGET_USD - self.store.spent_on() - settings.DAILY_RESERVE_USD, 0.01)
+            left = max(rest - settings.DAILY_RESERVE_USD, 0.01)
             limit = min(limit, left) if limit else left
         return limit
 
-    def _daily_budget_left(self) -> bool:
-        """Дневной предел ещё не исчерпан (просьба — это запрос к Claude)."""
+    def _daily_budget_left(self, user: str = '') -> bool:
+        """Дневной предел (человека и общий) ещё не исчерпан (просьба — это запрос к Claude)."""
         try:
-            agent.check_budget(self.store)
+            agent.check_budget(self.store, user)
         except agent.BudgetExceeded:
             return False
         return True
@@ -1109,12 +1115,13 @@ class Service:
         status, error, shown, result = 'done', '', '', None
         report_mode = job.get('mode') == 'report'
         mode = 'report' if report_mode else 'answer'
-        limit = self.question_limit(report_mode)
+        asker = str(actor.get('tg_user_id') or job['actor'].get('tg_user_id') or '')
+        limit = self.question_limit(report_mode, asker)
         spend = agent.Spend(limit=limit)
         rich_view = self.chat_rich(chat_id)
         stop = threading.Event()                   # «Остановить» у черновика (handle_stop)
         ctx = tools.ToolContext(site=self.site, chat_id=chat_id, allowed=catalog.bot.toolset.names, spend=spend,
-                                report_mode=report_mode, stop=stop)
+                                report_mode=report_mode, stop=stop, user=asker)
         stop_notice: Dict[str, Any] = {}
         with self.lock:
             self.running[chat_id] = (job_id, stop, stop_notice)
