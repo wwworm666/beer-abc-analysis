@@ -9,6 +9,7 @@
     common_chart_send         график картинкой в Telegram от бота @MCPkulturabot (+ кнопка мини-приложения)
     common_report_send        отчёт: страница с разделами, графиками и таблицами + выжимка в Telegram
     common_audit_recent       последние вызовы инструментов из журнала (по умолчанию — своего токена)
+    common_bot_journal        журнал вопросов и ответов бота @MCPkulturabot (только полный коннектор /mcp)
     common_connection_status  GET /api/connection-status — связь с iiko (тот же индикатор, что в меню)
 
 Документация (проверка безопасности 2026-09-28): агенту доступны ТОЛЬКО документы из
@@ -155,6 +156,15 @@ EXCLUDED = {
                                                       'кнопкой под примерами, а не агент)',
     ('POST', '/api/bot/rich-demo'): _ENGINE_REASON + ' (пример графика богатым сообщением для команды /rich; '
                                                     'агенту — common_chart_send)',
+    ('POST', '/api/bot/journal'): _ENGINE_REASON + ' (записи журнала вопросов и ответов от сервера бота)',
+    ('POST', '/api/bot/journal/feedback'): _ENGINE_REASON + ' (реакция человека под сообщением бота — оценка записи '
+                                                           'журнала)',
+    ('GET', '/api/admin/bot/journal'): 'журнал вопросов бота для страницы администратора; агенту та же выборка — '
+                                       'инструмент common_bot_journal (только полный коннектор /mcp)',
+    ('GET', '/api/admin/bot/journal.csv'): 'выгрузка журнала вопросов бота файлом для человека; агенту — '
+                                           'common_bot_journal',
+    ('DELETE', '/api/admin/bot/journal/<uid>'): 'удаление записи журнала вопросов бота — только человеком на '
+                                                'странице: агент не стирает следы своей работы',
 }
 
 _NO_ARGS = {'type': 'object', 'properties': {}, 'additionalProperties': False}
@@ -849,6 +859,26 @@ def _report_send(args: Dict[str, Any], principal: Principal) -> Dict[str, Any]:
 
 # ------------------------------------------------------------------ common_audit_recent
 
+def _bot_journal(args: Dict[str, Any], principal: Principal) -> Dict[str, Any]:
+    """Журнал вопросов и ответов бота (kultura_bot/journal.py) — только на полном коннекторе /mcp: в нём
+    вопросы и ответы всех разделов, коннектор одного раздела их не открывает."""
+    call = bridge.current_call()
+    if call is None or call.connector is not None:
+        raise ToolError('Журнал вопросов бота — только на полном коннекторе /mcp: в нём вопросы и ответы всех '
+                        'разделов.')
+    from kultura_bot import journal
+    uid = str(args.get('uid') or '').strip()
+    try:
+        if uid:
+            record = journal.get(uid)
+            if record is None:
+                raise ToolError('Записи нет: удалена или срок хранения вышел')
+            return {'record': record}
+        return journal.query(args)
+    except journal.JournalError as exc:
+        raise ToolError(str(exc)) from None
+
+
 def _audit_recent(args: Dict[str, Any], principal: Principal) -> Dict[str, Any]:
     """По умолчанию — только вызовы своего токена: журнал других подключений (что делал
     ночной агент, какие отказы были) агенту без нужды не показываем. Все токены — только
@@ -976,6 +1006,30 @@ TOOLS = [
                         'description': 'Чат разговора в Telegram (как у common_chart_send). Только из разговора.'},
         }},
         handler=_report_send, read_only=False, destructive=True, idempotent=False, open_world=True),
+    ToolSpec(
+        name='common_bot_journal', domain='common', title='Журнал вопросов бота',
+        description='Журнал вопросов и ответов бота @MCPkulturabot (новые сверху): когда и кто спросил, вопрос, '
+                    'ответ (Markdown, начало — в списке, целиком — по uid), итог done/error/stopped/budget, расход $, '
+                    'секунды, запросы к модели, вызовы инструментов, оценка реакцией (good/bad/other), итоги за '
+                    'выбранное. Чтобы разобрать, где бот ошибается: status=problems — всё, что не done; '
+                    'rating=bad — ответы с плохой реакцией; q — поиск по вопросу и ответу. uid — запись целиком: '
+                    'вызовы инструментов с аргументами, ошибки, графики и отчёты, реакции. Только полный '
+                    'коннектор /mcp.',
+        input_schema={'type': 'object', 'additionalProperties': False, 'properties': {
+            'days': {'type': 'integer', 'minimum': 1, 'maximum': 3650,
+                     'description': 'За сколько последних дней (по умолчанию 30).'},
+            'login': {'type': 'string', 'maxLength': 64, 'description': 'Только вопросы этого администратора (логин).'},
+            'status': {'type': 'string', 'enum': ['done', 'error', 'stopped', 'budget', 'problems'],
+                       'description': 'Итог: done — ответ; error, stopped («Остановить»), budget (предел); '
+                                      'problems — всё, кроме done.'},
+            'rating': {'type': 'string', 'enum': ['good', 'bad', 'other'],
+                       'description': 'Оценка реакцией под ответом.'},
+            'q': {'type': 'string', 'maxLength': 200, 'description': 'Поиск по вопросу и ответу (без учёта регистра).'},
+            'limit': {'type': 'integer', 'minimum': 1, 'maximum': 200, 'description': 'Сколько записей (по умолчанию 50).'},
+            'offset': {'type': 'integer', 'minimum': 0, 'description': 'Пропустить столько первых (следующая страница).'},
+            'uid': {'type': 'string', 'pattern': '^[0-9a-f]{32}$', 'description': 'Запись целиком по её uid из списка.'},
+        }},
+        handler=_bot_journal, read_only=True, idempotent=True, examples=({'days': 7, 'status': 'problems'},)),
     ToolSpec(
         name='common_audit_recent', domain='common', title='Журнал вызовов агентов',
         description='Последние вызовы MCP-инструментов этого подключения (новые сверху): время МСК, инструмент, '

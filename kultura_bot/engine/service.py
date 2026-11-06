@@ -96,7 +96,7 @@ from datetime import timedelta
 from typing import Any, Dict, List, Optional
 
 from kultura_bot import links, rich_demo, settings
-from kultura_bot.engine import agent, claude, config, formatting, progress, report_text, rich, tools
+from kultura_bot.engine import agent, claude, config, formatting, journal, progress, report_text, rich, tools
 from kultura_bot.engine.site import SiteError
 from kultura_bot.engine.store import msk_day, msk_now
 from kultura_bot.engine.telegram_io import TelegramIO
@@ -111,6 +111,8 @@ ACTOR_CACHE_S = 60               # ответ сайта «кто пишет» �
 FORMAT_CACHE_S = 60              # вид ответов в чате (/rich) помнится минуту
 PRESS_DEDUP_S = 15               # двойное нажатие кнопки следующего шага — один вопрос
 DEMO_DRAFT_ID = 1                # черновик «Готовлю примеры…» команды /rich
+FLUSH_RETRY_S = 60               # журнал: сайт не принял записи — следующая попытка не раньше
+JOURNAL_BATCH = 20               # журнал: записей в одном запросе к сайту
 REFUSAL_EVERY_S = 3600           # незнакомцу «закрытый бот» — не чаще раза в час
 INTERRUPTED_MAX_AGE_S = 1800     # сообщить об оборванном ответе, если вопрос моложе 30 минут
 PHOTO_MIME = 'image/jpeg'        # Telegram пережимает фото в JPEG
@@ -129,7 +131,9 @@ HELP_TEXT = ('Я помощник сети «Культура»: отвечаю 
              'вопрос — отвечу с опорой на неё, «/report …» — соберу новую версию отчёта.\n\n'
              '/rich — новый вид ответов: таблицы, «Как считается» прямо в ответе, график и текст одним '
              'сообщением; пришлю примеры и спрошу, включать ли.\n'
-             '/new — начать новый диалог')
+             '/new — начать новый диалог\n\n'
+             'Вопросы и ответы сохраняются в журнале на сайте (его видят администраторы). Ответ не помог — '
+             'поставьте под ним реакцию с пальцем вниз: так видно, где бот ошибается.')
 REPORT_EMPTY_TEXT = 'Напишите вопрос для отчёта: «/report как прошёл сентябрь по барам».'
 # Ответ на сообщение бота (2026-10-29, продолжение работы): текст обычного сообщения — не длиннее.
 REPLY_QUOTE_MAX = 4000
@@ -247,6 +251,8 @@ class Service:
         self.format_cache: Dict[str, tuple] = {}         # chat_id -> (когда, слать ли богатые сообщения)
         self.running: Dict[str, tuple] = {}              # chat_id -> (job_id = id черновика, Event «Остановить», {notice})
         self.pressed: Dict[tuple, float] = {}            # (chat_id, message_id, data) -> когда нажали
+        self.journal_lock = threading.Lock()             # журнал: отправка на сайт — одна за раз
+        self.journal_retry_at = 0.0                      # журнал: сайт не принял — ждём до этой секунды
         self.refused_at: Dict[str, float] = {}
         self._interrupted_checked = False
 
@@ -282,6 +288,7 @@ class Service:
             item['cost_usd'] += float(cost)
 
     def report(self, force: bool = False) -> None:
+        self.flush_journal()
         now = time.time()
         if not force and now - self.reported_at < HEARTBEAT_S:
             return
@@ -537,6 +544,9 @@ class Service:
         if update.get('stopped_message_generation'):
             self.handle_stop(update['stopped_message_generation'])
             return
+        if update.get('message_reaction'):
+            self.handle_reaction(update['message_reaction'])
+            return
         message = update.get('message')
         if not message:
             return
@@ -614,6 +624,7 @@ class Service:
     # ---------------------------------------------------------------- очередь
 
     def enqueue(self, chat_id: str, job: Dict[str, Any]) -> None:
+        job.setdefault('asked_ts', time.time())          # журнал: когда пришёл вопрос (ждал ли очереди)
         if job.get('kind') not in ('new', 'rich'):
             # Вопрос записан сразу ('queued'): остановка, пока он ждёт очереди, не потеряет его
             # молча — после запуска чат получит «повторите вопрос» (store.take_interrupted_jobs).
@@ -764,7 +775,7 @@ class Service:
         # Как будто человек ответил (Reply) на это сообщение текстом кнопки: продолжение той работы.
         asked = {'chat': chat, 'from': author, 'text': question, 'reply_to_message': message}
         self.enqueue(chat_id, {'message': asked, 'actor': actor, 'text': question, 'chat_type': chat.get('type'),
-                               'mode': 'answer', 'reply_to': message.get('message_id')})
+                               'mode': 'answer', 'reply_to': message.get('message_id'), 'source': 'button'})
 
     def handle_stop(self, update: Dict[str, Any]) -> None:
         """Нажали «Остановить» у черновика: остановить работу этого чата (если черновик — её)."""
@@ -779,6 +790,78 @@ class Service:
         # Сразу видно, что нажатие дошло: идущий шаг модели может длиться до минуты. Потом это
         # сообщение станет «Остановил» (answer).
         running[2]['notice'] = self.tg.send_plain(chat_id, STOPPING_TEXT)
+
+    def handle_reaction(self, update: Dict[str, Any]) -> None:
+        """Реакция человека на сообщение бота -> оценка записи журнала (сайт найдёт её по сообщению)."""
+        if not settings.JOURNAL:
+            return
+        chat_id = str((update.get('chat') or {}).get('id') or '')
+        user = update.get('user') or {}
+        message_id = update.get('message_id')
+        if not chat_id or not user.get('id') or user.get('is_bot') or not isinstance(message_id, int):
+            return
+        reactions = []
+        for item in update.get('new_reaction') or []:
+            if not isinstance(item, dict):
+                continue
+            if item.get('type') == 'emoji' and item.get('emoji'):
+                reactions.append(str(item['emoji'])[:16])
+            elif item.get('type') == 'custom_emoji':
+                reactions.append('custom')
+            elif item.get('type') == 'paid':
+                reactions.append('paid')
+        try:
+            self.site.journal_feedback(chat_id, message_id, str(user['id']), reactions)
+        except SiteError as exc:
+            log.warning('[BOT] реакция не дошла до журнала: %s', exc.text)
+
+    # ---------------------------------------------------------------- журнал вопросов и ответов
+
+    def _journal(self, entry: Dict[str, Any], **kwargs: Any) -> None:
+        """Запись о работе — в свою базу и сразу на сайт; ничего здесь не роняет ответ."""
+        if not settings.JOURNAL:
+            return
+        try:
+            record = journal.finish(entry, **kwargs)
+            dropped = self.store.outbox_add(record)
+            if dropped:
+                log.warning('[BOT] журнал: сайт давно не принимает записи — %s старых выброшено', dropped)
+        except Exception:  # noqa: BLE001
+            log.exception('[BOT] журнал: запись не собралась')
+            return
+        self.flush_journal(force=True)
+
+    def flush_journal(self, force: bool = False) -> None:
+        """Отправить сайту ждущие записи журнала пачками. Сайт не ответил — снова не раньше FLUSH_RETRY_S
+        (force — после свежей записи: попробовать сразу)."""
+        if not settings.JOURNAL or (not force and time.time() < self.journal_retry_at):
+            return
+        if not self.journal_lock.acquire(blocking=False):
+            return
+        try:
+            for _ in range(10):                        # не больше 200 записей за раз
+                batch = self.store.outbox_batch(JOURNAL_BATCH)
+                if not batch:
+                    return
+                try:
+                    answer = self.site.journal(batch)
+                except Exception as exc:  # noqa: BLE001 — журнал не роняет ни ответ, ни опрос Telegram
+                    self.journal_retry_at = time.time() + FLUSH_RETRY_S
+                    reason = exc.text if isinstance(exc, SiteError) else f'{type(exc).__name__}: {exc}'
+                    log.warning('[BOT] журнал: сайт не принял записи (%s), ждут: %s', reason,
+                                self.store.outbox_count())
+                    return
+                rejected = [r for r in answer.get('rejected') or [] if isinstance(r, dict)]
+                for item in rejected:
+                    log.warning('[BOT] журнал: сайт отверг запись %s: %s', item.get('uid'), item.get('error'))
+                done = list(answer.get('saved') or []) + [r.get('uid') for r in rejected]
+                if not done:
+                    self.journal_retry_at = time.time() + FLUSH_RETRY_S
+                    return
+                self.store.outbox_drop(done)
+            self.journal_retry_at = 0.0
+        finally:
+            self.journal_lock.release()
 
     # ---------------------------------------------------------------- ответ
 
@@ -884,6 +967,7 @@ class Service:
         if rich_view and self.deliver_rich(chat_id, visible, how, ask, ctx=ctx, spend=spend, notice=notice,
                                            reply_to=reply_to):
             return
+        ctx.delivered = {'format': 'plain', 'message_ids': []}
         markup = None
         if how:
             visible, markup = self.how_link(chat_id, visible, how)
@@ -898,7 +982,8 @@ class Service:
             text = f'{text}\n\n{cost_line(spend)}' if text else cost_line(spend)
         markup = formatting.button_markup(ask, markup)
         if text or markup:
-            self.tg.send_markdown(chat_id, text or links.HOW_TEXT, reply_to=reply_to, reply_markup=markup)
+            ids = self.tg.send_markdown(chat_id, text or links.HOW_TEXT, reply_to=reply_to, reply_markup=markup)
+            ctx.delivered['message_ids'] = [i for i in ids or [] if isinstance(i, int)]
 
     def deliver_rich(self, chat_id: str, visible: str, how: str, ask: List[str], *, ctx: tools.ToolContext,
                      spend: agent.Spend, notice: str = '', reply_to: Optional[int] = None) -> bool:
@@ -921,7 +1006,10 @@ class Service:
             return False
         message_id, reason = self.tg.send_rich(chat_id, message, reply_to=reply_to)
         if message_id is None:
+            if reason == 'unknown':
+                ctx.delivered = {'format': 'rich', 'message_ids': []}
             return reason == 'unknown'
+        ctx.delivered = {'format': 'rich', 'message_ids': [message_id]}
         try:
             stored = text + (f'\n\nКак считается:\n{how}' if how else '')
             self.store.save_sent(chat_id, message_id, stored)
@@ -1000,6 +1088,8 @@ class Service:
         reply_to = job.get('reply_to') or (message.get('message_id') if job['chat_type'] != 'private' else None)
         job_id = job.get('job_id') or self.store.start_job(chat_id, job['actor']['tg_user_id'])
         self.store.run_job(job_id)
+        entry = journal.start(job, chat_id, job_id)
+        started_ts = time.time()
         try:
             # Права — ещё раз: пока вопрос ждал очереди, привязку могли снять, а админство — отозвать.
             actor = self.actor(job['actor']['tg_user_id'], fresh=True)
@@ -1008,11 +1098,15 @@ class Service:
             log.warning('[BOT] сайт не ответил перед ответом: %s', exc.text)
             self.tg.send_plain(chat_id, SITE_DOWN_TEXT, reply_to=reply_to)
             self.store.finish_job(job_id, 'error', f'site: {exc.text}')
+            self._journal(entry, status='error', error=f'site: {exc.text}', shown=SITE_DOWN_TEXT,
+                          started_ts=started_ts)
             return
         if actor is None:
             self.store.finish_job(job_id, 'error', 'no access')
+            self._journal(entry, status='error', error='no access', started_ts=started_ts)
             return
-        status, error = 'done', ''
+        entry.update(login=str(actor.get('login') or ''), name=str(actor.get('display_name') or ''))
+        status, error, shown, result = 'done', '', '', None
         report_mode = job.get('mode') == 'report'
         mode = 'report' if report_mode else 'answer'
         limit = self.question_limit(report_mode)
@@ -1096,11 +1190,11 @@ class Service:
             if self.status['claude_error']:             # Claude снова отвечает — ошибку со страницы убрать
                 self.set_status(self.status['state'], self.status['detail'], claude_error='')
         except agent.BudgetExceeded as exc:
-            status, error = 'error', 'budget'
+            status, error, shown = 'error', 'budget', str(exc)
             self.tg.send_plain(chat_id, str(exc), reply_to=reply_to)
         except agent.Stopped:
             # «Остановить»: диалог не пишется — следующий вопрос продолжает разговор до этого.
-            status, error = 'error', 'stopped'
+            status, error, shown = 'error', 'stopped', STOPPED_TEXT
             notice_id = stop_notice.get('notice')
             if not (notice_id and self.tg.edit_plain(chat_id, notice_id, STOPPED_TEXT)):
                 self.tg.send_plain(chat_id, STOPPED_TEXT, reply_to=reply_to)
@@ -1114,6 +1208,7 @@ class Service:
             elif kind == 'other':
                 log.exception('[BOT] сбой ответа')
                 text = f'Не получилось ответить: {text}'
+            shown = text
             self.tg.send_plain(chat_id, text, reply_to=reply_to)
             if kind in ('auth', 'denied', 'billing', 'offline'):
                 # Опрос Telegram идёт и пишет «работает» — ошибка Claude держится отдельным полем,
@@ -1127,3 +1222,7 @@ class Service:
             if status == 'done':
                 self._save_stats(job_id, tracker)
             self.store.finish_job(job_id, status, error)
+            outcome = {'budget': 'budget', 'stopped': 'stopped'}.get(error, status)
+            self._journal(entry, status=outcome, error='' if outcome in ('budget', 'stopped') else error,
+                          shown=shown, ctx=ctx, tracker=tracker, spend=spend, result=result,
+                          started_ts=started_ts)

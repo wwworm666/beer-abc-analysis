@@ -173,6 +173,9 @@ class ToolContext:
     report_unknown: bool = False                             # отправка отчёта «статус неизвестен»: могла дойти
     progress: Any = None                                     # engine/progress.Tracker: что идёт сейчас (прогресс в чате)
     stop: Any = None                                         # threading.Event: нажали «Остановить» (agent.check_stop)
+    calls: List[Dict[str, Any]] = field(default_factory=list)    # журнал: вызовы инструментов (общий с агентами)
+    cards: List[Dict[str, Any]] = field(default_factory=list)    # журнал: ушедшие графики и отчёты
+    delivered: Dict[str, Any] = field(default_factory=dict)      # журнал: каким видом и какими сообщениями ушёл ответ
 
 
 def tool_result(tool_use_id: str, content: Any, is_error: bool = False) -> Dict[str, Any]:
@@ -205,15 +208,35 @@ def _result_blocks(content: List[Any]) -> List[Dict[str, Any]]:
 
 def execute(block: Dict[str, Any], ctx: ToolContext) -> Dict[str, Any]:
     """Исполнить tool_use (dict из ответа Claude) -> tool_result. Никогда не бросает.
-    Прогресс (ctx.progress) видит начало и конец вызова: «Сейчас: …» и «обычно до N с»."""
+    Прогресс (ctx.progress) видит начало и конец вызова: «Сейчас: …» и «обычно до N с»;
+    журнал (ctx.calls) — имя, аргументы коротко, секунды, успех и начало ошибки."""
+    import time
     name = block.get('name') or ''
+    started = time.monotonic()
+    result: Optional[Dict[str, Any]] = None
     if ctx.progress is not None:
         ctx.progress.tool_start(name)
     try:
-        return _execute(block, ctx)
+        result = _execute(block, ctx)
+        return result
     finally:
         if ctx.progress is not None:
             ctx.progress.tool_done(name)
+        _log_call(ctx, name, block.get('input'), result, time.monotonic() - started)
+
+
+def _log_call(ctx: ToolContext, name: str, args: Any, result: Optional[Dict[str, Any]], seconds: float) -> None:
+    from kultura_bot.engine import journal
+    if len(ctx.calls) >= journal.CALLS_MAX:
+        return
+    ok = bool(result) and not result.get('is_error')
+    entry: Dict[str, Any] = {'name': name, 'args': journal.args_preview(args), 'seconds': round(seconds, 2), 'ok': ok}
+    if ctx.is_agent:
+        entry['agent'] = True
+    if not ok:
+        texts = [str(b.get('text') or '') for b in (result or {}).get('content') or [] if isinstance(b, dict)]
+        entry['error'] = ' '.join(texts).strip()[:300] or 'нет ответа'
+    ctx.calls.append(entry)
 
 
 def _execute(block: Dict[str, Any], ctx: ToolContext) -> Dict[str, Any]:
@@ -245,8 +268,26 @@ def _execute(block: Dict[str, Any], ctx: ToolContext) -> Dict[str, Any]:
             sent = json.loads(_text(result))
         except ValueError:
             sent = {}
-        (ctx.charts_sent if name == CHART_TOOL else ctx.reports_sent).append(sent if isinstance(sent, dict) else {})
+        sent = sent if isinstance(sent, dict) else {}
+        (ctx.charts_sent if name == CHART_TOOL else ctx.reports_sent).append(sent)
+        ctx.cards.append(_card(name, args, sent))
     return tool_result(tool_use_id, _result_blocks(result.get('content') or []), is_error=is_error)
+
+
+def _card(name: str, args: Dict[str, Any], sent: Dict[str, Any]) -> Dict[str, Any]:
+    """Журнал: что ушло карточкой — график (заголовок, подпись) или отчёт (заголовок, выжимка)."""
+    from kultura_bot.engine.journal import CARD_TEXT_MAX
+    card: Dict[str, Any] = {'tool': name, 'message_id': sent.get('message_id'), 'format': sent.get('format') or ''}
+    if name == CHART_TOOL:
+        chart = args.get('chart') if isinstance(args.get('chart'), dict) else {}
+        card.update(chart_id=sent.get('chart_id'), title=str(chart.get('title') or '')[:300],
+                    caption=str(args.get('caption') or '')[:CARD_TEXT_MAX])
+    else:
+        report = args.get('report') if isinstance(args.get('report'), dict) else {}
+        card.update(report_id=sent.get('report_id'), title=str(report.get('title') or '')[:300],
+                    summary=str(report.get('summary') or '')[:CARD_TEXT_MAX],
+                    sections=len(report.get('sections') or []) if isinstance(report.get('sections'), list) else 0)
+    return card
 
 
 def _run_ask_agent(tool_use_id: str, args: Dict[str, Any], ctx: ToolContext) -> Dict[str, Any]:

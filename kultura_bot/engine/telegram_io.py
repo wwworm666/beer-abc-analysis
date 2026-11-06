@@ -35,7 +35,7 @@ CONNECT_TIMEOUT_S = 10
 FILE_TIMEOUT_S = 60
 RETRY_AFTER_MAX_S = 30               # Telegram просит подождать (429) — ждём не дольше
 HTTP_TIMEOUT = POLL_TIMEOUT + 10
-ALLOWED_UPDATES = ['message', 'callback_query', 'stopped_message_generation']
+ALLOWED_UPDATES = ['message', 'callback_query', 'stopped_message_generation', 'message_reaction']
 COMMANDS = [
     {'command': 'report', 'description': 'Отчёт: полный разбор на странице'},
     {'command': 'new', 'description': 'Начать новый диалог'},
