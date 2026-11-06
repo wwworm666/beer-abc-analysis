@@ -129,6 +129,12 @@ def _start_background_jobs():
     from core.receiving_scheduler import start_scheduler as start_receiving_scheduler
     start_receiving_scheduler()
 
+    # Сторож бота @MCPkulturabot (2026-11-06): сервер бота в Амстердаме молчит дольше 10 минут, Claude
+    # не отвечает или бот в ошибке — одно сообщение владельцу в чат отчётов агентов, потом «снова
+    # отвечает». См. docs/kultura-bot.md, «Сторож».
+    from kultura_bot.watchdog import start_watchdog
+    start_watchdog()
+
 
 # BEER_SCHEDULERS=0 — импорт app без фоновых потоков (локальные скрипты, проверки).
 # Иначе импорт запускает рассылки с боевыми токенами из .env: 2026-09-26 локальный

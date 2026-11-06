@@ -72,6 +72,8 @@ PUBLIC_ENDPOINTS = {
     'bot_api.chat_format_get',         # вид ответов в чате (/rich): богатые сообщения или прежний
     'bot_api.chat_format_set',
     'bot_api.rich_demo',               # пример графика богатым сообщением для /rich
+    'bot_api.journal_save',            # журнал вопросов и ответов: записи от сервера бота
+    'bot_api.journal_feedback',        # журнал: реакция человека на сообщение бота
 }
 
 

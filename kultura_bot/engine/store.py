@@ -20,6 +20,9 @@
              хранятся STATS_KEEP_DAYS дней
     tool_stats длительность каждого вызова инструмента — «обычно до N с» в прогрессе;
              STATS_KEEP_DAYS дней
+    journal_outbox записи журнала вопросов и ответов, ещё не принятые сайтом (2026-11-06,
+             engine/journal.py): uid (PK), payload (JSON записи), ts; не больше OUTBOX_MAX —
+             сайт молчит дольше, старые уходят (в журнал сервера — предупреждение)
     sent     текст ответов, ушедших богатым сообщением (2026-11-06): chat_id + message_id (PK),
              text (Markdown ответа), ts — у богатого сообщения в Telegram нет поля text, а ответ
              на него (Reply или кнопка следующего шага) — продолжение той работы; SENT_KEEP_DAYS дней
@@ -40,6 +43,7 @@ JOBS_KEEP_DAYS = 30
 STATS_KEEP_DAYS = 90                # история для оценки времени: старая — уже не про нынешнюю скорость
 STATS_RECENT = 50                   # столько последних работ вида берёт оценка
 SENT_KEEP_DAYS = 30                 # текст ответов богатыми сообщениями — для ответа на них
+OUTBOX_MAX = 2000                   # записей журнала ждут сайт — при ~50 вопросах в день это больше месяца
 SENT_TEXT_MAX = 20000
 
 SCHEMA = (
@@ -91,6 +95,11 @@ SCHEMA = (
         ts      REAL NOT NULL
     )''',
     'CREATE INDEX IF NOT EXISTS idx_tool_stats_name ON tool_stats(name, ts)',
+    '''CREATE TABLE IF NOT EXISTS journal_outbox (
+        uid     TEXT PRIMARY KEY,
+        payload TEXT NOT NULL,
+        ts      REAL NOT NULL
+    )''',
     '''CREATE TABLE IF NOT EXISTS sent (
         chat_id    TEXT NOT NULL,
         message_id INTEGER NOT NULL,
@@ -133,6 +142,37 @@ class Store:
     def close(self) -> None:
         with self._lock:
             self._conn.close()
+
+    # ---------------------------------------------------------------- журнал: ждут отправки на сайт
+
+    def outbox_add(self, record: Dict[str, Any], now: Optional[float] = None) -> int:
+        """Положить запись журнала; вернуть, сколько старых выброшено сверх OUTBOX_MAX."""
+        now = time.time() if now is None else now
+        with self._lock:
+            self._conn.execute('INSERT OR REPLACE INTO journal_outbox (uid, payload, ts) VALUES (?, ?, ?)',
+                               (record['uid'], json.dumps(record, ensure_ascii=False), now))
+            extra = self._conn.execute('SELECT COUNT(*) FROM journal_outbox').fetchone()[0] - OUTBOX_MAX
+            if extra > 0:
+                self._conn.execute('DELETE FROM journal_outbox WHERE uid IN (SELECT uid FROM journal_outbox '
+                                   'ORDER BY ts LIMIT ?)', (extra,))
+            return max(extra, 0)
+
+    def outbox_batch(self, limit: int = 20) -> List[Dict[str, Any]]:
+        rows = self._rows('SELECT payload FROM journal_outbox ORDER BY ts LIMIT ?', (int(limit),))
+        out = []
+        for row in rows:
+            try:
+                out.append(json.loads(row['payload']))
+            except ValueError:
+                continue
+        return out
+
+    def outbox_drop(self, uids) -> None:
+        for uid in uids or []:
+            self._exec('DELETE FROM journal_outbox WHERE uid = ?', (str(uid),))
+
+    def outbox_count(self) -> int:
+        return int(self._rows('SELECT COUNT(*) AS n FROM journal_outbox')[0]['n'])
 
     # ---------------------------------------------------------------- ответы богатыми сообщениями
 

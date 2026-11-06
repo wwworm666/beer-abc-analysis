@@ -93,8 +93,9 @@ def test_access_management_is_not_exposed():
     # API сервера бота (/api/bot/*): вход только по ключу сервера бота, отдаёт секреты — агенту закрыт
     bot_pairs = [pair for pair in report.required if pair[1].startswith('/api/bot/')]
     # с 2026-10-29 — GET /api/bot/replied (продолжение работы); с 2026-11-06 — вид ответов в чате
-    # (GET и POST /api/bot/chat-format) и пример графика для /rich (POST /api/bot/rich-demo)
-    assert len(bot_pairs) == 9, bot_pairs
+    # (GET и POST /api/bot/chat-format) и пример графика для /rich (POST /api/bot/rich-demo); с 2026-11-06 (2)
+    # — журнал вопросов и ответов (POST /api/bot/journal и /api/bot/journal/feedback)
+    assert len(bot_pairs) == 11, bot_pairs
     for pair in bot_pairs:
         assert pair in exclusions and 'сервера бота' in exclusions[pair], pair
     tool_paths = {t.path for t in registry.all_tools() if t.route_backed}

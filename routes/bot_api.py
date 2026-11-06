@@ -26,6 +26,10 @@ core/mcp/tools/common.py).
     POST /api/bot/chat-format           {chat_id, format: rich|plain, tg_user_id} -> {ok, format, rich}
     POST /api/bot/rich-demo             {chat_id} -> {message_id, chart_id} — пример графика богатым
                                         сообщением для /rich (kultura_bot/rich_demo.py): картинки рисует сайт
+    POST /api/bot/journal               {records: [...]} -> {saved: [uid], rejected: [{uid, error}]} —
+                                        журнал вопросов и ответов (kultura_bot/journal.py, 2026-11-06)
+    POST /api/bot/journal/feedback      {chat_id, message_id, tg_user_id, reactions} -> {found} —
+                                        реакция человека на сообщение бота: оценка записи журнала
 
 401 — нет ключа или не тот; 400 — ошибка ввода. Ответы не кэшируются (Cache-Control:
 no-store): в config — секреты.
@@ -212,3 +216,34 @@ def rich_demo():
         return _error(502, str(exc))
     return _no_store(jsonify({'message_id': sent.get('message_id'), 'chart_id': sent.get('chart_id'),
                               'format': sent.get('format')}))
+
+
+@bot_api_bp.route('/api/bot/journal', methods=['POST'])
+def journal_save():
+    """Записи журнала вопросов и ответов от сервера бота (пачкой; повтор по uid безопасен)."""
+    if _engine() is None:
+        return _denied()
+    from kultura_bot import journal
+    try:
+        result = journal.save(_body().get('records'))
+    except (ValueError, journal.JournalError) as exc:
+        return _error(400, str(exc))
+    return _no_store(jsonify(result))
+
+
+@bot_api_bp.route('/api/bot/journal/feedback', methods=['POST'])
+def journal_feedback():
+    """Реакция под сообщением бота -> оценка записи журнала."""
+    if _engine() is None:
+        return _denied()
+    from kultura_bot import journal
+    try:
+        data = _body()
+        message_id = data.get('message_id')
+        if not isinstance(message_id, int) or isinstance(message_id, bool):
+            raise ValueError('message_id — число')
+        found = journal.set_feedback(str(data.get('chat_id') or ''), message_id, str(data.get('tg_user_id') or ''),
+                                     data.get('reactions'))
+    except (ValueError, journal.JournalError) as exc:
+        return _error(400, str(exc))
+    return _no_store(jsonify({'found': found}))

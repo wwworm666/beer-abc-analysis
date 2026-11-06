@@ -119,6 +119,10 @@ class FakeSite:
         self.format_calls = []              # (chat_id, format, tg_user_id)
         self.demo_calls = []                # чаты, куда сайт слал пример графика
         self.demo_error = None
+        self.journal_records = []           # записи журнала вопросов и ответов, принятые «сайтом»
+        self.journal_error = None           # SiteError — сайт не принял пачку
+        self.journal_rejects = set()        # uid, которые «сайт» отвергает
+        self.feedback = []                  # (chat_id, message_id, tg_user_id, reactions)
 
     def _check(self):
         if self.down:
@@ -171,6 +175,24 @@ class FakeSite:
         self.formats[str(chat_id)] = fmt
         self.format_calls.append((str(chat_id), fmt, str(tg_user_id)))
         return {'ok': True, 'format': fmt, 'rich': fmt == 'rich'}
+
+    def journal(self, records):
+        self._check()
+        if self.journal_error is not None:
+            raise self.journal_error
+        saved, rejected = [], []
+        for record in records:
+            if record['uid'] in self.journal_rejects:
+                rejected.append({'uid': record['uid'], 'error': 'status — один из …'})
+            else:
+                self.journal_records.append(copy.deepcopy(record))
+                saved.append(record['uid'])
+        return {'saved': saved, 'rejected': rejected}
+
+    def journal_feedback(self, chat_id, message_id, tg_user_id, reactions):
+        self._check()
+        self.feedback.append((str(chat_id), int(message_id), str(tg_user_id), list(reactions)))
+        return {'found': True}
 
     def rich_demo(self, chat_id):
         self._check()

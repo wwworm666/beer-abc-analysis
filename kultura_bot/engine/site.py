@@ -125,6 +125,16 @@ class Site:
         return self._request('POST', '/api/bot/chat-format',
                              body={'chat_id': str(chat_id), 'format': fmt, 'tg_user_id': str(tg_user_id)})
 
+    def journal(self, records: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Записи журнала вопросов и ответов (engine/journal.py) -> {saved: [uid], rejected: [{uid, error}]}."""
+        return self._request('POST', '/api/bot/journal', body={'records': records})
+
+    def journal_feedback(self, chat_id: str, message_id: int, tg_user_id: str, reactions: List[str]) -> Dict[str, Any]:
+        """Реакция человека на сообщение бота -> оценка записи журнала {found}."""
+        return self._request('POST', '/api/bot/journal/feedback',
+                             body={'chat_id': str(chat_id), 'message_id': int(message_id),
+                                   'tg_user_id': str(tg_user_id), 'reactions': list(reactions)})
+
     def rich_demo(self, chat_id: str) -> Dict[str, Any]:
         """Пример графика богатым сообщением (команда /rich): сайт рисует и шлёт его в чат сам —
         картинки рисует он. Вернуть {message_id} или ошибку сайта (SiteError)."""
