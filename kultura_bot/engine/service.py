@@ -101,6 +101,7 @@ from kultura_bot import links, rich_demo, settings
 from kultura_bot.engine import agent, claude, config, formatting, journal, progress, report_text, rich, tools
 from kultura_bot.engine.site import SiteError
 from kultura_bot.engine.store import msk_day, msk_now
+from kultura_bot.engine import telegram_io
 from kultura_bot.engine.telegram_io import TelegramIO
 
 log = logging.getLogger('kultura-bot')
@@ -123,19 +124,40 @@ DOCUMENT_MIMES = {'application/pdf': 'document', 'image/jpeg': 'image', 'image/p
                   'image/webp': 'image', 'image/gif': 'image'}
 BUSINESS_DAY_SHIFT = timedelta(hours=6)    # рабочие сутки бара длятся до 06:00 МСК (core/msk_time.py)
 
-HELP_TEXT = ('Я kultura.os — помощник сети «Культура»: отвечаю по данным сайта — продажи и планы, остатки '
-             'и заказы, краны, смены и зарплаты, контент-план и отзывы. Пишите вопрос обычными словами, можно '
-             'приложить фото или PDF. Графики приходят с кнопкой «Открыть интерактивно», пояснение '
-             'расчёта — по ссылке «Как считается».\n\n'
-             'Большой вопрос — отчётом: «/report вопрос» или «Отчёт: вопрос». Соберу полный разбор на '
-             'странице (графики, таблицы), в чат пришлю выжимку с кнопкой «Открыть отчёт».\n\n'
-             'Вернуться к прошлой работе — ответьте на моё сообщение с отчётом или графиком («Ответить»): '
-             'вопрос — отвечу с опорой на неё, «/report …» — соберу новую версию отчёта.\n\n'
-             '/rich — новый вид ответов: таблицы, «Как считается» прямо в ответе, график и текст одним '
-             'сообщением; пришлю примеры и спрошу, включать ли.\n'
-             '/new — начать новый диалог\n\n'
-             'Вопросы и ответы сохраняются в журнале на сайте (его видят администраторы). Ответ не помог — '
-             'поставьте под ним реакцию с пальцем вниз: так видно, где бот ошибается.')
+def menu_section(command: Optional[str]) -> Optional[Dict[str, Any]]:
+    """Раздел меню с готовыми вопросами (settings.MENU) по команде: /sales, /stock, /staff, /content."""
+    for item in settings.MENU:
+        if item.get('questions') and item['command'] == command:
+            return item
+    return None
+
+
+def _lower_first(text: str) -> str:
+    return text[:1].lower() + text[1:]
+
+
+def _help_text() -> str:
+    """/help и /start: разделы меню — из settings.MENU, чтобы справка не отставала от меню."""
+    sections = '\n'.join(f'/{item["command"]} — {_lower_first(item["description"])}'
+                         for item in settings.MENU if item.get('questions'))
+    return ('Я kultura.os — помощник сети «Культура»: отвечаю по данным сайта. Пишите вопрос обычными '
+            'словами, можно приложить фото или PDF.\n\n'
+            f'{sections}\n'
+            'Команда раздела присылает готовые вопросы кнопками; с текстом («/sales Кременчугская за '
+            'октябрь») — сразу ответ.\n\n'
+            f'/{settings.REPORT_COMMAND} вопрос — отчёт: полный разбор на странице (графики, таблицы), в чат — '
+            'выжимка с кнопкой «Открыть отчёт». Так же — «Отчёт: вопрос».\n'
+            '/new — начать новый диалог: прошлый разговор я забуду.\n\n'
+            'Графики приходят с кнопкой «Открыть интерактивно», пояснение расчёта — «Как считается». '
+            'Вернуться к прошлой работе — ответьте на моё сообщение с отчётом или графиком («Ответить»).\n\n'
+            '/rich — вид ответов: таблицы и «Как считается» прямо в сообщении или прежний.\n\n'
+            'Вопросы и ответы сохраняются в журнале на сайте (его видят администраторы). Ответ не помог — '
+            'поставьте под ним реакцию с пальцем вниз: так видно, где бот ошибается.')
+
+
+HELP_TEXT = _help_text()
+# Команда раздела без текста (2026-11-06, меню): готовые вопросы кнопками под этим сообщением.
+MENU_TEXT = '{title}. Выберите вопрос или напишите свой — про любой бар и период.'
 REPORT_EMPTY_TEXT = 'Напишите вопрос для отчёта: «/report как прошёл сентябрь по барам».'
 # Ответ на сообщение бота (2026-10-29, продолжение работы): текст обычного сообщения — не длиннее.
 REPLY_QUOTE_MAX = 4000
@@ -151,7 +173,7 @@ MONTHS = ('янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 
 UNSUPPORTED_TEXT = 'Пока понимаю текст, фото и PDF. Напишите вопрос словами.'
 # Профиль бота в Telegram (2026-11-06, sync_profile): как поле называть в журнале и на странице.
 PROFILE_LABELS = {'name': 'имя', 'short_description': 'описание в профиле',
-                  'description': 'описание в пустом чате', 'avatar': 'аватарка'}
+                  'description': 'описание в пустом чате', 'avatar': 'аватарка', 'menu': 'меню'}
 PROFILE_RETRY_S = 3600           # профиль не встал (нет связи, отказ) — ещё попытка через час, не ждать перезапуска
 UNSUPPORTED_FILE_TEXT = ('Этот файл я не читаю: понимаю фото, картинки (JPEG, PNG, WebP, GIF) и PDF. '
                          'Отвечаю по тексту сообщения.')
@@ -223,6 +245,12 @@ def refusal_text() -> str:
     return ('Это закрытый бот сети «Культура». Если вы администратор сайта, подключите Telegram на странице '
             f'{settings.ADMIN_PAGE_URL}, раздел «Бот».')
 
+
+
+def menu_markup(section: Dict[str, Any]) -> Dict[str, Any]:
+    """Кнопки меню раздела: по одной в ряд (тексты длинные), нажатие — этот вопрос боту."""
+    return {'inline_keyboard': [[{'text': q, 'callback_data': formatting.menu_data(q)}]
+                                for q in section.get('questions') or ()]}
 
 class Service:
     def __init__(self, site, store, io_factory=TelegramIO, client_factory=None, check_key=None):
@@ -370,7 +398,6 @@ class Service:
             self.bot_id = result.get('id')
             self.username = result.get('username') or telegram.get('username') or self.username
             self.tg.delete_webhook()
-            self.tg.set_commands()
             self._sync_profile_safe()
         elif self.status.get('profile') and time.time() - self.profile_at >= PROFILE_RETRY_S:
             self._sync_profile_safe()
@@ -406,6 +433,7 @@ class Service:
             else:
                 result[field] = self.tg.set_profile(field, value) or 'set'
         result['avatar'] = self._sync_avatar()
+        result['menu'] = self._sync_menu()
         changed = [PROFILE_LABELS[k] for k, v in result.items() if v == 'set']
         problems = [f'{PROFILE_LABELS[k]} — {v}' for k, v in result.items() if v not in ('same', 'set', 'skip')]
         if changed:
@@ -424,6 +452,16 @@ class Service:
             log.exception('[BOT] профиль в Telegram: сбой')
             with self.status_lock:                     # видно на странице, через час — ещё попытка
                 self.status['profile'] = f'не обновился: сбой {type(exc).__name__}'
+
+    def _sync_menu(self) -> str:
+        """Меню команд (settings.MENU) — в Telegram, если там другое."""
+        wanted = telegram_io.menu_commands()
+        current = self.tg.get_commands()
+        if current is None:
+            return 'Telegram не ответил'
+        if current == wanted:
+            return 'same'
+        return self.tg.set_commands(wanted) or 'set'
 
     def _sync_avatar(self) -> str:
         """Аватарка settings.BOT_AVATAR — когда поменялся файл. Telegram не отдаёт фото профиля так, чтобы
@@ -684,6 +722,15 @@ class Service:
                                    'chat_type': chat_type})
             return
         has_file = bool(message.get('photo') or (message.get('document') or {}).get('mime_type') in DOCUMENT_MIMES)
+        section = menu_section(command)
+        if section and not rest and not has_file:
+            # Меню раздела: готовые вопросы кнопками, без запроса к модели.
+            self.tg.send_plain(chat_id, MENU_TEXT.format(title=section['description']),
+                               reply_to=message.get('message_id') if chat_type != 'private' else None,
+                               reply_markup=menu_markup(section))
+            return
+        if section:                                    # «/sales Кременчугская за октябрь» — сразу вопрос
+            text = f'{section["description"]}: {rest}' if rest else section['description']
         mode = 'answer'
         if command == settings.REPORT_COMMAND:
             mode, text = 'report', rest
@@ -836,10 +883,13 @@ class Service:
             self.set_format(chat_id, data[4:], tg_user_id, edit_message_id=message.get('message_id'),
                             callback_id=callback_id)
             return
-        if not data.startswith(formatting.ASK_PREFIX):
+        if data.startswith(formatting.MENU_PREFIX):     # вопрос из меню раздела — новый вопрос
+            question, continues = data[len(formatting.MENU_PREFIX):].strip(), False
+        elif data.startswith(formatting.ASK_PREFIX):    # кнопка следующего шага — продолжение работы
+            question, continues = data[len(formatting.ASK_PREFIX):].strip(), True
+        else:
             self.tg.answer_callback(callback_id)
             return
-        question = data[len(formatting.ASK_PREFIX):].strip()
         key = (chat_id, message.get('message_id'), data)
         now = time.time()
         if not question or now - self.pressed.get(key, 0.0) < PRESS_DEDUP_S:
@@ -849,10 +899,14 @@ class Service:
             self.pressed.clear()
         self.pressed[key] = now
         self.tg.answer_callback(callback_id, f'Спрашиваю: «{question}»')
-        # Как будто человек ответил (Reply) на это сообщение текстом кнопки: продолжение той работы.
-        asked = {'chat': chat, 'from': author, 'text': question, 'reply_to_message': message}
+        asked = {'chat': chat, 'from': author, 'text': question}
+        if continues:
+            # Как будто человек ответил (Reply) на это сообщение текстом кнопки: продолжение той работы.
+            asked['reply_to_message'] = message
+        # Меню — как будто вопрос написали: в личке ответ отдельным сообщением, в группе — ответом на меню.
+        reply_to = message.get('message_id') if continues or chat.get('type') != 'private' else None
         self.enqueue(chat_id, {'message': asked, 'actor': actor, 'text': question, 'chat_type': chat.get('type'),
-                               'mode': 'answer', 'reply_to': message.get('message_id'), 'source': 'button'})
+                               'mode': 'answer', 'reply_to': reply_to, 'source': 'button' if continues else 'menu'})
 
     def handle_stop(self, update: Dict[str, Any]) -> None:
         """Нажали «Остановить» у черновика: остановить работу этого чата (если черновик — её)."""

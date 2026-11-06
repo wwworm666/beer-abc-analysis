@@ -190,6 +190,10 @@ def test_save_validates_and_keeps_rating_on_resend(site_db):
     assert stored['calls'][0]['name'] == 'analytics_compare_periods'
     with pytest.raises(journal.JournalError):
         journal.save([record() for _ in range(journal.BATCH_MAX + 1)])
+    menu, odd = record(source='menu'), record(source='чужое')
+    journal.save([menu, odd])
+    assert journal.get(menu['uid'])['source'] == 'menu', 'вопрос из меню раздела (2026-11-06)'
+    assert journal.get(odd['uid'])['source'] == 'message'
 
 
 def test_retention_and_caps(site_db):

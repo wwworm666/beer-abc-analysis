@@ -299,6 +299,7 @@ class FakeTelegram:
         self.profile_sets = []  # set_profile: (поле, значение)
         self.photos = []        # set_profile_photo: загруженные JPEG
         self.photo_error = ''   # что Telegram ответит на фото ('' — получилось)
+        self.commands = []      # меню команд (getMyCommands / setMyCommands)
 
     def get_me(self):
         return {'ok': True, 'result': {'id': 999, 'username': 'MCPkulturabot'}}
@@ -307,8 +308,12 @@ class FakeTelegram:
         self.webhook_deleted += 1
         return {'ok': True}
 
-    def set_commands(self):
-        return None
+    def get_commands(self):
+        return list(self.commands)
+
+    def set_commands(self, commands=None):
+        self.commands = list(commands or [])
+        return ''
 
     def get_updates(self, offset):
         return self.updates.pop(0) if self.updates else {'ok': True, 'result': []}
@@ -2061,7 +2066,7 @@ def test_bot_sets_its_name_descriptions_and_avatar_once(bot):
     assert bot.svc.status['profile'] == ''
     # Перезапуск с тем же профилем и тем же файлом: Telegram не трогаем.
     assert bot.svc.sync_profile() == {'name': 'same', 'short_description': 'same', 'description': 'same',
-                                      'avatar': 'same'}
+                                      'avatar': 'same', 'menu': 'same'}
     assert len(tg.profile_sets) == 3 and len(tg.photos) == 1
     # Имя поменяли в @BotFather — вернётся к settings; новое имя в settings — уйдёт только оно.
     tg.profile['name'] = 'Другое'
@@ -2140,3 +2145,66 @@ def test_telegram_profile_photo_goes_as_multipart(monkeypatch):
     assert io.get_profile('short_description') == 'текст'
     monkeypatch.setattr(io, 'call', lambda method, payload=None, timeout=8: None)
     assert io.get_profile('name') is None and io.set_profile('name', 'x') == 'нет связи с Telegram'
+
+
+# ------------------------------------------------------------------ меню (2026-11-06)
+
+def test_menu_fits_telegram_and_every_command_works():
+    import re
+    names = [item['command'] for item in settings.MENU]
+    assert names == ['sales', 'stock', 'staff', 'content', 'report', 'new', 'help']
+    assert len(set(names)) == len(names) and 'rich' not in names and 'start' not in names, \
+        'в меню — работа с данными; вид ответов и привязка — нет'
+    for item in settings.MENU:
+        assert re.fullmatch(r'[a-z0-9_]{1,32}', item['command']), 'команда Telegram: латиница, цифры, «_»'
+        assert 1 <= len(item['description']) <= 256
+        for question in item.get('questions', ()):
+            assert len(question) <= formatting.BUTTON_TEXT_MAX
+            assert formatting.menu_data(question) == formatting.MENU_PREFIX + question, 'влез в 64 байта целиком'
+    sections = [item['command'] for item in settings.MENU if item.get('questions')]
+    assert sections == ['sales', 'stock', 'staff', 'content'], 'по команде на каждый раздел сайта'
+    assert set(names) - set(sections) == {settings.REPORT_COMMAND, 'new', 'help'}, 'остальные бот и так знает'
+    assert telegram_io.menu_commands() == [{'command': i['command'], 'description': i['description']}
+                                           for i in settings.MENU]
+    assert all('/' + command in service.HELP_TEXT for command in sections)
+    assert '/rich' in service.HELP_TEXT, 'вид ответов — в справке, не в меню'
+
+
+def test_menu_is_set_on_start_and_only_when_changed(bot):
+    assert bot.tg.commands == telegram_io.menu_commands()
+    assert bot.svc.sync_profile()['menu'] == 'same'
+    bot.tg.commands = [{'command': 'rich', 'description': 'Новый вид ответов: примеры и включение'}]  # прежнее меню
+    assert bot.svc.sync_profile()['menu'] == 'set' and bot.tg.commands == telegram_io.menu_commands()
+
+
+def test_section_command_sends_question_buttons(bot):
+    bot.svc.handle_update(message('/sales'))
+    _, text_value, reply_to = bot.tg.sent[-1]
+    assert text_value.startswith('Продажи и планы. Выберите вопрос') and reply_to is None
+    rows = bot.tg.plain_markups[-1]['inline_keyboard']
+    assert [row[0]['text'] for row in rows] == list(settings.MENU[0]['questions'])
+    assert all(len(row) == 1 for row in rows), 'по кнопке в ряд'
+    assert rows[1][0]['callback_data'] == 'go:Неделя против плана'
+    assert bot.client.calls == [], 'меню — без запроса к модели'
+    bot.svc.handle_update(message('/staff@MCPkulturabot', chat_id='-100', chat_type='group'))
+    assert bot.tg.sent[-1][1].startswith('Смены и зарплаты.') and bot.tg.sent[-1][2] == 10, 'в группе — ответом'
+
+
+def test_menu_button_asks_a_new_question(bot):
+    bot.client.script += [resp(text('Неделя: 98% плана.'))]
+    bot.svc.handle_update(callback('go:Неделя против плана', text='Продажи и планы. Выберите вопрос…'))
+    assert bot.tg.callbacks[-1] == ('cb1', 'Спрашиваю: «Неделя против плана»')
+    asked = bot.client.calls[-1]['messages'][-1]['content'][0]['text']
+    assert asked.endswith('Неделя против плана')
+    assert '[Ответ на сообщение бота' not in asked, 'меню — не продолжение прошлой работы'
+    assert bot.tg.sent[-1] == (OWNER_TG, 'Неделя: 98% плана.', None), 'в личке — отдельным сообщением'
+    assert bot.env.site.journal_records[-1]['source'] == 'menu'
+    bot.svc.handle_update(callback('go:Неделя против плана', user_id='777'))
+    assert bot.tg.callbacks[-1] == ('cb1', 'Это закрытый бот сети «Культура»') and len(bot.client.calls) == 1
+
+
+def test_section_command_with_text_is_a_question(bot):
+    bot.client.script += [resp(text('Ок'))]
+    bot.svc.handle_update(message('/stock Кременчугская'))
+    asked = bot.client.calls[-1]['messages'][-1]['content'][0]['text']
+    assert asked.endswith('Остатки, заказы и краны: Кременчугская'), 'раздел спереди — модель знает, о чём речь'

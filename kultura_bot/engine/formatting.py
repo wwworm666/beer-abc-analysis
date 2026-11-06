@@ -71,6 +71,7 @@ _MARK_RE = re.compile(r'==(?=\S)(.+?)(?<=\S)==')
 _BUTTON_RE = re.compile(r'\[\[\s*([^\[\]\n]{1,80}?)\s*\]\]')
 _BUTTON_LINE_RE = re.compile(r'^\s*(?:\[\[[^\[\]\n]{1,80}\]\][\s·|,]*)+$')
 ASK_PREFIX = 'ask:'          # callback_data кнопки следующего шага: «ask:» + текст вопроса
+MENU_PREFIX = 'go:'          # кнопка вопроса из меню раздела (/sales …): новый вопрос, не продолжение
 BUTTONS_MAX = 3
 BUTTON_TEXT_MAX = 28         # «ask:» + 28 кириллических букв — 60 байт: предел callback_data — 64
 CALLBACK_DATA_MAX = 64
@@ -231,6 +232,14 @@ def plain(markdown: str) -> str:
 def ask_data(text: str) -> str:
     """callback_data кнопки следующего шага: «ask:» + текст, не длиннее 64 байт (не разрывая букву)."""
     data = ASK_PREFIX + (text or '')
+    while len(data.encode('utf-8')) > CALLBACK_DATA_MAX:
+        data = data[:-1]
+    return data
+
+
+def menu_data(text: str) -> str:
+    """callback_data кнопки меню раздела: «go:» + вопрос, не длиннее 64 байт."""
+    data = MENU_PREFIX + (text or '')
     while len(data.encode('utf-8')) > CALLBACK_DATA_MAX:
         data = data[:-1]
     return data

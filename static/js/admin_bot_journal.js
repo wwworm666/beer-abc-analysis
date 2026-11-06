@@ -208,6 +208,7 @@
         var question = record.question || '(без текста)';
         var extra = [];
         if (record.source === 'button') { extra.push('нажата кнопка под ответом'); }
+        if (record.source === 'menu') { extra.push('вопрос из меню'); }
         if (record.reply_to && record.reply_to.message_id) { extra.push('ответ на сообщение бота ' + record.reply_to.message_id); }
         (record.files || []).forEach(function (f) { extra.push('приложено: ' + (f.kind === 'image' ? 'фото' : (f.mime || 'файл'))); });
         if (extra.length) { question += '\n\n[' + extra.join('; ') + ']'; }

@@ -45,7 +45,7 @@ STATUSES = ('done', 'error', 'stopped', 'budget')
 STATUS_FILTERS = STATUSES + ('problems',)        # problems — всё, кроме done
 RATINGS = ('good', 'bad', 'other')
 MODES = ('answer', 'report')
-SOURCES = ('message', 'button')
+SOURCES = ('message', 'button', 'menu')   # menu — вопрос кнопкой из меню раздела (2026-11-06)
 FORMATS = ('', 'rich', 'plain')
 UID_RE = re.compile(r'[0-9a-f]{32}')
 CHAT_RE = re.compile(r'-?\d{1,21}')
@@ -413,8 +413,10 @@ def get(uid: str) -> Optional[Dict[str, Any]]:
         feedback = json.loads(row['feedback'] or '{}')
     except ValueError:
         feedback = {}
+    # Проверенные поля — из колонок: в payload они такие, как прислал сервер бота.
     record.update(uid=row['uid'], asked_at=row['asked_at'], login=row['login'], name=row['name'],
-                  status=row['status'], rating=row['rating'], feedback=feedback)
+                  status=row['status'], mode=row['mode'], source=row['source'], format=row['format'],
+                  rating=row['rating'], feedback=feedback)
     return record
 
 
