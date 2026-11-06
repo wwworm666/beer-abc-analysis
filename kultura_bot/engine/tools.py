@@ -173,6 +173,7 @@ class ToolContext:
     report_unknown: bool = False                             # отправка отчёта «статус неизвестен»: могла дойти
     progress: Any = None                                     # engine/progress.Tracker: что идёт сейчас (прогресс в чате)
     stop: Any = None                                         # threading.Event: нажали «Остановить» (agent.check_stop)
+    user: str = ''                                           # tg_user_id того, кто спросил: предел на человека
     calls: List[Dict[str, Any]] = field(default_factory=list)    # журнал: вызовы инструментов (общий с агентами)
     cards: List[Dict[str, Any]] = field(default_factory=list)    # журнал: ушедшие графики и отчёты
     delivered: Dict[str, Any] = field(default_factory=dict)      # журнал: каким видом и какими сообщениями ушёл ответ
