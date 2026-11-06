@@ -11,6 +11,12 @@
 Telegram не принял разметку или часть вышла длиннее его предела (4096) — она уходит
 простым текстом кусками. Telegram просит подождать (429) — бот ждёт retry_after (не
 дольше 30 с) и шлёт ещё раз.
+
+Богатое сообщение (2026-11-06, engine/rich.py): sendRichMessage с готовыми блоками; не
+принято — вызывающий шлёт обычным (send_rich возвращает и причину). Черновик «бот работает»
+— sendRichMessageDraft (только личка, живёт ~30 с, обновляется чаще); кнопка «Остановить»
+у черновика присылает апдейт stopped_message_generation. Кнопки следующего шага и выбор вида
+ответов — callback_query (answer_callback).
 """
 import logging
 import threading
@@ -29,10 +35,11 @@ CONNECT_TIMEOUT_S = 10
 FILE_TIMEOUT_S = 60
 RETRY_AFTER_MAX_S = 30               # Telegram просит подождать (429) — ждём не дольше
 HTTP_TIMEOUT = POLL_TIMEOUT + 10
-ALLOWED_UPDATES = ['message']
+ALLOWED_UPDATES = ['message', 'callback_query', 'stopped_message_generation']
 COMMANDS = [
     {'command': 'report', 'description': 'Отчёт: полный разбор на странице'},
     {'command': 'new', 'description': 'Начать новый диалог'},
+    {'command': 'rich', 'description': 'Новый вид ответов: примеры и включение'},
     {'command': 'help', 'description': 'Что умеет бот'},
 ]
 
@@ -140,9 +147,62 @@ class TelegramIO:
                 sent.append(message_id)
         return sent
 
-    def send_plain(self, chat_id: str, text: str, *, reply_to: Optional[int] = None) -> Optional[int]:
+    def send_plain(self, chat_id: str, text: str, *, reply_to: Optional[int] = None,
+                   reply_markup: Optional[Dict[str, Any]] = None) -> Optional[int]:
         import html
-        return self.send_html(chat_id, html.escape(text, quote=False), fallback_text=text, reply_to=reply_to)
+        return self.send_html(chat_id, html.escape(text, quote=False), fallback_text=text, reply_to=reply_to,
+                              reply_markup=reply_markup)
+
+    # ---------------------------------------------------------------- богатые сообщения (engine/rich.py)
+
+    def _call_429(self, method: str, payload: Dict[str, Any], timeout: int = 20) -> Optional[Dict[str, Any]]:
+        data = self.call(method, payload, timeout=timeout)
+        if data and not data.get('ok') and data.get('error_code') == 429:
+            wait = (data.get('parameters') or {}).get('retry_after') or 1
+            time.sleep(min(float(wait), RETRY_AFTER_MAX_S))
+            data = self.call(method, payload, timeout=timeout)
+        return data
+
+    def send_rich(self, chat_id: str, rich_message: Dict[str, Any], *, reply_to: Optional[int] = None,
+                  reply_markup: Optional[Dict[str, Any]] = None):
+        """Богатое сообщение. Вернуть (message_id, причина отказа): (id, '') — ушло; (None, текст) —
+        Telegram отказал (шлём обычным); (None, 'unknown') — ответа нет, сообщение могло дойти."""
+        payload: Dict[str, Any] = {'chat_id': chat_id, 'rich_message': rich_message}
+        if reply_to:
+            payload['reply_parameters'] = {'message_id': reply_to, 'allow_sending_without_reply': True}
+        if reply_markup:
+            payload['reply_markup'] = reply_markup
+        data = self._call_429('sendRichMessage', payload)
+        if data is None:
+            return None, 'unknown'
+        if data.get('ok'):
+            return (data.get('result') or {}).get('message_id'), ''
+        reason = str(data.get('description') or data.get('error_code') or 'отказ')
+        log.warning('[BOT] богатое сообщение не ушло в чат %s: %s', chat_id, reason)
+        return None, reason
+
+    def send_rich_draft(self, chat_id: str, draft_id: int, rich_message: Dict[str, Any], *,
+                        can_stop: bool = False) -> bool:
+        """Черновик (только личка): показать или обновить; True — принят."""
+        payload: Dict[str, Any] = {'chat_id': int(chat_id), 'draft_id': int(draft_id), 'rich_message': rich_message}
+        if can_stop:
+            payload['can_stop'] = True
+        data = self.call('sendRichMessageDraft', payload, timeout=8)
+        return bool(data and data.get('ok'))
+
+    def answer_callback(self, callback_id: str, text: str = '') -> None:
+        payload: Dict[str, Any] = {'callback_query_id': callback_id}
+        if text:
+            payload['text'] = text[:200]
+        self.call('answerCallbackQuery', payload, timeout=5)
+
+    def edit_plain(self, chat_id: str, message_id: int, text: str) -> bool:
+        """Заменить текст обычного сообщения (кнопки под ним уходят)."""
+        import html
+        data = self.call('editMessageText', {'chat_id': chat_id, 'message_id': message_id,
+                                             'text': html.escape(text, quote=False), 'parse_mode': 'HTML',
+                                             'link_preview_options': {'is_disabled': True}}, timeout=8)
+        return bool(data and data.get('ok'))
 
     # ---------------------------------------------------------------- прогресс (engine/progress.py)
 

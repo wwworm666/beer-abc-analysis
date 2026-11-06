@@ -172,6 +172,7 @@ class ToolContext:
     report_only: bool = False                                # предел отчёта исчерпан: можно только отправить отчёт
     report_unknown: bool = False                             # отправка отчёта «статус неизвестен»: могла дойти
     progress: Any = None                                     # engine/progress.Tracker: что идёт сейчас (прогресс в чате)
+    stop: Any = None                                         # threading.Event: нажали «Остановить» (agent.check_stop)
 
 
 def tool_result(tool_use_id: str, content: Any, is_error: bool = False) -> Dict[str, Any]:

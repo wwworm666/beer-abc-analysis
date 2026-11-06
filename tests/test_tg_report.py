@@ -617,3 +617,41 @@ def test_view_titles_keep_numbers_together():
     assert view['sections'][0]['heading'] == f'Кременчугская 503{NB}тыс.{NB}₽, −16,4{NB}%'
     assert view['sections'][0]['html'] == f'Чек 1{NB}509{NB}₽.'
     assert reports.get(rid)['body']['title'] == 'Сеть −24 тыс. ₽ (1 931 тыс. ₽)', 'хранится как прислано'
+
+
+def test_report_in_rich_chat_is_one_rich_message(setup):
+    """2026-11-06: чат выбрал новый вид — обложка, выжимка и кнопка «Открыть отчёт» одним богатым сообщением;
+    Telegram отказал — прежним видом (фото с подписью)."""
+    from kultura_bot import store as bot_store
+    sent = []
+
+    def rich(fields, files, token, outcome):
+        sent.append((copy.deepcopy(fields), list(files)))
+        return {'ok': True, 'result': {'message_id': 91}}
+
+    setup['monkeypatch'].setattr(tg_send, '_transport_rich', rich)
+    bot_store.set_chat_format(CHAT, 'rich')
+    result = tg_send.send_report(REPORT, chat_id=CHAT)
+    assert result['format'] == 'rich' and result['message_id'] == 91 and setup['tg'].calls == []
+    [(fields, files)] = sent
+    assert files == [('cover', 'cover.png', PNG, 'image/png')]
+    blocks = fields['rich_message']['blocks']
+    assert blocks[0]['type'] == 'photo' and blocks[-1]['type'] == 'buttons'
+    assert blocks[-1]['buttons'][0]['text'] == 'Открыть отчёт'
+    assert reports.get(result['report_id'])['message_id'] == 91
+
+    setup['monkeypatch'].setattr(tg_send, '_transport_rich',
+                                 lambda fields, files, token, outcome: {'ok': False, 'description': 'Bad Request'})
+    result = tg_send.send_report(REPORT, chat_id=CHAT)
+    assert result['format'] == 'plain' and setup['tg'].calls[0][0] == 'photo', 'прежним видом'
+
+
+def test_report_summary_buttons_are_buttons(setup):
+    """«[[…]]» в выжимке — кнопки следующего шага под ней, а не текст выжимки и страницы."""
+    report = copy.deepcopy(REPORT)
+    report['summary'] += '\n\n[[По месяцам]]'
+    result = tg_send.send_report(report, chat_id=CHAT)
+    kind, fields = setup['tg'].calls[0]
+    assert '[[' not in fields['caption'] and '[[' not in reports.get(result['report_id'])['body']['summary']
+    rows = json.loads(fields['reply_markup'])['inline_keyboard']
+    assert rows[-1] == [{'text': 'По месяцам', 'callback_data': 'ask:По месяцам'}] and rows[0][0]['text'] == 'Открыть отчёт'

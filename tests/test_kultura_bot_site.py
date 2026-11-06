@@ -475,3 +475,49 @@ def test_engine_works_with_site_end_to_end(site_env, tmp_path, monkeypatch):
     finally:
         svc.executor.shutdown(wait=False)
         store.close()
+
+
+def test_chat_format_and_rich_demo_for_engine(site_env, monkeypatch):
+    """2026-11-06: вид ответов в чате (/rich) хранит сайт — им же он шлёт графики; пример графика для /rich
+    рисует и шлёт сайт. Всё — только по ключу сервера бота; настоящий клиент сервера бота (engine/site.py)."""
+    from kultura_bot.charts import send as chart_send
+    from kultura_bot.engine.site import Site, SiteError
+
+    env = site_env
+    monkeypatch.setattr(bot_settings, 'RICH_DEFAULT', False)
+    cs.save(token=GOOD, anthropic_key_value=KEY)
+    other, _ = tokens.create(env.owner, 'Claude Code, ноутбук', ['*'], None)
+    key = engine_key(site_api.issue_install(env.owner)['command'])
+    for method, path in (('GET', '/api/bot/chat-format?chat_id=555'), ('POST', '/api/bot/chat-format'),
+                         ('POST', '/api/bot/rich-demo')):
+        assert call(env, method, path, other, json={'chat_id': '555'}).status_code == 401, path
+    assert call(env, 'GET', '/api/bot/chat-format?chat_id=abc', key).status_code == 400
+    assert call(env, 'POST', '/api/bot/chat-format', key, json={'chat_id': '555', 'format': 'html'}).status_code == 400
+
+    adapter = FlaskAdapter(env.app)
+
+    def session_factory():
+        session = requests.Session()
+        session.trust_env = False
+        session.mount('https://', adapter)
+        return session
+
+    site = Site(BASE, key, session_factory=session_factory)
+    assert site.chat_format('555') == {'format': None, 'rich': False}
+    assert site.set_chat_format('555', 'rich', '555') == {'ok': True, 'format': 'rich', 'rich': True}
+    assert site.chat_format('555') == {'format': 'rich', 'rich': True} and bot_store.chat_rich('555') is True
+    assert call(env, 'GET', '/api/bot/chat-format?chat_id=555', key).headers['Cache-Control'] == 'no-store'
+
+    sent = []
+    monkeypatch.setattr(chart_send, 'send_chart', lambda spec, **kw: sent.append((spec, kw)) or
+                        {'message_id': 5, 'chart_id': 'c' * 22, 'format': 'rich'})
+    assert site.rich_demo('555') == {'message_id': 5, 'chart_id': 'c' * 22, 'format': 'rich'}
+    spec, kw = sent[0]
+    assert spec['kind'] == 'periods' and kw['chat_id'] == '555' and kw['rich'] is True and kw['rich_fallback'] is False
+
+    def refused(spec, **kw):
+        raise chart_send.ChartSendError('Telegram не принял богатое сообщение: Bad Request')
+
+    monkeypatch.setattr(chart_send, 'send_chart', refused)
+    with pytest.raises(SiteError, match='не принял богатое сообщение'):
+        site.rich_demo('555')

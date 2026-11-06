@@ -7,6 +7,7 @@
     `код`                -> <code>код</code>
     **жирный**           -> <b>жирный</b>
     *курсив*             -> <i>курсив</i>  (только внутри строки; «* пункт» — это список)
+    ==маркер==           -> <b>маркер</b>  (выделение; в богатом сообщении — маркером, engine/rich.py)
     [текст](https://…)   -> <a href="https://…">текст</a>
     # Заголовок          -> <b>Заголовок</b>
     - пункт / * пункт    -> • пункт
@@ -19,6 +20,10 @@
 цитаты — строчная разметка и пункты; цитаты не вкладываются (Telegram не разрешает).
 
 Всё остальное экранируется (&, <, >): текст модели не может сломать разметку.
+
+Кнопки следующего шага (2026-11-06): строка только из «[[Текст]]» — не текст, а кнопки
+(split_buttons): у обычного сообщения — ряд под ним (button_markup), у богатого — внутри.
+Нажатие — новый вопрос с текстом кнопки ответом на это сообщение (engine/service.py, ASK_PREFIX).
 
 Пробелы внутри чисел и между числом и единицей становятся неразрывными (nbsp): перенос
 строки не отрывает «426 ₽» от «1» и «₽» от «24 тыс.». Код и таблицы в <pre> не трогаются.
@@ -61,6 +66,14 @@ _TABLE_RULE_RE = re.compile(r'^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$'
 _QUOTE_RE = re.compile(r'^\s*(>>?)(?: |$)')             # «> текст» или «>> текст» (пробел после знака;
 #                                                          отступ слева — тоже цитата: модель копирует его из примеров)
 _TAG_RE = re.compile(r'<[^>]+>')
+_MARK_RE = re.compile(r'==(?=\S)(.+?)(?<=\S)==')
+# Кнопки: строка только из «[[…]]» (через пробел, «·», «|» или запятую).
+_BUTTON_RE = re.compile(r'\[\[\s*([^\[\]\n]{1,80}?)\s*\]\]')
+_BUTTON_LINE_RE = re.compile(r'^\s*(?:\[\[[^\[\]\n]{1,80}\]\][\s·|,]*)+$')
+ASK_PREFIX = 'ask:'          # callback_data кнопки следующего шага: «ask:» + текст вопроса
+BUTTONS_MAX = 3
+BUTTON_TEXT_MAX = 28         # «ask:» + 28 кириллических букв — 60 байт: предел callback_data — 64
+CALLBACK_DATA_MAX = 64
 # Неразрывный пробел (решение владельца 2026-10-25, макет отчёта): «1 426», «24 тыс. ₽», «16,4 %».
 # Внутри числа — перед группой ровно из трёх цифр; после числа — перед единицей (₽, %, тыс., млн,
 # млрд, руб, л, шт, ч); после «тыс.», «млн», «млрд» — перед ₽, руб, л, шт. Те же правила —
@@ -112,6 +125,7 @@ def _inline(text: str) -> str:
         piece = nbsp(_LINK_RE.sub(keep_link, part))
         piece = html.escape(piece, quote=False)
         piece = _BOLD_RE.sub(r'<b>\1</b>', piece)
+        piece = _MARK_RE.sub(r'<b>\1</b>', piece)
         piece = _ITALIC_RE.sub(r'<i>\1</i>', piece)
 
         def put_link(match):
@@ -208,9 +222,52 @@ def plain(markdown: str) -> str:
     """Запасной вариант без разметки: снять ```, звёздочки и знаки цитат, оставить текст как есть."""
     text = re.sub(r'```(?:[^\n`]*\n)?', '', markdown)
     text = text.replace('**', '')
+    text = _MARK_RE.sub(r'\1', text)
     text = _LINK_RE.sub(r'\1: \2', text)
     text = '\n'.join(_unquote(line) for line in text.split('\n'))
     return nbsp(text.strip())
+
+
+def ask_data(text: str) -> str:
+    """callback_data кнопки следующего шага: «ask:» + текст, не длиннее 64 байт (не разрывая букву)."""
+    data = ASK_PREFIX + (text or '')
+    while len(data.encode('utf-8')) > CALLBACK_DATA_MAX:
+        data = data[:-1]
+    return data
+
+
+def split_buttons(markdown: str):
+    """Строки из «[[Текст]]» -> (ответ без них, тексты кнопок). Кнопок не больше BUTTONS_MAX, текст —
+    до BUTTON_TEXT_MAX знаков (длиннее — по слову), повторы — один раз."""
+    lines = (markdown or '').split('\n')
+    keep, found = [], []
+    for line in lines:
+        if line.strip() and _BUTTON_LINE_RE.match(line):
+            for raw in _BUTTON_RE.findall(line):
+                label = ' '.join(raw.split())
+                if len(label) > BUTTON_TEXT_MAX:
+                    label = label[:BUTTON_TEXT_MAX].rsplit(' ', 1)[0] or label[:BUTTON_TEXT_MAX]
+                if label and label not in found:
+                    found.append(label)
+            continue
+        keep.append(line)
+    if not found:
+        return (markdown or ''), []
+    text = re.sub(r'\n{3,}', '\n\n', '\n'.join(keep)).strip()
+    return text, found[:BUTTONS_MAX]
+
+
+def ask_buttons(texts) -> list:
+    """Кнопки следующего шага: [{text, callback_data}] (общие у обычного и богатого сообщения)."""
+    return [{'text': t, 'callback_data': ask_data(t)} for t in texts or []]
+
+
+def button_markup(texts, markup=None):
+    """Кнопки следующего шага рядом под обычным сообщением; markup — уже стоящие кнопки (они выше)."""
+    rows = [list(row) for row in ((markup or {}).get('inline_keyboard') or [])]
+    if texts:
+        rows.append(ask_buttons(texts))
+    return {'inline_keyboard': rows} if rows else None
 
 
 def visible_len(text_html: str) -> int:

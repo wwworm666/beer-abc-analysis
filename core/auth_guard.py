@@ -69,6 +69,9 @@ PUBLIC_ENDPOINTS = {
     'bot_api.report',
     'bot_api.note',
     'bot_api.replied',                 # что было в сообщении бота, на которое ответили (продолжение работы)
+    'bot_api.chat_format_get',         # вид ответов в чате (/rich): богатые сообщения или прежний
+    'bot_api.chat_format_set',
+    'bot_api.rich_demo',               # пример графика богатым сообщением для /rich
 }
 
 

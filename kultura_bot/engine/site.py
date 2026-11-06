@@ -114,6 +114,22 @@ class Site:
         found = self._request('GET', f'/api/bot/replied?{query}').get('found')
         return found if isinstance(found, dict) and found.get('text') else None
 
+    def chat_format(self, chat_id: str) -> Dict[str, Any]:
+        """Вид ответов в чате (2026-11-06): {format: rich | plain | null (не выбран), rich: итог с учётом
+        выбора, умолчания и общего выключателя}. Тот же выбор читает сайт, когда шлёт графики."""
+        query = urlencode({'chat_id': str(chat_id)})
+        return self._request('GET', f'/api/bot/chat-format?{query}')
+
+    def set_chat_format(self, chat_id: str, fmt: str, tg_user_id: str = '') -> Dict[str, Any]:
+        """Запомнить выбор вида ответов в чате: 'rich' или 'plain'."""
+        return self._request('POST', '/api/bot/chat-format',
+                             body={'chat_id': str(chat_id), 'format': fmt, 'tg_user_id': str(tg_user_id)})
+
+    def rich_demo(self, chat_id: str) -> Dict[str, Any]:
+        """Пример графика богатым сообщением (команда /rich): сайт рисует и шлёт его в чат сам —
+        картинки рисует он. Вернуть {message_id} или ошибку сайта (SiteError)."""
+        return self._request('POST', '/api/bot/rich-demo', body={'chat_id': str(chat_id)}, timeout=TOOL_TIMEOUT_S)
+
     # ---------------------------------------------------------------- MCP
 
     def mcp(self, method: str, params: Optional[Dict[str, Any]] = None, connector: str = '/mcp',

@@ -20,6 +20,9 @@
              хранятся STATS_KEEP_DAYS дней
     tool_stats длительность каждого вызова инструмента — «обычно до N с» в прогрессе;
              STATS_KEEP_DAYS дней
+    sent     текст ответов, ушедших богатым сообщением (2026-11-06): chat_id + message_id (PK),
+             text (Markdown ответа), ts — у богатого сообщения в Telegram нет поля text, а ответ
+             на него (Reply или кнопка следующего шага) — продолжение той работы; SENT_KEEP_DAYS дней
 
 Потоки: опрос Telegram и ответы в чатах пишут из разных потоков — одно соединение под
 замком (WAL, автокоммит).
@@ -36,6 +39,8 @@ MSK = timezone(timedelta(hours=3), 'МСК')     # в Москве нет пер
 JOBS_KEEP_DAYS = 30
 STATS_KEEP_DAYS = 90                # история для оценки времени: старая — уже не про нынешнюю скорость
 STATS_RECENT = 50                   # столько последних работ вида берёт оценка
+SENT_KEEP_DAYS = 30                 # текст ответов богатыми сообщениями — для ответа на них
+SENT_TEXT_MAX = 20000
 
 SCHEMA = (
     '''CREATE TABLE IF NOT EXISTS dialogs (
@@ -86,6 +91,13 @@ SCHEMA = (
         ts      REAL NOT NULL
     )''',
     'CREATE INDEX IF NOT EXISTS idx_tool_stats_name ON tool_stats(name, ts)',
+    '''CREATE TABLE IF NOT EXISTS sent (
+        chat_id    TEXT NOT NULL,
+        message_id INTEGER NOT NULL,
+        text       TEXT NOT NULL,
+        ts         REAL NOT NULL,
+        PRIMARY KEY (chat_id, message_id)
+    )''',
 )
 
 
@@ -121,6 +133,18 @@ class Store:
     def close(self) -> None:
         with self._lock:
             self._conn.close()
+
+    # ---------------------------------------------------------------- ответы богатыми сообщениями
+
+    def save_sent(self, chat_id: str, message_id: int, text: str, now: Optional[float] = None) -> None:
+        now = time.time() if now is None else now
+        self._exec('INSERT OR REPLACE INTO sent (chat_id, message_id, text, ts) VALUES (?, ?, ?, ?)',
+                   (str(chat_id), int(message_id), (text or '')[:SENT_TEXT_MAX], now))
+        self._exec('DELETE FROM sent WHERE ts < ?', (now - SENT_KEEP_DAYS * 86400,))
+
+    def get_sent(self, chat_id: str, message_id: int) -> str:
+        rows = self._rows('SELECT text FROM sent WHERE chat_id = ? AND message_id = ?', (str(chat_id), int(message_id)))
+        return rows[0]['text'] if rows else ''
 
     # ---------------------------------------------------------------- диалоги
 
