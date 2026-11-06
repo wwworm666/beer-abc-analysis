@@ -29,6 +29,7 @@ from typing import Any, Dict, List, Optional
 
 import requests
 
+from kultura_bot import settings
 from kultura_bot.engine import formatting
 
 log = logging.getLogger('kultura-bot')
@@ -47,12 +48,6 @@ PROFILE_METHODS = {
 }
 HTTP_TIMEOUT = POLL_TIMEOUT + 10
 ALLOWED_UPDATES = ['message', 'callback_query', 'stopped_message_generation', 'message_reaction']
-COMMANDS = [
-    {'command': 'report', 'description': 'Отчёт: полный разбор на странице'},
-    {'command': 'new', 'description': 'Начать новый диалог'},
-    {'command': 'rich', 'description': 'Новый вид ответов: примеры и включение'},
-    {'command': 'help', 'description': 'Что умеет бот'},
-]
 
 
 class TelegramIO:
@@ -89,8 +84,17 @@ class TelegramIO:
         # Без drop_pending_updates: накопленные вопросы бот прочтёт.
         return self.call('deleteWebhook', {'drop_pending_updates': False})
 
-    def set_commands(self) -> None:
-        self.call('setMyCommands', {'commands': COMMANDS})
+    def get_commands(self) -> Optional[List[Dict[str, str]]]:
+        """Меню команд, как его сейчас показывает Telegram; None — не узнали."""
+        data = self.call('getMyCommands')
+        if not data or not data.get('ok') or not isinstance(data.get('result'), list):
+            return None
+        return [{'command': str(c.get('command') or ''), 'description': str(c.get('description') or '')}
+                for c in data['result'] if isinstance(c, dict)]
+
+    def set_commands(self, commands: Optional[List[Dict[str, str]]] = None) -> str:
+        """Меню команд (settings.MENU): '' — получилось, иначе — что ответил Telegram."""
+        return _outcome(self.call('setMyCommands', {'commands': menu_commands() if commands is None else commands}))
 
     # ---------------------------------------------------------------- профиль бота
 
@@ -301,3 +305,8 @@ def _outcome(data: Optional[Dict[str, Any]]) -> str:
     if data.get('ok'):
         return ''
     return str(data.get('description') or data.get('error_code') or 'Telegram отказал')[:200]
+
+
+def menu_commands() -> List[Dict[str, str]]:
+    """Меню команд для setMyCommands — из settings.MENU, в том же порядке (2026-11-06)."""
+    return [{'command': item['command'], 'description': item['description']} for item in settings.MENU]

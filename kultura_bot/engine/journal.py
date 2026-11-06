@@ -11,7 +11,8 @@
     uid, job_id          своя метка записи (uuid4) и номер вопроса в базе сервера бота
     asked_at, finished_at, seconds, waited   когда пришёл, когда кончился, сколько шла работа и ждала очереди
     chat_id, chat_type, tg_user_id, login, name   где и кто спросил (администратор сайта)
-    mode, source         answer | report; message | button (кнопка следующего шага)
+    mode, source         answer | report; message | button (кнопка следующего шага) | menu (вопрос из
+                         меню раздела: /sales, /stock, /staff, /content)
     question             текст вопроса (до QUESTION_MAX)
     files                что приложили: [{kind: image|document, mime}] — сами файлы не хранятся
     reply_to             ответ на сообщение бота: {message_id} — какую работу продолжали
