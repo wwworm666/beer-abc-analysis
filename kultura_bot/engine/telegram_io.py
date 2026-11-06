@@ -17,7 +17,11 @@ Telegram не принял разметку или часть вышла дли�
 — sendRichMessageDraft (только личка, живёт ~30 с, обновляется чаще); кнопка «Остановить»
 у черновика присылает апдейт stopped_message_generation. Кнопки следующего шага и выбор вида
 ответов — callback_query (answer_callback).
+
+Профиль бота (2026-11-06, имя «kultura.os»): имя и описания — getMy*/setMy* (get_profile,
+set_profile), фото — setMyProfilePhoto только новым файлом JPEG (attach://, multipart).
 """
+import json
 import logging
 import threading
 import time
@@ -34,6 +38,13 @@ POLL_TIMEOUT = 25                    # long poll getUpdates, с
 CONNECT_TIMEOUT_S = 10
 FILE_TIMEOUT_S = 60
 RETRY_AFTER_MAX_S = 30               # Telegram просит подождать (429) — ждём не дольше
+PHOTO_TIMEOUT_S = 30                 # загрузка фото профиля
+# Поле профиля -> (прочитать, поставить). Имя поля — и параметр метода, и поле ответа Bot API.
+PROFILE_METHODS = {
+    'name': ('getMyName', 'setMyName'),
+    'short_description': ('getMyShortDescription', 'setMyShortDescription'),
+    'description': ('getMyDescription', 'setMyDescription'),
+}
 HTTP_TIMEOUT = POLL_TIMEOUT + 10
 ALLOWED_UPDATES = ['message', 'callback_query', 'stopped_message_generation', 'message_reaction']
 COMMANDS = [
@@ -80,6 +91,37 @@ class TelegramIO:
 
     def set_commands(self) -> None:
         self.call('setMyCommands', {'commands': COMMANDS})
+
+    # ---------------------------------------------------------------- профиль бота
+
+    def get_profile(self, field: str) -> Optional[str]:
+        """Имя или описание бота, как его сейчас показывает Telegram; None — не узнали."""
+        data = self.call(PROFILE_METHODS[field][0])
+        if not data or not data.get('ok'):
+            return None
+        return str((data.get('result') or {}).get(field) or '')
+
+    def set_profile(self, field: str, value: str) -> str:
+        """Поставить имя или описание: '' — получилось, иначе — что ответил Telegram."""
+        return _outcome(self.call(PROFILE_METHODS[field][1], {field: value}, timeout=20))
+
+    def set_profile_photo(self, jpeg: bytes) -> str:
+        """Фото профиля бота: '' — получилось, иначе — что ответил Telegram. Telegram берёт его
+        только новым файлом (attach://, multipart) и только JPEG."""
+        try:
+            resp = self._session().post(
+                f'{API}/bot{self.token}/setMyProfilePhoto',
+                data={'photo': json.dumps({'type': 'static', 'photo': 'attach://avatar'})},
+                files={'avatar': ('avatar.jpg', jpeg, 'image/jpeg')},
+                timeout=(CONNECT_TIMEOUT_S, PHOTO_TIMEOUT_S))
+        except requests.RequestException as exc:
+            log.warning('[BOT] Telegram setMyProfilePhoto: нет связи (%s)', type(exc).__name__)
+            return _outcome(None)
+        try:
+            data = resp.json()
+        except ValueError:
+            data = {'ok': False, 'description': f'HTTP {resp.status_code}'}
+        return _outcome(data if isinstance(data, dict) else None)
 
     def get_updates(self, offset: Optional[int]) -> Optional[Dict[str, Any]]:
         payload: Dict[str, Any] = {'timeout': POLL_TIMEOUT, 'allowed_updates': ALLOWED_UPDATES}
@@ -250,3 +292,12 @@ class TelegramIO:
         except requests.RequestException as exc:
             log.warning('[BOT] файл из сообщения не скачался (%s)', type(exc).__name__)
             return None
+
+
+def _outcome(data: Optional[Dict[str, Any]]) -> str:
+    """Ответ Telegram на «поставь»: '' — получилось, иначе — коротко, что не так (без токена)."""
+    if data is None:
+        return 'нет связи с Telegram'
+    if data.get('ok'):
+        return ''
+    return str(data.get('description') or data.get('error_code') or 'Telegram отказал')[:200]

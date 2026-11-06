@@ -86,7 +86,9 @@ Claude) и расход с прошлого отчёта уходят сайту
 """
 import base64
 import dataclasses
+import hashlib
 import logging
+import os
 import re
 import threading
 import time
@@ -121,8 +123,8 @@ DOCUMENT_MIMES = {'application/pdf': 'document', 'image/jpeg': 'image', 'image/p
                   'image/webp': 'image', 'image/gif': 'image'}
 BUSINESS_DAY_SHIFT = timedelta(hours=6)    # рабочие сутки бара длятся до 06:00 МСК (core/msk_time.py)
 
-HELP_TEXT = ('Я помощник сети «Культура»: отвечаю по данным сайта — продажи и планы, остатки и заказы, '
-             'краны, смены и зарплаты, контент-план и отзывы. Пишите вопрос обычными словами, можно '
+HELP_TEXT = ('Я kultura.os — помощник сети «Культура»: отвечаю по данным сайта — продажи и планы, остатки '
+             'и заказы, краны, смены и зарплаты, контент-план и отзывы. Пишите вопрос обычными словами, можно '
              'приложить фото или PDF. Графики приходят с кнопкой «Открыть интерактивно», пояснение '
              'расчёта — по ссылке «Как считается».\n\n'
              'Большой вопрос — отчётом: «/report вопрос» или «Отчёт: вопрос». Соберу полный разбор на '
@@ -147,6 +149,10 @@ REPORT_PATHS = {'nudge': 'страница после просьбы', 'auto': '
 WEEKDAYS = ('пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс')
 MONTHS = ('янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек')
 UNSUPPORTED_TEXT = 'Пока понимаю текст, фото и PDF. Напишите вопрос словами.'
+# Профиль бота в Telegram (2026-11-06, sync_profile): как поле называть в журнале и на странице.
+PROFILE_LABELS = {'name': 'имя', 'short_description': 'описание в профиле',
+                  'description': 'описание в пустом чате', 'avatar': 'аватарка'}
+PROFILE_RETRY_S = 3600           # профиль не встал (нет связи, отказ) — ещё попытка через час, не ждать перезапуска
 UNSUPPORTED_FILE_TEXT = ('Этот файл я не читаю: понимаю фото, картинки (JPEG, PNG, WebP, GIF) и PDF. '
                          'Отвечаю по тексту сообщения.')
 NEW_DIALOG_TEXT = 'Начинаю новый диалог.'
@@ -239,8 +245,10 @@ class Service:
         self.busy: set = set()
         self.lock = threading.Lock()
         self.stopping = threading.Event()
-        self.status: Dict[str, str] = {'state': 'starting', 'detail': 'сервер бота запускается', 'claude_error': ''}
+        self.status: Dict[str, str] = {'state': 'starting', 'detail': 'сервер бота запускается', 'claude_error': '',
+                                       'profile': ''}
         self.status_lock = threading.Lock()
+        self.profile_at = 0.0                      # последняя сверка профиля в Telegram (sync_profile)
         self.reported_at = 0.0
         self.usage_pending: Dict[tuple, Dict[str, Any]] = {}
         self.usage_lock = threading.Lock()
@@ -363,6 +371,9 @@ class Service:
             self.username = result.get('username') or telegram.get('username') or self.username
             self.tg.delete_webhook()
             self.tg.set_commands()
+            self._sync_profile_safe()
+        elif self.status.get('profile') and time.time() - self.profile_at >= PROFILE_RETRY_S:
+            self._sync_profile_safe()
         self.set_status('running', 'бот слушает Telegram')
         if not self._interrupted_checked:
             self._interrupted_checked = True
@@ -370,6 +381,72 @@ class Service:
             for chat_id in sorted(chats):
                 self.tg.send_plain(chat_id, INTERRUPTED_TEXT)
         return True
+
+    # ---------------------------------------------------------------- профиль в Telegram
+
+    def sync_profile(self) -> Dict[str, str]:
+        """Имя, описания и аватарка из settings (BOT_*) — в Telegram, если там другие (решение владельца
+        2026-11-06: имя «kultura.os»). Раз за запуск и при смене токена (ready). Не вышло — в журнал и в
+        отчёт сайту (status.profile: строка на «Доступ агентов»); бот отвечает дальше, через час
+        (PROFILE_RETRY_S, ready) — ещё попытка. Вернуть по полю: 'same' | 'set' | 'skip' | что не так."""
+        result: Dict[str, str] = {}
+        if not settings.PROFILE_SYNC:
+            return result
+        for field, value in (('name', settings.BOT_NAME), ('short_description', settings.BOT_SHORT_DESCRIPTION),
+                             ('description', settings.BOT_DESCRIPTION)):
+            value = str(value or '').strip()
+            if not value:
+                result[field] = 'skip'
+                continue
+            current = self.tg.get_profile(field)
+            if current is None:
+                result[field] = 'Telegram не ответил'
+            elif current == value:
+                result[field] = 'same'
+            else:
+                result[field] = self.tg.set_profile(field, value) or 'set'
+        result['avatar'] = self._sync_avatar()
+        changed = [PROFILE_LABELS[k] for k, v in result.items() if v == 'set']
+        problems = [f'{PROFILE_LABELS[k]} — {v}' for k, v in result.items() if v not in ('same', 'set', 'skip')]
+        if changed:
+            log.info('[BOT] профиль в Telegram обновлён: %s', ', '.join(changed))
+        if problems:
+            log.warning('[BOT] профиль в Telegram не обновился: %s', '; '.join(problems))
+        with self.status_lock:
+            self.status['profile'] = ('не обновился: ' + '; '.join(problems))[:300] if problems else ''
+        return result
+
+    def _sync_profile_safe(self) -> None:
+        self.profile_at = time.time()
+        try:
+            self.sync_profile()
+        except Exception as exc:  # noqa: BLE001 — имя и аватарка не должны мешать отвечать
+            log.exception('[BOT] профиль в Telegram: сбой')
+            with self.status_lock:                     # видно на странице, через час — ещё попытка
+                self.status['profile'] = f'не обновился: сбой {type(exc).__name__}'
+
+    def _sync_avatar(self) -> str:
+        """Аватарка settings.BOT_AVATAR — когда поменялся файл. Telegram не отдаёт фото профиля так, чтобы
+        его можно было сравнить с файлом, поэтому сервер бота помнит хеш файла, который уже поставил
+        (store.meta, по id бота): тот же файл второй раз не грузится, новый — грузится."""
+        name = str(settings.BOT_AVATAR or '').strip()
+        if not name:
+            return 'skip'
+        path = os.path.join(os.path.dirname(os.path.abspath(settings.__file__)), name)
+        try:
+            with open(path, 'rb') as f:
+                data = f.read()
+        except OSError:
+            return f'нет файла kultura_bot/{name}'
+        digest = hashlib.sha256(data).hexdigest()
+        key = f'avatar_sha256:{self.bot_id or self.token.split(":", 1)[0]}'
+        if self.store.get_meta(key) == digest:
+            return 'same'
+        error = self.tg.set_profile_photo(data)
+        if error:
+            return error
+        self.store.set_meta(key, digest)
+        return 'set'
 
     # ---------------------------------------------------------------- цикл опроса
 

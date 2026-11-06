@@ -477,14 +477,20 @@ test('исполнение: бот — строка состояния по кл
         [active, { state: 'stopped', detail: '', at: '2026-10-19T11:00:00+03:00', stale: false },
             /^Сервер бота остановлен \(19\.10\.2026 11:00\)\.$/],
         [active, { state: 'running', detail: 'бот слушает Telegram', at: '2026-10-19T11:00:00+03:00', stale: false,
-            claude_error: '' }, /^Бот @MCPkulturabot работает: слушает Telegram и отвечает\.$/],
+            claude_error: '' }, /^Бот @MCPkulturabot работает: слушает Telegram и отвечает\.$/, 'good'],
+        // Имя или аватарка не встали в Telegram (sync_profile сервера бота) — видно почему, строка красная.
+        [active, { state: 'running', detail: 'бот слушает Telegram', at: '2026-10-19T11:00:00+03:00', stale: false,
+            claude_error: '', profile: 'не обновился: аватарка — Bad Request: PHOTO_INVALID' },
+            /^Бот @MCPkulturabot работает: слушает Telegram и отвечает\. Профиль в Telegram не обновился: аватарка — Bad Request: PHOTO_INVALID\.$/,
+            'bad'],
     ];
-    for (const [engine, status, want] of cases) {
+    for (const [engine, status, want, tone] of cases) {
         const bot = Object.assign(JSON.parse(JSON.stringify(BOT)), { engine, status });
         const page = boot((url, opt) => (url === '/api/admin/mcp/bot' && opt.method === 'GET' ? [200, bot]
             : respond(url, opt)));
         await tick(); await tick(); await tick();
         assert.match(page.nodes.mcpBotState.textContent, want);
+        if (tone) assert.equal(page.nodes.mcpBotState.className, 'mcp-note mcp-state-' + tone);
     }
 });
 

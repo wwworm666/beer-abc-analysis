@@ -1,5 +1,20 @@
 ﻿# Changelog
 
+### 2026-11-06 (4) — Бот: имя kultura.os и аватарка, ставит их себе сам
+
+Владелец: «Придумай лого и название бота». Четыре варианта на холсте (Пульс, Хмель, Пинта, kultura.os),
+выбран **kultura.os** — имя как у сайта, аватарка — знак сайта ›_ в облачке чата.
+
+| Что | Почему | Где | Что сломается при неверной правке |
+|---|---|---|---|
+| Аватарка: исходник SVG и JPEG 640×640, сборка JPEG из SVG через Chromium | Telegram берёт фото профиля только JPEG; исходник правится как знак сайта | `kultura_bot/assets/avatar.svg`, `kultura_bot/assets/avatar.jpg`, `scripts/render_bot_avatar.py` | PNG в `BOT_AVATAR` — Telegram откажет |
+| Имя, описание в профиле, описание пустого чата, аватарка — в `settings.py`; сервер бота при запуске сверяет их с Telegram и ставит, если другие (`setMyName`, `setMyShortDescription`, `setMyDescription`, `setMyProfilePhoto`) | Владелец не делает руками ничего в @BotFather; всё, кроме секретов, — в репозитории | `kultura_bot/settings.py` (`PROFILE_SYNC`, `BOT_NAME`, `BOT_SHORT_DESCRIPTION`, `BOT_DESCRIPTION`, `BOT_AVATAR`), `kultura_bot/engine/telegram_io.py`, `kultura_bot/engine/service.py` (`sync_profile`, `_sync_avatar`) | Правки в @BotFather вернутся к `settings.py` при следующем запуске |
+| Аватарка грузится один раз на файл: хеш поставленного файла хранит сервер бота | Telegram не отдаёт фото так, чтобы сравнить с файлом; без хеша — новое фото в профиле при каждом перезапуске | `kultura_bot/engine/store.py` (таблица `meta`) | — |
+| Не встало — бот отвечает дальше, причина в строке состояния «Доступ агентов» | Видно, почему аватарка или имя не сменились | `kultura_bot/site_api.py` (`status.profile`), `static/js/admin_mcp.js` | — |
+| Бот называет себя kultura.os | Имя в чате и в ответах совпадают | `kultura_bot/prompts/bot.md`, `kultura_bot/engine/service.py` (`HELP_TEXT`) | — |
+| Тесты: пределы длины Telegram, JPEG 640×640, ставится только отличающееся, аватарка один раз на файл, ошибка видна и повторяется, сбой не мешает запуску, multipart с `attach://`; приём `status.profile` сайтом; красная строка на странице | Закрепить поведение | `tests/test_kultura_bot.py`, `tests/test_kultura_bot_site.py`, `tests/test_mcp_admin_render.mjs` | — |
+| Документация | Правило проекта | `docs/kultura-bot.md` (раздел 7г, «Где что менять», «Файлы», «Что сломается», тесты), `kultura_bot/README.md`, `.claude/INDEX.md` | — |
+
 ### 2026-11-06 (3) — Бот: дневной предел $15 на человека
 
 Владелец: «Предел на человека 15$» (ответ на «суточный предел расхода под прод» из списка решений).

@@ -45,7 +45,8 @@ sys.path.insert(0, ROOT)
 sys.path.insert(0, HERE)
 
 from kultura_bot import settings  # noqa: E402
-from kultura_bot.engine import agent, claude, config, formatting, progress, report_text, service, tools  # noqa: E402
+from kultura_bot.engine import (agent, claude, config, formatting, progress, report_text, service,  # noqa: E402
+                                 telegram_io, tools)
 from kultura_bot.engine.site import SiteError  # noqa: E402
 from kultura_bot.engine.store import Store  # noqa: E402
 
@@ -294,6 +295,10 @@ class FakeTelegram:
         self.callbacks = []     # answerCallbackQuery: (id, текст)
         self.edits = []         # edit_plain: (chat_id, message_id, текст)
         self.plain_markups = [] # кнопки у send_plain
+        self.profile = {'name': 'MCPkulturabot', 'short_description': '', 'description': ''}
+        self.profile_sets = []  # set_profile: (поле, значение)
+        self.photos = []        # set_profile_photo: загруженные JPEG
+        self.photo_error = ''   # что Telegram ответит на фото ('' — получилось)
 
     def get_me(self):
         return {'ok': True, 'result': {'id': 999, 'username': 'MCPkulturabot'}}
@@ -307,6 +312,20 @@ class FakeTelegram:
 
     def get_updates(self, offset):
         return self.updates.pop(0) if self.updates else {'ok': True, 'result': []}
+
+    def get_profile(self, field):
+        return self.profile.get(field)
+
+    def set_profile(self, field, value):
+        self.profile_sets.append((field, value))
+        self.profile[field] = value
+        return ''
+
+    def set_profile_photo(self, jpeg):
+        if self.photo_error:
+            return self.photo_error
+        self.photos.append(jpeg)
+        return ''
 
     def typing(self, chat_id):
         self.typing_count += 1
@@ -401,7 +420,7 @@ def test_agents_and_prompts_load():
     for name, item in agents.items():
         assert item.title and item.description and item.instructions
         assert set(item.domains) <= set(config.DOMAINS)
-    assert config.bot_prompt().startswith('Ты — помощник владельца') and config.agent_prompt()
+    assert config.bot_prompt().startswith('Ты — kultura.os, помощник владельца') and config.agent_prompt()
     from core.mcp.spec import DOMAINS
     assert set(config.DOMAINS) == set(DOMAINS), 'разделы сервера бота = разделы сайта'
     system = config.bot_system_text('ПРАВИЛА САЙТА')
@@ -2007,3 +2026,117 @@ def test_person_limit_is_shared_with_agents(bot):
     assert steps == 3, 'вопрос, шаг агента, итог'
     assert bot.env.store.spent_by(OWNER_TG) == pytest.approx(steps * one)
     assert bot.env.store.spent_by(OWNER_TG) == pytest.approx(bot.env.store.spent_on()), 'весь расход — на спросившего'
+
+
+# ------------------------------------------------------------------ профиль в Telegram (2026-11-06)
+
+def _jpeg_size(data):
+    """Ширина и высота JPEG по маркеру SOF (без Pillow: тест сервера бота)."""
+    i = 2
+    while i < len(data):
+        marker, length = data[i + 1], int.from_bytes(data[i + 2:i + 4], 'big')
+        if marker in (0xC0, 0xC1, 0xC2):
+            return int.from_bytes(data[i + 7:i + 9], 'big'), int.from_bytes(data[i + 5:i + 7], 'big')
+        i += 2 + length
+    return None
+
+
+def test_profile_fits_telegram_limits():
+    assert settings.PROFILE_SYNC and settings.BOT_NAME == 'kultura.os'
+    assert 0 < len(settings.BOT_NAME) <= 64, 'setMyName: до 64 символов'
+    assert 0 < len(settings.BOT_SHORT_DESCRIPTION) <= 120, 'setMyShortDescription: до 120 символов'
+    assert 0 < len(settings.BOT_DESCRIPTION) <= 512, 'setMyDescription: до 512 символов'
+    path = os.path.join(os.path.dirname(os.path.abspath(settings.__file__)), settings.BOT_AVATAR)
+    data = open(path, 'rb').read()
+    assert data[:3] == b'\xff\xd8\xff', 'фото профиля Telegram берёт только JPEG'
+    assert _jpeg_size(data) == (640, 640) and len(data) < 200_000
+    assert os.path.exists(os.path.join(os.path.dirname(path), 'avatar.svg')), 'исходник знака рядом'
+
+
+def test_bot_sets_its_name_descriptions_and_avatar_once(bot):
+    tg = bot.tg
+    assert [field for field, _ in tg.profile_sets] == ['name', 'short_description', 'description']
+    assert tg.profile['name'] == 'kultura.os' and tg.profile['description'] == settings.BOT_DESCRIPTION
+    assert len(tg.photos) == 1 and tg.photos[0][:3] == b'\xff\xd8\xff'
+    assert bot.svc.status['profile'] == ''
+    # Перезапуск с тем же профилем и тем же файлом: Telegram не трогаем.
+    assert bot.svc.sync_profile() == {'name': 'same', 'short_description': 'same', 'description': 'same',
+                                      'avatar': 'same'}
+    assert len(tg.profile_sets) == 3 and len(tg.photos) == 1
+    # Имя поменяли в @BotFather — вернётся к settings; новое имя в settings — уйдёт только оно.
+    tg.profile['name'] = 'Другое'
+    bot.env.monkeypatch.setattr(settings, 'BOT_SHORT_DESCRIPTION', '')
+    result = bot.svc.sync_profile()
+    assert result['name'] == 'set' and tg.profile['name'] == 'kultura.os'
+    assert result['short_description'] == 'skip' and len(tg.photos) == 1
+
+
+def test_avatar_failure_is_shown_and_retried_bot_keeps_answering(env):
+    tg = FakeTelegram()
+    tg.photo_error = 'Bad Request: PHOTO_INVALID_DIMENSIONS'
+    svc = service.Service(env.site, env.store, io_factory=lambda token: tg, client_factory=lambda key: FakeClient(),
+                          check_key=lambda key: ('ok', 'claude-opus-5-5'))
+    assert svc.ready() is True and svc.status['state'] == 'running'
+    assert svc.status['profile'] == 'не обновился: аватарка — Bad Request: PHOTO_INVALID_DIMENSIONS'
+    svc.report(force=True)
+    assert env.site.reports[-1]['status']['profile'].startswith('не обновился: аватарка')
+    tg.photo_error = ''
+    assert svc.ready() is True and tg.photos == [], 'час не прошёл — не повторяем на каждом опросе'
+    svc.profile_at -= service.PROFILE_RETRY_S
+    assert svc.ready() is True and len(tg.photos) == 1, 'через час — ещё попытка, без перезапуска'
+    assert svc.status['profile'] == ''
+    svc.profile_at -= service.PROFILE_RETRY_S
+    assert svc.ready() is True and len(tg.photos) == 1, 'всё встало — больше не сверяем до перезапуска'
+    svc.executor.shutdown(wait=False)
+
+
+def test_new_avatar_file_is_uploaded_again(bot, tmp_path):
+    other = tmp_path / 'other.jpg'
+    other.write_bytes(b'\xff\xd8\xff' + b'\x00' * 64)
+    bot.env.monkeypatch.setattr(settings, 'BOT_AVATAR', str(other))   # абсолютный путь: os.path.join берёт его
+    assert bot.svc.sync_profile()['avatar'] == 'set' and len(bot.tg.photos) == 2
+    bot.env.monkeypatch.setattr(settings, 'BOT_AVATAR', 'assets/nope.jpg')
+    assert bot.svc.sync_profile()['avatar'] == 'нет файла kultura_bot/assets/nope.jpg'
+
+
+def test_profile_sync_does_not_break_startup(env):
+    class Broken(FakeTelegram):
+        def get_profile(self, field):
+            raise RuntimeError('сбой')
+    svc = service.Service(env.site, env.store, io_factory=lambda token: Broken(), client_factory=lambda key: FakeClient(),
+                          check_key=lambda key: ('ok', 'claude-opus-5-5'))
+    assert svc.ready() is True and svc.status['state'] == 'running'
+    assert svc.status['profile'] == 'не обновился: сбой RuntimeError', 'сбой виден, через час — ещё попытка'
+    svc.executor.shutdown(wait=False)
+
+
+def test_telegram_profile_photo_goes_as_multipart(monkeypatch):
+    sent = {}
+
+    class Resp:
+        status_code = 200
+
+        @staticmethod
+        def json():
+            return {'ok': True, 'result': True}
+
+    def post(url, **kwargs):
+        sent.update(url=url, **kwargs)
+        return Resp()
+
+    io = telegram_io.TelegramIO(TOKEN)
+    monkeypatch.setattr(io._session(), 'post', post)
+    assert io.set_profile_photo(b'\xff\xd8\xffjpeg') == ''
+    assert sent['url'].endswith('/setMyProfilePhoto') and 'json' not in sent
+    assert json.loads(sent['data']['photo']) == {'type': 'static', 'photo': 'attach://avatar'}
+    assert sent['files']['avatar'] == ('avatar.jpg', b'\xff\xd8\xffjpeg', 'image/jpeg')
+    calls = []
+    monkeypatch.setattr(io, 'call', lambda method, payload=None, timeout=8: calls.append((method, payload)) or
+                        {'ok': False, 'error_code': 429, 'description': 'Too Many Requests: retry after 60'})
+    assert io.set_profile('name', 'kultura.os') == 'Too Many Requests: retry after 60'
+    assert calls == [('setMyName', {'name': 'kultura.os'})]
+    monkeypatch.setattr(io, 'call', lambda method, payload=None, timeout=8:
+                        {'ok': True, 'result': {'short_description': 'текст'}})
+    assert io.get_profile('short_description') == 'текст'
+    monkeypatch.setattr(io, 'call', lambda method, payload=None, timeout=8: None)
+    assert io.get_profile('name') is None and io.set_profile('name', 'x') == 'нет связи с Telegram'
