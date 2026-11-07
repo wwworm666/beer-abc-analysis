@@ -12,7 +12,9 @@
 - Остатки + сводный заказ с velocity-классификацией
 - Shelf-Life Cockpit (tier-логика срочности уценки)
 - Дашборд сотрудника, KPI/бонусы, график смен
-- Open-check Telegram-бот (ежедневная проверка открытых смен)
+- Три бота Telegram — карта «кто что делает, где работает, кто через кого пишет»: [telegram-bots.md](telegram-bots.md).
+  Open-check бот @kultura_open_bot (касса в 14:59, тревоги, отзывы) и гостевой @kult_taplist_bot
+  (краны, подписка, отзывы) работают внутри сайта
 - ИИ-помощник владельца в Telegram — бот @MCPkulturabot на Claude API с инструментами сайта по MCP;
   работает на отдельном сервере в Амстердаме ([kultura-bot.md](kultura-bot.md), папка `kultura_bot/`)
 - PWA-виджет выручки (Android/iOS)
@@ -101,7 +103,7 @@
 - [yandex_maps_status.py](../core/yandex_maps_status.py) — daemon-thread, раз в 3 часа сверяет прайсы баров на Яндекс Картах с нашими файлами (публичная страница, без кабинета)
 - Все фоновые задачи запускаются при импорте [app.py](../app.py); `BEER_SCHEDULERS=0` отключает их (локальные скрипты и проверки — иначе рассылки уйдут с боевыми токенами из `.env`)
 - [open_check_bot.py](../core/open_check_bot.py) — логика проверки + форматирование сообщений
-- [open_check_telegram.py](../core/open_check_telegram.py) — Telegram Bot API (sync через `requests`), меню подписки (кнопка) + команды `/start` `/status`
+- [open_check_telegram.py](../core/open_check_telegram.py) — транспорт к Telegram с обходом блокировок (общий для всех ботов сайта: без токена пишет от open-check бота) + меню и команды open-check бота `/start` `/status` `/temp` `/cash` `/reviews` ([telegram-bots.md](telegram-bots.md))
 - [open_check_subscribers.py](../core/open_check_subscribers.py) — хранилище самоподписавшихся чатов (`open_check_subscribers.json`, единый список + portalocker)
 - [open_check_polling.py](../core/open_check_polling.py) — long-polling getUpdates (входящие команды/кнопки; webhook не доставляется из-за блокировок)
 
@@ -147,7 +149,7 @@ data/
 ├── kpi_targets.json        # KPI цели по месяцам
 ├── taps_data.json          # Состояние 60 кранов + история (atomic-write)
 ├── meeting_notes.json      # Заметки совещаний
-├── open_check_subscribers.json  # Самоподписавшиеся чаты open-check бота
+├── open_check_subscribers.json  # Самоподписавшиеся чаты open-check бота (на проде — /kultura)
 ├── receiving.db, receiving_photos/, receiving_index.json  # Приёмка на РЦ (на проде /kultura)
 ├── nomenclature_cache.json # Кэш номенклатуры iiko (24ч диск + 15 мин память)
 ├── olap_all_fields.json    # Справочник OLAP-полей продаж (снимок /columns 2025-10-18; конструктор читает копию в resources/)
@@ -168,7 +170,7 @@ data/
 
 - **[menu_tool/](../menu_tool/)** — standalone Flask на `127.0.0.1:5050` для печати пивных карточек A4 через Playwright (PDF-вектор для печати, PNG-растр для соцсетей). **Не деплоится** на прод — Chromium ест ~150-200 МБ. См. [menu_tool/README.md](../menu_tool/README.md).
 - **[chz_test/](../chz_test/)** — ЧЗ-клиент (`chz.py` для бар-ПК с CryptoPro+Rutoken) + утилиты отладки (`probe_gtin.py`, `suggest_barcode_fixes.py`, `export_bartender_list.py`). См. [chz-stock-integration.md](chz-stock-integration.md).
-- **[telegram_bot.py](../telegram_bot.py)** / **[telegram_webhook.py](../telegram_webhook.py)** — KULT Taplist бот (polling и webhook), отдельный от open-check бота.
+- **Гостевой бот @kult_taplist_bot** — [core/taplist_polling.py](../core/taplist_polling.py) внутри сайта (long polling). [telegram_webhook.py](../telegram_webhook.py) и [telegram_bot.py](../telegram_bot.py) в корне — наследие: первый только загружается сайтом и умеет краны, второй не запускается ([telegram-bots.md](telegram-bots.md), раздел 7).
 
 ---
 
@@ -215,8 +217,10 @@ data/
    v (через aiogram + sync requests)
 +----------------------------------------------------------------+
 | Telegram                                                       |
-| - @kultura_taplist_bot — KULT Taplist (polling + webhook)      |
-| - @kultura_open_bot    — Open-check (webhook, sync requests)   |
+| - @kult_taplist_bot    — гостевой: краны, подписка, отзывы     |
+|   (внутри сайта, long polling, docs/telegram-bots.md)          |
+| - @kultura_open_bot    — Open-check: касса 14:59, тревоги,     |
+|   отзывы (внутри сайта, long polling)                          |
 | - @MCPkulturabot       — ИИ-помощник владельца: сервер бота в  |
 |   Амстердаме (kultura_bot/engine, long polling, Claude API,    |
 |   к сайту — по MCP и /api/bot/*, docs/kultura-bot.md);         |
@@ -233,7 +237,7 @@ data/
 |---|---|---|
 | **iiko API** | Продажи (OLAP), кассовые смены, посещения сотрудников, номенклатура (баркоды через XML) | env `IIKO_SERVER/PORT/LOGIN/PASSWORD`, [core/iiko_api.py](../core/iiko_api.py) |
 | **Честный Знак** | Маркировка пива/безалк/соков, сроки годности по партиям, привязка к КПП баров. Доступ — через бар-ПК с CryptoPro+Rutoken | env `REMOTE_USER/HOST/PASS`, [chz_test/chz.py](../chz_test/chz.py), [core/chz_scheduler.py](../core/chz_scheduler.py); названия новинок для приёмки — команда `product-info` ([core/receiving_chz.py](../core/receiving_chz.py)) |
-| **Telegram** | KULT Taplist (уведомления барменам) + Open-check (мониторинг открытых смен) + ИИ-помощник владельца @MCPkulturabot ([kultura-bot.md](kultura-bot.md)) и его графики с мини-приложением `/tg/chart` ([tg-miniapp.md](tg-miniapp.md)) | env `TELEGRAM_BOT_TOKEN`, `TELEGRAM_OPEN_CHECK_BOT_TOKEN`, `TELEGRAM_GROUP_CHAT_ID`, `TELEGRAM_ALARM_CHAT_IDS`; бухгалтерии о разборе приёмок — `RECEIVING_NOTIFY_CHAT_IDS`; @MCPkulturabot — токен на странице `/admin/mcp`, раздел «Бот» (запасной путь `TELEGRAM_MCP_BOT_TOKEN`) |
+| **Telegram** | Три бота — [telegram-bots.md](telegram-bots.md): гостевой @kult_taplist_bot (краны, подписка, отзывы, рассылки гостям) + Open-check @kultura_open_bot (касса в 14:59, тревоги, отзывы, сообщения владельцу) + ИИ-помощник владельца @MCPkulturabot ([kultura-bot.md](kultura-bot.md)) и его графики с мини-приложением `/tg/chart` ([tg-miniapp.md](tg-miniapp.md)) | env `TELEGRAM_BOT_TOKEN`, `TELEGRAM_OPEN_CHECK_BOT_TOKEN`, `TELEGRAM_GROUP_CHAT_ID`, `TELEGRAM_ALARM_CHAT_IDS`; бухгалтерии о разборе приёмок — `RECEIVING_NOTIFY_CHAT_IDS`; @MCPkulturabot — токен на странице `/admin/mcp`, раздел «Бот» (запасной путь `TELEGRAM_MCP_BOT_TOKEN`) |
 | **Claude API (Anthropic)** | Бот @MCPkulturabot: ответы модели Claude. Запросы идут только с сервера бота в Амстердаме (сайт в России, API Anthropic оттуда недоступен); инструменты сайта бот вызывает по MCP ([kultura-bot.md](kultura-bot.md)) | ключ — страница `/admin/mcp`, раздел «Бот» (запасной путь `KULTURA_BOT_ANTHROPIC_KEY`), сервер бота берёт его у сайта; установка сервера — «Команда установки» там же; модель, усилие, дневной предел — [kultura_bot/settings.py](../kultura_bot/settings.py) |
 | **Tailscale** | Mesh-сеть до бар-ПК (`100.98.149.108`) | На сервере и бар-ПК как daemon |
 

@@ -1,5 +1,7 @@
 # Telegram Бот KULT Taplist - Руководство
 
+Карта всех трёх ботов проекта (кто что делает, кто через кого пишет) — [../telegram-bots.md](../telegram-bots.md).
+
 ## Бот: @kult_taplist_bot
 
 ---
@@ -9,6 +11,7 @@
 | Команда | Описание |
 |---------|----------|
 | `/start` | Кнопки баров |
+| `/help` | То же, что `/start` |
 | `/taplist` | Меню выбора бара (кнопки) |
 | `/taplist1` | Большой пр. В.О |
 | `/taplist2` | Лиговский |
@@ -232,8 +235,8 @@ beer-abc-analysis/
 ├── core/untappd_registry.py        # Чтение реестра: только проверенная связь по GUID
 ├── resources/iiko_untappd_registry.json  # Реестр Untappd — единственный источник правды
 ├── resources/taplist_post_names.json     # Стили по-русски, короткие имена пивоварен
-├── telegram_webhook.py             # Webhook-вариант (справочно, тот же таплист)
-├── telegram_bot.py                 # Отдельный бот через API /api/taps/taplist-full (не запускается)
+├── telegram_webhook.py             # Наследие: сайт загружает его при старте (/telegram/webhook), умеет только краны
+├── telegram_bot.py                 # Наследие: не запускается; /api/taps/taplist-full закрыт входом (401)
 └── /kultura/taps_data.json         # Данные о кранах
 ```
 
@@ -263,7 +266,7 @@ curl "https://api.telegram.org/bot<TOKEN>/getWebhookInfo"
 curl "https://api.telegram.org/bot<TOKEN>/deleteWebhook"
 ```
 
-После удаления можно запустить `telegram_bot.py` в polling режиме.
+После удаления команды снова забирает `core/taplist_polling.py` (он сам снимает webhook при старте и при ответе 409). `telegram_bot.py` не запускать: это наследие, данные с сайта он не получит.
 
 ---
 
@@ -304,7 +307,6 @@ TELEGRAM_BOT_TOKEN=<TOKEN> py -3 -c "import time; from core import taplist_polli
 В логах приложения на сервере (`docker compose logs app`) искать:
 
 ```
-[TAPLIST-POLL] справочник пива: 408
 [TAPLIST-POLL] polling стартовал, бот @kult_taplist_bot
 ```
 

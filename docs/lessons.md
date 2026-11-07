@@ -1888,7 +1888,7 @@ def save_plan(...):
 
 ### 25. Хардкод-fallback токенов — утечки в публичные форки
 
-**Problem:** В `telegram_bot.py` и `telegram_webhook.py` был fallback `TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', '8261982160:AAFu...')` — токен утёк в git и публичные форки.
+**Problem:** В `telegram_bot.py` и `telegram_webhook.py` был fallback `TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', '<токен>')` — токен утёк в git и публичные форки.
 
 **Cause:** Удобный fallback для локального dev → попал в коммит.
 
@@ -2459,7 +2459,9 @@ width }` и `td input[type="number"] { max-width: 50px !important }`. Специ
 
 **Cause:** `app.py` при импорте без всяких условий поднимает фоновые потоки: шедулеры (ЧЗ,
 открытые смены, YML, месячный отчёт, температура, синк гостей, ЗП, снимок `/me`) и два
-Telegram long-polling (бот открытых смен и таплист-бот). Флага отключения нет. Локальный
+Telegram long-polling (бот открытых смен и таплист-бот). Флага отключения нет (с тех пор есть:
+`BEER_SCHEDULERS=0` выключает все фоновые потоки, `OPEN_CHECK_POLLING=0` и `TAPLIST_POLLING=0` —
+приём сообщений ботов, `app.py`; карта ботов — [telegram-bots.md](telegram-bots.md)). Локальный
 `.env` содержит боевые токены и id рабочего чата, а с машины разработчика Telegram не
 заблокирован (блокировка только на проде). Второй `getUpdates` с тем же токеном к тому же
 перетягивает апдейты у прод-поллера. Для разовых скриптов на проде это уже было записано

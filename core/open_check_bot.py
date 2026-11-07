@@ -388,7 +388,8 @@ def send_report(state: dict, check_dt: datetime, note: Optional[str] = None,
     восстановления связи она разошлась бы всем как настоящая.
 
     DRY-RUN режим (env OPEN_CHECK_DRY_RUN=1): сообщение уходит только первому
-    получателю (тревог, иначе позитива) с префиксом [DRY-RUN], без очереди.
+    получателю своего списка («все открыты» — групповому чату; список пуст — первому из
+    тревог, затем из позитива) с префиксом [DRY-RUN], без очереди.
     """
     token = os.environ.get('TELEGRAM_OPEN_CHECK_BOT_TOKEN')
     if not token:
