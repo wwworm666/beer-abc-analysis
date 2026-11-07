@@ -1888,7 +1888,7 @@ def save_plan(...):
 
 ### 25. Хардкод-fallback токенов — утечки в публичные форки
 
-**Problem:** В `telegram_bot.py` и `telegram_webhook.py` был fallback `TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', '8261982160:AAFu...')` — токен утёк в git и публичные форки.
+**Problem:** В `telegram_bot.py` и `telegram_webhook.py` был fallback `TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', '<токен>')` — токен утёк в git и публичные форки.
 
 **Cause:** Удобный fallback для локального dev → попал в коммит.
 
