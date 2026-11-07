@@ -404,6 +404,47 @@ def get_webhook_info():
     return api_call("getWebhookInfo")
 
 
+# Имя и описания бота в Telegram (решение владельца 2026-11-07): kultura.os — сайт, kultura.research —
+# ИИ-бот анализа через MCP (@MCPkulturabot), kultura.pulse — этот бот: опоздания (открыты ли кассы),
+# инкассация, температура, отзывы. Ставит сам при старте приёма сообщений (sync_profile), только
+# если в Telegram другое; в @BotFather не правят — при следующем старте вернётся к этим.
+# Пределы Telegram: имя — до 64 символов, короткое описание — до 120, описание — до 512.
+BOT_NAME = "kultura.pulse"
+BOT_SHORT_DESCRIPTION = ("Пульс баров «Культура»: открылись ли вовремя, инкассация, температура, "
+                         "отзывы гостей.")
+BOT_DESCRIPTION = ("kultura.pulse — пульс баров сети «Культура». Каждый день в 14:59 проверяет, открыты ли "
+                   "кассы всех баров, и сообщает об опозданиях; присылает тревоги по температуре, новые "
+                   "отзывы гостей и сколько наличных можно забрать при инкассации. Статус баров, "
+                   "температура и отзывы — по кнопкам в /start.")
+PROFILE_METHODS = (("name", "getMyName", "setMyName", "BOT_NAME"),
+                   ("short_description", "getMyShortDescription", "setMyShortDescription", "BOT_SHORT_DESCRIPTION"),
+                   ("description", "getMyDescription", "setMyDescription", "BOT_DESCRIPTION"))
+
+
+def sync_profile() -> dict:
+    """Имя и описания бота (BOT_NAME, BOT_SHORT_DESCRIPTION, BOT_DESCRIPTION) — в Telegram, если там
+    другие. -> {поле: 'same' | 'set' | 'no_answer' | 'error'}; не вышло — следующий старт попробует снова."""
+    result = {}
+    for field, getter, setter, constant in PROFILE_METHODS:
+        value = globals()[constant]
+        data = api_call(getter, {})
+        if not data or not data.get("ok") or not isinstance(data.get("result"), dict):
+            result[field] = "no_answer"
+            continue
+        if str(data["result"].get(field) or "") == value:
+            result[field] = "same"
+            continue
+        answer = api_call(setter, {field: value}, timeout=20)
+        result[field] = "set" if answer and answer.get("ok") else "error"
+    changed = [f for f, v in result.items() if v == "set"]
+    failed = [f for f, v in result.items() if v in ("no_answer", "error")]
+    if changed:
+        log.info("профиль бота в Telegram обновлён: %s", ", ".join(changed))
+    if failed:
+        log.warning("профиль бота в Telegram не обновился: %s", ", ".join(failed))
+    return result
+
+
 def set_my_commands():
     return api_call("setMyCommands", {"commands": [
         {"command": "start", "description": "Подписка и меню"},
@@ -434,7 +475,7 @@ def _menu_keyboard(subscribed: bool) -> dict:
 def _start_text(chat_id, subscribed: bool) -> str:
     state = "да" if subscribed else "нет"
     return (
-        "Бот мониторинга открытия баров KULT.\n"
+        f"{BOT_NAME} — пульс баров «Культура»: открытие касс, инкассация, температура, отзывы.\n"
         "Раз в день в 14:59 МСК присылает сводку: все бары открыты или какой-то закрыт.\n\n"
         f"Уведомления приходят в этот чат: {state}\n"
         f"ID этого чата: {chat_id}\n\n"

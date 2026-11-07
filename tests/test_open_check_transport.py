@@ -116,3 +116,38 @@ if __name__ == '__main__':
                 failed += 1
                 print(f'FAIL {name}: {e!r}')
     sys.exit(1 if failed else 0)
+
+
+# ------------------------------------------------------------------ имя kultura.pulse (2026-11-07)
+
+def test_bot_name_and_descriptions_fit_telegram():
+    assert tg.BOT_NAME == 'kultura.pulse'
+    assert 0 < len(tg.BOT_NAME) <= 64 and 0 < len(tg.BOT_SHORT_DESCRIPTION) <= 120
+    assert 0 < len(tg.BOT_DESCRIPTION) <= 512
+    assert tg._start_text(42, False).startswith('kultura.pulse — пульс баров'), 'бот называет себя так же'
+
+
+def test_sync_profile_sets_only_what_differs(monkeypatch):
+    stored = {'name': 'KULT open check', 'short_description': tg.BOT_SHORT_DESCRIPTION, 'description': ''}
+    calls = []
+
+    def fake_api_call(method, payload=None, timeout=8, **kwargs):
+        calls.append(method)
+        assert 'token' not in kwargs, 'свой бот — токен open-check по умолчанию'
+        for field, getter, setter, _ in tg.PROFILE_METHODS:
+            if method == getter:
+                return {'ok': True, 'result': {field: stored[field]}}
+            if method == setter:
+                stored[field] = payload[field]
+                return {'ok': True, 'result': True}
+        raise AssertionError(method)
+
+    monkeypatch.setattr(tg, 'api_call', fake_api_call)
+    assert tg.sync_profile() == {'name': 'set', 'short_description': 'same', 'description': 'set'}
+    assert stored == {'name': 'kultura.pulse', 'short_description': tg.BOT_SHORT_DESCRIPTION,
+                      'description': tg.BOT_DESCRIPTION}
+    calls.clear()
+    assert set(tg.sync_profile().values()) == {'same'}
+    assert all(m.startswith('getMy') for m in calls), 'всё на месте — ничего не ставит'
+    monkeypatch.setattr(tg, 'api_call', lambda *a, **k: None)
+    assert set(tg.sync_profile().values()) == {'no_answer'}, 'Telegram молчит — без падения'

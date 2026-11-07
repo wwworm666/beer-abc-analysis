@@ -2,14 +2,18 @@
 
 ## Что это
 
-Отдельный Telegram-бот (не KULT Taplist), который **ежедневно в 14:59 МСК** проверяет в iiko, открыта ли касса в каждом из 4 баров KULT:
+**kultura.pulse** (@kultura_open_bot; имя — решение владельца 2026-11-07: kultura.os — сайт,
+kultura.research — ИИ-бот анализа) — отдельный Telegram-бот (не KULT Taplist), который **ежедневно в
+14:59 МСК** проверяет в iiko, открыта ли касса в каждом из 4 баров KULT. Имя и описания бота ставит
+сайт при старте приёма сообщений (`sync_profile` в `core/open_check_telegram.py`), если в Telegram
+другие:
 
 - **Все 4 открыты** → одно сообщение: групповой чат (`TELEGRAM_GROUP_CHAT_ID`) и все подписчики бота.
 - **Хоть один закрыт** → тревога со списком закрытых баров: чаты `TELEGRAM_ALARM_CHAT_IDS` и все подписчики.
 - **iiko недоступен** → так же, с текстом ошибки (отдельный формат, не путаем с «все закрыты»).
 
 Карта всех трёх ботов проекта и того, кто через какого бота пишет (через этого бота шлют ещё
-температура, приёмка, фиды Яндекса, MCP `common_notify_owner` и сторож kultura.os), —
+температура, приёмка, фиды Яндекса, MCP `common_notify_owner` и сторож kultura.research), —
 [telegram-bots.md](telegram-bots.md).
 
 С 2026-09-28 бот ещё присылает **подписчикам новые отзывы** (групповой чат их не получает): с
@@ -334,6 +338,13 @@ done
 Изначально отправка шла через aiogram, но бот простой, поэтому весь open-check переведён на синхронный `requests` напрямую к Telegram Bot API ([core/open_check_telegram.py](../core/open_check_telegram.py)). `send_report` синхронный, `run_check` без `asyncio`. Плюсы: нет async-плумбинга, нет утечки `aiohttp.ClientSession`, работает и тестируется в окружении без aiogram.
 
 ## Changelog
+
+### 2026-11-07 (2) — имя kultura.pulse
+
+`BOT_NAME` = `kultura.pulse`, короткое описание и описание — в `core/open_check_telegram.py`;
+`sync_profile()` при старте приёма сообщений (`core/open_check_polling.py`) ставит их, только если в
+Telegram другие; ошибка не мешает принимать команды. Первая строка `/start` — «kultura.pulse — пульс
+баров «Культура»…». Тесты — `tests/test_open_check_transport.py`.
 
 ### 2026-11-07 — сверка с кодом
 

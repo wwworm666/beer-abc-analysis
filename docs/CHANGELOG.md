@@ -1,5 +1,17 @@
 ﻿# Changelog
 
+### 2026-11-07 (3) — Имена: kultura.os — сайт, kultura.research и kultura.pulse — боты
+
+Владелец: «kultura.os — это сайт, kultura.research — это бот для анализа через мсп, kultura.pulse —
+опозданий, инкассации, отзывов и так далее».
+
+| Что | Почему | Где | Что сломается при неверной правке |
+|---|---|---|---|
+| @MCPkulturabot — **kultura.research**: имя и описания в Telegram, инструкции модели, `/help`, тексты сторожа, заголовок раздела на «Доступ агентов» | kultura.os — имя сайта, бот был назван по ошибке | `kultura_bot/settings.py`, `kultura_bot/prompts/bot.md`, `kultura_bot/engine/service.py`, `kultura_bot/watchdog.py`, `templates/admin_mcp.html` | — (сервер бота поставит имя сам после самообновления) |
+| @kultura_open_bot — **kultura.pulse**: `BOT_NAME`, короткое описание и описание; сайт ставит их при старте приёма сообщений, если в Telegram другие; первая строка `/start` | Владелец назвал бота; раньше имени не было («Бот мониторинга открытия баров KULT») | `core/open_check_telegram.py` (`sync_profile`), `core/open_check_polling.py` | Правки имени в @BotFather вернутся к этим при следующем старте |
+| Тесты: пределы Telegram, ставится только отличающееся, молчание Telegram без падения | Закрепить поведение | `tests/test_open_check_transport.py`, `tests/test_kultura_bot.py`, `tests/test_kultura_bot_journal.py` | — |
+| Документация | Правило проекта | `docs/telegram-bots.md` (имена), `docs/kultura-bot.md`, `docs/open-check-bot.md`, `.claude/CLAUDE.md`, `.claude/INDEX.md`, `kultura_bot/README.md` | — |
+
 ### 2026-11-07 (2) — Карта трёх ботов Telegram
 
 Владелец: «ты не совсем правильно перечислил функционал… у нас сейчас есть три бота, на разных

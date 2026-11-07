@@ -141,10 +141,12 @@ Before finishing any task:
 
 ## Боты Telegram — три, карта в docs/telegram-bots.md
 
-Решение владельца (2026-11-07): «чтобы потом не восстанавливали по крошкам». Ботов три:
-kultura.os (@MCPkulturabot, `kultura_bot/`, сервер в Амстердаме), open-check (@kultura_open_bot,
-`core/open_check_*.py`, внутри сайта) и гостевой (@kult_taplist_bot, `core/taplist_polling.py`,
-внутри сайта). Кто через какого бота пишет — таблица в `docs/telegram-bots.md`.
+Решение владельца (2026-11-07): «чтобы потом не восстанавливали по крошкам». Имена:
+**kultura.os** — сайт; **kultura.research** — ИИ-бот анализа через MCP (@MCPkulturabot,
+`kultura_bot/`, сервер в Амстердаме); **kultura.pulse** — опоздания, инкассация, температура,
+отзывы (@kultura_open_bot, в коде open-check, `core/open_check_*.py`, внутри сайта); гостевой бот
+@kult_taplist_bot (`core/taplist_polling.py`, внутри сайта). Кто через какого бота пишет —
+таблица в `docs/telegram-bots.md`.
 
 - Добавил или поменял, что и куда бот шлёт, — поправь эту таблицу.
 - `core/open_check_telegram.py` — общий транспорт всех ботов сайта: `api_call` без токена пишет

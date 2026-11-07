@@ -10,13 +10,19 @@ open-check бота» — этот модуль общий для всех бо�
 
 Подробности каждого бота — в его документе; здесь — как они связаны.
 
+**Имена** (решение владельца 2026-11-07): **kultura.os** — сайт (beerkultura.ru);
+**kultura.research** — ИИ-бот для анализа через MCP (@MCPkulturabot); **kultura.pulse** — бот
+опозданий (открыты ли кассы), инкассации, температуры и отзывов (@kultura_open_bot, в коде —
+open-check). У гостевого бота @kult_taplist_bot своего имени нет. Имя и описания каждый из двух
+названных ботов ставит себе сам при запуске (раздел 3 и 4) — в @BotFather их не правят.
+
 | Бот | Для кого | Где работает | Код | Токен (имя, не значение) | Сообщения получает | Обновляется |
 |---|---|---|---|---|---|---|
-| **@MCPkulturabot**, имя в чатах **kultura.os** | владелец и администраторы сайта | **отдельный сервер в Амстердаме**, служба systemd `kultura-bot` | `kultura_bot/` | на странице «Доступ агентов» (`mcp.db`), запасной — `TELEGRAM_MCP_BOT_TOKEN` | long polling напрямую | сам: таймер раз в 2 минуты забирает `main` с GitHub |
-| **@kultura_open_bot** («open-check», «kulturaopenclosed») | команда: статус касс, тревоги, отзывы | **сервер сайта** (Selectel, Россия), контейнер `beer-app`, поток внутри сайта | `core/open_check_*.py` | `TELEGRAM_OPEN_CHECK_BOT_TOKEN` в `.env` сайта | long polling через обход блокировок | вместе с сайтом (выкладка после тестов) |
+| **@MCPkulturabot**, имя в чатах **kultura.research** | владелец и администраторы сайта | **отдельный сервер в Амстердаме**, служба systemd `kultura-bot` | `kultura_bot/` | на странице «Доступ агентов» (`mcp.db`), запасной — `TELEGRAM_MCP_BOT_TOKEN` | long polling напрямую | сам: таймер раз в 2 минуты забирает `main` с GitHub |
+| **@kultura_open_bot**, имя в чатах **kultura.pulse** (в коде — open-check, «kulturaopenclosed») | команда: статус касс, тревоги, отзывы | **сервер сайта** (Selectel, Россия), контейнер `beer-app`, поток внутри сайта | `core/open_check_*.py` | `TELEGRAM_OPEN_CHECK_BOT_TOKEN` в `.env` сайта | long polling через обход блокировок | вместе с сайтом (выкладка после тестов) |
 | **@kult_taplist_bot** (гостевой) | гости баров | **сервер сайта**, тот же контейнер `beer-app` | `core/taplist_polling.py` | `TELEGRAM_BOT_TOKEN` в `.env` сайта | long polling через обход блокировок | вместе с сайтом |
 
-Серверов два: kultura.os — в Амстердаме, open-check и гостевой — оба на сервере сайта в
+Серверов два: kultura.research — в Амстердаме, open-check и гостевой — оба на сервере сайта в
 России. Четвёртый токен, `TELEGRAM_CONTENT_BOT_TOKEN`, — необязательный «бот каналов» для
 постов контент-плана: задан — посты в каналы баров идут от него, не задан — от гостевого бота
 (раздел 5). Какой задан на проде, видно на странице контент-плана, «Каналы и отправка» (имя
@@ -26,8 +32,8 @@ open-check бота» — этот модуль общий для всех бо�
 
 | Что уходит | От какого бота | Кому | Когда | Код |
 |---|---|---|---|---|
-| Ответы на вопросы, отчёты, меню, справка | kultura.os | тому, кто спросил (подключённый администратор) | на каждый вопрос | `kultura_bot/engine/` |
-| Графики и выжимки отчётов kultura.os | kultura.os — но шлёт **сайт**, токеном этого бота | в чат вопроса | когда модель вызывает `common_chart_send` / `common_report_send` | `kultura_bot/charts/send.py` |
+| Ответы на вопросы, отчёты, меню, справка | kultura.research | тому, кто спросил (подключённый администратор) | на каждый вопрос | `kultura_bot/engine/` |
+| Графики и выжимки отчётов kultura.research | kultura.research — но шлёт **сайт**, токеном этого бота | в чат вопроса | когда модель вызывает `common_chart_send` / `common_report_send` | `kultura_bot/charts/send.py` |
 | Сводка «открыты ли кассы» | open-check | «все открыты» — `TELEGRAM_GROUP_CHAT_ID` + подписчики; «закрыт» или iiko не ответил — `TELEGRAM_ALARM_CHAT_IDS` + подписчики | 14:59 МСК; недоставленное — досылка раз в 5 минут до конца дня | `core/open_check_bot.py`, `open_check_scheduler.py`, `open_check_pending.py` |
 | Новые отзывы с Яндекс Карт | open-check | только подписчики | после каждой проверки отзывов: раз в 3 часа и полный проход в 08:30 МСК | `core/review_notify.py`, `core/yandex_reviews_scheduler.py` |
 | Новые отзывы из гостевого бота | open-check (не гостевой!) | только подписчики | сразу после отзыва, пропущенные — подбор раз в 10 минут | `core/taplist_polling.py` -> `core/review_notify.py` |
@@ -36,7 +42,7 @@ open-check бота» — этот модуль общий для всех бо�
 | «Приёмка ждёт разбора» (бухгалтерии) | open-check | только `RECEIVING_NOTIFY_CHAT_IDS` (подписчики не получают) | когда в закрытой приёмке есть новые, похожие или восстановленные позиции | `core/receiving_notify.py` |
 | Фиды Яндекса не обновились | open-check | `TELEGRAM_ALARM_CHAT_IDS` + подписчики | не чаще раза в день: снимок в 05:00 МСК не снялся или с ошибкой | `core/yml_scheduler.py` |
 | Сообщение владельцу от ИИ-агента | open-check | чат отчётов агентов (`notify_chat_id`, выбирается на «Доступ агентов») | MCP-инструмент `common_notify_owner`, не больше 30 в сутки | `core/mcp/tools/common.py` |
-| Сторож kultura.os: бот молчит, Claude не отвечает, бот в ошибке, «снова отвечает» | open-check — чтобы дошло, даже если упал сам kultura.os | `notify_chat_id` | проверка раз в минуту, напоминание раз в 6 часов | `kultura_bot/watchdog.py` |
+| Сторож kultura.research: бот молчит, Claude не отвечает, бот в ошибке, «снова отвечает» | open-check — чтобы дошло, даже если упал сам kultura.research | `notify_chat_id` | проверка раз в минуту, напоминание раз в 6 часов | `kultura_bot/watchdog.py` |
 | Краны, подписка, отзывы — ответы гостю | гостевой | гостю | на команды и кнопки | `core/taplist_polling.py` |
 | Рассылки гостям (площадка «Бот» контент-плана) | гостевой — **только** он | подписчики гостевого бота (все, по бару, «были за 30 дней», «пропали 60 дней») | по расписанию контент-плана или кнопкой «Отправить сейчас» | `core/content_publisher.py`, `core/content_channels.py` |
 | Ответ бара на отзыв гостя из бота | гостевой | этому гостю | кнопка «Отправить гостю в Telegram» на «Отзывы» или MCP `content_review_send_reply` | `routes/reviews.py` |
@@ -58,7 +64,7 @@ Telegram с обходом блокировок (`api_call`, `api_call_files`). 
 
 ## Файлы
 
-**kultura.os (@MCPkulturabot)** — подробно в [kultura-bot.md](kultura-bot.md):
+**kultura.research (@MCPkulturabot)** — подробно в [kultura-bot.md](kultura-bot.md):
 
 | Файл | Роль |
 |---|---|
@@ -118,7 +124,7 @@ Telegram с обходом блокировок (`api_call`, `api_call_files`). 
 | приём сообщений гостевого | один | flock `data/.taplist_polling.lock` |
 | проверка в 14:59 и досылка | в обоих | дневной замок `.open_check_lock_<дата>` (`O_CREAT \| O_EXCL`), досылка — с захватом записи |
 | публикации контент-плана | один | flock `data/.content_publisher.lock` |
-| сторож kultura.os | в обоих | одна строка `bot_watchdog` в `mcp.db`: сообщение отправляет тот воркер, чей `UPDATE` прошёл |
+| сторож kultura.research | в обоих | одна строка `bot_watchdog` в `mcp.db`: сообщение отправляет тот воркер, чей `UPDATE` прошёл |
 
 Выключатели по отдельности: `OPEN_CHECK_POLLING=0`, `TAPLIST_POLLING=0`, `CONTENT_PUBLISH=0`.
 
@@ -127,14 +133,14 @@ Telegram с обходом блокировок (`api_call`, `api_call_files`). 
 адресу в `docker-compose.yml` (`extra_hosts`); не отвечает — `api_call` пробует запасные адреса с
 SNI и проверкой сертификата, затем адреса из DoH; после сбоя 300 с ходит сразу запасным путём, на
 соединение — 3 попытки (`core/open_check_telegram.py`). Этим путём идут **все** вызовы Telegram с
-сервера сайта: open-check, гостевой, контент-план, графики kultura.os, сторож, ответы на отзывы.
+сервера сайта: open-check, гостевой, контент-план, графики kultura.research, сторож, ответы на отзывы.
 
 **Секреты:** `/opt/beer/.env` на сервере сайта — `TELEGRAM_BOT_TOKEN`,
 `TELEGRAM_OPEN_CHECK_BOT_TOKEN`, `TELEGRAM_GROUP_CHAT_ID`, `TELEGRAM_ALARM_CHAT_IDS`,
 необязательный `TELEGRAM_CONTENT_BOT_TOKEN`, запасные `TELEGRAM_MCP_BOT_TOKEN` и
 `KULTURA_BOT_ANTHROPIC_KEY` ([guides/deploy.md](guides/deploy.md), `.env.example`).
 
-### 2. Сервер в Амстердаме: kultura.os
+### 2. Сервер в Амстердаме: kultura.research
 
 Почему отдельно: API Anthropic (Claude) из России недоступен; на сервер сайта ничего, что зовёт
 Claude, не ставится (`.claude/CLAUDE.md`).
@@ -159,7 +165,7 @@ Claude, не ставится (`.claude/CLAUDE.md`).
 **Секреты:** токен Telegram и ключ Anthropic — только на «Доступ агентов» (в `mcp.db` на сервере
 сайта), сервер бота берёт их у сайта; у него самого — только ключ сервера (`/etc/kultura-bot.env`).
 
-### 3. kultura.os (@MCPkulturabot)
+### 3. kultura.research (@MCPkulturabot)
 
 ИИ-помощник владельца на Claude: отвечает обычными словами по данным сайта (около 250
 инструментов MCP — те же расчёты, что у страниц).
@@ -178,10 +184,15 @@ Claude, не ставится (`.claude/CLAUDE.md`).
 - **Учёт:** журнал вопросов и ответов на сайте (`/admin/bot/journal`, только администраторы),
   оценка реакцией под ответом; дневной предел $15 на человека и $2 на вопрос; сторож пишет владельцу,
   если бот замолчал.
-- **Профиль:** имя kultura.os, описания, аватарка и меню — в `settings.py`; сервер бота ставит их
+- **Профиль:** имя kultura.research (до 2026-11-07 было kultura.os — это имя сайта), описания, аватарка и меню — в `settings.py`; сервер бота ставит их
   сам при запуске и удаляет старые меню, которые Telegram показывал вместо общего.
 
-### 4. open-check (@kultura_open_bot)
+### 4. kultura.pulse — open-check (@kultura_open_bot)
+
+- **Имя и описания** (`core/open_check_telegram.py`: `BOT_NAME` = `kultura.pulse`,
+  `BOT_SHORT_DESCRIPTION`, `BOT_DESCRIPTION`) ставит сайт при старте приёма сообщений
+  (`sync_profile` из `core/open_check_polling.py`), только если в Telegram другое. Аватарку — нет
+  (её ставят в @BotFather).
 
 - **Команды и кнопки** (`core/open_check_telegram.py`, `handle_update`): `/start` (`/menu`,
   `/help`) — описание, «подписан: да/нет», ID чата и кнопки:
@@ -237,7 +248,7 @@ Claude, не ставится (`.claude/CLAUDE.md`).
 
 | Бот | Где смотреть |
 |---|---|
-| kultura.os | строка состояния на «Доступ агентов» (отчёта нет 3 минуты — «давно не отзывался»); сторож пишет в чат отчётов агентов; на сервере бота — `systemctl status kultura-bot`, `journalctl -u kultura-bot -f`, `journalctl -u kultura-bot-update -n 50` |
+| kultura.research | строка состояния на «Доступ агентов» (отчёта нет 3 минуты — «давно не отзывался»); сторож пишет в чат отчётов агентов; на сервере бота — `systemctl status kultura-bot`, `journalctl -u kultura-bot -f`, `journalctl -u kultura-bot-update -n 50` |
 | open-check, гостевой | страницы состояния нет — только журнал контейнера: `docker logs beer-app` (или `docker compose logs app`); искать `[OPEN-CHECK-POLL] polling стартовал`, `[TAPLIST-POLL] polling стартовал`, `TG: переключился на запасной IP`. `GET /telegram/openbot/webhook-info`: пустой адрес — значит, работает приём сообщений сам |
 
 ### 7. Известные проблемы (на 2026-11-07)
@@ -245,7 +256,7 @@ Claude, не ставится (`.claude/CLAUDE.md`).
 1. **У open-check бота нет списка допуска.** Любой, кто найдёт бота, может смотреть `/status`,
    `/temp`, `/reviews`, `/cash` (сколько наличных забрать из сейфа) и подписаться на все
    уведомления — проверки доступа в `handle_update` нет. Решить владельцу: кого пускать
-   (например, как kultura.os — только подключённых администраторов).
+   (например, как kultura.research — только подключённых администраторов).
 2. **Запасной webhook open-check не сработает:** `/telegram/openbot/webhook` не входит в
    `PUBLIC_ENDPOINTS` (`core/auth_guard.py`), запрос Telegram без входа получит отказ. Работает
    только приём сообщений самим ботом.
@@ -256,10 +267,10 @@ Claude, не ставится (`.claude/CLAUDE.md`).
    (`extensions.py`) и обслуживает `/telegram/webhook`, но умеет только краны (без подписки и
    отзывов); `telegram_bot.py` нигде не запускается и с сайта данные уже не получит (маршрут
    кранов закрыт входом).
-5. **kultura.os обновляется без тестов:** сервер в Амстердаме забирает `main` раз в 2 минуты, не
+5. **kultura.research обновляется без тестов:** сервер в Амстердаме забирает `main` раз в 2 минуты, не
    дожидаясь CI, — сломанный `main` дойдёт до бота раньше, чем тесты его поймают (сайт
    выкладывается только после тестов).
-6. **Нет внешнего наблюдения за сервером сайта.** Сторож kultura.os шлёт через open-check бота из
+6. **Нет внешнего наблюдения за сервером сайта.** Сторож kultura.research шлёт через open-check бота из
    того же контейнера: упал `beer-app` — молчат оба бота сайта и сторож.
 7. **`render.yaml` — наследие** (сайт давно на Selectel). Если сервис на Render ещё жив и смотрит
    на репозиторий, он запустит те же приёмы сообщений с теми же токенами — Telegram будет
@@ -269,7 +280,7 @@ Claude, не ставится (`.claude/CLAUDE.md`).
 
 ### Что сломается при неверной правке
 
-- Вызвать `api_call` без токена от имени гостевого бота или kultura.os — сообщение уйдёт от
+- Вызвать `api_call` без токена от имени гостевого бота или kultura.research — сообщение уйдёт от
   open-check бота (и получатель его не поймёт).
 - Писать гостю не гостевым ботом — Telegram ответит 403, отправщик пометит гостя
   «заблокировал бота».
@@ -279,6 +290,9 @@ Claude, не ставится (`.claude/CLAUDE.md`).
 - Путать ботов в документах — так появилась эта страница.
 
 ## Changelog
+
+- **2026-11-07 (2)** — имена: kultura.os — сайт, kultura.research — @MCPkulturabot (было
+  kultura.os), kultura.pulse — @kultura_open_bot (имя и описания ставит сайт, `sync_profile`).
 
 - **2026-11-07** — страница создана по коду (все три бота, серверы, кто через кого пишет,
   известные проблемы). Заодно поправлены расхождения в [open-check-bot.md](open-check-bot.md),

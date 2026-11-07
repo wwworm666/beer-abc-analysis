@@ -1,4 +1,4 @@
-"""Сторож бота @MCPkulturabot на сайте: бот замолчал или не может ответить — сообщение владельцу.
+"""Сторож бота kultura.research (@MCPkulturabot) на сайте: бот замолчал или не может ответить — сообщение владельцу.
 
 ## Что это
 
@@ -46,7 +46,7 @@ SCHEMA = (
         text     TEXT NOT NULL DEFAULT ''
     )''',
 )
-RECOVERED_TEXT = 'Бот @MCPkulturabot снова отвечает.'
+RECOVERED_TEXT = 'Бот kultura.research (@MCPkulturabot) снова отвечает.'
 
 _started = False
 _start_lock = threading.Lock()
@@ -72,17 +72,17 @@ def problem(status: Dict[str, Any], *, configured: bool, now: float) -> Tuple[st
     at_ts = float(status.get('at_ts') or 0)
     silent_s = max(1, int(settings.WATCHDOG_SILENT_MINUTES)) * 60
     if at_ts and now - at_ts > silent_s:
-        return 'silent', (f'Бот @MCPkulturabot не отвечает: сервер в Амстердаме не присылает отчёт с '
+        return 'silent', (f'Бот kultura.research (@MCPkulturabot) не отвечает: сервер в Амстердаме не присылает отчёт с '
                           f'{_hhmm(at_ts)} МСК. Вопросы в Telegram сейчас остаются без ответа. Что проверить: '
                           f'включён ли сервер и служба kultura-bot (journalctl -u kultura-bot), страница '
                           f'{settings.ADMIN_PAGE_URL}, раздел «Бот».')
     claude_error = str(status.get('claude_error') or '').strip()
     if claude_error:
-        return 'claude', f'Бот @MCPkulturabot не может ответить: {claude_error}'
+        return 'claude', f'Бот kultura.research (@MCPkulturabot) не может ответить: {claude_error}'
     state = status.get('state')
     if state in ('error', 'conflict'):
         detail = str(status.get('detail') or state)
-        return 'state', f'Бот @MCPkulturabot: {detail}'
+        return 'state', f'Бот kultura.research (@MCPkulturabot): {detail}'
     return '', ''
 
 

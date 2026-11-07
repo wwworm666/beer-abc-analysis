@@ -18,7 +18,7 @@ Telegram не принял разметку или часть вышла дли�
 у черновика присылает апдейт stopped_message_generation. Кнопки следующего шага и выбор вида
 ответов — callback_query (answer_callback).
 
-Профиль бота (2026-11-06, имя «kultura.os»): имя и описания — getMy*/setMy* (get_profile,
+Профиль бота (2026-11-06, имя «kultura.research» с 2026-11-07): имя и описания — getMy*/setMy* (get_profile,
 set_profile), фото — setMyProfilePhoto только новым файлом JPEG (attach://, multipart).
 """
 import json

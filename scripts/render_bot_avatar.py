@@ -1,4 +1,4 @@
-"""Собрать аватарку бота kultura.os: kultura_bot/assets/avatar.svg -> avatar.jpg (640×640).
+"""Собрать аватарку бота kultura.research: kultura_bot/assets/avatar.svg -> avatar.jpg (640×640).
 
 Зачем: сервер бота ставит аватарку сам (settings.BOT_AVATAR, engine/service.sync_profile ->
 Bot API setMyProfilePhoto), а Telegram принимает фото профиля картинкой JPEG, не SVG.
