@@ -141,7 +141,8 @@ def _help_text() -> str:
     """/help и /start: разделы меню — из settings.MENU, чтобы справка не отставала от меню."""
     sections = '\n'.join(f'/{item["command"]} — {_lower_first(item["description"])}'
                          for item in settings.MENU if item.get('questions'))
-    return ('Я kultura.os — помощник сети «Культура»: отвечаю по данным сайта. Пишите вопрос обычными '
+    return ('Я kultura.research — помощник сети «Культура» для анализа: отвечаю по данным сайта kultura.os. '
+            'Пишите вопрос обычными '
             'словами, можно приложить фото или PDF.\n\n'
             f'{sections}\n'
             'Команда раздела присылает готовые вопросы кнопками; с текстом («/sales Кременчугская за '
@@ -419,7 +420,7 @@ class Service:
 
     def sync_profile(self) -> Dict[str, str]:
         """Имя, описания и аватарка из settings (BOT_*) — в Telegram, если там другие (решение владельца
-        2026-11-06: имя «kultura.os»). Раз за запуск и при смене токена (ready). Не вышло — в журнал и в
+        2026-11-07: имя «kultura.research»). Раз за запуск и при смене токена (ready). Не вышло — в журнал и в
         отчёт сайту (status.profile: строка на «Доступ агентов»); бот отвечает дальше, через час
         (PROFILE_RETRY_S, ready) — ещё попытка. Вернуть по полю: 'same' | 'set' | 'skip' | что не так."""
         result: Dict[str, str] = {}

@@ -51,8 +51,13 @@ def _poll_loop() -> None:
 
     # Снять webhook, сохранив очередь недоставленных апдейтов.
     tg.api_call("deleteWebhook", {"drop_pending_updates": False})
-    # Обновить список команд в меню Telegram (/status, /start).
+    # Обновить список команд в меню Telegram (/start, /status, /temp, /cash, /reviews).
     tg.set_my_commands()
+    # Имя «kultura.pulse» и описания — если в Telegram другие (2026-11-07).
+    try:
+        tg.sync_profile()
+    except Exception as exc:  # noqa: BLE001 — имя не должно мешать принимать команды
+        print(f"[OPEN-CHECK-POLL] профиль бота не обновился: {exc}")
 
     me = tg.api_call("getMe")
     if me and me.get("ok"):

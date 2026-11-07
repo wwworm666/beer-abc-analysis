@@ -483,6 +483,6 @@ def test_watchdog_problem_texts():
     now = 1_800_000_000
     assert watchdog.problem(running(now), configured=True, now=now) == ('', '')
     assert watchdog.problem({'state': 'error', 'detail': 'Telegram: 502', 'at_ts': now}, configured=True, now=now) == \
-        ('state', 'Бот @MCPkulturabot: Telegram: 502')
+        ('state', 'Бот kultura.research (@MCPkulturabot): Telegram: 502')
     assert watchdog.problem({'state': 'stopped', 'at_ts': 0}, configured=True, now=now) == ('', ''), \
         'сервер бота ни разу не отчитался — это «не установлен», а не беда'

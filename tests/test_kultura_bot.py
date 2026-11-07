@@ -442,7 +442,7 @@ def test_agents_and_prompts_load():
     for name, item in agents.items():
         assert item.title and item.description and item.instructions
         assert set(item.domains) <= set(config.DOMAINS)
-    assert config.bot_prompt().startswith('Ты — kultura.os, помощник владельца') and config.agent_prompt()
+    assert config.bot_prompt().startswith('Ты — kultura.research, помощник владельца') and config.agent_prompt()
     from core.mcp.spec import DOMAINS
     assert set(config.DOMAINS) == set(DOMAINS), 'разделы сервера бота = разделы сайта'
     system = config.bot_system_text('ПРАВИЛА САЙТА')
@@ -2064,7 +2064,7 @@ def _jpeg_size(data):
 
 
 def test_profile_fits_telegram_limits():
-    assert settings.PROFILE_SYNC and settings.BOT_NAME == 'kultura.os'
+    assert settings.PROFILE_SYNC and settings.BOT_NAME == 'kultura.research'
     assert 0 < len(settings.BOT_NAME) <= 64, 'setMyName: до 64 символов'
     assert 0 < len(settings.BOT_SHORT_DESCRIPTION) <= 120, 'setMyShortDescription: до 120 символов'
     assert 0 < len(settings.BOT_DESCRIPTION) <= 512, 'setMyDescription: до 512 символов'
@@ -2078,7 +2078,7 @@ def test_profile_fits_telegram_limits():
 def test_bot_sets_its_name_descriptions_and_avatar_once(bot):
     tg = bot.tg
     assert [field for field, _ in tg.profile_sets] == ['name', 'short_description', 'description']
-    assert tg.profile['name'] == 'kultura.os' and tg.profile['description'] == settings.BOT_DESCRIPTION
+    assert tg.profile['name'] == 'kultura.research' and tg.profile['description'] == settings.BOT_DESCRIPTION
     assert len(tg.photos) == 1 and tg.photos[0][:3] == b'\xff\xd8\xff'
     assert bot.svc.status['profile'] == ''
     # Перезапуск с тем же профилем и тем же файлом: Telegram не трогаем.
@@ -2089,7 +2089,7 @@ def test_bot_sets_its_name_descriptions_and_avatar_once(bot):
     tg.profile['name'] = 'Другое'
     bot.env.monkeypatch.setattr(settings, 'BOT_SHORT_DESCRIPTION', '')
     result = bot.svc.sync_profile()
-    assert result['name'] == 'set' and tg.profile['name'] == 'kultura.os'
+    assert result['name'] == 'set' and tg.profile['name'] == 'kultura.research'
     assert result['short_description'] == 'skip' and len(tg.photos) == 1
 
 

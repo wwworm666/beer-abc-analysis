@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
-  <!-- Аватарка бота kultura.os (решение владельца 2026-11-06): знак сайта ›_ (static/favicon.svg)
+  <!-- Аватарка бота kultura.research (решение владельца 2026-11-06): знак сайта kultura.os ›_ (static/favicon.svg)
        в облачке чата. Telegram показывает её кругом, поэтому знак — внутри вписанного круга.
        avatar.jpg (640×640) собирается из этого файла: scripts/render_bot_avatar.py. -->
   <rect width="512" height="512" fill="#FAF9F7"/>
