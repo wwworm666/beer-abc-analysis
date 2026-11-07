@@ -38,9 +38,7 @@
             padding: 28px 28px 24px; box-shadow: var(--shadow-lg);
         }
         .oc-brand { font-size: 18px; font-weight: 500; letter-spacing: .5px; margin-bottom: 18px; }
-        .oc-brand .prompt { color: var(--accent); margin-right: 6px; }
-        .oc-brand .cursor { color: var(--accent); margin-left: 2px; animation: oc-blink 1.1s steps(1) infinite; }
-        @keyframes oc-blink { 50% { opacity: 0; } }
+        .oc-brand .kultura-logo-svg { display: block; height: 44px; width: 176px; overflow: visible; }
         .oc-title { font-size: 20px; line-height: 1.35; margin-bottom: 6px; }
         .oc-lead { color: var(--text-secondary); font-size: 13px; margin-bottom: 16px; }
         .oc-block { border-top: 1px solid var(--border-light); padding: 14px 0; }
@@ -97,7 +95,8 @@
 </head>
 <body>
 <main class="oc-card">
-    <div class="oc-brand"><span class="prompt">&gt;</span>kultura.os<span class="cursor">_</span></div>
+    <div class="oc-brand" data-kultura-logo="lockup"><svg class="kultura-logo-svg" role="img" aria-label="kultura.os"></svg></div>
+    <script nonce="{{ csp_nonce }}" src="/static/logo.js?v={{ app_version }}"></script>
 
     {% if mode == 'consent' %}
         <h1 class="oc-title">Подключить приложение к данным «Культуры»?</h1>

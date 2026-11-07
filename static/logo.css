@@ -1,68 +1,26 @@
-/* ===== kultura.os — Site Logo ===== */
+/* ===== kultura.os — логотип сайта ===== */
+/* Рисует static/logo.js: «kultura.os» набирается в фиксированных ячейках, как в рендере бренда
+   (brand/kultura-grid-motion, docs/brand.md). Буквы — цвет текста темы, точка — #FF4B0A.
+   Размер — от кегля ссылки: высота 0,78 em, ширина 5,85 em (десять ячеек по 0,6 em при высоте
+   viewBox 80 из 100), то есть «kultura.os» занимает столько же, сколько тот же текст моноширинным
+   шрифтом этого кегля. */
 
-.site-logo {
-    display: inline-flex;
-    align-items: center;
-    gap: 0;
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 15px;
-    font-weight: 500;
-    text-decoration: none;
-    letter-spacing: 0.5px;
-    line-height: 1;
-    margin-bottom: 6px;
+[data-kultura-logo] {
     color: var(--text-primary, #1a1a1a);
-    transition: opacity 0.2s;
+    text-decoration: none;
 }
 
-.site-logo:hover {
-    opacity: 0.7;
+[data-kultura-logo="wordmark"] .kultura-logo-svg {
+    display: block;
+    height: 0.78em;
+    width: 5.85em;
+    overflow: visible;
 }
 
-.site-logo .prompt {
-    color: #D97757;
-    margin-right: 6px;
+[data-kultura-logo]:hover {
+    opacity: 0.75;
 }
 
-.site-logo .logo-text {
-    display: inline;
-    white-space: nowrap;
-}
-
-.site-logo .cursor {
-    display: inline-block;
-    margin-left: 2px;
-    color: #D97757;
-    animation: logoBlink 0.8s step-end infinite;
-}
-
-/* Sidebar brand logo */
-.sidebar-brand .logo-text {
-    display: inline;
-    white-space: nowrap;
-}
-
-.sidebar-brand .cursor {
-    display: inline-block;
-    margin-left: 2px;
-    color: var(--accent);
-    animation: logoBlink 0.8s step-end infinite;
-}
-
-/* During typewriter — cursor solid, no blink */
-.site-logo.typing .cursor,
-.header-bar-logo.typing .cursor,
-.sidebar-brand.typing .cursor {
-    animation: none;
-    opacity: 1;
-}
-
-@keyframes logoBlink {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0; }
-}
-
-/* Dark theme */
-[data-theme="dark"] .site-logo {
-    color: #e0e0e0;
+[data-theme="dark"] [data-kultura-logo] {
+    color: var(--text-primary, #FAF9F7);
 }

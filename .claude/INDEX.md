@@ -16,6 +16,7 @@ Beer ABC/XYZ Analysis (Flask + iiko + ЧЗ)
 ├── Маркетинг (гости + акции)    → guests.md  (раздел «Гости»)
 ├── Контент-план                 → content-plan.md  (раздел «Гости»: /content-plan — календарь, /content-plan/table — таблица; автоотправка в каналы баров, напоминание Instagram, рассылки бота; сорт в посте по кранам)
 ├── Отзывы гостей                → reviews.md  (раздел «Гости»: /reviews, полоса «Требует внимания», ответ гостю из бота)
+├── Бренд: логотипы и движение → brand.md  (kultura.os — сайт, kultura.pulse, kultura.research; brand/kultura-grid-motion; логотип сайта рисуется как на рендере — static/logo.js; живые аватарки ботов)
 ├── Боты Telegram: карта всех трёх → telegram-bots.md  (имена: kultura.os — сайт, kultura.research — @MCPkulturabot, kultura.pulse — @kultura_open_bot; что делают, где работают: kultura.research — Амстердам, open-check и гостевой — внутри сайта; кто через кого пишет; известные проблемы)
 ├── Гостевой бот @kult_taplist_bot → guides/TELEGRAM_BOT_GUIDE.md  (краны, подписка на новости с согласием, отзывы)
 ├── Розлив — ABC/XYZ и потери    → draft.md  (/draft: кеги + бармены, /waiters слита сюда)
@@ -86,6 +87,7 @@ Beer ABC/XYZ Analysis (Flask + iiko + ЧЗ)
 | [docs/expiration.md](../docs/expiration.md) | Shelf-Life Cockpit — `/expiration` с tier-логикой и уценкой | ✅ |
 | [docs/temperature.md](../docs/temperature.md) | Мониторинг температуры по барам — `/temperature`, Tuya Cloud, масштаб из спеки, история SQLite | ✅ |
 | [docs/chz-stock-integration.md](../docs/chz-stock-integration.md) | iiko ↔ Честный Знак — dispenser API, КПП-привязка, авторефреш | ✅ |
+| [docs/brand.md](../docs/brand.md) | **Бренд «Grid motion»** — логотипы kultura.os (сайт), kultura.pulse и kultura.research (боты): набор в `brand/kultura-grid-motion/`, логотип сайта рисуется как на рендере (`static/logo.js`: шапка, вход, согласие MCP; один раз за сеанс), значок вкладки, живые аватарки ботов (MP4, кадр 5 с, один раз на файл), как перерисовать | Новое 2026-11-07 |
 | [docs/telegram-bots.md](../docs/telegram-bots.md) | **Карта ботов Telegram** — все три (kultura.research @MCPkulturabot, kultura.pulse @kultura_open_bot, гостевой @kult_taplist_bot) и необязательный бот каналов: где работают, токены (имена), как получают сообщения и обновляются, **кто через какого бота пишет**, главная ловушка `api_call` без токена, как понять, что бот жив, известные проблемы | Новое 2026-11-07 |
 | [docs/open-check-bot.md](../docs/open-check-bot.md) | Telegram-бот ежедневной проверки открытых смен 14:59 МСК | ✅ |
 | [docs/venues-plans.md](../docs/venues-plans.md) | 4 точки, планы выручки (с 2026-11-03 — поля крепкого алкоголя: доля, выручка, наценка), weekend weighting, override весов дней, «Планы по дням» | ✅ |
@@ -156,6 +158,7 @@ Beer ABC/XYZ Analysis (Flask + iiko + ЧЗ)
 
 ## Changelog (по версиям документации)
 
+- **2026-11-07 (3):** **Бренд «Grid motion»** — [brand.md](../docs/brand.md): набор в `brand/kultura-grid-motion/`, логотип сайта «kultura.os» рисуется как на рендере (`static/logo.js`, без «>» и «_»), значок вкладки — знак kultura.os, живые аватарки kultura.research и kultura.pulse. Запись CHANGELOG 2026-11-07 (4).
 - **2026-11-07 (2):** **Имена ботов:** kultura.os — сайт, kultura.research — @MCPkulturabot (было kultura.os), kultura.pulse — @kultura_open_bot (имя и описания ставит сайт сам). [telegram-bots.md](../docs/telegram-bots.md), [kultura-bot.md](../docs/kultura-bot.md), [open-check-bot.md](../docs/open-check-bot.md); запись CHANGELOG 2026-11-07 (3).
 - **2026-11-07:** **Карта трёх ботов Telegram** — [telegram-bots.md](../docs/telegram-bots.md): что каждый делает, где работает, кто через кого пишет, известные проблемы (у open-check нет списка допуска, запасные webhook не работают, наследие `telegram_bot.py`/`telegram_webhook.py`, kultura.os обновляется без тестов); сверены с кодом open-check-bot.md, TELEGRAM_BOT_GUIDE.md, overview.md, PROJECT_STRUCTURE.md; текст `/start` open-check бота; из lessons.md убран фрагмент старого токена. Запись CHANGELOG 2026-11-07 (2).
 - **2026-11-06 (2):** **Бот к выпуску в прод: журнал вопросов и ответов, оценка реакцией, сторож.** Запись о каждой работе (вопрос, ответ, кто, расход, вызовы инструментов, итог) с сервера бота, хранение на сайте год, страница `/admin/bot/journal` (фильтры, итоги, подробности, удаление, CSV), инструмент `common_bot_journal`; сторож — сообщение владельцу, если бот молчит, Claude не отвечает или бот в ошибке. Запись CHANGELOG 2026-11-06 (2); [kultura-bot.md](../docs/kultura-bot.md) — раздел 7в, «Файлы», раздел 15, Changelog; [mcp.md](../docs/mcp.md) — инструмент, исключения, числа охвата.

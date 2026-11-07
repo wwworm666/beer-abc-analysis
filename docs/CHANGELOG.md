@@ -1,5 +1,22 @@
 ﻿# Changelog
 
+### 2026-11-07 (4) — Бренд «Grid motion»: логотип сайта рисуется, живые аватарки ботов
+
+Владелец: «Здесь новые логотипы для сайта, для бота Пульс и для бота Research. Везде должны быть
+динамические… поставил их в формате гивок на аватарку в Telegram-ботах, а на сайте он должен как бы
+также рисоваться, как на рендере».
+
+| Что | Почему | Где | Что сломается при неверной правке |
+|---|---|---|---|
+| Набор бренда в репозитории: статичные знаки, ролики (MP4, GIF), исходник рендера (без `sound.wav` 3,5 МБ — его собирает `npm run build`) | Один источник логотипов; перерисовать можно без архива | `brand/kultura-grid-motion/` | — |
+| Логотип сайта рисуется как на рендере: «kultura» группами ku / lt / ura, «.os» по букве, оранжевая точка, без «>» и «_»; в шапке — название, на входе и в согласии MCP — знак и название, как в начале заставки; один раз за сеанс, «уменьшить движение» — сразу готовый | Решение владельца; правила набора — без курсора | `static/logo.js` (формулы и контуры букв из `grid.cjs`), `static/logo.css`, `templates/shared/nav.html`, `templates/login.html`, `templates/mcp_consent.html` (скрипт с nonce), `static/dashboard/styles/sidebar.css` | Скрипт без nonce на странице согласия не выполнится (CSP) — логотипа не будет |
+| Значок вкладки — статичный знак kultura.os | Анимированные значки браузеры почти не показывают | `static/favicon.svg` | — |
+| Живая аватарка kultura.research: MP4 из набора, кадр для статичных мест — 5 с; запрос `setMyProfilePhoto` с `type: animated` | GIF Telegram для аватарки не берёт — видео профиля MPEG4 | `kultura_bot/assets/avatar.mp4`, `avatar.svg`, `kultura_bot/settings.py` (`BOT_AVATAR`, `BOT_AVATAR_MAIN_FRAME_S`), `kultura_bot/engine/telegram_io.py`, `service.py` | PNG или GIF в `BOT_AVATAR` — Telegram откажет |
+| Живая аватарка kultura.pulse — её ставит сайт при старте приёма сообщений, один раз на файл (хеш в `open_check_profile.json`) | Раньше аватарку этого бота меняли только в @BotFather | `core/open_check_telegram.py` (`BOT_AVATAR`, `_sync_avatar`) | — |
+| Убраны JPEG-аватарка и `scripts/render_bot_avatar.py` | Заменены роликом | — | — |
+| Тесты: кадры логотипа (состояния набора, приземление, статичность после), где он стоит, значок вкладки; ролики — видео профиля Telegram (квадрат, до 10 с, без звука, до 2 МБ); запросы `animated`; один раз на файл и на бота | Закрепить поведение | `tests/test_kultura_logo.py` (новый), `tests/test_kultura_bot.py`, `tests/test_open_check_transport.py` | — |
+| Документация | Правило проекта | `docs/brand.md` (новый), `docs/kultura-bot.md`, `docs/telegram-bots.md`, `docs/open-check-bot.md`, `docs/PROJECT_STRUCTURE.md`, `kultura_bot/README.md`, `.claude/CLAUDE.md`, `.claude/INDEX.md` | — |
+
 ### 2026-11-07 (3) — Имена: kultura.os — сайт, kultura.research и kultura.pulse — боты
 
 Владелец: «kultura.os — это сайт, kultura.research — это бот для анализа через мсп, kultura.pulse —

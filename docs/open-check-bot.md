@@ -339,6 +339,13 @@ done
 
 ## Changelog
 
+### 2026-11-07 (3) — живая аватарка
+
+`sync_profile()` ставит и аватарку: ролик знака kultura.pulse из набора бренда
+(`brand/kultura-grid-motion/motion/kultura-pulse-grid.mp4`, MP4 600×600, 8 с, кадр для статичных
+мест — 5 с), `setMyProfilePhoto` с `type: animated` через `api_call_files`. Один раз на файл: хеш
+поставленного — в `open_check_profile.json` (данные сайта), по id бота. [brand.md](brand.md).
+
 ### 2026-11-07 (2) — имя kultura.pulse
 
 `BOT_NAME` = `kultura.pulse`, короткое описание и описание — в `core/open_check_telegram.py`;

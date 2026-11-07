@@ -1,0 +1,1 @@
+{"name":"kultura-grid-motion","version":"3.0.0","private":true,"scripts":{"build":"node build.cjs && node sound.cjs","render":"node render.cjs all"},"dependencies":{"sharp":"^0.35.4"}}

@@ -542,7 +542,8 @@ class Service:
         key = f'avatar_sha256:{self._bot_key()}'
         if self.store.get_meta(key) == digest:
             return 'same'
-        error = self.tg.set_profile_photo(data)
+        animated = name.lower().endswith('.mp4')        # живая аватарка — видео профиля Telegram
+        error = self.tg.set_profile_photo(data, animated=animated, main_frame_s=settings.BOT_AVATAR_MAIN_FRAME_S)
         if error:
             return error
         self.store.set_meta(key, digest)

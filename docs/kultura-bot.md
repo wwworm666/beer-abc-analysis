@@ -41,7 +41,7 @@ Telegram  <->  сервер бота (Амстердам)  <->  Claude API (Anth
 | Вид ответов в чате (новый или прежний) | команда `/rich` в чате с ботом: примеры и две кнопки; `/rich on`, `/rich off` | сразу |
 | Журнал вопросов и ответов: писать ли, сколько дней хранить | `kultura_bot/settings.py` (`JOURNAL`, `JOURNAL_KEEP_DAYS`) | сервер бота — через 2–3 минуты, срок хранения — после выкладки сайта |
 | Сторож: через сколько минут молчания писать, как часто напоминать | `kultura_bot/settings.py` (`WATCHDOG`, `WATCHDOG_SILENT_MINUTES`, `WATCHDOG_REMIND_HOURS`) | после выкладки сайта |
-| Имя бота в чатах (`kultura.research`; kultura.os — сайт), описания, аватарка | `kultura_bot/settings.py` (`BOT_NAME`, `BOT_SHORT_DESCRIPTION`, `BOT_DESCRIPTION`, `BOT_AVATAR`); картинка — `kultura_bot/assets/avatar.svg`, JPEG из неё — `scripts/render_bot_avatar.py` | через 2–3 минуты после слияния: сервер бота перезапустится и поставит сам (раздел 7г); в @BotFather не правят |
+| Имя бота в чатах (`kultura.research`; kultura.os — сайт), описания, аватарка | `kultura_bot/settings.py` (`BOT_NAME`, `BOT_SHORT_DESCRIPTION`, `BOT_DESCRIPTION`, `BOT_AVATAR`); живая аватарка — `kultura_bot/assets/avatar.mp4` из набора бренда ([brand.md](brand.md)) | через 2–3 минуты после слияния: сервер бота перезапустится и поставит сам (раздел 7г); в @BotFather не правят |
 | Токен бота, ключ Anthropic, пауза | страница `/admin/mcp`, раздел «Бот @MCPkulturabot» | за 30 секунд, без выкладки |
 | Кто может писать боту | там же: «Подключить мой Telegram», «Отключить» | сразу |
 | Установка и переустановка сервера бота | там же: «Команда установки» | после выполнения команды на сервере |
@@ -75,7 +75,7 @@ Telegram  <->  сервер бота (Амстердам)  <->  Claude API (Anth
 | [kultura_bot/rich_demo.py](../kultura_bot/rich_demo.py) | три примера для `/rich` (тексты — сервер бота, график — сайт) |
 | [kultura_bot/engine/journal.py](../kultura_bot/engine/journal.py) | журнал: запись о каждой работе (вопрос, ответ, кто, расход, вызовы инструментов, итог) |
 | [kultura_bot/engine/telegram_io.py](../kultura_bot/engine/telegram_io.py) | Telegram Bot API: getUpdates, ответы, «печатает…», файлы из сообщений; имя, описания и фото профиля бота |
-| `kultura_bot/assets/avatar.svg`, `avatar.jpg` | аватарка бота: знак сайта ›_ в облачке чата; JPEG 640×640 собирает [scripts/render_bot_avatar.py](../scripts/render_bot_avatar.py) (раздел 7г) |
+| `kultura_bot/assets/avatar.mp4`, `avatar.svg` | живая аватарка kultura.research — ролик знака из набора бренда (MP4 600×600, 8 с), и статичный знак ([brand.md](brand.md), раздел 7г) |
 | [kultura_bot/deploy/install.sh](../kultura_bot/deploy/install.sh) | установка на сервер одной командой (раздел 2) |
 | [kultura_bot/deploy/update.sh](../kultura_bot/deploy/update.sh) | самообновление из GitHub (раздел 3) |
 | `kultura_bot/deploy/kultura-bot.service`, `kultura-bot-update.service`, `kultura-bot-update.timer` | службы systemd |
@@ -579,9 +579,9 @@ Markdown, служебная строка говорит ей «оформлен
 
 Решение владельца 2026-11-07: имя бота — **kultura.research** (анализ через MCP); **kultura.os** —
 это сайт, **kultura.pulse** — бот open-check ([telegram-bots.md](telegram-bots.md)). С 2026-11-06
-до 2026-11-07 бот назывался kultura.os. Аватарка (2026-11-06) — знак сайта ›_
-(`static/favicon.svg`) в облачке чата (`kultura_bot/assets/avatar.svg`). Варианты, из которых
-выбирали (Пульс, Хмель, Пинта, kultura.os), — холст «Имя и лого бота» в Claude. Адрес
+до 2026-11-07 бот назывался kultura.os. Аватарка с 2026-11-07 — **живая**: ролик знака
+kultura.research из набора «Grid motion» (`kultura_bot/assets/avatar.mp4`, [brand.md](brand.md));
+до этого был знак сайта ›_ в облачке чата. Адрес
 `@MCPkulturabot` не меняется: Telegram не даёт менять адрес бота, меняется имя, которое видно в
 чатах и над сообщениями.
 
@@ -593,7 +593,7 @@ Markdown, служебная строка говорит ей «оформлен
 | Имя | `BOT_NAME` = `kultura.research` | 64 символа | `getMyName` / `setMyName` | в Telegram другое |
 | Описание в профиле и превью ссылки | `BOT_SHORT_DESCRIPTION` | 120 | `getMyShortDescription` / `setMyShortDescription` | так же |
 | Описание в пустом чате (до первого сообщения) | `BOT_DESCRIPTION` | 512 | `getMyDescription` / `setMyDescription` | так же |
-| Аватарка | `BOT_AVATAR` = `assets/avatar.jpg` (JPEG 640×640) | только JPEG, новым файлом | `setMyProfilePhoto` (`{"type":"static","photo":"attach://avatar"}`, multipart) | поменялся файл |
+| Аватарка | `BOT_AVATAR` = `assets/avatar.mp4` (видео профиля: MPEG4, квадрат 600×600, 8 с, без звука), кадр для статичных мест — `BOT_AVATAR_MAIN_FRAME_S` = 5,0 с | видео: квадрат, до 10 с, сторона 160–1280, до 2 МБ; картинка — только JPEG; GIF не берёт; всё новым файлом | `setMyProfilePhoto` (`{"type":"animated","animation":"attach://avatar","main_frame_timestamp":5.0}`, multipart; для `.jpg` — `{"type":"static",…}`) | поменялся файл |
 | Меню команд | `MENU` (раздел 7) | команда — до 32 знаков, описание — до 256 | `getMyCommands` / `setMyCommands` | в Telegram другое |
 | Старые меню чатов, видов чатов и языков; кнопка «Меню» с мини-приложением | — | — | `getMyCommands` / `deleteMyCommands` со `scope` и `language_code`, `getChatMenuButton` / `setChatMenuButton` | раз на версию меню |
 
@@ -609,8 +609,8 @@ Telegram не отдаёт фото профиля так, чтобы его м�
 Bad Request: …» (`status.profile` в отчёте сайту, строка красная); сервер бота пробует снова
 через час (`service.PROFILE_RETRY_S`), не дожидаясь перезапуска.
 
-Поменять аватарку: правка `kultura_bot/assets/avatar.svg` -> `py -3 scripts/render_bot_avatar.py`
-(Chromium, как у графиков) -> коммит обоих файлов -> слияние в `main`.
+Поменять аватарку: новый ролик (или картинку JPEG) положить в `kultura_bot/assets/` и указать в
+`BOT_AVATAR` -> слияние в `main`; как перерисовать ролик — [brand.md](brand.md), раздел 3.
 
 Себя бот называет так же: `prompts/bot.md` начинается с «Ты — kultura.research…», `/help` — с «Я
 kultura.research…»; сторож пишет «Бот kultura.research (@MCPkulturabot) не отвечает…», раздел на
@@ -1063,7 +1063,8 @@ Claude и Telegram в тестах подменены: сеть не нужна,
   ответит как на вопрос «/команда» (это ловит `test_menu_fits_telegram_and_every_command_works`);
   вопрос кнопки длиннее 28 знаков обрежется по пределу Telegram в 64 байта.
 - Править имя или описания бота в @BotFather — при следующем запуске сервер бота вернёт их из
-  `settings.py`; положить в `BOT_AVATAR` PNG вместо JPEG — Telegram откажет, аватарка не сменится
+  `settings.py`; положить в `BOT_AVATAR` PNG или GIF — Telegram откажет (картинка — только JPEG, живая
+  аватарка — только MP4), аватарка не сменится
   (строка «Профиль в Telegram не обновился» на странице).
 - Сломать `deploy/update.sh` или службы — сервер бота перестанет обновляться (или перезапускаться)
   до ручного запуска новой команды установки; проверка — `bash -n` и журнал
@@ -1071,6 +1072,9 @@ Claude и Telegram в тестах подменены: сеть не нужна,
 
 ## Changelog
 
+- **2026-11-07 (3)** — живая аватарка: ролик знака kultura.research из набора бренда
+  (`assets/avatar.mp4`, кадр 5 с; `telegram_io.set_profile_photo(animated=True)`,
+  `settings.BOT_AVATAR_MAIN_FRAME_S`); JPEG и `scripts/render_bot_avatar.py` убраны ([brand.md](brand.md)).
 - **2026-11-07 (2)** — имя бота **kultura.research** (было kultura.os — это имя сайта; бот open-check —
   kultura.pulse): `settings.BOT_NAME` и описания, `prompts/bot.md`, `/help`, тексты сторожа, заголовок
   раздела на «Доступ агентов». Сервер бота поставит новое имя сам после самообновления.
