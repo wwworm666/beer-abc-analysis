@@ -340,3 +340,8 @@ class Store:
         with self._lock:
             self._conn.execute('INSERT INTO meta (key, value) VALUES (?, ?) '
                                'ON CONFLICT(key) DO UPDATE SET value = excluded.value', (key, str(value)))
+
+    def known_chats(self, limit: int = 500) -> List[str]:
+        """Чаты, где бот уже работал (вопросы и диалоги): в них могут остаться старые меню."""
+        rows = self._rows('SELECT chat_id FROM jobs UNION SELECT chat_id FROM dialogs LIMIT ?', (int(limit),))
+        return sorted({str(row['chat_id']) for row in rows if row['chat_id']})

@@ -299,7 +299,10 @@ class FakeTelegram:
         self.profile_sets = []  # set_profile: (поле, значение)
         self.photos = []        # set_profile_photo: загруженные JPEG
         self.photo_error = ''   # что Telegram ответит на фото ('' — получилось)
-        self.commands = []      # меню команд (getMyCommands / setMyCommands)
+        self.commands = []      # общее меню команд (getMyCommands / setMyCommands без scope)
+        self.scoped = {}        # свои меню: (scope в JSON, язык) -> команды (ставила прежняя программа)
+        self.menu_buttons = {}  # кнопка «Меню»: chat_id (None — общая) -> {type: …}
+        self.commands_checks = 0
 
     def get_me(self):
         return {'ok': True, 'result': {'id': 999, 'username': 'MCPkulturabot'}}
@@ -308,8 +311,22 @@ class FakeTelegram:
         self.webhook_deleted += 1
         return {'ok': True}
 
-    def get_commands(self):
-        return list(self.commands)
+    def get_commands(self, scope=None, language_code=''):
+        self.commands_checks += 1
+        if scope is None and not language_code:
+            return list(self.commands)
+        return list(self.scoped.get((json.dumps(scope, sort_keys=True), language_code), []))
+
+    def delete_commands(self, scope=None, language_code=''):
+        self.scoped.pop((json.dumps(scope, sort_keys=True), language_code), None)
+        return ''
+
+    def get_menu_button(self, chat_id=None):
+        return dict(self.menu_buttons.get(chat_id, {'type': 'commands'}))
+
+    def reset_menu_button(self, chat_id=None):
+        self.menu_buttons[chat_id] = {'type': 'commands'}
+        return ''
 
     def set_commands(self, commands=None):
         self.commands = list(commands or [])
@@ -2208,3 +2225,37 @@ def test_section_command_with_text_is_a_question(bot):
     bot.svc.handle_update(message('/stock Кременчугская'))
     asked = bot.client.calls[-1]['messages'][-1]['content'][0]['text']
     assert asked.endswith('Остатки, заказы и краны: Кременчугская'), 'раздел спереди — модель знает, о чём речь'
+
+
+def test_old_menus_are_removed_once(bot):
+    """2026-11-07: у владельца в меню «скорость, лог…» — свои списки команд, которые поставила прежняя
+    программа бота (для лички, языка, его чата); Telegram показывает их вместо общего меню."""
+    old = [{'command': 'speed', 'description': 'скорость'}, {'command': 'log', 'description': 'лог'}]
+    tg = bot.tg
+    tg.scoped[(json.dumps({'type': 'all_private_chats'}, sort_keys=True), 'ru')] = old
+    tg.scoped[(json.dumps({'type': 'chat', 'chat_id': OWNER_TG}, sort_keys=True), '')] = old
+    tg.scoped[(json.dumps(None, sort_keys=True), 'ru')] = old             # общее, но для русского языка
+    tg.menu_buttons[OWNER_TG] = {'type': 'web_app', 'text': 'Лог', 'web_app': {'url': 'https://x'}}
+    bot.client.script += [resp(text('Ок'))]
+    bot.svc.handle_update(message('вопрос'))                              # чат владельца теперь известен
+    assert bot.env.store.known_chats() == [OWNER_TG]
+    bot.env.store.set_meta(f'menu_cleared:{bot.svc._bot_key()}', '')     # меню поставлено до чистки
+    assert bot.svc.sync_profile()['menu'] == 'set'
+    assert tg.scoped == {}, 'старых меню не осталось: у всех общее из settings.MENU'
+    assert tg.menu_buttons[OWNER_TG] == {'type': 'commands'}, 'кнопка «Меню» снова открывает команды'
+    assert tg.commands == telegram_io.menu_commands()
+    checks = tg.commands_checks
+    assert bot.svc.sync_profile()['menu'] == 'same' and tg.commands_checks == checks + 1, \
+        'чистка — раз на версию меню: дальше только общее меню'
+
+
+def test_old_menu_check_retries_when_telegram_is_silent(bot):
+    class Silent(FakeTelegram):
+        def get_menu_button(self, chat_id=None):
+            return None
+    silent = Silent()
+    silent.commands = telegram_io.menu_commands()
+    bot.svc.tg = silent
+    bot.env.store.set_meta(f'menu_cleared:{bot.svc._bot_key()}', '')
+    assert bot.svc.sync_profile()['menu'] == 'Telegram не ответил'
+    assert bot.svc.status['profile'] == 'не обновился: меню — Telegram не ответил', 'через час — ещё раз'

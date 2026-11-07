@@ -84,13 +84,33 @@ class TelegramIO:
         # Без drop_pending_updates: накопленные вопросы бот прочтёт.
         return self.call('deleteWebhook', {'drop_pending_updates': False})
 
-    def get_commands(self) -> Optional[List[Dict[str, str]]]:
-        """Меню команд, как его сейчас показывает Telegram; None — не узнали."""
-        data = self.call('getMyCommands')
+    def get_commands(self, scope: Optional[Dict[str, Any]] = None,
+                     language_code: str = '') -> Optional[List[Dict[str, str]]]:
+        """Меню команд, как его сейчас хранит Telegram: общее или своё у вида чатов, чата, языка
+        (scope, language_code); [] — своего нет; None — не узнали."""
+        data = self.call('getMyCommands', _scoped(scope, language_code))
         if not data or not data.get('ok') or not isinstance(data.get('result'), list):
             return None
         return [{'command': str(c.get('command') or ''), 'description': str(c.get('description') or '')}
                 for c in data['result'] if isinstance(c, dict)]
+
+    def delete_commands(self, scope: Optional[Dict[str, Any]] = None, language_code: str = '') -> str:
+        """Удалить своё меню вида чатов, чата или языка — там будет общее. '' — получилось."""
+        return _outcome(self.call('deleteMyCommands', _scoped(scope, language_code)))
+
+    def get_menu_button(self, chat_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        """Кнопка «Меню» (общая или у личного чата): {type: default | commands | web_app, …}; None — не узнали."""
+        data = self.call('getChatMenuButton', {'chat_id': chat_id} if chat_id else {})
+        if not data or not data.get('ok') or not isinstance(data.get('result'), dict):
+            return None
+        return data['result']
+
+    def reset_menu_button(self, chat_id: Optional[str] = None) -> str:
+        """Кнопка «Меню» — список команд (вместо мини-приложения). '' — получилось."""
+        payload: Dict[str, Any] = {'menu_button': {'type': 'commands'}}
+        if chat_id:
+            payload['chat_id'] = chat_id
+        return _outcome(self.call('setChatMenuButton', payload))
 
     def set_commands(self, commands: Optional[List[Dict[str, str]]] = None) -> str:
         """Меню команд (settings.MENU): '' — получилось, иначе — что ответил Telegram."""
@@ -310,3 +330,12 @@ def _outcome(data: Optional[Dict[str, Any]]) -> str:
 def menu_commands() -> List[Dict[str, str]]:
     """Меню команд для setMyCommands — из settings.MENU, в том же порядке (2026-11-06)."""
     return [{'command': item['command'], 'description': item['description']} for item in settings.MENU]
+
+
+def _scoped(scope: Optional[Dict[str, Any]], language_code: str) -> Dict[str, Any]:
+    payload: Dict[str, Any] = {}
+    if scope:
+        payload['scope'] = scope
+    if language_code:
+        payload['language_code'] = language_code
+    return payload

@@ -87,6 +87,7 @@ Claude) и расход с прошлого отчёта уходят сайту
 import base64
 import dataclasses
 import hashlib
+import json
 import logging
 import os
 import re
@@ -174,6 +175,11 @@ UNSUPPORTED_TEXT = 'Пока понимаю текст, фото и PDF. Нап�
 # Профиль бота в Telegram (2026-11-06, sync_profile): как поле называть в журнале и на странице.
 PROFILE_LABELS = {'name': 'имя', 'short_description': 'описание в профиле',
                   'description': 'описание в пустом чате', 'avatar': 'аватарка', 'menu': 'меню'}
+# Старые меню (2026-11-07, «скорость, лог» в меню у владельца): Telegram хранит свои списки команд
+# у вида чатов, отдельного чата и языка и показывает их вместо общего. Сервер бота удаляет такие
+# списки — проверяет общие виды чатов и языки ниже и все чаты, где уже работал.
+MENU_LANGS = ('', 'ru', 'en')
+MENU_SCOPES = ('all_private_chats', 'all_group_chats', 'all_chat_administrators')
 PROFILE_RETRY_S = 3600           # профиль не встал (нет связи, отказ) — ещё попытка через час, не ждать перезапуска
 UNSUPPORTED_FILE_TEXT = ('Этот файл я не читаю: понимаю фото, картинки (JPEG, PNG, WebP, GIF) и PDF. '
                          'Отвечаю по тексту сообщения.')
@@ -453,15 +459,70 @@ class Service:
             with self.status_lock:                     # видно на странице, через час — ещё попытка
                 self.status['profile'] = f'не обновился: сбой {type(exc).__name__}'
 
+    def _bot_key(self) -> str:
+        """Чей это профиль в своей базе: id бота (без токена)."""
+        return str(self.bot_id or self.token.split(':', 1)[0])
+
     def _sync_menu(self) -> str:
-        """Меню команд (settings.MENU) — в Telegram, если там другое."""
+        """Меню команд (settings.MENU) — в Telegram, если там другое; старые меню — удалить (раз на
+        версию меню: отметка в store.meta, чтобы не проверять десятки списков при каждом запуске)."""
         wanted = telegram_io.menu_commands()
         current = self.tg.get_commands()
         if current is None:
             return 'Telegram не ответил'
-        if current == wanted:
-            return 'same'
-        return self.tg.set_commands(wanted) or 'set'
+        outcome = 'same'
+        if current != wanted:
+            error = self.tg.set_commands(wanted)
+            if error:
+                return error
+            outcome = 'set'
+        key = f'menu_cleared:{self._bot_key()}'
+        digest = hashlib.sha256(json.dumps(wanted, ensure_ascii=False, sort_keys=True).encode('utf-8')).hexdigest()
+        if self.store.get_meta(key) == digest:
+            return outcome
+        removed, problem = self._clear_old_menus()
+        if problem:
+            return problem
+        self.store.set_meta(key, digest)
+        return 'set' if removed else outcome
+
+    def _clear_old_menus(self):
+        """Меню, которые Telegram показывает вместо общего: свои списки команд у лички, групп,
+        администраторов групп, отдельных чатов и языков (MENU_LANGS), кнопка «Меню» с мини-приложением.
+        Их могла поставить прежняя программа бота. Удалить — у всех одно меню из settings.MENU.
+        Вернуть (сколько убрано, что не так — '' если Telegram ответил на всё)."""
+        targets = [(None, lang) for lang in MENU_LANGS if lang]
+        targets += [({'type': kind}, lang) for kind in MENU_SCOPES for lang in MENU_LANGS]
+        chats = self.store.known_chats()
+        for chat_id in chats:
+            targets += [({'type': 'chat', 'chat_id': chat_id}, lang) for lang in MENU_LANGS]
+            if chat_id.startswith('-'):
+                targets += [({'type': 'chat_administrators', 'chat_id': chat_id}, lang) for lang in MENU_LANGS]
+        removed, problem = 0, ''
+        for scope, lang in targets:
+            found = self.tg.get_commands(scope, lang)
+            if found is None:
+                problem = problem or 'Telegram не ответил'
+            elif found:
+                error = self.tg.delete_commands(scope, lang)
+                if error:
+                    problem = problem or error
+                else:
+                    removed += 1
+                    log.info('[BOT] удалено старое меню (%s, язык %s): %s', (scope or {}).get('type', 'default'),
+                             lang or 'любой', ', '.join('/' + c['command'] for c in found))
+        for chat_id in [None] + [c for c in chats if not c.startswith('-')]:
+            button = self.tg.get_menu_button(chat_id)
+            if button is None:
+                problem = problem or 'Telegram не ответил'
+            elif button.get('type') not in ('default', 'commands'):
+                error = self.tg.reset_menu_button(chat_id)
+                if error:
+                    problem = problem or error
+                else:
+                    removed += 1
+                    log.info('[BOT] кнопка «Меню» (%s) снова открывает команды', chat_id or 'общая')
+        return removed, problem
 
     def _sync_avatar(self) -> str:
         """Аватарка settings.BOT_AVATAR — когда поменялся файл. Telegram не отдаёт фото профиля так, чтобы
@@ -477,7 +538,7 @@ class Service:
         except OSError:
             return f'нет файла kultura_bot/{name}'
         digest = hashlib.sha256(data).hexdigest()
-        key = f'avatar_sha256:{self.bot_id or self.token.split(":", 1)[0]}'
+        key = f'avatar_sha256:{self._bot_key()}'
         if self.store.get_meta(key) == digest:
             return 'same'
         error = self.tg.set_profile_photo(data)
