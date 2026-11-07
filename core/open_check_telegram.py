@@ -418,15 +418,16 @@ BOT_DESCRIPTION = ("kultura.pulse — пульс баров сети «Куль�
                    "кассы всех баров, и сообщает об опозданиях; присылает тревоги по температуре, новые "
                    "отзывы гостей и сколько наличных можно забрать при инкассации. Статус баров, "
                    "температура и отзывы — по кнопкам в /start.")
-# Живая аватарка (2026-11-07): ролик знака kultura.pulse из набора «Grid motion», светлая версия
-# (решение владельца: «для ботов нужна светлая версия»; brand/kultura-grid-motion, docs/brand.md) —
+# Живая аватарка (2026-11-07): ролик знака kultura.pulse из набора «Grid motion» — светлый и только
+# знак, крупно, без названия (решения владельца: «для ботов нужна светлая версия», «с подписью плохо,
+# логотип слишком маленький»; avatar() в brand/kultura-grid-motion/source/grid.cjs, docs/brand.md) —
 # видео профиля Telegram: MPEG4, квадрат 600×600, 8 секунд, без звука (GIF для аватарки Telegram
 # не берёт). Кадр для мест, где видео не играет, — 5-я секунда: знак и название уже стоят.
 # Ставится один раз на файл: хеш поставленного — в PROFILE_STATE_FILE (данные сайта), по id бота;
 # там же — итог последней сверки (last: когда, какой бот, что встало, что ответил Telegram) для
 # страницы «Доступ агентов». Не встало — приём сообщений повторяет раз в PROFILE_RETRY_S.
 BOT_AVATAR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                          "brand", "kultura-grid-motion", "motion", "kultura-pulse-grid-light.mp4")
+                          "brand", "kultura-grid-motion", "motion", "kultura-pulse-avatar-light.mp4")
 BOT_AVATAR_MAIN_FRAME_S = 5.0
 PROFILE_STATE_FILE = "open_check_profile.json"
 PROFILE_RETRY_S = 3600

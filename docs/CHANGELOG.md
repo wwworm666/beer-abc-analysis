@@ -1,5 +1,19 @@
 ﻿# Changelog
 
+### 2026-11-07 (6) — Аватарки ботов без названия, скруглённый знак kultura.research
+
+Владелец: «Как будто плохо получается, если в Телеграм добавлять подпись — kultura.pulse и
+kultura.research. Логотип слишком маленький. Нужно скруглить края на kultura.research, чтобы они
+были такие же, как у пульса».
+
+| Что | Почему | Где | Что сломается при неверной правке |
+|---|---|---|---|
+| Ролик аватарки: светлый, только знак, крупно и по центру (масштаб 1,5 вместо 0,94: знак kultura.pulse — 0,68 ширины кадра вместо 0,43), без названия; то же движение знака и бесшовный цикл 8 с; кадр 5 с — знак стоит | Подпись в кружке Telegram мельче читаемого, знак мелкий | `brand/kultura-grid-motion/source/grid.cjs` (`avatar(k, t, theme)`, `AVATAR_SCALE`), `render.cjs` (`avatar light`), `build.cjs`, `assets/motion.js`, `motion/kultura-pulse-avatar-light.*`, `motion/kultura-research-avatar-light.*` | `AVATAR_SCALE` больше 1,75 — углы колец kultura.pulse выходят за круг аватарки (тест) |
+| Аватарки ботов — новые ролики | То же | `kultura_bot/assets/avatar.mp4`, `avatar.svg`, `kultura_bot/settings.py` (комментарий), `core/open_check_telegram.py` (`BOT_AVATAR`) | Telegram ставит новую аватарку только при новом файле (SHA-256): kultura.research — при самообновлении, kultura.pulse — при старте сайта или кнопкой |
+| Знак kultura.research скруглён как kultura.pulse: рамка — радиус 0,18 стороны (41,4), столбцы — 0,19 ширины (6,84); рамка рисуется линией по контуру | Решение владельца | `grid.cjs` (`research`), ролики `kultura-research-grid*`, `kultura-family-grid.*`, статичные `static/kultura-research*.svg/png`, `kultura-family.svg/png` | Статичные SVG и `grid.cjs` — одни числа: поменял одно — поправь другое |
+| Тест набора: у аватарки нет букв, знак по центру и целиком в круге Telegram (по всем кадрам, запас не меньше 10% радиуса), светлый фон, цикл без шва; скругления; файлы аватарок | Закрепить решение | `tests/test_brand_motion.py`, `tests/test_open_check_transport.py` | — |
+| Документация | Правило проекта | `docs/brand.md`, `docs/telegram-bots.md`, `docs/open-check-bot.md`, `docs/kultura-bot.md`, `.claude/INDEX.md` | — |
+
 ### 2026-11-07 (5) — Светлые аватарки ботов, значки сайта, итог сверки kultura.pulse
 
 Владелец: «kultura.pulse не поменялась, kultura.research поменялась, kultura.os поменялось внутри
