@@ -18,7 +18,8 @@ MAX_LISTED позиций и ссылку на страницу разбора �
 Как. Отправка — open_check_bot._send_with_retries (два прохода, обход блокировки
 ТСПУ); чаты, до которых не дошло, — в очередь досылки core/open_check_pending.py
 (target 'receiving', досылается до конца дня с пометкой о задержке). Отправка
-может занять минуты, поэтому обработка приёмки зовёт notify_receipt_in_background.
+может занять минуты; обработка приёмки (core/receiving_service.py) зовёт notify_receipt в своём
+фоновом потоке, notify_receipt_in_background — запасной вариант (сейчас его зовут только тесты).
 Ничего не шлётся (ответ skipped с причиной), если RECEIVING_NOTIFY=0 ('disabled'),
 нет токена бота ('no_token'), нет чатов ('no_recipients') или в строках нет
 позиций к разбору ('nothing_to_report'). OPEN_CHECK_DRY_RUN=1 — как у отчётов

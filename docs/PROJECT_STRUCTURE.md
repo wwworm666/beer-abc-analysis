@@ -12,8 +12,8 @@ beer-abc-analysis/
 ├── requirements.txt        # Python deps (Flask, pandas, gunicorn, aiogram, paramiko, portalocker, anthropic)
 ├── .env.example            # Шаблон переменных окружения
 ├── remote_exec.py          # SSH/SFTP к бар-ПК через paramiko (для ЧЗ refresh)
-├── telegram_bot.py         # отдельный таплист-бот через API /api/taps/taplist-full (не запускается)
-├── telegram_webhook.py     # webhook-вариант гостевого бота (основной — core/taplist_polling.py)
+├── telegram_bot.py         # наследие: не запускается, /api/taps/taplist-full закрыт входом (docs/telegram-bots.md)
+├── telegram_webhook.py     # наследие: сайт загружает при старте (/telegram/webhook), умеет только краны; основной — core/taplist_polling.py
 ├── README.md               # Главная документация
 │
 ├── core/                   # Бизнес-логика (63 модуля)
@@ -177,7 +177,7 @@ beer-abc-analysis/
 | `taplist_post.py` | **Таплист текстом** (с 2026-10-04): строка крана «{кран}. {пивоварня и название} — {стиль}, {крепость}%[, новинка]», ссылка на Untappd, «новинка» по истории кранов, свежесть кранов; общая для «Таплиста пятницы» (`content_plan.render_live`) и гостевого бота (`bar_message_html`). Данные о пиве — только реестр Untappd, словарь имён — `resources/taplist_post_names.json`; вступление и концовка поста — `resources/taplist_post_phrases.json`, свой вариант на неделю и бар (с 2026-10-09) |
 | `taplist_gifs.py` | **Гифка к таплисту** (с 2026-10-09): набор `resources/taplist_post_gifs.json` (25 гифок владельца с Tenor), гифка на пост по неделе и бару (разные у баров в одну пятницу), ссылка на файл со страницы Tenor и `file_id` Telegram — кэш `taplist_gifs.json` на томе; отправка — `content_publisher.send_with_gif` |
 | `open_check_bot.py` | Логика проверки + форматирование |
-| `open_check_telegram.py` | Telegram Bot API sync с обходом блокировок (`api_call`, файлы — `api_call_files`; `safe_resend` — запасной путь только при доказанном «не ушло»), меню подписки (кнопка) + команды /start /status |
+| `open_check_telegram.py` | Telegram Bot API sync с обходом блокировок (`api_call`, файлы — `api_call_files`; `safe_resend` — запасной путь только при доказанном «не ушло»), общий для всех ботов сайта — без токена пишет от open-check бота; меню подписки и команды open-check: /start /status /temp /cash /reviews ([telegram-bots.md](telegram-bots.md)) |
 | `open_check_subscribers.py` | Хранилище самоподписавшихся чатов (единый список, portalocker) |
 | `open_check_polling.py` | Long-polling getUpdates (входящие команды/кнопки) |
 
@@ -380,7 +380,7 @@ data/
 ├── receiving.db            # Приёмка на РЦ: приёмки, сканы, разбор, кэш ЧЗ, SQLite WAL (на проде /kultura, в git нет)
 ├── receiving_photos/       # Фото накладных r<id>_<время>_<hex>.jpg (на проде /kultura, в git нет)
 ├── receiving_index.json    # Индекс «GTIN → карточки iiko» и receiving_index_state.json (на проде /kultura, в git нет)
-├── open_check_subscribers.json   # Самоподписавшиеся чаты open-check ({"chats":[...]})
+├── open_check_subscribers.json   # Самоподписавшиеся чаты open-check ({"chats":[...]}; на проде — /kultura)
 ├── nomenclature_cache.json # iiko nomenclature (24ч диск + 15 мин память)
 ├── olap_all_fields.json    # Справочник OLAP-полей продаж (снимок /columns 2025-10-18; конструктор читает копию в resources/)
 ├── beer_report.json, kegs_products.json, keg_mapping.json
@@ -453,6 +453,7 @@ docs/
 ├── dashboard.md, employee.md, taps.md, stocks.md, orders.md, suppliers.md, venues-plans.md, schedule.md
 ├── guests.md, content-plan.md, reviews.md   # раздел «Гости»
 ├── mcp.md                   # MCP-платформа: весь сервис для ИИ-агентов владельца
+├── telegram-bots.md               # карта трёх ботов: что делают, где работают, кто через кого пишет
 ├── kultura-bot.md, tg-miniapp.md   # бот @MCPkulturabot (kultura_bot/) и его графики с мини-приложением
 ├── abc-xyz-analysis.md, draft-beer-errors.md, draft-beer-fixes.md, discounts.md
 ├── explorer.md, expiration.md, chz-stock-integration.md, open-check-bot.md
