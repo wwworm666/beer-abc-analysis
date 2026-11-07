@@ -1,5 +1,20 @@
 ﻿# Changelog
 
+### 2026-11-07 (5) — Светлые аватарки ботов, значки сайта, итог сверки kultura.pulse
+
+Владелец: «kultura.pulse не поменялась, kultura.research поменялась, kultura.os поменялось внутри
+сайта, но не поменялось в значке вкладки и тд. Для ботов нужна светлая версия логотипа».
+
+| Что | Почему | Где | Что сломается при неверной правке |
+|---|---|---|---|
+| Светлые версии знаков и роликов: белый фон, чёрные знак и буквы, оранжевый тот же, затемнение конца цикла — в белый; тот же конвейер рендера (sharp, ffmpeg) | Для ботов — светлая версия | `brand/kultura-grid-motion/source/grid.cjs` (`individual(k, t, theme)`), `render.cjs` (`… light`), `motion/*-grid-light.*`, `static/*-light.*` | Тема по умолчанию не тронута (`dark` даёт те же кадры) |
+| Аватарки обоих ботов — светлые | То же | `kultura_bot/assets/avatar.mp4`, `avatar.svg`, `kultura_bot/settings.py`, `core/open_check_telegram.py` (`BOT_AVATAR`) | — |
+| kultura.pulse: итог сверки профиля (какой бот у токена, что встало, что ответил Telegram) — в `open_check_profile.json` и на «Доступ агентов»; повтор раз в час; кнопка «Обновить имя и аватарку» | Аватарка kultura.pulse не встала, а журнала сервера сайта не видно; код проверен на подменённом Telegram | `core/open_check_telegram.py` (`sync_profile`, `profile_status`), `core/open_check_polling.py` (`_sync_profile`), `routes/mcp.py` (`POST /api/admin/mcp/bot/pulse-sync`, `pulse` в `GET /api/admin/mcp/bot`), `templates/admin_mcp.html`, `static/js/admin_mcp.js`, `core/mcp/tools/common.py` (исключение) | — |
+| Значки сайта: метка версии у ссылки на значок во всех 37 шаблонах (статика кэшируется на 30 дней), PNG 32, значок экрана телефона 180, манифест — PNG 192 и 512 и имя «kultura.os»; старые `favicon.png` и `logo.jpg` заменены новым знаком; страница виджета выручки | Значок вкладки не сменился: браузер держал старый | `templates/**/*.html`, `templates/widget/revenue_widget.html`, `static/favicon-32.png`, `apple-touch-icon.png`, `icon-192.png`, `icon-512.png`, `favicon.png`, `logo.jpg`, `static/manifest.json` | Новый шаблон без трёх строк значков — тест покажет |
+| Борд графика смен: вместо «> kultura.os» — тот же рисующийся логотип | Старый знак с «>» | `static/js/schedule/screens.js`, `static/schedule/schedule.css` | — |
+| Тесты: значки (метка версии, размеры PNG, манифест), борд, итог сверки и повтор kultura.pulse, светлая аватарка, кнопка на странице (только администратор, без токена — ошибка) | Закрепить поведение | `tests/test_kultura_logo.py`, `tests/test_open_check_transport.py`, `tests/test_kultura_bot_site.py` | — |
+| Документация | Правило проекта | `docs/brand.md`, `docs/telegram-bots.md`, `docs/open-check-bot.md`, `docs/kultura-bot.md`, `.claude/INDEX.md` | — |
+
 ### 2026-11-07 (4) — Бренд «Grid motion»: логотип сайта рисуется, живые аватарки ботов
 
 Владелец: «Здесь новые логотипы для сайта, для бота Пульс и для бота Research. Везде должны быть

@@ -111,15 +111,19 @@ function film(t){
  if(t>=17.70)s=rect(0,0,1920,1080,'black')+rect(940,520,40,40,O);
  return `<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">${s}</svg>`;
 }
-function individual(k,t){
- let s=rect(0,0,600,600,'black');
+// theme: 'dark' — как утверждено (чёрный фон, белые знак и буквы); 'light' — светлая версия для
+// аватарок ботов (решение владельца 2026-11-07): белый фон, чёрные знак и буквы, затемнение конца
+// цикла уходит в белый. Оранжевый, тайминги и геометрия — те же.
+function individual(k,t,theme='dark'){
+ const bg=theme==='light'?'white':'black',ink=theme==='light'?'black':'white';
+ let s=rect(0,0,600,600,bg);
  if(t<.35||t>=7.56)s+=rect(285,285,30,30,O);
  if(t>=.35&&t<7.56){
   const z=.94,land=2.48,begin=onset(k,land);
-  if(t>=begin)s+=place(mark(k,t-begin,'white','individual-'+k),300,240,z);
+  if(t>=begin)s+=place(mark(k,t-begin,ink,'individual-'+k),300,240,z);
   const size=k==='research'?43:48,x=300-('kultura.'+k).length*size*.6/2;
-  s+=wordmark(k,x,487,size,'white',t,.35,land,'individual-text');
-  if(t>=7.0)s+=rect(0,0,600*rail(p(t,7.0,.5)),600,'black');
+  s+=wordmark(k,x,487,size,ink,t,.35,land,'individual-text');
+  if(t>=7.0)s+=rect(0,0,600*rail(p(t,7.0,.5)),600,bg);
  }
  return `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600" viewBox="0 0 600 600">${s}</svg>`;
 }

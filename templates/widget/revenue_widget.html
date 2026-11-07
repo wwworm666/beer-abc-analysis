@@ -9,9 +9,10 @@
     <meta name="apple-mobile-web-app-title" content="Beer ABC">
 
     <link rel="manifest" href="/static/manifest.json">
-    <!-- Файл лежит в /static/logo.jpg; маршрута /logo.jpg в приложении нет. -->
-    <link rel="icon" type="image/jpeg" href="/static/logo.jpg">
-    <link rel="apple-touch-icon" href="/static/logo.jpg">
+    <!-- Значки — знак kultura.os (docs/brand.md); метка версии — чтобы браузер не держал старый. -->
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg?v={{ app_version }}">
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png?v={{ app_version }}">
+    <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v={{ app_version }}">
 
     <title>Выручка — Beer ABC</title>
 

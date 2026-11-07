@@ -1219,6 +1219,7 @@ body.eraser-mode .chip-person { cursor: not-allowed; }
 .tb-tag { font-size: 0.62rem; font-weight: 500; color: var(--accent); background: rgba(217, 119, 87, 0.12); border-radius: 5px; padding: 2px 7px; }
 .tb-tag-mut { color: var(--text-tertiary); background: var(--bg-tertiary); }
 .tb-os { margin-left: auto; font-size: 0.7rem; font-weight: 600; color: var(--text-secondary); }
+.tb-os .kultura-logo-svg { display: block; height: 0.78em; width: 5.85em; }
 .tb-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .tb-card { border: 1px solid var(--border-light); border-radius: 9px; padding: 9px 10px; background: var(--bg); }
 .tb-bar { display: flex; align-items: center; gap: 6px; margin-bottom: 7px; }

@@ -128,13 +128,16 @@ def test_bot_name_and_descriptions_fit_telegram():
     assert tg._start_text(42, False).startswith('kultura.pulse — пульс баров'), 'бот называет себя так же'
 
 
-def test_sync_profile_sets_only_what_differs(monkeypatch):
+def test_sync_profile_sets_only_what_differs(monkeypatch, tmp_path):
+    monkeypatch.setattr(tg, '_profile_state_path', lambda: str(tmp_path / 'open_check_profile.json'))
     stored = {'name': 'KULT open check', 'short_description': tg.BOT_SHORT_DESCRIPTION, 'description': ''}
     calls = []
 
     def fake_api_call(method, payload=None, timeout=8, **kwargs):
         calls.append(method)
         assert 'token' not in kwargs, 'свой бот — токен open-check по умолчанию'
+        if method == 'getMe':
+            return {'ok': True, 'result': {'username': 'kultura_open_bot'}}
         for field, getter, setter, _ in tg.PROFILE_METHODS:
             if method == getter:
                 return {'ok': True, 'result': {field: stored[field]}}
@@ -144,13 +147,13 @@ def test_sync_profile_sets_only_what_differs(monkeypatch):
         raise AssertionError(method)
 
     monkeypatch.setattr(tg, 'api_call', fake_api_call)
-    monkeypatch.setattr(tg, '_sync_avatar', lambda: 'same')
+    monkeypatch.setattr(tg, '_sync_avatar', lambda errors=None: 'same')
     assert tg.sync_profile() == {'name': 'set', 'short_description': 'same', 'description': 'set', 'avatar': 'same'}
     assert stored == {'name': 'kultura.pulse', 'short_description': tg.BOT_SHORT_DESCRIPTION,
                       'description': tg.BOT_DESCRIPTION}
     calls.clear()
     assert set(tg.sync_profile().values()) == {'same'}
-    assert all(m.startswith('getMy') for m in calls), 'всё на месте — ничего не ставит'
+    assert all(m.startswith('getMy') or m == 'getMe' for m in calls), 'всё на месте — ничего не ставит'
     monkeypatch.setattr(tg, 'api_call', lambda *a, **k: None)
     silent = tg.sync_profile()
     assert {silent[f] for f in ('name', 'short_description', 'description')} == {'no_answer'}, \
@@ -203,3 +206,54 @@ def test_pulse_avatar_is_uploaded_once_per_file(monkeypatch, tmp_path):
     assert tg._sync_avatar() == 'error'
     monkeypatch.setattr(tg, 'BOT_AVATAR', str(tmp_path / 'нет.mp4'))
     assert tg._sync_avatar() == 'no_file'
+
+
+def test_sync_records_what_telegram_answered(monkeypatch, tmp_path):
+    state = tmp_path / 'open_check_profile.json'
+    monkeypatch.setattr(tg, '_profile_state_path', lambda: str(state))
+    monkeypatch.setattr(tg, '_token', lambda: '12345:secret')
+
+    def fake_api_call(method, payload=None, timeout=8, **kwargs):
+        if method == 'getMe':
+            return {'ok': True, 'result': {'username': 'kultura_open_bot'}}
+        if method.startswith('getMy'):
+            field = {'getMyName': 'name', 'getMyShortDescription': 'short_description',
+                     'getMyDescription': 'description'}[method]
+            return {'ok': True, 'result': {field: getattr(tg, {'name': 'BOT_NAME', 'short_description':
+                                                               'BOT_SHORT_DESCRIPTION', 'description':
+                                                               'BOT_DESCRIPTION'}[field])}}
+        raise AssertionError(method)
+
+    monkeypatch.setattr(tg, 'api_call', fake_api_call)
+    monkeypatch.setattr(tg, 'api_call_files', lambda *a, **k: {'ok': False, 'error_code': 400,
+                                                               'description': 'Bad Request: PHOTO_INVALID'})
+    result = tg.sync_profile()
+    assert result == {'name': 'same', 'short_description': 'same', 'description': 'same', 'avatar': 'error'}
+    last = tg.profile_status()['last']
+    assert last['bot'] == 'kultura_open_bot', 'какой бот на самом деле у токена'
+    assert last['errors'] == {'avatar': 'Bad Request: PHOTO_INVALID'} and last['at'].endswith('+03:00')
+    assert 'secret' not in state.read_text(encoding='utf-8')
+
+
+def test_pulse_avatar_is_the_light_version():
+    assert tg.BOT_AVATAR.endswith('kultura-pulse-grid-light.mp4'), 'для ботов — светлая версия (2026-11-07)'
+
+
+def test_polling_retries_profile_hourly_when_something_failed(monkeypatch):
+    from core import open_check_polling as poll
+
+    class Fake:
+        PROFILE_RETRY_S = tg.PROFILE_RETRY_S
+        answers = [{'name': 'same', 'avatar': 'error'}, {'name': 'same', 'avatar': 'set'}]
+
+        @staticmethod
+        def sync_profile():
+            return Fake.answers.pop(0)
+
+        @staticmethod
+        def _scrub(e):
+            return str(e)
+
+    monkeypatch.setattr(poll.time, 'time', lambda: 1000.0)
+    assert poll._sync_profile(Fake) == 1000.0 + tg.PROFILE_RETRY_S, 'не встало — ещё раз через час'
+    assert poll._sync_profile(Fake) == 0.0, 'встало — больше не сверяем до перезапуска'

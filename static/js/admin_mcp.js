@@ -20,7 +20,8 @@
         bot: '/api/admin/mcp/bot',
         botLink: '/api/admin/mcp/bot/link',
         botLinks: '/api/admin/mcp/bot/links/',
-        botInstall: '/api/admin/mcp/bot/install'
+        botInstall: '/api/admin/mcp/bot/install',
+        botPulseSync: '/api/admin/mcp/bot/pulse-sync'
     };
 
     // Сколько строк журнала показывать: страница — обзор последнего, глубже — фильтром.
@@ -395,8 +396,54 @@
 
     // resetForm — после загрузки страницы и сохранения: поля секретов пустые, «Пауза» — как
     // сохранено. Опрос привязки форму не трогает: владелец мог начать её заполнять.
+    // kultura.pulse (@kultura_open_bot, open-check): итог последней сверки имени, описаний и живой
+    // аватарки с Telegram (core/open_check_telegram.py, profile_status) — с ответом Telegram, если не встало.
+    var PULSE_FIELDS = {name: 'имя', short_description: 'описание в профиле',
+        description: 'описание в пустом чате', avatar: 'аватарка'};
+    function pulseText(pulse) {
+        if (!pulse || !pulse.configured) {
+            return {text: 'Токен бота не задан (TELEGRAM_OPEN_CHECK_BOT_TOKEN в .env сайта) — сверять нечего.', bad: true};
+        }
+        var last = pulse.last;
+        if (!last) {
+            return {text: 'Профиль ещё не сверялся с Telegram: сайт делает это при запуске. Можно сверить сейчас — ' +
+                'кнопкой ниже.', bad: false};
+        }
+        var who = last.bot ? '@' + last.bot : 'Бот';
+        var errors = last.errors || {};
+        var failed = Object.keys(errors).map(function (k) { return (PULSE_FIELDS[k] || k) + ' — ' + errors[k]; });
+        if (failed.length) {
+            return {text: who + ': не встало — ' + failed.join('; ') + ' (' + fmtTime(last.at) + '). Сайт пробует ' +
+                'снова раз в час.', bad: true};
+        }
+        var result = last.result || {};
+        var updated = Object.keys(result).filter(function (k) { return result[k] === 'set'; })
+            .map(function (k) { return PULSE_FIELDS[k] || k; });
+        return {text: who + ': имя ' + pulse.name + ', описания и аватарка — в Telegram (сверено ' + fmtTime(last.at) +
+            (updated.length ? '; обновлено: ' + updated.join(', ') : '') + ').', bad: false};
+    }
+
+    function renderPulse(pulse) {
+        var state = pulseText(pulse);
+        var node = byId('mcpPulseState');
+        node.textContent = state.text;
+        node.className = 'mcp-note ' + (state.bad ? 'mcp-state-bad' : 'mcp-state-good');
+    }
+
+    function syncPulse() {
+        var button = byId('mcpPulseSync');
+        setText('mcpPulseError', '');
+        setText('mcpPulseState', 'Сверяю с Telegram…');
+        button.disabled = true;
+        call('POST', API.botPulseSync, {})
+            .then(function (data) { renderPulse(data.pulse); })
+            .catch(function (e) { setText('mcpPulseError', e.message); })
+            .then(function () { button.disabled = false; });
+    }
+
     function renderBot(data, resetForm) {
         botLast = data;
+        renderPulse(data.pulse);
         var status = botStatusText(data);
         var node = byId('mcpBotState');
         // Версия кода сервера бота (коммит): видно, подтянул ли он последнюю версию с GitHub.
@@ -564,6 +611,7 @@
         byId('mcpBotSave').addEventListener('click', saveBot);
         byId('mcpBotLink').addEventListener('click', linkBot);
         byId('mcpBotInstall').addEventListener('click', installBot);
+        byId('mcpPulseSync').addEventListener('click', syncPulse);
         byId('mcpBotInstallCopy').addEventListener('click', function () {
             copyText(byId('mcpBotInstallCmd').textContent, byId('mcpBotInstallCopy'));
         });

@@ -46,8 +46,9 @@ BOT_DESCRIPTION = ('kultura.research — ИИ-помощник для анали
                    'подключённым администраторам сети. Что умеет — /help.')
 # Аватарка: файл от папки kultura_bot/. .mp4 — живая аватарка (видео профиля Telegram: квадрат,
 # до 10 секунд, сторона 160–1280, до 2 МБ, без звука; GIF Telegram для аватарки не берёт), .jpg —
-# картинка. Сейчас — ролик знака kultura.research 600×600, 8 секунд (копия
-# brand/kultura-grid-motion/motion/kultura-research-grid.mp4); статичный знак — assets/avatar.svg.
+# картинка. Сейчас — светлая версия ролика знака kultura.research 600×600, 8 секунд (решение владельца
+# 2026-11-07: «для ботов нужна светлая версия»; копия
+# brand/kultura-grid-motion/motion/kultura-research-grid-light.mp4); статичный знак — assets/avatar.svg.
 BOT_AVATAR = 'assets/avatar.mp4'
 # Кадр ролика, который Telegram показывает там, где видео не играет (список чатов, уведомления):
 # 5-я секунда — знак и название уже стоят, до затемнения в конце цикла (7,0 с) ещё далеко.

@@ -339,6 +339,15 @@ done
 
 ## Changelog
 
+### 2026-11-07 (4) — светлая аватарка, итог сверки на странице, повтор, кнопка
+
+Аватарка — светлая версия ролика (`kultura-pulse-grid-light.mp4`). `sync_profile()` пишет итог
+(`last`: когда, какой бот у токена по `getMe`, что встало, что ответил Telegram) в
+`open_check_profile.json`; страница «Доступ агентов» показывает его в разделе «Бот kultura.pulse»
+(`profile_status()` в ответе `GET /api/admin/mcp/bot`) с кнопкой «Обновить имя и аватарку»
+(`POST /api/admin/mcp/bot/pulse-sync`, только администратор; агентам по MCP закрыт). Не встало —
+приём сообщений повторяет раз в час (`PROFILE_RETRY_S`, `core/open_check_polling._sync_profile`).
+
 ### 2026-11-07 (3) — живая аватарка
 
 `sync_profile()` ставит и аватарку: ролик знака kultura.pulse из набора бренда

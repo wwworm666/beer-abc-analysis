@@ -130,6 +130,7 @@ EXCLUDED = {
     ('POST', '/api/admin/mcp/bot/link'): _ACCESS_REASON + ' (привязка Telegram к администратору)',
     ('DELETE', '/api/admin/mcp/bot/links/<tg_user_id>'): _ACCESS_REASON + ' (привязка Telegram к администратору)',
     ('POST', '/api/admin/mcp/bot/install'): _ACCESS_REASON + ' (ключ и команда установки сервера бота)',
+    ('POST', '/api/admin/mcp/bot/pulse-sync'): _ACCESS_REASON + ' (профиль бота kultura.pulse в Telegram)',
     ('GET', '/api/bot/config'): _ENGINE_REASON,
     ('POST', '/api/bot/link'): _ENGINE_REASON,
     ('GET', '/api/bot/actor/<tg_user_id>'): _ENGINE_REASON,

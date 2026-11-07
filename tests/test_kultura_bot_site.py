@@ -197,6 +197,43 @@ def test_admin_api(store):
         assert env.owner['login'] == 'owner'
 
 
+
+def test_admin_pulse_profile_sync(store, tmp_path):
+    """Кнопка «Обновить имя и аватарку» у kultura.pulse (2026-11-07): только администратор; без токена —
+    понятная ошибка; итог сверки с ответами Telegram — в ответе и в GET /api/admin/mcp/bot."""
+    import test_mcp_tokens as tt
+    from core import open_check_telegram as oc
+    state = tmp_path / 'open_check_profile.json'
+    store.setattr(oc, '_profile_state_path', lambda: str(state))
+    store.delenv('TELEGRAM_OPEN_CHECK_BOT_TOKEN', raising=False)
+    calls = []
+
+    def fake_sync():
+        calls.append(1)
+        oc._save_profile_state({'last': {'at': '2026-11-07T18:00:00+03:00', 'bot': 'kultura_open_bot',
+                                         'result': {'name': 'same', 'avatar': 'error'},
+                                         'errors': {'avatar': 'Bad Request: PHOTO_INVALID'}}})
+        return {'name': 'same', 'avatar': 'error'}
+
+    store.setattr(oc, 'sync_profile', fake_sync)
+    with tt.Env():
+        client = tt._admin_app().test_client()
+        assert client.post('/api/admin/mcp/bot/pulse-sync').status_code == 401
+        tt._login(client, 'bob', 'bobpass12')
+        assert client.post('/api/admin/mcp/bot/pulse-sync').status_code == 403
+        client = tt._admin_app().test_client()
+        tt._login(client, 'owner', 'ownerpass')
+        r = client.post('/api/admin/mcp/bot/pulse-sync')
+        assert r.status_code == 400 and 'TELEGRAM_OPEN_CHECK_BOT_TOKEN' in r.get_json()['error'] and calls == []
+        store.setenv('TELEGRAM_OPEN_CHECK_BOT_TOKEN', '12345:secret')
+        assert client.get('/api/admin/mcp/bot').get_json()['pulse'] == {'name': 'kultura.pulse', 'configured': True,
+                                                                         'last': None}
+        body = client.post('/api/admin/mcp/bot/pulse-sync').get_json()
+        assert calls == [1] and body['result']['avatar'] == 'error'
+        assert body['pulse']['last']['errors'] == {'avatar': 'Bad Request: PHOTO_INVALID'}
+        assert client.get('/api/admin/mcp/bot').get_json()['pulse']['last']['bot'] == 'kultura_open_bot'
+        assert '12345:secret' not in json.dumps(body, ensure_ascii=False)
+
 # ------------------------------------------------------------------ API сервера бота
 
 class FlaskAdapter(requests.adapters.BaseAdapter):
