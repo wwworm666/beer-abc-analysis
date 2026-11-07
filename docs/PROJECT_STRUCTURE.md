@@ -12,6 +12,7 @@ beer-abc-analysis/
 ├── requirements.txt        # Python deps (Flask, pandas, gunicorn, aiogram, paramiko, portalocker, anthropic)
 ├── .env.example            # Шаблон переменных окружения
 ├── remote_exec.py          # SSH/SFTP к бар-ПК через paramiko (для ЧЗ refresh)
+├── brand/kultura-grid-motion/  # набор бренда: статичные знаки, ролики MP4/GIF, исходник рендера (docs/brand.md)
 ├── telegram_bot.py         # наследие: не запускается, /api/taps/taplist-full закрыт входом (docs/telegram-bots.md)
 ├── telegram_webhook.py     # наследие: сайт загружает при старте (/telegram/webhook), умеет только краны; основной — core/taplist_polling.py
 ├── README.md               # Главная документация
@@ -454,6 +455,7 @@ docs/
 ├── guests.md, content-plan.md, reviews.md   # раздел «Гости»
 ├── mcp.md                   # MCP-платформа: весь сервис для ИИ-агентов владельца
 ├── telegram-bots.md               # карта трёх ботов: что делают, где работают, кто через кого пишет
+├── brand.md                       # бренд «Grid motion»: логотипы сайта и ботов, движение, живые аватарки
 ├── kultura-bot.md, tg-miniapp.md   # бот @MCPkulturabot (kultura_bot/) и его графики с мини-приложением
 ├── abc-xyz-analysis.md, draft-beer-errors.md, draft-beer-fixes.md, discounts.md
 ├── explorer.md, expiration.md, chz-stock-integration.md, open-check-bot.md

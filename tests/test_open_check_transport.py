@@ -13,6 +13,7 @@ Self-runnable: `py -3 tests/test_open_check_transport.py` (совместимо 
   остальные — по разу; все провалились — None;
 - connect-таймаут в запросе — CONNECT_TIMEOUT.
 """
+import json
 import os
 import sys
 
@@ -143,11 +144,62 @@ def test_sync_profile_sets_only_what_differs(monkeypatch):
         raise AssertionError(method)
 
     monkeypatch.setattr(tg, 'api_call', fake_api_call)
-    assert tg.sync_profile() == {'name': 'set', 'short_description': 'same', 'description': 'set'}
+    monkeypatch.setattr(tg, '_sync_avatar', lambda: 'same')
+    assert tg.sync_profile() == {'name': 'set', 'short_description': 'same', 'description': 'set', 'avatar': 'same'}
     assert stored == {'name': 'kultura.pulse', 'short_description': tg.BOT_SHORT_DESCRIPTION,
                       'description': tg.BOT_DESCRIPTION}
     calls.clear()
     assert set(tg.sync_profile().values()) == {'same'}
     assert all(m.startswith('getMy') for m in calls), 'всё на месте — ничего не ставит'
     monkeypatch.setattr(tg, 'api_call', lambda *a, **k: None)
-    assert set(tg.sync_profile().values()) == {'no_answer'}, 'Telegram молчит — без падения'
+    silent = tg.sync_profile()
+    assert {silent[f] for f in ('name', 'short_description', 'description')} == {'no_answer'}, \
+        'Telegram молчит — без падения'
+
+
+def _mp4(data):
+    """(секунд, ширина, высота, есть ли звук) — по коробкам mvhd и tkhd, без ffprobe."""
+    i = data.find(b'mvhd') + 4
+    if data[i] == 1:
+        scale, dur = int.from_bytes(data[i + 20:i + 24], 'big'), int.from_bytes(data[i + 24:i + 32], 'big')
+    else:
+        scale, dur = int.from_bytes(data[i + 12:i + 16], 'big'), int.from_bytes(data[i + 16:i + 20], 'big')
+    box = data.find(b'tkhd') - 4
+    end = box + int.from_bytes(data[box:box + 4], 'big')
+    return (dur / scale, int.from_bytes(data[end - 8:end - 4], 'big') >> 16,
+            int.from_bytes(data[end - 4:end], 'big') >> 16, b'soun' in data)
+
+
+def test_pulse_avatar_is_a_telegram_profile_video():
+    data = open(tg.BOT_AVATAR, 'rb').read()
+    assert data[4:8] == b'ftyp', 'живая аватарка — MPEG4 (GIF Telegram для аватарки не берёт)'
+    seconds, width, height, sound = _mp4(data)
+    assert seconds <= 10 and width == height and 160 <= width <= 1280 and not sound and len(data) <= 2 * 1024 * 1024
+    assert 0 < tg.BOT_AVATAR_MAIN_FRAME_S < seconds
+
+
+def test_pulse_avatar_is_uploaded_once_per_file(monkeypatch, tmp_path):
+    state = tmp_path / 'open_check_profile.json'
+    monkeypatch.setattr(tg, '_profile_state_path', lambda: str(state))
+    monkeypatch.setattr(tg, '_token', lambda: '12345:secret')
+    uploads = []
+
+    def fake_files(method, fields=None, files=None, **kwargs):
+        uploads.append((method, json.loads(fields['photo']), files[0][:2], files[0][3]))
+        assert 'token' not in kwargs, 'свой бот — токен open-check по умолчанию'
+        return {'ok': True, 'result': True}
+
+    monkeypatch.setattr(tg, 'api_call_files', fake_files)
+    assert tg._sync_avatar() == 'set'
+    assert uploads == [('setMyProfilePhoto', {'type': 'animated', 'animation': 'attach://avatar',
+                                               'main_frame_timestamp': tg.BOT_AVATAR_MAIN_FRAME_S},
+                        ('avatar', 'avatar.mp4'), 'video/mp4')]
+    assert '12345:secret' not in state.read_text(encoding='utf-8'), 'в файле — id бота, не токен'
+    assert tg._sync_avatar() == 'same' and len(uploads) == 1, 'тот же файл — второй раз не грузится'
+    monkeypatch.setattr(tg, '_token', lambda: '777:other')
+    assert tg._sync_avatar() == 'set' and len(uploads) == 2, 'другой бот — ставится заново'
+    monkeypatch.setattr(tg, 'api_call_files', lambda *a, **k: {'ok': False, 'description': 'Bad Request'})
+    monkeypatch.setattr(tg, '_token', lambda: '888:third')
+    assert tg._sync_avatar() == 'error'
+    monkeypatch.setattr(tg, 'BOT_AVATAR', str(tmp_path / 'нет.mp4'))
+    assert tg._sync_avatar() == 'no_file'

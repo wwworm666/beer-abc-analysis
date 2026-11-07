@@ -184,15 +184,16 @@ Claude, не ставится (`.claude/CLAUDE.md`).
 - **Учёт:** журнал вопросов и ответов на сайте (`/admin/bot/journal`, только администраторы),
   оценка реакцией под ответом; дневной предел $15 на человека и $2 на вопрос; сторож пишет владельцу,
   если бот замолчал.
-- **Профиль:** имя kultura.research (до 2026-11-07 было kultura.os — это имя сайта), описания, аватарка и меню — в `settings.py`; сервер бота ставит их
+- **Профиль:** имя kultura.research (до 2026-11-07 было kultura.os — это имя сайта), описания, живая аватарка ([brand.md](brand.md)) и меню — в `settings.py`; сервер бота ставит их
   сам при запуске и удаляет старые меню, которые Telegram показывал вместо общего.
 
 ### 4. kultura.pulse — open-check (@kultura_open_bot)
 
 - **Имя и описания** (`core/open_check_telegram.py`: `BOT_NAME` = `kultura.pulse`,
   `BOT_SHORT_DESCRIPTION`, `BOT_DESCRIPTION`) ставит сайт при старте приёма сообщений
-  (`sync_profile` из `core/open_check_polling.py`), только если в Telegram другое. Аватарку — нет
-  (её ставят в @BotFather).
+  (`sync_profile` из `core/open_check_polling.py`), только если в Telegram другое; там же —
+  **живая аватарка** (ролик знака из набора бренда, `brand/kultura-grid-motion/motion/
+  kultura-pulse-grid.mp4`, один раз на файл, [brand.md](brand.md)).
 
 - **Команды и кнопки** (`core/open_check_telegram.py`, `handle_update`): `/start` (`/menu`,
   `/help`) — описание, «подписан: да/нет», ID чата и кнопки:
@@ -290,6 +291,9 @@ Claude, не ставится (`.claude/CLAUDE.md`).
 - Путать ботов в документах — так появилась эта страница.
 
 ## Changelog
+
+- **2026-11-07 (3)** — живые аватарки kultura.research и kultura.pulse из набора бренда
+  ([brand.md](brand.md)); kultura.pulse ставит её сам (сайт).
 
 - **2026-11-07 (2)** — имена: kultura.os — сайт, kultura.research — @MCPkulturabot (было
   kultura.os), kultura.pulse — @kultura_open_bot (имя и описания ставит сайт, `sync_profile`).

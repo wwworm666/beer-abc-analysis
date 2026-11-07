@@ -297,7 +297,8 @@ class FakeTelegram:
         self.plain_markups = [] # кнопки у send_plain
         self.profile = {'name': 'MCPkulturabot', 'short_description': '', 'description': ''}
         self.profile_sets = []  # set_profile: (поле, значение)
-        self.photos = []        # set_profile_photo: загруженные JPEG
+        self.photos = []        # set_profile_photo: загруженные файлы
+        self.photo_kinds = []   # (живая ли аватарка, кадр для статичных мест)
         self.photo_error = ''   # что Telegram ответит на фото ('' — получилось)
         self.commands = []      # общее меню команд (getMyCommands / setMyCommands без scope)
         self.scoped = {}        # свои меню: (scope в JSON, язык) -> команды (ставила прежняя программа)
@@ -343,10 +344,11 @@ class FakeTelegram:
         self.profile[field] = value
         return ''
 
-    def set_profile_photo(self, jpeg):
+    def set_profile_photo(self, data, animated=False, main_frame_s=0.0):
         if self.photo_error:
             return self.photo_error
-        self.photos.append(jpeg)
+        self.photos.append(data)
+        self.photo_kinds.append((animated, main_frame_s))
         return ''
 
     def typing(self, chat_id):
@@ -2052,6 +2054,25 @@ def test_person_limit_is_shared_with_agents(bot):
 
 # ------------------------------------------------------------------ профиль в Telegram (2026-11-06)
 
+def mp4_info(data):
+    """Длительность, ширина, высота ролика MP4 и есть ли звук — по коробкам mvhd, tkhd, hdlr
+    (без ffprobe: тест сервера бота). Нужен и тестам аватарки kultura.pulse."""
+    def find(tag, start=0):
+        i = data.find(tag, start)
+        assert i > 0, tag
+        return i + 4
+    i = find(b'mvhd')
+    version = data[i]
+    if version == 1:
+        timescale, duration = int.from_bytes(data[i + 20:i + 24], 'big'), int.from_bytes(data[i + 24:i + 32], 'big')
+    else:
+        timescale, duration = int.from_bytes(data[i + 12:i + 16], 'big'), int.from_bytes(data[i + 16:i + 20], 'big')
+    box = find(b'tkhd') - 8                             # начало коробки: размер (4 байта) и тег
+    tail = box + int.from_bytes(data[box:box + 4], 'big')   # ширина и высота — последние 8 байт, 16.16
+    width, height = int.from_bytes(data[tail - 8:tail - 4], 'big') >> 16, int.from_bytes(data[tail - 4:tail], 'big') >> 16
+    return duration / timescale, width, height, b'soun' in data
+
+
 def _jpeg_size(data):
     """Ширина и высота JPEG по маркеру SOF (без Pillow: тест сервера бота)."""
     i = 2
@@ -2070,16 +2091,20 @@ def test_profile_fits_telegram_limits():
     assert 0 < len(settings.BOT_DESCRIPTION) <= 512, 'setMyDescription: до 512 символов'
     path = os.path.join(os.path.dirname(os.path.abspath(settings.__file__)), settings.BOT_AVATAR)
     data = open(path, 'rb').read()
-    assert data[:3] == b'\xff\xd8\xff', 'фото профиля Telegram берёт только JPEG'
-    assert _jpeg_size(data) == (640, 640) and len(data) < 200_000
-    assert os.path.exists(os.path.join(os.path.dirname(path), 'avatar.svg')), 'исходник знака рядом'
+    assert path.endswith('.mp4') and data[4:8] == b'ftyp', 'живая аватарка — видео MPEG4 (GIF Telegram не берёт)'
+    seconds, width, height, sound = mp4_info(data)
+    assert seconds <= 10 and width == height and 160 <= width <= 1280 and not sound, 'видео профиля Telegram'
+    assert len(data) <= 2 * 1024 * 1024
+    assert 0 < settings.BOT_AVATAR_MAIN_FRAME_S < seconds, 'кадр для статичных мест — внутри ролика'
+    assert os.path.exists(os.path.join(os.path.dirname(path), 'avatar.svg')), 'статичный знак рядом'
 
 
 def test_bot_sets_its_name_descriptions_and_avatar_once(bot):
     tg = bot.tg
     assert [field for field, _ in tg.profile_sets] == ['name', 'short_description', 'description']
     assert tg.profile['name'] == 'kultura.research' and tg.profile['description'] == settings.BOT_DESCRIPTION
-    assert len(tg.photos) == 1 and tg.photos[0][:3] == b'\xff\xd8\xff'
+    assert len(tg.photos) == 1 and tg.photos[0][4:8] == b'ftyp'
+    assert tg.photo_kinds == [(True, settings.BOT_AVATAR_MAIN_FRAME_S)], 'живая аватарка с кадром для списка чатов'
     assert bot.svc.status['profile'] == ''
     # Перезапуск с тем же профилем и тем же файлом: Telegram не трогаем.
     assert bot.svc.sync_profile() == {'name': 'same', 'short_description': 'same', 'description': 'same',
@@ -2117,6 +2142,7 @@ def test_new_avatar_file_is_uploaded_again(bot, tmp_path):
     other.write_bytes(b'\xff\xd8\xff' + b'\x00' * 64)
     bot.env.monkeypatch.setattr(settings, 'BOT_AVATAR', str(other))   # абсолютный путь: os.path.join берёт его
     assert bot.svc.sync_profile()['avatar'] == 'set' and len(bot.tg.photos) == 2
+    assert bot.tg.photo_kinds[-1][0] is False, 'JPEG — обычной картинкой'
     bot.env.monkeypatch.setattr(settings, 'BOT_AVATAR', 'assets/nope.jpg')
     assert bot.svc.sync_profile()['avatar'] == 'нет файла kultura_bot/assets/nope.jpg'
 
@@ -2152,6 +2178,10 @@ def test_telegram_profile_photo_goes_as_multipart(monkeypatch):
     assert sent['url'].endswith('/setMyProfilePhoto') and 'json' not in sent
     assert json.loads(sent['data']['photo']) == {'type': 'static', 'photo': 'attach://avatar'}
     assert sent['files']['avatar'] == ('avatar.jpg', b'\xff\xd8\xffjpeg', 'image/jpeg')
+    assert io.set_profile_photo(b'mp4', animated=True, main_frame_s=5.0) == ''
+    assert json.loads(sent['data']['photo']) == {'type': 'animated', 'animation': 'attach://avatar',
+                                                 'main_frame_timestamp': 5.0}
+    assert sent['files']['avatar'] == ('avatar.mp4', b'mp4', 'video/mp4')
     calls = []
     monkeypatch.setattr(io, 'call', lambda method, payload=None, timeout=8: calls.append((method, payload)) or
                         {'ok': False, 'error_code': 429, 'description': 'Too Many Requests: retry after 60'})

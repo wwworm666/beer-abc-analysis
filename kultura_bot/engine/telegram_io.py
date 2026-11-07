@@ -19,7 +19,8 @@ Telegram не принял разметку или часть вышла дли�
 ответов — callback_query (answer_callback).
 
 Профиль бота (2026-11-06, имя «kultura.research» с 2026-11-07): имя и описания — getMy*/setMy* (get_profile,
-set_profile), фото — setMyProfilePhoto только новым файлом JPEG (attach://, multipart).
+set_profile), фото — setMyProfilePhoto только новым файлом (attach://, multipart): JPEG или живая
+аватарка — видео MPEG4 (с 2026-11-07).
 """
 import json
 import logging
@@ -129,14 +130,20 @@ class TelegramIO:
         """Поставить имя или описание: '' — получилось, иначе — что ответил Telegram."""
         return _outcome(self.call(PROFILE_METHODS[field][1], {field: value}, timeout=20))
 
-    def set_profile_photo(self, jpeg: bytes) -> str:
+    def set_profile_photo(self, data: bytes, *, animated: bool = False, main_frame_s: float = 0.0) -> str:
         """Фото профиля бота: '' — получилось, иначе — что ответил Telegram. Telegram берёт его
-        только новым файлом (attach://, multipart) и только JPEG."""
+        только новым файлом (attach://, multipart): картинку — JPEG (type static), живую аватарку —
+        видео MPEG4 (type animated; main_frame_s — кадр для мест, где видео не играет)."""
+        if animated:
+            photo = {'type': 'animated', 'animation': 'attach://avatar', 'main_frame_timestamp': float(main_frame_s)}
+            upload = ('avatar.mp4', data, 'video/mp4')
+        else:
+            photo = {'type': 'static', 'photo': 'attach://avatar'}
+            upload = ('avatar.jpg', data, 'image/jpeg')
         try:
             resp = self._session().post(
                 f'{API}/bot{self.token}/setMyProfilePhoto',
-                data={'photo': json.dumps({'type': 'static', 'photo': 'attach://avatar'})},
-                files={'avatar': ('avatar.jpg', jpeg, 'image/jpeg')},
+                data={'photo': json.dumps(photo)}, files={'avatar': upload},
                 timeout=(CONNECT_TIMEOUT_S, PHOTO_TIMEOUT_S))
         except requests.RequestException as exc:
             log.warning('[BOT] Telegram setMyProfilePhoto: нет связи (%s)', type(exc).__name__)

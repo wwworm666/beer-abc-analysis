@@ -12,10 +12,8 @@
 <nav class="sidebar" id="sidebar">
     <!-- Sidebar Header -->
     <div class="sidebar-header">
-        <a href="/" class="sidebar-brand">
-            <span class="prompt">&gt;</span>
-            <span class="logo-text"></span>
-            <span class="cursor">_</span>
+        <a href="/" class="sidebar-brand" data-kultura-logo="wordmark" aria-label="kultura.os — на главную">
+            <svg class="kultura-logo-svg" role="img" aria-label="kultura.os"></svg>
         </a>
         <button class="sidebar-close" id="sidebar-close" title="Закрыть (Esc)">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
@@ -245,14 +243,12 @@
         {% endif %}
     </div>
 
-    <a href="/" class="header-bar-logo">
-        <span class="prompt">&gt;</span>
-        <span class="logo-text"></span>
-        <span class="cursor">_</span>
+    <a href="/" class="header-bar-logo" data-kultura-logo="wordmark" aria-label="kultura.os — на главную">
+        <svg class="kultura-logo-svg" role="img" aria-label="kultura.os"></svg>
     </a>
 </div>
-{#- Логотип — на всех страницах (раньше на шести он оставался пустым «>_»); logo.js
-    защищён от второго запуска, если страница подключает его сама. -#}
+{#- Логотип «kultura.os» рисуется как в рендере бренда (static/logo.js, brand/kultura-grid-motion,
+    docs/brand.md) — на всех страницах; logo.js защищён от второго запуска. -#}
 <script src="/static/logo.js?v={{ kultura_static_version | default('') }}"></script>
 
 {#- Общий выбор бара и периода — на всех страницах: даже без полосы страница должна видеть и

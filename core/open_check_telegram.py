@@ -20,6 +20,7 @@
 - обработку входящих апдейтов (handle_update) — команды + callback подписки.
 """
 import hashlib
+import json
 import logging
 import os
 import time
@@ -416,14 +417,24 @@ BOT_DESCRIPTION = ("kultura.pulse — пульс баров сети «Куль�
                    "кассы всех баров, и сообщает об опозданиях; присылает тревоги по температуре, новые "
                    "отзывы гостей и сколько наличных можно забрать при инкассации. Статус баров, "
                    "температура и отзывы — по кнопкам в /start.")
+# Живая аватарка (2026-11-07): ролик знака kultura.pulse из набора «Grid motion»
+# (brand/kultura-grid-motion, docs/brand.md) — видео профиля Telegram: MPEG4, квадрат 600×600,
+# 8 секунд, без звука (GIF для аватарки Telegram не берёт). Кадр для мест, где видео не играет, —
+# 5-я секунда: знак и название уже стоят. Ставится один раз на файл: хеш поставленного — в
+# PROFILE_STATE_FILE (данные сайта), по id бота.
+BOT_AVATAR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                          "brand", "kultura-grid-motion", "motion", "kultura-pulse-grid.mp4")
+BOT_AVATAR_MAIN_FRAME_S = 5.0
+PROFILE_STATE_FILE = "open_check_profile.json"
 PROFILE_METHODS = (("name", "getMyName", "setMyName", "BOT_NAME"),
                    ("short_description", "getMyShortDescription", "setMyShortDescription", "BOT_SHORT_DESCRIPTION"),
                    ("description", "getMyDescription", "setMyDescription", "BOT_DESCRIPTION"))
 
 
 def sync_profile() -> dict:
-    """Имя и описания бота (BOT_NAME, BOT_SHORT_DESCRIPTION, BOT_DESCRIPTION) — в Telegram, если там
-    другие. -> {поле: 'same' | 'set' | 'no_answer' | 'error'}; не вышло — следующий старт попробует снова."""
+    """Имя, описания (BOT_NAME, BOT_SHORT_DESCRIPTION, BOT_DESCRIPTION) и живая аватарка (BOT_AVATAR) —
+    в Telegram, если там другие. -> {поле: 'same' | 'set' | 'no_answer' | 'error' | 'no_file'};
+    не вышло — следующий старт попробует снова."""
     result = {}
     for field, getter, setter, constant in PROFILE_METHODS:
         value = globals()[constant]
@@ -436,13 +447,56 @@ def sync_profile() -> dict:
             continue
         answer = api_call(setter, {field: value}, timeout=20)
         result[field] = "set" if answer and answer.get("ok") else "error"
+    result["avatar"] = _sync_avatar()
     changed = [f for f, v in result.items() if v == "set"]
-    failed = [f for f, v in result.items() if v in ("no_answer", "error")]
+    failed = [f for f, v in result.items() if v in ("no_answer", "error", "no_file")]
     if changed:
         log.info("профиль бота в Telegram обновлён: %s", ", ".join(changed))
     if failed:
         log.warning("профиль бота в Telegram не обновился: %s", ", ".join(failed))
     return result
+
+
+def _profile_state_path() -> str:
+    from core.storage_paths import get_data_path
+    return get_data_path(PROFILE_STATE_FILE)
+
+
+def _sync_avatar() -> str:
+    """Живая аватарка BOT_AVATAR — когда поменялся файл (или бот). Telegram не отдаёт аватарку так,
+    чтобы сравнить её с файлом, поэтому помним хеш того, что уже поставили. -> 'same' | 'set' |
+    'no_file' | 'error' (следующий старт попробует снова)."""
+    try:
+        with open(BOT_AVATAR, "rb") as f:
+            data = f.read()
+    except OSError:
+        return "no_file"
+    digest = hashlib.sha256(data).hexdigest()
+    key = "avatar_sha256:" + str(_token() or "").split(":", 1)[0]
+    path = _profile_state_path()
+    try:
+        with open(path, encoding="utf-8") as f:
+            state = json.load(f)
+        state = state if isinstance(state, dict) else {}
+    except (OSError, ValueError):
+        state = {}
+    if state.get(key) == digest:
+        return "same"
+    photo = json.dumps({"type": "animated", "animation": "attach://avatar",
+                        "main_frame_timestamp": BOT_AVATAR_MAIN_FRAME_S})
+    answer = api_call_files("setMyProfilePhoto", {"photo": photo}, [("avatar", "avatar.mp4", data, "video/mp4")])
+    if not answer or not answer.get("ok"):
+        log.warning("аватарка бота не встала: %s", (answer or {}).get("description") or "нет ответа")
+        return "error"
+    state[key] = digest
+    try:
+        tmp = path + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(state, f, ensure_ascii=False)
+        os.replace(tmp, path)
+    except OSError as exc:                       # не запомнили — следующий старт поставит ещё раз
+        log.warning("не записал %s: %s", PROFILE_STATE_FILE, exc)
+    return "set"
 
 
 def set_my_commands():
