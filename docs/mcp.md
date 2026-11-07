@@ -937,7 +937,8 @@ blueprint'ами сервиса (`routes.register_blueprints` + mcp + mcp_oauth)
 `/api/bot/`, `/mcp` или `/oauth`; в `PUBLIC_ENDPOINTS` есть 7 MCP-эндпоинтов, а
 `mcp_oauth.authorize` — нет.
 
-На 2026-11-06 (2) (`py -3 -m core.mcp.coverage`): 277 пар — 237 инструментами и 40 исключениями;
+На 2026-11-07 (`py -3 -m core.mcp.coverage`): 278 пар — 237 инструментами и 41 исключением (с 2026-11-07 —
+кнопка «Обновить имя и аватарку» бота kultura.pulse, `POST /api/admin/mcp/bot/pulse-sync`, закрыта как управление доступом);
 инструментов всего 255 (10 служебных без маршрута — среди них `common_chart_send`,
 `common_report_send` и `common_bot_journal` — и инструменты редактора меню на `/menu/api/*`, которые
 описаны добровольно: этот префикс в обязательный охват не входит). Из 50 записей `EXCLUDED` в охват

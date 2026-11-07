@@ -23,6 +23,7 @@ import hashlib
 import json
 import logging
 import os
+import threading
 import time
 
 import requests
@@ -417,15 +418,19 @@ BOT_DESCRIPTION = ("kultura.pulse — пульс баров сети «Куль�
                    "кассы всех баров, и сообщает об опозданиях; присылает тревоги по температуре, новые "
                    "отзывы гостей и сколько наличных можно забрать при инкассации. Статус баров, "
                    "температура и отзывы — по кнопкам в /start.")
-# Живая аватарка (2026-11-07): ролик знака kultura.pulse из набора «Grid motion»
-# (brand/kultura-grid-motion, docs/brand.md) — видео профиля Telegram: MPEG4, квадрат 600×600,
-# 8 секунд, без звука (GIF для аватарки Telegram не берёт). Кадр для мест, где видео не играет, —
-# 5-я секунда: знак и название уже стоят. Ставится один раз на файл: хеш поставленного — в
-# PROFILE_STATE_FILE (данные сайта), по id бота.
+# Живая аватарка (2026-11-07): ролик знака kultura.pulse из набора «Grid motion», светлая версия
+# (решение владельца: «для ботов нужна светлая версия»; brand/kultura-grid-motion, docs/brand.md) —
+# видео профиля Telegram: MPEG4, квадрат 600×600, 8 секунд, без звука (GIF для аватарки Telegram
+# не берёт). Кадр для мест, где видео не играет, — 5-я секунда: знак и название уже стоят.
+# Ставится один раз на файл: хеш поставленного — в PROFILE_STATE_FILE (данные сайта), по id бота;
+# там же — итог последней сверки (last: когда, какой бот, что встало, что ответил Telegram) для
+# страницы «Доступ агентов». Не встало — приём сообщений повторяет раз в PROFILE_RETRY_S.
 BOT_AVATAR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                          "brand", "kultura-grid-motion", "motion", "kultura-pulse-grid.mp4")
+                          "brand", "kultura-grid-motion", "motion", "kultura-pulse-grid-light.mp4")
 BOT_AVATAR_MAIN_FRAME_S = 5.0
 PROFILE_STATE_FILE = "open_check_profile.json"
+PROFILE_RETRY_S = 3600
+_profile_lock = threading.Lock()               # кнопка на странице и приём сообщений — не одновременно
 PROFILE_METHODS = (("name", "getMyName", "setMyName", "BOT_NAME"),
                    ("short_description", "getMyShortDescription", "setMyShortDescription", "BOT_SHORT_DESCRIPTION"),
                    ("description", "getMyDescription", "setMyDescription", "BOT_DESCRIPTION"))
@@ -434,27 +439,55 @@ PROFILE_METHODS = (("name", "getMyName", "setMyName", "BOT_NAME"),
 def sync_profile() -> dict:
     """Имя, описания (BOT_NAME, BOT_SHORT_DESCRIPTION, BOT_DESCRIPTION) и живая аватарка (BOT_AVATAR) —
     в Telegram, если там другие. -> {поле: 'same' | 'set' | 'no_answer' | 'error' | 'no_file'};
-    не вышло — следующий старт попробует снова."""
-    result = {}
-    for field, getter, setter, constant in PROFILE_METHODS:
-        value = globals()[constant]
-        data = api_call(getter, {})
-        if not data or not data.get("ok") or not isinstance(data.get("result"), dict):
-            result[field] = "no_answer"
-            continue
-        if str(data["result"].get(field) or "") == value:
-            result[field] = "same"
-            continue
-        answer = api_call(setter, {field: value}, timeout=20)
-        result[field] = "set" if answer and answer.get("ok") else "error"
-    result["avatar"] = _sync_avatar()
+    итог (с ответами Telegram и именем бота по токену) — в PROFILE_STATE_FILE для страницы."""
+    with _profile_lock:
+        result, errors = {}, {}
+        for field, getter, setter, constant in PROFILE_METHODS:
+            value = globals()[constant]
+            data = api_call(getter, {})
+            if not data or not data.get("ok") or not isinstance(data.get("result"), dict):
+                result[field], errors[field] = "no_answer", _telegram_answer(data)
+                continue
+            if str(data["result"].get(field) or "") == value:
+                result[field] = "same"
+                continue
+            answer = api_call(setter, {field: value}, timeout=20)
+            if answer and answer.get("ok"):
+                result[field] = "set"
+            else:
+                result[field], errors[field] = "error", _telegram_answer(answer)
+        result["avatar"] = _sync_avatar(errors)
+        me = api_call("getMe")
+        bot = ((me or {}).get("result") or {}).get("username") if me and me.get("ok") else ""
+        state = _load_profile_state()
+        state["last"] = {"at": _now_msk(), "bot": str(bot or ""), "result": result, "errors": errors}
+        _save_profile_state(state)
     changed = [f for f, v in result.items() if v == "set"]
-    failed = [f for f, v in result.items() if v in ("no_answer", "error", "no_file")]
     if changed:
         log.info("профиль бота в Telegram обновлён: %s", ", ".join(changed))
-    if failed:
-        log.warning("профиль бота в Telegram не обновился: %s", ", ".join(failed))
+    if errors:
+        log.warning("профиль бота в Telegram не обновился: %s",
+                    "; ".join(f"{k} — {v}" for k, v in errors.items()))
     return result
+
+
+def profile_status() -> dict:
+    """Для «Доступ агентов»: имя бота и итог последней сверки профиля с Telegram (last — или None)."""
+    last = _load_profile_state().get("last")
+    return {"name": BOT_NAME, "configured": bool(_token()), "last": last if isinstance(last, dict) else None}
+
+
+def _telegram_answer(answer) -> str:
+    """Что ответил Telegram на неудачный вызов — коротко, без токена."""
+    if not answer:
+        return "Telegram не ответил"
+    return str(answer.get("description") or answer.get("error_code") or "Telegram отказал")[:200]
+
+
+def _now_msk() -> str:
+    from datetime import datetime
+    from core.msk_time import MOSCOW_TZ
+    return datetime.now(MOSCOW_TZ).isoformat(timespec="seconds")
 
 
 def _profile_state_path() -> str:
@@ -462,40 +495,52 @@ def _profile_state_path() -> str:
     return get_data_path(PROFILE_STATE_FILE)
 
 
-def _sync_avatar() -> str:
+def _load_profile_state() -> dict:
+    try:
+        with open(_profile_state_path(), encoding="utf-8") as f:
+            state = json.load(f)
+        return state if isinstance(state, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def _save_profile_state(state: dict) -> None:
+    path = _profile_state_path()
+    try:
+        tmp = path + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(state, f, ensure_ascii=False)
+        os.replace(tmp, path)
+    except OSError as exc:                       # не запомнили — следующая сверка поставит ещё раз
+        log.warning("не записал %s: %s", PROFILE_STATE_FILE, exc)
+
+
+def _sync_avatar(errors: dict = None) -> str:
     """Живая аватарка BOT_AVATAR — когда поменялся файл (или бот). Telegram не отдаёт аватарку так,
     чтобы сравнить её с файлом, поэтому помним хеш того, что уже поставили. -> 'same' | 'set' |
-    'no_file' | 'error' (следующий старт попробует снова)."""
+    'no_file' | 'error' (повтор — следующая сверка); что не так — в errors['avatar']."""
+    errors = {} if errors is None else errors
     try:
         with open(BOT_AVATAR, "rb") as f:
             data = f.read()
     except OSError:
+        errors["avatar"] = "нет файла " + os.path.basename(BOT_AVATAR)
         return "no_file"
     digest = hashlib.sha256(data).hexdigest()
     key = "avatar_sha256:" + str(_token() or "").split(":", 1)[0]
-    path = _profile_state_path()
-    try:
-        with open(path, encoding="utf-8") as f:
-            state = json.load(f)
-        state = state if isinstance(state, dict) else {}
-    except (OSError, ValueError):
-        state = {}
+    state = _load_profile_state()
     if state.get(key) == digest:
         return "same"
     photo = json.dumps({"type": "animated", "animation": "attach://avatar",
                         "main_frame_timestamp": BOT_AVATAR_MAIN_FRAME_S})
     answer = api_call_files("setMyProfilePhoto", {"photo": photo}, [("avatar", "avatar.mp4", data, "video/mp4")])
     if not answer or not answer.get("ok"):
-        log.warning("аватарка бота не встала: %s", (answer or {}).get("description") or "нет ответа")
+        errors["avatar"] = _telegram_answer(answer)
+        log.warning("аватарка бота не встала: %s", errors["avatar"])
         return "error"
+    state = _load_profile_state()                # перечитать: между чтением и ответом мог писать другой
     state[key] = digest
-    try:
-        tmp = path + ".tmp"
-        with open(tmp, "w", encoding="utf-8") as f:
-            json.dump(state, f, ensure_ascii=False)
-        os.replace(tmp, path)
-    except OSError as exc:                       # не запомнили — следующий старт поставит ещё раз
-        log.warning("не записал %s: %s", PROFILE_STATE_FILE, exc)
+    _save_profile_state(state)
     return "set"
 
 

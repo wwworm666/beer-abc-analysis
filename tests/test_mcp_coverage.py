@@ -86,8 +86,9 @@ def test_access_management_is_not_exposed():
     exclusions = registry.exclusions()
     admin_pairs = [pair for pair in report.required if pair[1].startswith('/api/admin/mcp')]
     # 8 пар управления доступом MCP и 5 — раздел бота @MCPkulturabot (секреты, привязка Telegram,
-    # команда установки сервера бота), с 2026-10-19
-    assert len(admin_pairs) == 13, admin_pairs
+    # команда установки сервера бота), с 2026-10-19; с 2026-11-07 — кнопка «Обновить имя и аватарку»
+    # бота kultura.pulse (POST /api/admin/mcp/bot/pulse-sync)
+    assert len(admin_pairs) == 14, admin_pairs
     for pair in admin_pairs:
         assert pair in exclusions and 'доступом к себе' in exclusions[pair], pair
     # API сервера бота (/api/bot/*): вход только по ключу сервера бота, отдаёт секреты — агенту закрыт

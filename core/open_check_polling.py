@@ -53,11 +53,9 @@ def _poll_loop() -> None:
     tg.api_call("deleteWebhook", {"drop_pending_updates": False})
     # Обновить список команд в меню Telegram (/start, /status, /temp, /cash, /reviews).
     tg.set_my_commands()
-    # Имя «kultura.pulse» и описания — если в Telegram другие (2026-11-07).
-    try:
-        tg.sync_profile()
-    except Exception as exc:  # noqa: BLE001 — имя не должно мешать принимать команды
-        print(f"[OPEN-CHECK-POLL] профиль бота не обновился: {exc}")
+    # Имя «kultura.pulse», описания и живая аватарка — если в Telegram другие (2026-11-07);
+    # не встало — ещё раз через час (tg.PROFILE_RETRY_S), не дожидаясь перезапуска.
+    profile_retry_at = _sync_profile(tg)
 
     me = tg.api_call("getMe")
     if me and me.get("ok"):
@@ -67,6 +65,8 @@ def _poll_loop() -> None:
 
     offset = None
     while True:
+        if profile_retry_at and time.time() >= profile_retry_at:
+            profile_retry_at = _sync_profile(tg)
         try:
             payload = {"timeout": POLL_TIMEOUT,
                        "allowed_updates": ["message", "callback_query"]}
@@ -89,6 +89,21 @@ def _poll_loop() -> None:
         except Exception as e:
             print(f"[OPEN-CHECK-POLL] исключение в цикле: {tg._scrub(e)}")
             time.sleep(10)
+
+
+def _sync_profile(tg) -> float:
+    """Сверить имя, описания и аватарку бота с Telegram; вернуть, когда повторить (0 — всё встало)."""
+    try:
+        result = tg.sync_profile()
+    except Exception as e:  # noqa: BLE001 — профиль не должен мешать принимать команды
+        print(f"[OPEN-CHECK-POLL] профиль бота: сбой {tg._scrub(e)} — ещё раз через час")
+        return time.time() + tg.PROFILE_RETRY_S
+    bad = [field for field, value in result.items() if value not in ("same", "set")]
+    if bad:
+        print(f"[OPEN-CHECK-POLL] профиль бота не обновился ({', '.join(bad)}) — ещё раз через час")
+        return time.time() + tg.PROFILE_RETRY_S
+    print("[OPEN-CHECK-POLL] профиль бота сверен: " + ", ".join(f"{k} {v}" for k, v in result.items()))
+    return 0.0
 
 
 def start_polling() -> None:

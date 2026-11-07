@@ -1,7 +1,9 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg?v={{ app_version }}">
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png?v={{ app_version }}">
+    <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v={{ app_version }}">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Доступ агентов — kultura.os</title>
@@ -114,6 +116,24 @@
                            Меняются через репозиторий: сервер бота сверяется с GitHub раз в пару минут и обновляется
                            сам.</p>
                         <p id="mcpBotModel"></p>
+                    </div>
+                </details>
+            </section>
+
+            <section class="mcp-panel" id="mcpPulsePanel">
+                <h2>Бот kultura.pulse</h2>
+                <p class="mcp-note" id="mcpPulseState">Загрузка…</p>
+                <div class="mcp-actions">
+                    <button type="button" class="mcp-btn mcp-btn-ghost" id="mcpPulseSync">Обновить имя и аватарку</button>
+                    <span class="mcp-err" id="mcpPulseError"></span>
+                </div>
+                <details class="mcp-fold">
+                    <summary>Как ставится</summary>
+                    <div class="mcp-note mcp-fold-body">
+                        <p>Опоздания, инкассация, температура и отзывы — бот open-check, он работает внутри сайта.
+                           Имя, описания и живую аватарку (светлый ролик знака из набора бренда) сайт сверяет с
+                           Telegram при запуске и ставит, если там другие; аватарку — один раз на файл. Не встало —
+                           сайт пробует снова раз в час; кнопка выше — сверить сейчас. Ошибку Telegram видно здесь.</p>
                     </div>
                 </details>
             </section>

@@ -1072,6 +1072,8 @@ Claude и Telegram в тестах подменены: сеть не нужна,
 
 ## Changelog
 
+- **2026-11-07 (4)** — аватарка — светлая версия ролика (`assets/avatar.mp4` из
+  `kultura-research-grid-light.mp4`, решение владельца «для ботов нужна светлая версия»).
 - **2026-11-07 (3)** — живая аватарка: ролик знака kultura.research из набора бренда
   (`assets/avatar.mp4`, кадр 5 с; `telegram_io.set_profile_photo(animated=True)`,
   `settings.BOT_AVATAR_MAIN_FRAME_S`); JPEG и `scripts/render_bot_avatar.py` убраны ([brand.md](brand.md)).

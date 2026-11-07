@@ -9,7 +9,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="robots" content="noindex, nofollow">
     <meta name="referrer" content="no-referrer">
-    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg?v={{ app_version }}">
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png?v={{ app_version }}">
+    <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v={{ app_version }}">
     <title>{% if mode == 'consent' %}Разрешить доступ{% elif mode == 'forbidden' %}Нет доступа{% else %}Подключение не удалось{% endif %} — kultura.os</title>
     <script nonce="{{ csp_nonce }}">
         /* Тема сайта хранится в localStorage 'theme' (shared/nav.html). Применяем до отрисовки,

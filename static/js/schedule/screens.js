@@ -267,7 +267,8 @@
             + '<span class="tb-live' + (isToday ? '' : ' tb-live-off') + '"></span>'
             + '<span class="tb-date">' + dows(dt.getDay()) + ' · ' + p[2] + '.' + p[1] + '</span>'
             + '<button class="tb-nav' + (dnum >= dim ? ' is-disabled' : '') + '" data-step="1" title="День вперёд">›</button>'
-            + tag + '<span class="tb-os">&gt; kultura.os</span></div>';
+            + tag + '<span class="tb-os" data-kultura-logo="wordmark">'
+            + '<svg class="kultura-logo-svg" role="img" aria-label="kultura.os"></svg></span></div>';
 
         var focus = focusLoc();
         var cards = S.state.locations.map(function (loc, i) {
@@ -322,6 +323,8 @@
 
         host.innerHTML = '<div class="tb-card-wrap">' + head
             + '<div class="tb-grid">' + cards + '</div></div>';
+        // Логотип в шапке борда — тот же «kultura.os», что в шапке сайта (static/logo.js, docs/brand.md).
+        if (window.KulturaLogo) window.KulturaLogo.init();
 
         // листание дня — перерисовать борд на месте (без запросов)
         host.querySelectorAll('.tb-nav').forEach(function (el) {

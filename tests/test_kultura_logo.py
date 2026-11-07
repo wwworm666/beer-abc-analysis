@@ -90,3 +90,34 @@ def test_logo_is_on_every_entry_point():
 def test_logo_script_syntax():
     run = subprocess.run([NODE, '--check', LOGO], capture_output=True, text=True, timeout=30)
     assert run.returncode == 0, run.stderr
+
+
+def test_tab_and_home_screen_icons_are_the_new_mark_and_not_cached():
+    """2026-11-07: «не поменялось в значке вкладки» — у ссылок не было метки версии, а статика
+    кэшируется на 30 дней; на телефоне и в манифесте стоял старый logo.jpg."""
+    import glob
+    from PIL import Image
+    for path in glob.glob(os.path.join(ROOT, 'templates', '**', '*.html'), recursive=True):
+        with open(path, encoding='utf-8') as f:
+            text = f.read()
+        if 'rel="icon"' not in text:
+            continue
+        rel = os.path.relpath(path, ROOT)
+        assert 'href="/static/favicon.svg?v={{ app_version }}"' in text, rel
+        assert 'favicon-32.png?v={{ app_version }}' in text and 'apple-touch-icon.png?v={{ app_version }}' in text, rel
+        assert 'logo.jpg' not in text, rel
+    sizes = {'favicon-32.png': 32, 'apple-touch-icon.png': 180, 'icon-192.png': 192, 'icon-512.png': 512}
+    for name, size in sizes.items():
+        assert Image.open(os.path.join(ROOT, 'static', name)).size == (size, size), name
+    with open(os.path.join(ROOT, 'static', 'manifest.json'), encoding='utf-8') as f:
+        manifest = json.load(f)
+    assert manifest['short_name'] == 'kultura.os'
+    for icon in manifest['icons']:
+        assert icon['type'] == 'image/png' and os.path.exists(os.path.join(ROOT, icon['src'].lstrip('/')))
+
+
+def test_schedule_board_uses_the_same_logo():
+    with open(os.path.join(ROOT, 'static', 'js', 'schedule', 'screens.js'), encoding='utf-8') as f:
+        code = f.read()
+    assert '&gt; kultura.os' not in code and 'data-kultura-logo="wordmark"' in code
+    assert 'window.KulturaLogo.init()' in code, 'новый борд — логотип дорисовывается'

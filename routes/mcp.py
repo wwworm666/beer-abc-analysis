@@ -261,8 +261,10 @@ BOT_FIELDS = {'token', 'clear_token', 'anthropic_key', 'clear_anthropic_key', 'p
 
 
 def _bot_payload(warnings=None) -> dict:
+    from core import open_check_telegram
     from kultura_bot import site_api
-    return site_api.page_view(warnings)
+    # pulse — бот kultura.pulse (@kultura_open_bot, open-check): итог сверки имени и аватарки с Telegram.
+    return dict(site_api.page_view(warnings), pulse=open_check_telegram.profile_status())
 
 
 @mcp_bp.route('/api/admin/mcp/bot', methods=['GET'])
@@ -315,6 +317,18 @@ def admin_bot_unlink(tg_user_id):
     if not tg_user_id.isdigit():
         return _error('Номер Telegram — число')
     return jsonify({'ok': store.delete_link(tg_user_id)})
+
+
+@mcp_bp.route('/api/admin/mcp/bot/pulse-sync', methods=['POST'])
+@admin_required
+def admin_bot_pulse_sync():
+    """Кнопка «Обновить имя и аватарку» у kultura.pulse: сверить профиль бота с Telegram сейчас (то же,
+    что делает приём сообщений при запуске сайта) и вернуть итог с ответами Telegram."""
+    from core import open_check_telegram
+    if not open_check_telegram.profile_status()['configured']:
+        return _error('Токен бота kultura.pulse не задан (TELEGRAM_OPEN_CHECK_BOT_TOKEN в .env сайта)')
+    result = open_check_telegram.sync_profile()
+    return jsonify({'result': result, 'pulse': open_check_telegram.profile_status()})
 
 
 @mcp_bp.route('/api/admin/mcp/bot/install', methods=['POST'])

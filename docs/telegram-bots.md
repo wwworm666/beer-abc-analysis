@@ -192,8 +192,10 @@ Claude, не ставится (`.claude/CLAUDE.md`).
 - **Имя и описания** (`core/open_check_telegram.py`: `BOT_NAME` = `kultura.pulse`,
   `BOT_SHORT_DESCRIPTION`, `BOT_DESCRIPTION`) ставит сайт при старте приёма сообщений
   (`sync_profile` из `core/open_check_polling.py`), только если в Telegram другое; там же —
-  **живая аватарка** (ролик знака из набора бренда, `brand/kultura-grid-motion/motion/
-  kultura-pulse-grid.mp4`, один раз на файл, [brand.md](brand.md)).
+  **живая аватарка** (светлый ролик знака из набора бренда, `brand/kultura-grid-motion/motion/
+  kultura-pulse-grid-light.mp4`, один раз на файл, [brand.md](brand.md)). Итог сверки (какой бот у
+  токена, что встало, что ответил Telegram) — раздел «Бот kultura.pulse» на «Доступ агентов» с
+  кнопкой «Обновить имя и аватарку»; не встало — повтор раз в час.
 
 - **Команды и кнопки** (`core/open_check_telegram.py`, `handle_update`): `/start` (`/menu`,
   `/help`) — описание, «подписан: да/нет», ID чата и кнопки:
@@ -291,6 +293,9 @@ Claude, не ставится (`.claude/CLAUDE.md`).
 - Путать ботов в документах — так появилась эта страница.
 
 ## Changelog
+
+- **2026-11-07 (4)** — светлые аватарки ботов; у kultura.pulse итог сверки профиля на «Доступ
+  агентов», повтор раз в час и кнопка «Обновить имя и аватарку» (`POST /api/admin/mcp/bot/pulse-sync`).
 
 - **2026-11-07 (3)** — живые аватарки kultura.research и kultura.pulse из набора бренда
   ([brand.md](brand.md)); kultura.pulse ставит её сам (сайт).
