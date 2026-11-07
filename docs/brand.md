@@ -11,7 +11,7 @@
 |---|---|---|---|
 | **kultura.os** | сайт (beerkultura.ru) | буква «k» и оранжевый квадрат | шапка всех страниц, вход, согласие MCP, значок вкладки |
 | **kultura.pulse** | бот @kultura_open_bot: опоздания, инкассация, температура, отзывы | три вложенных скруглённых квадрата и оранжевый в центре | живая аватарка бота |
-| **kultura.research** | бот @MCPkulturabot: анализ через MCP | рамка и три столбца, высокий — оранжевый | живая аватарка бота |
+| **kultura.research** | бот @MCPkulturabot: анализ через MCP | скруглённая рамка и три скруглённых столбца, высокий — оранжевый | живая аватарка бота |
 
 Правила набора (`brand/kultura-grid-motion/README.txt`, `source/BRIEF.md`):
 
@@ -21,7 +21,11 @@
   убраны);
 - одинаковый кегль; готовый текст не двигается, не плавает и не масштабируется;
 - шрифт — IBM Plex Mono Medium; цвета — оранжевый `#FF4B0A`, чёрный, белый;
-- знак, название и звуковой акцент завершаются синхронно.
+- знак, название и звуковой акцент завершаются синхронно;
+- углы знаков скруглены одинаково (решение владельца 2026-11-07: «скруглить края на kultura.research,
+  чтобы они были такие же, как у пульса»): рамка kultura.research — радиус 0,18 стороны (41,4 при
+  стороне 230), как у колец kultura.pulse; столбцы — 0,19 ширины (6,84 при ширине 36), как у
+  квадратов pulse.
 
 ## Файлы
 
@@ -29,16 +33,18 @@
 |---|---|
 | `brand/kultura-grid-motion/static/*.svg`, `*.png` | утверждённые статичные знаки (os, pulse, research, общий) |
 | `brand/kultura-grid-motion/motion/*.mp4`, `*.gif` | готовые ролики: по знаку — 8 с, MP4 600×600 30 кадров/с без звука, GIF 512×512; общая заставка — 18,4 с, MP4 1920×1080 со звуком, GIF 960×540 |
-| `brand/kultura-grid-motion/motion/*-grid-light.*`, `static/*-light.svg`, `*-light.png` | светлые версии знаков os, pulse, research (2026-11-07, для аватарок ботов): белый фон, чёрные знак и буквы, оранжевый тот же; рендер `node render.cjs all light` |
+| `brand/kultura-grid-motion/motion/*-grid-light.*`, `static/*-light.svg`, `*-light.png` | светлые версии знаков os, pulse, research (2026-11-07): белый фон, чёрные знак и буквы, оранжевый тот же; рендер `node render.cjs all light` |
+| `brand/kultura-grid-motion/motion/kultura-pulse-avatar-light.*`, `kultura-research-avatar-light.*` | **аватарки ботов** (2026-11-07): светлые, только знак — крупно и по центру, без названия; рендер `node render.cjs avatar light` |
 | `brand/kultura-grid-motion/source/` | исходник рендера: `grid.cjs` (движение и тайминги), `index.html` (композиция на GSAP), `render.cjs`, `sound.cjs`, контуры шрифта `assets/glyphs.json`, лицензия шрифта `OFL.txt` |
 | [static/logo.js](../static/logo.js) | логотип сайта, который рисуется: те же формулы и контуры букв, что в `grid.cjs` |
 | [static/logo.css](../static/logo.css) | размер логотипа в шапке (от кегля ссылки) |
 | [static/favicon.svg](../static/favicon.svg), `favicon-32.png`, `apple-touch-icon.png`, `icon-192.png`, `icon-512.png`, `favicon.png`, `logo.jpg` | значки — статичный знак kultura.os: вкладка (SVG и PNG 32 для браузеров без SVG), экран телефона (180), манифест (192, 512); старые `favicon.png` и `logo.jpg` заменены тем же знаком |
 | [static/manifest.json](../static/manifest.json) | значок и имя сайта на экране телефона: «kultura.os», PNG 192 и 512 |
 | `templates/shared/nav.html`, `templates/login.html`, `templates/mcp_consent.html` | где логотип стоит (`data-kultura-logo`) |
-| `kultura_bot/assets/avatar.mp4`, `avatar.svg` | аватарка kultura.research — светлая версия (копия `motion/kultura-research-grid-light.mp4`) и её статичный знак — на сервер бота ставится только папка `kultura_bot/` |
-| `core/open_check_telegram.py` (`BOT_AVATAR`, `_sync_avatar`, `sync_profile`, `profile_status`) | аватарка kultura.pulse — берётся прямо из `motion/kultura-pulse-grid-light.mp4` набора; итог сверки — для страницы «Доступ агентов» |
+| `kultura_bot/assets/avatar.mp4`, `avatar.svg` | аватарка kultura.research (копия `motion/kultura-research-avatar-light.mp4`) и её статичный знак (`static/kultura-research-light.svg`) — на сервер бота ставится только папка `kultura_bot/` |
+| `core/open_check_telegram.py` (`BOT_AVATAR`, `_sync_avatar`, `sync_profile`, `profile_status`) | аватарка kultura.pulse — берётся прямо из `motion/kultura-pulse-avatar-light.mp4` набора; итог сверки — для страницы «Доступ агентов» |
 | `tests/test_kultura_logo.py` | кадры логотипа сайта, где он стоит, значок вкладки |
+| `tests/test_brand_motion.py` | кадры набора из `grid.cjs`: у аватарки нет букв, знак крупно по центру и целиком в круге Telegram, светлый фон, цикл бесшовный; скругления kultura.research; файлы аватарок на месте |
 
 ## Как работает
 
@@ -83,19 +89,33 @@
 
 Telegram не принимает GIF как аватарку: живая аватарка — это видео профиля, MPEG4, квадрат, до 10
 секунд, сторона 160–1280, до 2 МБ, без звука. Ролики набора (MP4 600×600, 8 с, без звука,
-бесшовный цикл) подходят как есть; GIF остаются в наборе для других мест. Для ботов — **светлая**
-версия (решение владельца 2026-11-07): белый фон, чёрные знак и буквы, затемнение конца цикла уходит
-в белый; тайминги и геометрия те же (`individual(k, t, 'light')` в `grid.cjs`).
+бесшовный цикл) подходят как есть; GIF остаются в наборе для других мест. Для ботов — свой ролик
+`avatar(k, t, 'light')` в `grid.cjs` (решения владельца 2026-11-07: «для ботов нужна светлая
+версия», «с подписью плохо, логотип слишком маленький»):
+
+- светлый: белый фон, чёрный знак, оранжевый тот же, затемнение конца цикла уходит в белый;
+- **только знак, без названия**: подпись в кружке аватарки мельче читаемого и съедает место;
+- знак **крупно и по центру**: масштаб `AVATAR_SCALE` = 1,5 против 0,94 в ролике с названием (в 1,6
+  раза крупнее); знак kultura.pulse — 0,68 ширины кадра вместо 0,43, kultura.research — 0,62
+  вместо 0,39 (внешнее кольцо pulse — 266 + обводка 6, рамка research — 230 + обводка 19, в единицах
+  знака);
+- знак **целиком в круге**: Telegram обрезает аватарку кругом, вписанным в квадрат (радиус 300 при
+  кадре 600). Дальняя от центра точка — угол внешнего кольца kultura.pulse: 171,3 при масштабе 1
+  (угол скругления (133 − 47,9) · √2 + 47,9 + 3), в аватарке — 257, запас 43; при масштабе больше
+  1,75 углы выйдут за круг (проверяет `tests/test_brand_motion.py` по всем кадрам);
+- движение знака то же, что в ролике по знаку: оранжевый квадрат в центре, на 0,35 с знак начинает
+  рисоваться, к 2,48 с стоит, затемнение — с 7,0 с, на 7,56 с снова один квадрат, на 8 с — цикл
+  с начала без шва.
 
 | Бот | Кто ставит | Файл | Кадр там, где видео не играет |
 |---|---|---|---|
-| kultura.research | сервер бота в Амстердаме при запуске (`service._sync_avatar` -> `telegram_io.set_profile_photo(animated=True)`) | `kultura_bot/assets/avatar.mp4` (`settings.BOT_AVATAR`, светлая версия) | `settings.BOT_AVATAR_MAIN_FRAME_S` = 5,0 с |
-| kultura.pulse | сайт при старте приёма сообщений (`core/open_check_telegram.py`, `sync_profile` -> `_sync_avatar`) и кнопкой «Обновить имя и аватарку» на «Доступ агентов» | `brand/kultura-grid-motion/motion/kultura-pulse-grid-light.mp4` | `BOT_AVATAR_MAIN_FRAME_S` = 5,0 с |
+| kultura.research | сервер бота в Амстердаме при запуске (`service._sync_avatar` -> `telegram_io.set_profile_photo(animated=True)`) | `kultura_bot/assets/avatar.mp4` (`settings.BOT_AVATAR`, копия `motion/kultura-research-avatar-light.mp4`) | `settings.BOT_AVATAR_MAIN_FRAME_S` = 5,0 с |
+| kultura.pulse | сайт при старте приёма сообщений (`core/open_check_telegram.py`, `sync_profile` -> `_sync_avatar`) и кнопкой «Обновить имя и аватарку» на «Доступ агентов» | `brand/kultura-grid-motion/motion/kultura-pulse-avatar-light.mp4` | `BOT_AVATAR_MAIN_FRAME_S` = 5,0 с |
 
 Запрос — `setMyProfilePhoto` с `{"type": "animated", "animation": "attach://avatar",
-"main_frame_timestamp": 5.0}` и файлом `avatar.mp4` (multipart). 5-я секунда — знак и название уже
-стоят (приземление на 2,48 с), затемнение конца цикла начинается на 7,0 с: этот кадр Telegram
-показывает в списке чатов и уведомлениях.
+"main_frame_timestamp": 5.0}` и файлом `avatar.mp4` (multipart). 5-я секунда — знак уже стоит
+(готов на 2,48 с), затемнение конца цикла начинается на 7,0 с: этот кадр Telegram показывает в
+списке чатов и уведомлениях.
 
 Ставится один раз на файл: Telegram не отдаёт аватарку так, чтобы сравнить её с файлом, поэтому
 помнится SHA-256 поставленного файла по id бота — у kultura.research в своей базе сервера бота
@@ -115,15 +135,23 @@ kultura.pulse проверен на подменённом Telegram (запро�
 
 1. Новые файлы — в `brand/kultura-grid-motion/` (или повторный рендер: в `source/` —
    `npm install`, `npm run build` (собирает `assets/motion.js` и `sound.wav`, звук в репозиторий не
-   кладём — 3,5 МБ), `npm run render`, светлые версии — `node render.cjs all light`; нужны Node.js и
-   ffmpeg; результат — в `source/outputs/`, переложить в `motion/`).
-2. Аватарка kultura.research — скопировать ролик в `kultura_bot/assets/avatar.mp4`; kultura.pulse
-   берёт файл из набора сам.
+   кладём — 3,5 МБ), `npm run render`, светлые версии — `node render.cjs all light`, аватарки
+   ботов — `node render.cjs avatar light`; нужны Node.js и ffmpeg; результат — в `source/outputs/`,
+   переложить в `motion/`). Поменял геометрию знака — поправь и статичные `static/*.svg` (те же
+   числа) и перерисуй их PNG.
+2. Аватарка kultura.research — скопировать `motion/kultura-research-avatar-light.mp4` в
+   `kultura_bot/assets/avatar.mp4`; kultura.pulse берёт файл из набора сам. Новый файл — новая
+   аватарка при следующем запуске (у kultura.pulse — и кнопкой на «Доступ агентов»).
 3. Буквы или тайминги сайта поменялись в `grid.cjs` — перенести в `static/logo.js` (функции и
    числа совпадают по именам) и поправить `tests/test_kultura_logo.py`.
 4. Слить в `main`: сайт — выкладка, сервер бота — самообновление за 2–3 минуты.
 
 ## Changelog
+
+- **2026-11-07 (3)** — аватарки ботов без названия: только знак, крупно (масштаб 1,5 вместо 0,94) и по центру
+  (`avatar(k, t, theme)` в `grid.cjs`, `render.cjs avatar light`, `motion/*-avatar-light.*`); углы
+  kultura.research скруглены как у kultura.pulse (рамка 0,18 стороны, столбцы 0,19 ширины; рамка
+  рисуется линией по контуру) — в роликах, статичных знаках и общей заставке; `tests/test_brand_motion.py`.
 
 - **2026-11-07 (2)** — светлые версии знаков и роликов (`*-light`, `individual(k, t, 'light')`,
   `render.cjs … light`) — аватарки обоих ботов теперь светлые; значки сайта с меткой версии, PNG 32,

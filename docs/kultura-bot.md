@@ -579,8 +579,9 @@ Markdown, служебная строка говорит ей «оформлен
 
 Решение владельца 2026-11-07: имя бота — **kultura.research** (анализ через MCP); **kultura.os** —
 это сайт, **kultura.pulse** — бот open-check ([telegram-bots.md](telegram-bots.md)). С 2026-11-06
-до 2026-11-07 бот назывался kultura.os. Аватарка с 2026-11-07 — **живая**: ролик знака
-kultura.research из набора «Grid motion» (`kultura_bot/assets/avatar.mp4`, [brand.md](brand.md));
+до 2026-11-07 бот назывался kultura.os. Аватарка с 2026-11-07 — **живая**: светлый ролик знака
+kultura.research из набора «Grid motion» — только знак, крупно и по центру, без названия
+(`kultura_bot/assets/avatar.mp4`, копия `motion/kultura-research-avatar-light.mp4`, [brand.md](brand.md));
 до этого был знак сайта ›_ в облачке чата. Адрес
 `@MCPkulturabot` не меняется: Telegram не даёт менять адрес бота, меняется имя, которое видно в
 чатах и над сообщениями.
@@ -1072,6 +1073,10 @@ Claude и Telegram в тестах подменены: сеть не нужна,
 
 ## Changelog
 
+- **2026-11-07 (5)** — аватарка без названия: только знак, крупно и по центру, углы рамки и
+  столбцов скруглены как у kultura.pulse (`assets/avatar.mp4` из `kultura-research-avatar-light.mp4`,
+  `assets/avatar.svg` — скруглённый знак; решение владельца «с подписью плохо, логотип слишком
+  маленький»).
 - **2026-11-07 (4)** — аватарка — светлая версия ролика (`assets/avatar.mp4` из
   `kultura-research-grid-light.mp4`, решение владельца «для ботов нужна светлая версия»).
 - **2026-11-07 (3)** — живая аватарка: ролик знака kultura.research из набора бренда

@@ -50,16 +50,20 @@ function pulse(t,c){
   s+=`<g opacity="${N(a)}">${rect(200-w/2,200-w/2,w,w,'none',N(w*.18),c,sw)}</g>`;
  }return s;
 }
+// Рамка и столбцы — со скруглением, как квадраты pulse (решение владельца 2026-11-07): радиус рамки —
+// 0,18 стороны (как у колец pulse), столбцов — 0,19 ширины (как у оранжевого квадрата pulse). Рамка
+// рисуется одной линией по контуру — сверху слева направо, справа вниз, снизу, слева вверх, как
+// прежде по сторонам, и за то же время: доля контура — среднее четырёх сторон.
 function research(t,c){
- let s='';const b=85,z=230,sw=19;
- const a=[0,.10,.20,.30].map(v=>rail(p(t,v,.24)));
- s+=rect(b-sw/2,b-sw/2,z*a[0]+sw,sw,c);
- s+=rect(b+z-sw/2,b-sw/2,sw,z*a[1]+sw,c);
- s+=rect(b+z-(z+sw)*a[2]+sw/2,b+z-sw/2,(z+sw)*a[2],sw,c);
- s+=rect(b-sw/2,b+z-(z+sw)*a[3]+sw/2,sw,(z+sw)*a[3],c);
+ let s='';const b=85,z=230,sw=19,r=N(z*.18);
+ const a=[0,.10,.20,.30].map(v=>rail(p(t,v,.24))),q=(a[0]+a[1]+a[2]+a[3])/4;
+ if(q>0){
+  const L=4*(z-2*r)+2*Math.PI*r,dash=q>=1-1e-9?'':` stroke-dasharray="${N(q*L)} ${N(L)}"`;
+  s+=`<rect x="${b}" y="${b}" width="${z}" height="${z}" rx="${r}" fill="none" stroke="${c}" stroke-width="${sw}"${dash}/>`;
+ }
  for(let i=0;i<3;i++){
   const a=rail(p(t,.48+i*.18,.44)),h=[64,99,139][i]*a;
-  s+=rect(114+i*59,281-h,36,h,i===2?O:c);
+  s+=rect(114+i*59,281-h,36,h,i===2?O:c,N(36*.19));
  }return s;
 }
 function mark(k,t,c,id='mark'){return k==='os'?os(t,c,id):k==='pulse'?pulse(t,c):research(t,c);}
@@ -127,4 +131,19 @@ function individual(k,t,theme='dark'){
  }
  return `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600" viewBox="0 0 600 600">${s}</svg>`;
 }
-window.KulturaMotion={film,individual,DURATION,font,LANDINGS,SUFFIX_TIME,MARK_TIME};
+// Аватарка бота (решение владельца 2026-11-07: «с подписью плохо, логотип слишком маленький»): только
+// знак — крупно (AVATAR_SCALE) и по центру кадра, без названия. Начало и конец цикла — оранжевая
+// точка в центре, как у individual; знак строится сразу после неё (с 0,35 с), в конце — затемнение в
+// цвет фона (7,0 с). Светлая тема по умолчанию: аватарки ботов — светлые.
+const AVATAR_SCALE=1.5;
+function avatar(k,t,theme='light'){
+ const bg=theme==='light'?'white':'black',ink=theme==='light'?'black':'white';
+ let s=rect(0,0,600,600,bg);
+ if(t<.35||t>=7.56)s+=rect(285,285,30,30,O);
+ if(t>=.35&&t<7.56){
+  s+=place(mark(k,t-.35,ink,'avatar-'+k),300,300,AVATAR_SCALE);
+  if(t>=7.0)s+=rect(0,0,600*rail(p(t,7.0,.5)),600,bg);
+ }
+ return `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600" viewBox="0 0 600 600">${s}</svg>`;
+}
+window.KulturaMotion={film,individual,avatar,AVATAR_SCALE,DURATION,font,LANDINGS,SUFFIX_TIME,MARK_TIME};

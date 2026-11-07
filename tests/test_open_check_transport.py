@@ -236,7 +236,8 @@ def test_sync_records_what_telegram_answered(monkeypatch, tmp_path):
 
 
 def test_pulse_avatar_is_the_light_version():
-    assert tg.BOT_AVATAR.endswith('kultura-pulse-grid-light.mp4'), 'для ботов — светлая версия (2026-11-07)'
+    assert tg.BOT_AVATAR.endswith('kultura-pulse-avatar-light.mp4'), \
+        'для ботов — светлая версия, только знак без названия (2026-11-07)'
 
 
 def test_polling_retries_profile_hourly_when_something_failed(monkeypatch):
