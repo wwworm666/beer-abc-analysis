@@ -20,9 +20,10 @@
 
 - model, effort, max_tokens — kultura_bot/settings.py; думает модель всегда (adaptive),
   рассуждения не показываются (display по умолчанию);
-- speed="fast" — быстрый режим (settings.FAST_MODE): вывод до 2,5 раза быстрее, цена × 2;
-  не ответил (429, сбой, отказ именно в нём) — тот же шаг на обычной скорости, и
-  settings.FAST_COOLDOWN_S быстрый режим не просится (fast_mode_on);
+- speed="fast" — быстрый режим, только когда попросили (fast=True: вопрос «/fast …» и его
+  агенты, settings.FAST_MODE; решение владельца 2026-11-08 — по умолчанию обычная скорость):
+  вывод до 2,5 раза быстрее, цена × 2; не ответил (429, сбой, отказ именно в нём) — тот же шаг
+  на обычной скорости, и settings.FAST_COOLDOWN_S быстрый режим не просится (fast_mode_on);
 - инструменты — kultura_bot/engine/tools.py (поиск по описаниям + отложенная загрузка);
 - кэш: системный промпт — явная точка кэша, хвост разговора — автоматическая
   (cache_control верхнего уровня); повторные запросы диалога читают начало из кэша;
@@ -103,7 +104,8 @@ _fast_paused_until = 0.0         # быстрый режим не ответил
 
 
 def fast_mode_on(now: Optional[float] = None) -> bool:
-    """Просить ли быстрый режим: включён в настройках и не на паузе после сбоя."""
+    """Просить ли быстрый режим у вопроса «/fast …»: команда включена в настройках и быстрый режим
+    не на паузе после сбоя."""
     return settings.FAST_MODE and (time.time() if now is None else now) >= _fast_paused_until
 
 
@@ -134,6 +136,7 @@ class Spend:
     """Расход одного вопроса: бот и его агенты вместе (ToolContext.spend)."""
     usd: float = 0.0
     steps: int = 0                             # запросов к модели
+    fast_steps: int = 0                        # из них прошли в быстром режиме (usage.speed = "fast")
     limit: Optional[float] = None              # предел на вопрос; None — settings.QUESTION_BUDGET_USD
                                                # (у отчёта — settings.REPORT_BUDGET_USD)
 
@@ -153,7 +156,7 @@ class TurnResult:
 
 
 def request_params(*, model: str, effort: str, system_text: str, tool_list: List[Dict[str, Any]],
-                   messages: List[Dict[str, Any]], final: bool = False, fast: bool = True) -> Dict[str, Any]:
+                   messages: List[Dict[str, Any]], final: bool = False, fast: bool = False) -> Dict[str, Any]:
     """Параметры client.beta.messages.stream (отдельно — для тестов и отладки)."""
     betas = []
     params: Dict[str, Any] = {
@@ -181,7 +184,7 @@ def request_params(*, model: str, effort: str, system_text: str, tool_list: List
     if settings.REFUSAL_FALLBACK and 'fallbacks' not in _disabled:
         params['fallbacks'] = 'default'
         betas.append(BETA_FALLBACK)
-    if fast and fast_mode_on():                # fast=False — отчёт (settings.REPORT_FAST_MODE)
+    if fast and fast_mode_on():                # fast — только у вопроса «/fast …» и его агентов
         params['speed'] = 'fast'
         betas.append(BETA_FAST)
     if final:
@@ -314,7 +317,7 @@ def run_turn(client: Any, *, system_text: str, tool_list: List[Dict[str, Any]], 
              user_content: List[Dict[str, Any]], ctx: tools.ToolContext, store, model: Optional[str] = None,
              effort: Optional[str] = None, max_rounds: Optional[int] = None,
              on_step: Optional[Callable[[], None]] = None, on_usage: Optional[UsageHook] = None,
-             fast: bool = True) -> TurnResult:
+             fast: bool = False) -> TurnResult:
     """Ответить на один вопрос. Ошибки API (anthropic.*Error) и BudgetExceeded — наверх.
 
     store — своя база сервера бота (engine/store.py): дневной предел и расход; on_usage —
@@ -339,10 +342,13 @@ def run_turn(client: Any, *, system_text: str, tool_list: List[Dict[str, Any]], 
             final=final, fast=fast))
         usage = _usage_dict(response.usage)
         served_by = getattr(response, 'model', None) or model
-        cost = claude.cost_usd(served_by, usage, speed=getattr(response.usage, 'speed', None))
+        speed = getattr(response.usage, 'speed', None)
+        cost = claude.cost_usd(served_by, usage, speed=speed)
         result.cost_usd += cost
         spend.usd += cost
         spend.steps += 1
+        if speed == 'fast':
+            spend.fast_steps += 1
         try:
             store.add_usage(served_by, usage, cost)
             if ctx.user:
@@ -451,10 +457,11 @@ def run_agent(client: Any, persona: tools.Persona, task: str, *, parent: tools.T
     ctx = tools.ToolContext(site=parent.site, chat_id=parent.chat_id, allowed=persona.toolset.names,
                             is_agent=True, charts_sent=parent.charts_sent, reports_sent=parent.reports_sent,
                             spend=parent.spend, report_mode=parent.report_mode, progress=parent.progress,
-                            stop=parent.stop, calls=parent.calls, cards=parent.cards, user=parent.user)
+                            stop=parent.stop, calls=parent.calls, cards=parent.cards, user=parent.user,
+                            fast=parent.fast)
     text = (header + '\n' if header else '') + task
     result = run_turn(client, system_text=persona.system, tool_list=persona.toolset.defs, history=[],
                       user_content=[{'type': 'text', 'text': text}], ctx=ctx, store=store,
                       effort=settings.AGENT_EFFORT, max_rounds=settings.AGENT_MAX_TOOL_ROUNDS, on_usage=on_usage,
-                      fast=settings.REPORT_FAST_MODE or not parent.report_mode)
+                      fast=parent.fast)
     return result.text

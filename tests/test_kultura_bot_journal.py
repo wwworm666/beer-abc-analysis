@@ -58,6 +58,7 @@ def test_answer_is_journaled_with_calls_and_delivery(bot):
     assert (record['login'], record['name'], record['chat_id']) == ('owner', 'Владелец', OWNER_TG)
     assert record['mode'] == 'answer' and record['source'] == 'message' and record['format'] == 'plain'
     assert record['messages'] == [1] and record['steps'] == 2 and record['tool_calls'] == 1
+    assert record['fast'] is False and record['fast_steps'] == 0, 'обычная скорость (быстрый режим — только /fast)'
     [call] = record['calls']
     assert call['name'] == 'common_whoami' and call['ok'] is True and len(call['args']) <= engine_journal.ARGS_MAX
     assert record['asked_at'].endswith('+03:00') and record['seconds'] >= 0 and len(record['uid']) == 32

@@ -546,12 +546,13 @@ def test_turn_calls_site_tool_and_keeps_history_append_only(env):
         'история только дописывается'
     assert first['model'] == settings.MODEL and first['output_config'] == {'effort': settings.EFFORT}
     assert settings.EFFORT == 'xhigh' and settings.AGENT_EFFORT == 'xhigh', 'решение владельца 2026-10-20'
-    assert first['max_tokens'] == settings.MAX_TOKENS == 64000 and first['speed'] == 'fast'
-    assert client.options == [{'max_retries': 0}] * 2, 'быстрый запрос — без повторов SDK'
+    assert first['max_tokens'] == settings.MAX_TOKENS == 64000
+    assert 'speed' not in first and 'speed' not in second, \
+        'по умолчанию — обычная скорость (2026-11-08: быстрый режим только по /fast)'
+    assert client.options == [], 'обычная скорость — с повторами SDK'
     assert first['system'] == [{'type': 'text', 'text': 'СИСТЕМА', 'cache_control': {'type': 'ephemeral'}}]
     assert first['cache_control'] == {'type': 'ephemeral'} and first['fallbacks'] == 'default'
-    assert set(first['betas']) == {agent.BETA_CONTEXT, agent.BETA_THINKING_BINDING, agent.BETA_FALLBACK,
-                                   agent.BETA_FAST}
+    assert set(first['betas']) == {agent.BETA_CONTEXT, agent.BETA_THINKING_BINDING, agent.BETA_FALLBACK}
     assert first['thinking'] == {'type': 'adaptive', 'block_binding': {'prefix_mismatch_behavior': 'drop_block'}}
     edit = first['context_management']['edits'][0]
     assert edit['type'] == 'clear_tool_uses_20250919' and edit['exclude_tools'] == ['tool_search_tool_regex']
@@ -612,7 +613,7 @@ def test_fast_mode_falls_back_to_standard_and_pauses(env):
                         resp(text('Снова')), api_error(anthropic.BadRequestError, 400, 'speed: fast mode is not '
                                                        'available for this organization'), resp(text('Обычно')),
                         api_error(anthropic.BadRequestError, 400, 'messages.0: что-то другое'))
-    assert turn(env, client).text == 'Ответ'
+    assert turn(env, client, fast=True).text == 'Ответ'
     first, second = client.calls
     assert first['speed'] == 'fast' and agent.BETA_FAST in first['betas']
     assert 'speed' not in second and agent.BETA_FAST not in second['betas'], 'тот же шаг — на обычной скорости'
@@ -620,33 +621,37 @@ def test_fast_mode_falls_back_to_standard_and_pauses(env):
     assert client.options == [{'max_retries': 0}], 'быстрый — без повторов SDK, обычный — с ними'
     assert agent.fast_mode_on() is False and agent.fast_mode_on(agent._fast_paused_until) is True, \
         'пауза FAST_COOLDOWN_S'
-    turn(env, client)
+    turn(env, client, fast=True)
     assert 'speed' not in client.calls[2], 'на паузе — обычная скорость'
     for expected in ('Снова', 'Обычно'):                  # ошибка посреди потока; отказ в быстром режиме
         env.monkeypatch.setattr(agent, '_fast_paused_until', 0.0)
         before = len(client.calls)
-        assert turn(env, client).text == expected
+        assert turn(env, client, fast=True).text == expected
         fast, standard = client.calls[before:]
         assert fast['speed'] == 'fast' and 'speed' not in standard
     env.monkeypatch.setattr(agent, '_fast_paused_until', 0.0)
     with pytest.raises(anthropic.BadRequestError):
-        turn(env, client)
+        turn(env, client, fast=True)
     assert agent.fast_mode_on(), 'чужая ошибка 400 — наверх, быстрый режим не на паузе'
 
 
 def test_fast_mode_off_and_fast_price(env):
     env.monkeypatch.setattr(settings, 'FAST_MODE', False)
     client = FakeClient(resp(text('Ответ')))
-    turn(env, client)
-    assert 'speed' not in client.calls[0] and agent.BETA_FAST not in client.calls[0]['betas']
+    turn(env, client, fast=True)
+    assert 'speed' not in client.calls[0] and agent.BETA_FAST not in client.calls[0]['betas'], \
+        'команда выключена — и «/fast» на обычной скорости'
     assert client.options == [], 'обычная скорость — с повторами SDK'
     env.monkeypatch.setattr(settings, 'FAST_MODE', True)
     fast = resp(text('Быстро'))
     fast.usage.speed = 'fast'
-    result = turn(env, FakeClient(fast))
+    ctx = ctx_for(env)
+    ctx.spend = agent.Spend()
+    result = turn(env, FakeClient(fast), ctx=ctx, fast=True)
     usage = {'input_tokens': 1000, 'output_tokens': 200}
     assert result.cost_usd == pytest.approx(2 * claude.cost_usd('claude-opus-5-5', usage)), \
         'шаг в быстром режиме — по двойной цене'
+    assert ctx.spend.steps == 1 and ctx.spend.fast_steps == 1, 'сколько шагов прошло в быстром режиме'
 
 
 def test_mid_output_fallback_drops_declined_partial(env):
@@ -1430,23 +1435,75 @@ def test_report_page_failure_falls_back_to_text_with_reason(bot):
     assert '**Итог: 5 тыс. ₽.**' in sent, 'ответ всё равно дошёл — сообщением'
 
 
-def test_report_runs_at_normal_speed_answers_fast(bot):
-    """2026-10-28: отчёт упирался в $5 за ~20 шагов быстрого режима (вдвое дороже). Отчёт и его агенты —
-    на обычной скорости (REPORT_FAST_MODE), обычные ответы — быстро, как решил владелец."""
+def test_fast_mode_only_by_command(bot):
+    """2026-11-08: «Нужно убрать фаст режим в боте, слишком дорого обходится. Пусть запускается по команде
+    только, по умолчанию просто Opus 5.5 xhigh». Обычный вопрос, отчёт и их агенты — обычная скорость;
+    «/fast вопрос» — этот вопрос и его агенты быстро; следующий — снова обычная."""
+    bot.env.monkeypatch.setattr(settings, 'SHOW_COST', True)
     bot.client.script += [resp(text('Коротко.'))]
     bot.svc.handle_update(message('выручка вчера'))
-    assert bot.client.calls[-1]['speed'] == 'fast'
+    call = bot.client.calls[-1]
+    assert 'speed' not in call and agent.BETA_FAST not in call['betas'], 'по умолчанию — обычная скорость'
+    assert call['model'] == 'claude-opus-5-5' and call['output_config'] == {'effort': 'xhigh'}
+    assert 'быстром режиме' not in bot.tg.sent[-1][1]
+
+    fast_answer = resp(text('Быстро.'))
+    fast_answer.usage.speed = 'fast'
+    agent_answer = resp(text('Отчёт агента.'))
+    agent_answer.usage.speed = 'fast'
+    bot.client.script += [
+        resp(use(tools.ASK_AGENT, {'agent': 'payroll', 'task': 'Проверь ЗП за сентябрь 2026 по всем барам'}),
+             stop='tool_use'), agent_answer, fast_answer]
+    before = len(bot.client.calls)
+    bot.svc.handle_update(message('/fast зарплата за сентябрь'))
+    calls = bot.client.calls[before:]
+    assert len(calls) == 3 and all(c['speed'] == 'fast' for c in calls), '«/fast» — вопрос и его агент быстро'
+    assert calls[0]['messages'][-1]['content'][0]['text'].endswith('зарплата за сентябрь'), 'команда — не в вопросе'
+    assert '/fast' not in calls[0]['messages'][-1]['content'][0]['text']
+    assert 'запросов к модели: 3; в быстром режиме — 2, цена ×2' in bot.tg.sent[-1][1], \
+        'в строке цены — сколько шагов прошло в быстром режиме'
+
+    bot.client.script += [resp(text('Опять обычно.'))]
+    bot.svc.handle_update(message('а за август?'))
+    assert 'speed' not in bot.client.calls[-1], 'следующий вопрос — снова обычная скорость'
+
     bot.client.script += [
         resp(use(tools.ASK_AGENT, {'agent': 'payroll', 'task': 'Проверь ЗП за сентябрь 2026 по всем барам'}),
              stop='tool_use'),
         resp(text('Отчёт агента.')),
         resp(use(tools.REPORT_TOOL, report_args(), 'r1'), stop='tool_use'), resp(text(''))]
+    before = len(bot.client.calls)
     bot.svc.handle_update(message('/report зарплата за сентябрь'))
-    assert all('speed' not in c for c in bot.client.calls[1:]), 'отчёт и агент отчёта — обычная скорость'
-    bot.env.monkeypatch.setattr(settings, 'REPORT_FAST_MODE', True)
+    assert all('speed' not in c for c in bot.client.calls[before:]), 'отчёт и агент отчёта — обычная скорость'
     bot.client.script += [resp(use(tools.REPORT_TOOL, report_args(), 'r2'), stop='tool_use'), resp(text(''))]
-    bot.svc.handle_update(message('/report ещё раз'))
-    assert bot.client.calls[-1]['speed'] == 'fast'
+    before = len(bot.client.calls)
+    bot.svc.handle_update(message('/fast отчёт: зарплата за сентябрь'))
+    assert all(c['speed'] == 'fast' for c in bot.client.calls[before:]), 'быстрый отчёт — только явно'
+    assert 'режим: отчёт' in bot.client.calls[before]['messages'][-1]['content'][0]['text']
+
+    before, sent = len(bot.client.calls), len(bot.tg.sent)
+    bot.svc.handle_update(message('/fast'))
+    assert bot.tg.sent[-1][1] == service.FAST_EMPTY_TEXT and len(bot.client.calls) == before, \
+        '«/fast» без вопроса — подсказка, без запроса к модели'
+    assert len(bot.tg.sent) == sent + 1
+
+    bot.env.monkeypatch.setattr(settings, 'FAST_MODE', False)
+    bot.client.script += [resp(text('Обычно.'))]
+    bot.svc.handle_update(message('/fast выручка вчера'))
+    assert 'speed' not in bot.client.calls[-1], 'команда выключена — обычная скорость'
+    assert service.FAST_OFF_NOTICE in bot.tg.sent[-1][1], 'и пометка об этом'
+    before = len(bot.client.calls)
+    bot.svc.handle_update(message('/fast'))
+    assert bot.tg.sent[-1][1] == service.FAST_OFF_TEXT and len(bot.client.calls) == before
+
+
+def test_fast_command_in_menu_and_help_only_when_enabled(monkeypatch):
+    assert {'command': 'fast', 'description': 'Быстрый ответ: та же модель, вдвое дороже'} in \
+        telegram_io.menu_commands()
+    assert '/fast вопрос — быстрый ответ' in service.HELP_TEXT and 'Без команды — обычная скорость' in service.HELP_TEXT
+    monkeypatch.setattr(settings, 'FAST_MODE', False)
+    assert 'fast' not in [c['command'] for c in telegram_io.menu_commands()], 'выключен — в меню его нет'
+    assert '/fast' not in service._help_text(), 'и в справке'
 
 
 def test_question_limit_never_crosses_the_daily_stop(bot):
@@ -2199,7 +2256,7 @@ def test_telegram_profile_photo_goes_as_multipart(monkeypatch):
 def test_menu_fits_telegram_and_every_command_works():
     import re
     names = [item['command'] for item in settings.MENU]
-    assert names == ['sales', 'stock', 'staff', 'content', 'report', 'new', 'help']
+    assert names == ['sales', 'stock', 'staff', 'content', 'report', 'fast', 'new', 'help']
     assert len(set(names)) == len(names) and 'rich' not in names and 'start' not in names, \
         'в меню — работа с данными; вид ответов и привязка — нет'
     for item in settings.MENU:
@@ -2210,7 +2267,8 @@ def test_menu_fits_telegram_and_every_command_works():
             assert formatting.menu_data(question) == formatting.MENU_PREFIX + question, 'влез в 64 байта целиком'
     sections = [item['command'] for item in settings.MENU if item.get('questions')]
     assert sections == ['sales', 'stock', 'staff', 'content'], 'по команде на каждый раздел сайта'
-    assert set(names) - set(sections) == {settings.REPORT_COMMAND, 'new', 'help'}, 'остальные бот и так знает'
+    assert set(names) - set(sections) == {settings.REPORT_COMMAND, settings.FAST_COMMAND, 'new', 'help'}, \
+        'остальные бот и так знает'
     assert telegram_io.menu_commands() == [{'command': i['command'], 'description': i['description']}
                                            for i in settings.MENU]
     assert all('/' + command in service.HELP_TEXT for command in sections)

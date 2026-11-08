@@ -141,6 +141,8 @@ def _help_text() -> str:
     """/help и /start: разделы меню — из settings.MENU, чтобы справка не отставала от меню."""
     sections = '\n'.join(f'/{item["command"]} — {_lower_first(item["description"])}'
                          for item in settings.MENU if item.get('questions'))
+    fast = (f'/{settings.FAST_COMMAND} вопрос — быстрый ответ: та же модель отвечает быстрее, но вдвое дороже. '
+            'Без команды — обычная скорость.\n') if settings.FAST_MODE else ''
     return ('Я kultura.research — помощник сети «Культура» для анализа: отвечаю по данным сайта kultura.os. '
             'Пишите вопрос обычными '
             'словами, можно приложить фото или PDF.\n\n'
@@ -149,6 +151,7 @@ def _help_text() -> str:
             'октябрь») — сразу ответ.\n\n'
             f'/{settings.REPORT_COMMAND} вопрос — отчёт: полный разбор на странице (графики, таблицы), в чат — '
             'выжимка с кнопкой «Открыть отчёт». Так же — «Отчёт: вопрос».\n'
+            f'{fast}'
             '/new — начать новый диалог: прошлый разговор я забуду.\n\n'
             'Графики приходят с кнопкой «Открыть интерактивно», пояснение расчёта — «Как считается». '
             'Вернуться к прошлой работе — ответьте на моё сообщение с отчётом или графиком («Ответить»).\n\n'
@@ -161,6 +164,12 @@ HELP_TEXT = _help_text()
 # Команда раздела без текста (2026-11-06, меню): готовые вопросы кнопками под этим сообщением.
 MENU_TEXT = '{title}. Выберите вопрос или напишите свой — про любой бар и период.'
 REPORT_EMPTY_TEXT = 'Напишите вопрос для отчёта: «/report как прошёл сентябрь по барам».'
+# Быстрый режим — только по команде (2026-11-08, settings.FAST_MODE): «/fast» без вопроса и
+# «/fast вопрос», когда команда выключена.
+FAST_EMPTY_TEXT = ('Напишите вопрос для быстрого ответа: «/fast выручка вчера по барам». Быстрый режим — та же '
+                   'модель, отвечает быстрее, но вдвое дороже; без команды — обычная скорость.')
+FAST_OFF_NOTICE = 'Быстрый режим выключен в настройках бота — ответ на обычной скорости.'
+FAST_OFF_TEXT = 'Быстрый режим выключен в настройках бота — пишите вопрос обычным сообщением.'
 # Ответ на сообщение бота (2026-10-29, продолжение работы): текст обычного сообщения — не длиннее.
 REPLY_QUOTE_MAX = 4000
 # Режим отчёта, а модель ответила текстом (2026-10-28): одна просьба оформить ответ страницей.
@@ -205,7 +214,8 @@ LONG_DIALOG_NOTICE = ('Переписка стала слишком длинно
 def cost_line(spend: agent.Spend) -> str:
     """Последняя строка ответа: во что он обошёлся (бот и агенты вместе); упёрся в предел на
     вопрос — так и сказано."""
-    line = f'Ответ обошёлся в ${spend.usd:.2f} (запросов к модели: {spend.steps})'
+    fast = f'; в быстром режиме — {spend.fast_steps}, цена ×2' if spend.fast_steps else ''
+    line = f'Ответ обошёлся в ${spend.usd:.2f} (запросов к модели: {spend.steps}{fast})'
     limit = spend.budget()
     if limit and spend.usd >= limit:
         line += f' — остановился на пределе ${limit:.2f} на вопрос'
@@ -794,7 +804,14 @@ class Service:
             return
         if section:                                    # «/sales Кременчугская за октябрь» — сразу вопрос
             text = f'{section["description"]}: {rest}' if rest else section['description']
-        mode = 'answer'
+        mode, fast = 'answer', False
+        if command == settings.FAST_COMMAND:
+            # Быстрый режим — только этот вопрос (2026-11-08): «/fast вопрос», «/fast отчёт: …»,
+            # подписью к фото или PDF; следующий вопрос — снова на обычной скорости.
+            command, text, fast = None, rest, True
+            if not text and not has_file:
+                self.tg.send_plain(chat_id, FAST_EMPTY_TEXT if settings.FAST_MODE else FAST_OFF_TEXT)
+                return
         if command == settings.REPORT_COMMAND:
             mode, text = 'report', rest
             if not text and not has_file:             # «/report» подписью к PDF — отчёт по файлу
@@ -806,7 +823,7 @@ class Service:
             self.tg.send_plain(chat_id, UNSUPPORTED_TEXT)
             return
         self.enqueue(chat_id, {'message': message, 'actor': actor, 'text': text, 'chat_type': chat_type,
-                               'mode': mode})
+                               'mode': mode, 'fast': fast})
 
     # ---------------------------------------------------------------- очередь
 
@@ -1234,7 +1251,7 @@ class Service:
                 retry = agent.run_turn(client, system_text=persona.system, tool_list=persona.toolset.defs,
                                        history=result.messages, user_content=[{'type': 'text', 'text': REPORT_NUDGE}],
                                        ctx=ctx, store=self.store, max_rounds=settings.REPORT_FINISH_ROUNDS,
-                                       on_usage=self.add_usage, fast=settings.REPORT_FAST_MODE)
+                                       on_usage=self.add_usage, fast=ctx.fast)
             except Exception as exc:  # noqa: BLE001 — и дневной предел: готовый ответ не теряем, страница — из текста
                 log.warning('[BOT] отчёт: просьба оформить страницей не удалась: %s', exc)
             else:
@@ -1314,8 +1331,9 @@ class Service:
         spend = agent.Spend(limit=limit)
         rich_view = self.chat_rich(chat_id)
         stop = threading.Event()                   # «Остановить» у черновика (handle_stop)
+        fast = bool(job.get('fast')) and settings.FAST_MODE      # «/fast …» — этот вопрос и его агенты
         ctx = tools.ToolContext(site=self.site, chat_id=chat_id, allowed=catalog.bot.toolset.names, spend=spend,
-                                report_mode=report_mode, stop=stop, user=asker)
+                                report_mode=report_mode, stop=stop, user=asker, fast=fast)
         stop_notice: Dict[str, Any] = {}
         with self.lock:
             self.running[chat_id] = (job_id, stop, stop_notice)
@@ -1359,6 +1377,8 @@ class Service:
                     notice, dialog = LONG_DIALOG_NOTICE, None
             if reply:
                 notice = ''                            # ответ на сообщение бота — та работа и так перед вопросом
+            if job.get('fast') and not fast:
+                notice = f'{notice} {FAST_OFF_NOTICE}'.strip()
             history = dialog['messages'] if dialog else []
             started_at = dialog['started_at'] if dialog else msk_now().isoformat(timespec='seconds')
             turns = dialog['turns'] if dialog else 0
@@ -1377,8 +1397,7 @@ class Service:
             result = agent.run_turn(client, system_text=persona.system, tool_list=persona.toolset.defs,
                                     history=history, user_content=user_content, ctx=ctx, store=self.store,
                                     max_rounds=settings.REPORT_MAX_TOOL_ROUNDS if report_mode else None,
-                                    on_usage=self.add_usage,
-                                    fast=settings.REPORT_FAST_MODE if report_mode else True)
+                                    on_usage=self.add_usage, fast=ctx.fast)
             if report_mode and not ctx.reports_sent:
                 result, path = self.finish_report(client, persona, ctx, result, job['text'])
                 error = 'report: ' + REPORT_PATHS.get(path, path)

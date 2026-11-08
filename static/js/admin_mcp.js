@@ -489,7 +489,8 @@
         var effort = data.effort + (data.agent_effort && data.agent_effort !== data.effort
             ? ' (агентам ' + data.agent_effort + ')' : '');
         setText('mcpBotModel', 'Сейчас: модель ' + data.model + ', усилие ' + effort +
-            (data.fast_mode ? ', быстрый режим (цена ×2)' : '') +
+            (data.fast_mode ? ', быстрый режим — только по команде /' + (data.fast_command || 'fast') +
+                ' (цена ×2)' : '') +
             (data.user_budget_usd ? ', предел ' + money(data.user_budget_usd) + ' в сутки на человека' : '') +
             (data.budget_usd ? ', общий ' + money(data.budget_usd) + ' в сутки' : '') +
             (agents ? '. Агенты: ' + agents + '.' : '.'));

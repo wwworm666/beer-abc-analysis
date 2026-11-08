@@ -375,7 +375,7 @@ test('исполнение: бот — секреты подсказками, с
     assert.match(page.nodes.mcpBotKeyHint.textContent, /^Нет\. console\.anthropic\.com/);
     assert.match(page.nodes.mcpBotUsage.textContent, /сегодня \$0\.42 \(запросов к модели 7\), за 30 дней \$3\.10/);
     assert.match(page.nodes.mcpBotModel.textContent,
-        /^Сейчас: модель claude-opus-5-5, усилие xhigh, быстрый режим \(цена ×2\), предел \$15\.00 в сутки на человека\. Агенты: Аналитик, Зарплаты и график/);
+        /^Сейчас: модель claude-opus-5-5, усилие xhigh, быстрый режим — только по команде \/fast \(цена ×2\), предел \$15\.00 в сутки на человека\. Агенты: Аналитик, Зарплаты и график/);
     assert.equal(page.nodes.mcpBotEngine.textContent, 'Ключ сервера: kmcp_abcdefg… (выпустил owner 19.10.2026 11:00, ' +
         'сервер последний раз обращался 19.10.2026 11:59).');
     const row = page.nodes.mcpBotLinksBody.children[0];

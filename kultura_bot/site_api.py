@@ -178,6 +178,7 @@ def status_view() -> Dict[str, Any]:
             'budget_usd': settings.DAILY_BUDGET_USD, 'user_budget_usd': settings.USER_DAILY_BUDGET_USD,
             'model': settings.MODEL, 'effort': settings.EFFORT,
             'agent_effort': settings.AGENT_EFFORT, 'fast_mode': settings.FAST_MODE,
+            'fast_command': settings.FAST_COMMAND,
             'links': access.links_view(), 'engine': engine_info(),
             'agents': [{'name': a.name, 'title': a.title} for a in config.load_agents().values()]}
 
