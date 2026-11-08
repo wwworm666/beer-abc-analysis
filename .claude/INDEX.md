@@ -158,6 +158,7 @@ Beer ABC/XYZ Analysis (Flask + iiko + ЧЗ)
 
 ## Changelog (по версиям документации)
 
+- **2026-11-08 (2):** **Бот kultura.research: команда отчёта — `/research`** (была `/report` — работает по привычке, в меню и справке её нет; «/fast /research …» — быстрый отчёт) — [kultura-bot.md](../docs/kultura-bot.md). Запись CHANGELOG 2026-11-08 (2).
 - **2026-11-08:** **Бот kultura.research: быстрый режим только по команде** — [kultura-bot.md](../docs/kultura-bot.md): по умолчанию Opus 5.5 на `xhigh`, обычная скорость; «/fast вопрос» — этот вопрос и его агенты быстро (вдвое дороже), команда в меню и справке; в строке цены и журнале — сколько шагов прошло быстро; в длинном диалоге «/fast» ещё и заново пишет разговор в кэш. Запись CHANGELOG 2026-11-08.
 - **2026-11-07 (5):** **Аватарки ботов без названия, скруглённый kultura.research** — [brand.md](../docs/brand.md): у аватарок только знак, крупно и по центру (`node render.cjs avatar light`, `motion/*-avatar-light.*`); углы рамки и столбцов kultura.research — как у kultura.pulse (0,18 и 0,19); `tests/test_brand_motion.py`. Запись CHANGELOG 2026-11-07 (6).
 - **2026-11-07 (4):** **Светлые аватарки ботов, значки сайта, итог сверки kultura.pulse** — [brand.md](../docs/brand.md): светлые версии роликов (`render.cjs … light`); значки вкладки и телефона с меткой версии (раньше браузер держал старый 30 дней); на «Доступ агентов» — раздел «Бот kultura.pulse» с ответом Telegram и кнопкой. Запись CHANGELOG 2026-11-07 (5).
