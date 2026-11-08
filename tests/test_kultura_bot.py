@@ -1299,13 +1299,13 @@ def test_report_mode_trigger_budget_and_header(bot):
     step = claude.cost_usd('claude-opus-5-5', {'input_tokens': 1000, 'output_tokens': 200})
     mp.setattr(settings, 'QUESTION_BUDGET_USD', 1.5 * step)
     mp.setattr(settings, 'REPORT_BUDGET_USD', 10 * step)
-    bot.svc.handle_update(message('/report'))
+    bot.svc.handle_update(message('/research'))
     assert bot.tg.sent[-1][1] == service.REPORT_EMPTY_TEXT and not bot.client.calls
     bot.client.script += [resp(use('common_whoami', {}, 't1'), stop='tool_use'),
                           resp(use('common_whoami', {}, 't2'), stop='tool_use'),
                           resp(use('common_whoami', {}, 't3'), stop='tool_use'),
                           resp(text('Отчёт ушёл.')), resp(text('Готово.'))]
-    bot.svc.handle_update(message('/report как прошёл сентябрь'))
+    bot.svc.handle_update(message('/research как прошёл сентябрь'))
     first = bot.client.calls[-5]['messages'][0]['content'][0]['text']
     assert 'режим: отчёт' in first and first.endswith('\nкак прошёл сентябрь'), 'команда снята, режим назван'
     assert all('tool_choice' not in c for c in bot.client.calls[-5:]), 'предел отчёта больше: три шага с инструментами'
@@ -1339,7 +1339,7 @@ def test_report_answered_with_text_is_asked_for_a_page(bot):
     bot.client.script += [resp(text(LONG_ANSWER)),
                           resp(use(tools.REPORT_TOOL, report_args(), 'r1'), stop='tool_use'),
                           resp(text('Отчёт отправлен.'))]
-    bot.svc.handle_update(message('/report как прошёл сентябрь'))
+    bot.svc.handle_update(message('/research как прошёл сентябрь'))
     nudge = bot.client.calls[1]['messages'][-1]['content'][0]['text']
     assert nudge == service.REPORT_NUDGE
     name, args = bot.env.site.calls[-1]
@@ -1383,7 +1383,7 @@ def test_report_budget_leaves_steps_only_for_the_page(bot):
                           resp(use('common_whoami', {}, 't3'), stop='tool_use'),
                           resp(use(tools.REPORT_TOOL, report_args(), 't4'), stop='tool_use'),
                           resp(text(''))]
-    bot.svc.handle_update(message('/report сентябрь'))
+    bot.svc.handle_update(message('/research сентябрь'))
     called = [n for n, _ in bot.env.site.calls if n in ('common_whoami', tools.REPORT_TOOL)]
     assert called == ['common_whoami', 'common_whoami', tools.REPORT_TOOL], 'после предела — только отчёт'
     after_limit = bot.client.calls[2]['messages'][-1]['content']
@@ -1405,7 +1405,7 @@ def test_report_finish_rounds_run_out_then_page_from_text(bot):
                           resp(use('common_whoami', {}, 't2'), stop='tool_use'),
                           resp(use('common_whoami', {}, 't3'), stop='tool_use'),
                           resp(text(LONG_ANSWER))]
-    bot.svc.handle_update(message('/report сентябрь'))
+    bot.svc.handle_update(message('/research сентябрь'))
     assert bot.client.calls[-1]['tool_choice'] == {'type': 'none'}
     assert bot.client.calls[-1]['messages'][-1]['content'][0]['content'][0]['text'] == agent.REPORT_FINISH_OVER
     assert len(bot.client.calls) == 4, 'просьбы нет: шаги «только отчёт» уже были'
@@ -1416,7 +1416,7 @@ def test_report_finish_rounds_run_out_then_page_from_text(bot):
 def test_report_mode_sends_no_separate_chart_cards(bot):
     bot.client.script += [resp(use(tools.CHART_TOOL, {'chart': {}, 'caption': 'Итог'}, 'c1'), stop='tool_use'),
                           resp(use(tools.REPORT_TOOL, report_args(), 'r1'), stop='tool_use'), resp(text(''))]
-    bot.svc.handle_update(message('/report сентябрь'))
+    bot.svc.handle_update(message('/research сентябрь'))
     refused = bot.client.calls[1]['messages'][-1]['content'][0]
     assert refused['is_error'] and refused['content'][0]['text'] == tools.REPORT_CHART_TEXT
     assert [n for n, _ in bot.env.site.calls if n in (tools.CHART_TOOL, tools.REPORT_TOOL)] == [tools.REPORT_TOOL]
@@ -1429,7 +1429,7 @@ def test_report_mode_sends_no_separate_chart_cards(bot):
 def test_report_page_failure_falls_back_to_text_with_reason(bot):
     bot.env.site.report_error = 'Ошибка HTTP 400: summary длиннее 3000'
     bot.client.script += [resp(text('**Итог: 5 тыс. ₽.**')), resp(text('Не получилось.'))]
-    bot.svc.handle_update(message('/report итог'))
+    bot.svc.handle_update(message('/research итог'))
     sent = bot.tg.sent[-1][1]
     assert sent.startswith('*Страницу отчёта собрать не удалось (Ошибка HTTP 400: summary длиннее 3000)')
     assert '**Итог: 5 тыс. ₽.**' in sent, 'ответ всё равно дошёл — сообщением'
@@ -1473,7 +1473,7 @@ def test_fast_mode_only_by_command(bot):
         resp(text('Отчёт агента.')),
         resp(use(tools.REPORT_TOOL, report_args(), 'r1'), stop='tool_use'), resp(text(''))]
     before = len(bot.client.calls)
-    bot.svc.handle_update(message('/report зарплата за сентябрь'))
+    bot.svc.handle_update(message('/research зарплата за сентябрь'))
     assert all('speed' not in c for c in bot.client.calls[before:]), 'отчёт и агент отчёта — обычная скорость'
     bot.client.script += [resp(use(tools.REPORT_TOOL, report_args(), 'r2'), stop='tool_use'), resp(text(''))]
     before = len(bot.client.calls)
@@ -1506,6 +1506,30 @@ def test_fast_command_in_menu_and_help_only_when_enabled(monkeypatch):
     assert '/fast' not in service._help_text(), 'и в справке'
 
 
+def test_report_command_is_research_and_old_name_still_works(bot):
+    """2026-11-08: «Report замени на research» — команда отчёта /research, как имя бота kultura.research;
+    прежняя /report по привычке работает так же, но в меню и справке её нет."""
+    names = [c['command'] for c in telegram_io.menu_commands()]
+    assert settings.REPORT_COMMAND == 'research' and 'research' in names and 'report' not in names
+    assert '/research вопрос — отчёт' in service.HELP_TEXT and '/report' not in service.HELP_TEXT
+    assert '«/research как прошёл сентябрь по барам»' in service.REPORT_EMPTY_TEXT
+    for command in ('/research', '/report', '/research@MCPkulturabot'):
+        bot.client.script += [resp(use(tools.REPORT_TOOL, report_args(), 'r' + str(len(bot.client.calls))),
+                                   stop='tool_use'), resp(text(''))]
+        before = len(bot.client.calls)
+        bot.svc.handle_update(message(command + ' как прошёл сентябрь'))
+        asked = bot.client.calls[before]['messages'][-1]['content'][0]['text']
+        assert 'режим: отчёт' in asked and asked.endswith('\nкак прошёл сентябрь'), command
+        assert 'speed' not in bot.client.calls[before], 'отчёт — на обычной скорости'
+    bot.client.script += [resp(use(tools.REPORT_TOOL, report_args(), 'r-fast'), stop='tool_use'), resp(text(''))]
+    before = len(bot.client.calls)
+    bot.svc.handle_update(message('/fast /research как прошёл сентябрь'))
+    calls = bot.client.calls[before:]
+    asked = calls[0]['messages'][-1]['content'][0]['text']
+    assert all(c['speed'] == 'fast' for c in calls), '«/fast /research …» — быстрый отчёт'
+    assert 'режим: отчёт' in asked and asked.endswith('\nкак прошёл сентябрь') and '/research' not in asked
+
+
 def test_question_limit_never_crosses_the_daily_stop(bot):
     """Остаток дня меньше предела отчёта: предел отчёта — остаток минус DAILY_RESERVE_USD, поэтому отчёт
     доходит до своего предела и уходит страницей, а не обрывается «Дневной предел исчерпан»."""
@@ -1519,7 +1543,7 @@ def test_question_limit_never_crosses_the_daily_stop(bot):
     bot.client.script += [resp(use('common_whoami', {}, 't1'), stop='tool_use'),
                           resp(use('common_whoami', {}, 't2'), stop='tool_use'),
                           resp(use(tools.REPORT_TOOL, report_args(), 't3'), stop='tool_use'), resp(text(''))]
-    bot.svc.handle_update(message('/report сентябрь'))
+    bot.svc.handle_update(message('/research сентябрь'))
     assert f'предел ${1.5 * step:.2f}' in bot.client.calls[0]['messages'][-1]['content'][0]['text']
     assert bot.env.site.calls[-1][0] == tools.REPORT_TOOL
     assert len(bot.tg.sent) == 1 and 'остановился на пределе' in bot.tg.sent[0][1] and \
@@ -1581,7 +1605,7 @@ def test_report_daily_budget_keeps_the_answer(bot):
     step = claude.cost_usd('claude-opus-5-5', {'input_tokens': 1000, 'output_tokens': 200})
     bot.env.monkeypatch.setattr(settings, 'DAILY_BUDGET_USD', 0.5 * step)
     bot.client.script += [resp(text(LONG_ANSWER))]
-    bot.svc.handle_update(message('/report сентябрь'))
+    bot.svc.handle_update(message('/research сентябрь'))
     assert len(bot.client.calls) == 1 and bot.env.site.calls[-1][0] == tools.REPORT_TOOL
     assert bot.env.store.get_dialog(OWNER_TG) is not None and bot.tg.sent == []
     assert tuple(bot.env.store._conn.execute('SELECT status, error FROM jobs ORDER BY id DESC LIMIT 1').fetchone()) == \
@@ -1594,7 +1618,7 @@ def test_report_unknown_send_status_is_not_repeated(bot):
     bot.env.site.report_error = 'Статус неизвестен: Telegram не ответил, сообщение могло дойти. Не повторяйте.'
     bot.client.script += [resp(use(tools.REPORT_TOOL, report_args(), 'r1'), stop='tool_use'),
                           resp(text('Отчёт мог уже прийти — проверьте чат.'))]
-    bot.svc.handle_update(message('/report сентябрь'))
+    bot.svc.handle_update(message('/research сентябрь'))
     assert [n for n, _ in bot.env.site.calls if n == tools.REPORT_TOOL] == [tools.REPORT_TOOL]
     assert len(bot.client.calls) == 2 and [m[1] for m in bot.tg.sent] == ['Отчёт мог уже прийти — проверьте чат.']
 
@@ -1604,7 +1628,7 @@ BOT_AUTHOR = {'id': 999, 'is_bot': True, 'username': 'MCPkulturabot', 'first_nam
 
 def test_reply_to_report_continues_that_work(bot):
     """2026-10-29: ответ в Telegram на сообщение бота с отчётом — продолжение той работы: отчёт целиком
-    (с сайта) идёт перед вопросом; обычный вопрос — пузырь, «/report …» — новая версия отчёта."""
+    (с сайта) идёт перед вопросом; обычный вопрос — пузырь, «/research …» — новая версия отчёта."""
     report_text = 'Отчёт «Бельгия +58,0%» (id rep_1), собран 28 окт.\n\n## Раздел 1. Весь рост дал Квак'
     bot.env.site.replied_found[(OWNER_TG, 50)] = {'kind': 'report', 'id': 'rep_1', 'title': 'Бельгия +58,0%',
                                                   'text': report_text}
@@ -1616,7 +1640,7 @@ def test_reply_to_report_continues_that_work(bot):
     assert f'<<<\n{report_text}\n>>>\nа какая доля у Квака?' in asked and 'режим: отчёт' not in asked
     assert bot.env.site.replied_calls == [(OWNER_TG, 50)]
     bot.client.script += [resp(use(tools.REPORT_TOOL, report_args(), 'r1'), stop='tool_use'), resp(text(''))]
-    bot.svc.handle_update(message('/report добавь октябрь', reply_to_message=reply))
+    bot.svc.handle_update(message('/research добавь октябрь', reply_to_message=reply))
     asked = bot.client.calls[-2]['messages'][-1]['content'][0]['text']
     assert 'режим: отчёт' in asked and f'<<<\n{report_text}\n>>>\nдобавь октябрь' in asked, 'новая версия отчёта'
 
@@ -1834,18 +1858,18 @@ def test_how_blocks_all_cut_and_heading_variants():
 
 
 def test_report_command_forms_and_group_mention(bot):
-    assert bot.svc._command('/report\nкак сентябрь') == ('report', 'как сентябрь')
-    assert bot.svc._command('/report@MCPkulturabot\tвопрос') == ('report', 'вопрос')
+    assert bot.svc._command('/research\nкак сентябрь') == ('research', 'как сентябрь')
+    assert bot.svc._command('/research@MCPkulturabot\tвопрос') == ('research', 'вопрос')
     assert bot.svc._strip_mention('@MCPkulturabot, отчёт: сентябрь') == 'отчёт: сентябрь'
     bot.client.script += [resp(text('Ок')), resp(text('Ок'))]
     bot.svc.handle_update(message('@MCPkulturabot, отчёт: сентябрь', chat_id='-100500', chat_type='supergroup'))
     assert 'режим: отчёт' in bot.client.calls[-2]['messages'][-1]['content'][0]['text']
     bot.client.script += [resp(text('Ок')), resp(text('Ок'))]
-    pdf = message('', document={'file_id': 'f1', 'mime_type': 'application/pdf'}, caption='/report')
+    pdf = message('', document={'file_id': 'f1', 'mime_type': 'application/pdf'}, caption='/research')
     pdf['message'].pop('text')
     bot.svc.handle_update(pdf)
     first = bot.client.calls[-2]['messages'][-1]['content']
-    assert 'режим: отчёт' in first[0]['text'] and first[1]['type'] == 'document', '«/report» подписью к PDF'
+    assert 'режим: отчёт' in first[0]['text'] and first[1]['type'] == 'document', '«/research» подписью к PDF'
 
 
 def test_narration_before_card_is_not_a_second_bubble(bot):
@@ -1869,7 +1893,7 @@ def test_agents_build_no_report_pages(bot):
         resp(use(tools.ASK_AGENT, {'agent': 'payroll', 'task': 'Проверь ЗП за сентябрь 2026 по всем барам'}),
              stop='tool_use'),
         resp(text('Отчёт агента.')), resp(text('Готово.')), resp(text('Готово.'))]
-    bot.svc.handle_update(message('/report зарплата за сентябрь'))
+    bot.svc.handle_update(message('/research зарплата за сентябрь'))
     agent_first = bot.client.calls[1]['messages'][0]['content'][0]['text']
     assert 'режим: отчёт' not in agent_first and 'последние 7 дней' in agent_first
 
@@ -2256,7 +2280,7 @@ def test_telegram_profile_photo_goes_as_multipart(monkeypatch):
 def test_menu_fits_telegram_and_every_command_works():
     import re
     names = [item['command'] for item in settings.MENU]
-    assert names == ['sales', 'stock', 'staff', 'content', 'report', 'fast', 'new', 'help']
+    assert names == ['sales', 'stock', 'staff', 'content', 'research', 'fast', 'new', 'help']
     assert len(set(names)) == len(names) and 'rich' not in names and 'start' not in names, \
         'в меню — работа с данными; вид ответов и привязка — нет'
     for item in settings.MENU:

@@ -1,5 +1,18 @@
 ﻿# Changelog
 
+### 2026-11-08 (2) — Бот kultura.research: команда отчёта — /research
+
+Владелец: «Report, замени на research. Команду имею в виду».
+
+| Что | Почему | Где | Что сломается при неверной правке |
+|---|---|---|---|
+| Команда отчёта — `/research <вопрос>`: меню, справка, подсказка «Напишите вопрос для отчёта» | Как имя бота kultura.research | `kultura_bot/settings.py` (`REPORT_COMMAND`), `kultura_bot/engine/service.py` (`REPORT_EMPTY_TEXT`, справка) | Меню сервер бота ставит сам при запуске |
+| Прежняя `/report` работает так же, но её нет в меню и справке | Привычка: без неё «/report вопрос» ушёл бы модели обычным текстом | `settings.REPORT_ALIASES`, `service.handle_update` | — |
+| «/fast /research вопрос» — быстрый отчёт (как «/fast отчёт: …») | Две команды подряд — понятный способ | `service.handle_update` | — |
+| Инструкции бота: «/research» вместо «/report» | Бот подсказывает команду людям | `kultura_bot/prompts/bot.md` | Идущие диалоги начнутся заново с пометкой «Обновились инструкции бота» |
+| Тесты: команда, прежнее имя, `/research@бот`, «/fast /research …», меню и справка | Закрепить | `tests/test_kultura_bot.py` | — |
+| Документация | Правило проекта | `docs/kultura-bot.md`, `docs/telegram-bots.md`, `kultura_bot/README.md`, `.claude/INDEX.md` | — |
+
 ### 2026-11-08 — Бот kultura.research: быстрый режим только по команде /fast
 
 Владелец: «Нужно убрать фаст режим в боте, слишком дорого обходится. Пусть запускается по команде

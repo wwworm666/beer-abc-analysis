@@ -32,8 +32,9 @@ conflict на странице, пока её не остановят.
 3. Кто пишет — спрашиваем сайт (GET /api/bot/actor/<id>, ответ помнится ACTOR_CACHE_S):
    привязанный активный администратор, иначе одна фраза «закрытый бот» (в личке, не
    чаще раза в REFUSAL_EVERY_S) и всё.
-4. /new — новый диалог (в очереди чата); /help — что умеет бот; /report <вопрос> или
-   сообщение со слова из settings.REPORT_WORDS («отчёт: …», «исследуй …») — режим отчёта.
+4. /new — новый диалог (в очереди чата); /help — что умеет бот; /research <вопрос> (прежнее
+   имя — /report, settings.REPORT_ALIASES) или сообщение со слова из settings.REPORT_WORDS
+   («отчёт: …», «исследуй …») — режим отчёта; /fast <вопрос> — этот вопрос в быстром режиме.
 5. Вопрос (текст, фото, PDF) — в очередь чата: в одном чате по порядку, разных чатов
    одновременно — не больше settings.MAX_PARALLEL_DIALOGS. Вопрос записан сразу
    (queued): остановка сервера не потеряет его молча.
@@ -57,7 +58,7 @@ Anthropic — понятный текст в чат (claude.describe_error); д�
   вырезает его, сохраняет запиской на сайте (POST /api/bot/note) и ставит ссылку в конец
   ответа или кнопку под ним (kultura_bot/links.py). Сайт не ответил — блок остаётся
   свёрнутой цитатой;
-- режим отчёта (/report, «отчёт: …») — предел settings.REPORT_BUDGET_USD и
+- режим отчёта (/research, «отчёт: …») — предел settings.REPORT_BUDGET_USD и
   REPORT_MAX_TOOL_ROUNDS шагов, в служебной строке «режим: отчёт»: модель собирает страницу
   common_report_send, в чат уходит выжимка с кнопкой «Открыть отчёт».
 
@@ -163,7 +164,7 @@ def _help_text() -> str:
 HELP_TEXT = _help_text()
 # Команда раздела без текста (2026-11-06, меню): готовые вопросы кнопками под этим сообщением.
 MENU_TEXT = '{title}. Выберите вопрос или напишите свой — про любой бар и период.'
-REPORT_EMPTY_TEXT = 'Напишите вопрос для отчёта: «/report как прошёл сентябрь по барам».'
+REPORT_EMPTY_TEXT = f'Напишите вопрос для отчёта: «/{settings.REPORT_COMMAND} как прошёл сентябрь по барам».'
 # Быстрый режим — только по команде (2026-11-08, settings.FAST_MODE): «/fast» без вопроса и
 # «/fast вопрос», когда команда выключена.
 FAST_EMPTY_TEXT = ('Напишите вопрос для быстрого ответа: «/fast выручка вчера по барам». Быстрый режим — та же '
@@ -718,7 +719,7 @@ class Service:
     @staticmethod
     def _command(text: str):
         """('/new@bot аргументы') -> ('new', 'аргументы'); не команда -> (None, текст).
-        Аргументы — после любого пробела, в том числе перевода строки («/report\nвопрос»)."""
+        Аргументы — после любого пробела, в том числе перевода строки («/research\nвопрос»)."""
         if not text.startswith('/'):
             return None, text
         parts = text.split(None, 1)
@@ -805,14 +806,19 @@ class Service:
         if section:                                    # «/sales Кременчугская за октябрь» — сразу вопрос
             text = f'{section["description"]}: {rest}' if rest else section['description']
         mode, fast = 'answer', False
+        report_commands = (settings.REPORT_COMMAND,) + tuple(settings.REPORT_ALIASES)
         if command == settings.FAST_COMMAND:
             # Быстрый режим — только этот вопрос (2026-11-08): «/fast вопрос», «/fast отчёт: …»,
-            # подписью к фото или PDF; следующий вопрос — снова на обычной скорости.
-            command, text, fast = None, rest, True
+            # «/fast /research вопрос», подписью к фото или PDF; следующий вопрос — снова на
+            # обычной скорости.
+            fast = True
+            inner, inner_rest = self._command(rest)
+            command, rest = (inner, inner_rest) if inner in report_commands else (None, rest)
+            text = rest
             if not text and not has_file:
                 self.tg.send_plain(chat_id, FAST_EMPTY_TEXT if settings.FAST_MODE else FAST_OFF_TEXT)
                 return
-        if command == settings.REPORT_COMMAND:
+        if command in report_commands:                # /research; /report — прежнее имя
             mode, text = 'report', rest
             if not text and not has_file:             # «/report» подписью к PDF — отчёт по файлу
                 self.tg.send_plain(chat_id, REPORT_EMPTY_TEXT)
