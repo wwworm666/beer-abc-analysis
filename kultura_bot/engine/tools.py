@@ -169,6 +169,7 @@ class ToolContext:
     reports_sent: List[Dict[str, Any]] = field(default_factory=list)
     spend: Any = None                                        # расход вопроса (agent.Spend): общий у бота и агентов
     report_mode: bool = False                                # /report: ответ — страницей, графики — внутри неё
+    fast: bool = False                                       # /fast: вопрос и его агенты — в быстром режиме
     report_only: bool = False                                # предел отчёта исчерпан: можно только отправить отчёт
     report_unknown: bool = False                             # отправка отчёта «статус неизвестен»: могла дойти
     progress: Any = None                                     # engine/progress.Tracker: что идёт сейчас (прогресс в чате)

@@ -13,6 +13,8 @@
     chat_id, chat_type, tg_user_id, login, name   где и кто спросил (администратор сайта)
     mode, source         answer | report; message | button (кнопка следующего шага) | menu (вопрос из
                          меню раздела: /sales, /stock, /staff, /content)
+    fast, fast_steps     спросили «/fast …» (быстрый режим, с 2026-11-08 только по команде); сколько
+                         запросов к модели на самом деле прошло в нём (остальные — на обычной скорости)
     question             текст вопроса (до QUESTION_MAX)
     files                что приложили: [{kind: image|document, mime}] — сами файлы не хранятся
     reply_to             ответ на сообщение бота: {message_id} — какую работу продолжали
@@ -88,6 +90,7 @@ def start(job: Dict[str, Any], chat_id: str, job_id: int) -> Dict[str, Any]:
         'name': str(actor.get('display_name') or ''),
         'mode': 'report' if job.get('mode') == 'report' else 'answer',
         'source': str(job.get('source') or 'message'),
+        'fast': bool(job.get('fast')),
         'question': str(job.get('text') or '')[:QUESTION_MAX],
         'files': files,
         'reply_to': {'message_id': replied['message_id']} if replied.get('message_id') else None,
@@ -125,6 +128,7 @@ def finish(entry: Dict[str, Any], *, status: str, error: str = '', shown: str = 
         'notes': list(getattr(result, 'notes', None) or []),
         'cost_usd': round(float(getattr(spend, 'usd', 0.0) or 0.0), 4),
         'steps': int(getattr(spend, 'steps', 0) or 0),
+        'fast_steps': int(getattr(spend, 'fast_steps', 0) or 0),
         'tool_calls': int(getattr(tracker, 'tool_calls', 0) or 0),
         'calls': list(getattr(ctx, 'calls', None) or [])[:CALLS_MAX],
         'model': settings.MODEL,

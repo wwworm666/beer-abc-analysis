@@ -335,8 +335,10 @@ def _outcome(data: Optional[Dict[str, Any]]) -> str:
 
 
 def menu_commands() -> List[Dict[str, str]]:
-    """Меню команд для setMyCommands — из settings.MENU, в том же порядке (2026-11-06)."""
-    return [{'command': item['command'], 'description': item['description']} for item in settings.MENU]
+    """Меню команд для setMyCommands — из settings.MENU, в том же порядке (2026-11-06). Быстрый ответ
+    выключен (settings.FAST_MODE = False) — его команды в меню нет."""
+    return [{'command': item['command'], 'description': item['description']} for item in settings.MENU
+            if settings.FAST_MODE or item['command'] != settings.FAST_COMMAND]
 
 
 def _scoped(scope: Optional[Dict[str, Any]], language_code: str) -> Dict[str, Any]:
