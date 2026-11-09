@@ -881,20 +881,22 @@ def _report_send(args: Dict[str, Any], principal: Principal) -> Dict[str, Any]:
 def _bot_journal(args: Dict[str, Any], principal: Principal) -> Dict[str, Any]:
     """Журнал вопросов и ответов бота (kultura_bot/journal.py) — только на полном коннекторе /mcp: в нём
     вопросы и ответы всех разделов, коннектор одного раздела их не открывает. Только записи владельца
-    токена (решение владельца 2026-11-09: «история у каждого своя»); у самого бота инструмента нет."""
+    токена (решение владельца 2026-11-09: «история у каждого своя»), у владельца сайта — все записи
+    («сделай, чтобы я видел журнал всех пользователей»); у самого бота инструмента нет."""
     call = bridge.current_call()
     if call is None or call.connector is not None:
         raise ToolError('Журнал вопросов бота — только на полном коннекторе /mcp: в нём вопросы и ответы всех '
                         'разделов.')
     from kultura_bot import journal
     uid = str(args.get('uid') or '').strip()
+    scope = journal.scope_for(getattr(principal, 'user_id', None), principal.login)
     try:
         if uid:
-            record = journal.get(uid, only_login=principal.login)
+            record = journal.get(uid, only_login=scope)
             if record is None:
                 raise ToolError('Записи нет: удалена, срок хранения вышел или вопрос задавали не вы')
             return {'record': record}
-        return journal.query(args, only_login=principal.login)
+        return journal.query(args, only_login=scope)
     except journal.JournalError as exc:
         raise ToolError(str(exc)) from None
 
@@ -1028,8 +1030,9 @@ TOOLS = [
         handler=_report_send, read_only=False, destructive=True, idempotent=False, open_world=True),
     ToolSpec(
         name='common_bot_journal', domain='common', title='Журнал вопросов бота',
-        description='Журнал вопросов и ответов бота @MCPkulturabot (новые сверху), только свои — заданные '
-                    'владельцем токена (у каждого своя история): когда спросил, вопрос, '
+        description='Журнал вопросов и ответов бота @MCPkulturabot (новые сверху): у владельца сайта — вопросы '
+                    'всех, у остальных — только свои, заданные владельцем токена (у каждого своя история): '
+                    'когда и кто спросил, вопрос, '
                     'ответ (Markdown, начало — в списке, целиком — по uid), итог done/error/stopped/budget, расход $, '
                     'секунды, запросы к модели, вызовы инструментов, оценка реакцией (good/bad/other), итоги за '
                     'выбранное. Чтобы разобрать, где бот ошибается: status=problems — всё, что не done; '

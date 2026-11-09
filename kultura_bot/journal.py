@@ -299,6 +299,27 @@ def set_feedback(chat_id: str, message_id: int, tg_user_id: str, reactions: Any,
 
 # ------------------------------------------------------------------ выборка для страницы и агента
 
+def _site_owner_id() -> Optional[int]:
+    """id владельца сайта (core/auth_manager.owner_id) или None — база аккаунтов недоступна."""
+    from core.auth_manager import get_auth_manager
+    try:
+        return get_auth_manager().owner_id()
+    except Exception:  # noqa: BLE001 — нет базы аккаунтов: каждому — только своё (закрыто, а не открыто)
+        return None
+
+
+def scope_for(user_id: Any, login: Any) -> Optional[str]:
+    """Чьи записи видит человек: владелец сайта — всех (None), остальные — только свои (их логин).
+    Решения владельца 2026-11-09: «история у каждого своя, между клиентами не передаём»; затем «сделай,
+    чтобы я видел журнал всех пользователей». Владелец — первый действующий администратор сайта."""
+    owner = _site_owner_id()
+    try:
+        is_owner = owner is not None and user_id is not None and int(user_id) == owner
+    except (TypeError, ValueError):
+        is_owner = False
+    return None if is_owner else str(login or '')
+
+
 def _filters(args: Dict[str, Any], now: Optional[float] = None,
              only_login: Optional[str] = None) -> Tuple[str, List[Any], Dict[str, Any]]:
     """Фильтры страницы и агента -> (WHERE, параметры, что применено). Неверное — JournalError.
