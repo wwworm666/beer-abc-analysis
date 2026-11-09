@@ -150,8 +150,9 @@ def admin_mcp_page():
     connectors = []
     for row in registry.summary():
         connectors.append(dict(row, url=base + row['path']))
+    from kultura_bot import credentials as bot_credentials
     return render_template('admin_mcp.html', connectors=connectors, domains=DOMAINS, modes=MODES,
-                           mode_titles=MODE_TITLES,
+                           mode_titles=MODE_TITLES, bot_username=bot_credentials.bot_username(),
                            load_errors=registry.load_errors(), base_url=base,
                            oauth_available=_oauth_module() is not None,
                            audit_statuses=audit.STATUSES, tool_names=sorted(t.name for t in registry.all_tools()))

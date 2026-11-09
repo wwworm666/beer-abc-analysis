@@ -18,7 +18,7 @@ open-check). У гостевого бота @kult_taplist_bot своего им�
 
 | Бот | Для кого | Где работает | Код | Токен (имя, не значение) | Сообщения получает | Обновляется |
 |---|---|---|---|---|---|---|
-| **@MCPkulturabot**, имя в чатах **kultura.research** | владелец и администраторы сайта | **отдельный сервер в Амстердаме**, служба systemd `kultura-bot` | `kultura_bot/` | на странице «Доступ агентов» (`mcp.db`), запасной — `TELEGRAM_MCP_BOT_TOKEN` | long polling напрямую | сам: таймер раз в 2 минуты забирает `main` с GitHub |
+| **@MCPkulturabot**, имя в чатах **kultura.research** | владелец, администраторы сайта и люди из списка ников владельца (`TELEGRAM_USERNAMES`) | **отдельный сервер в Амстердаме**, служба systemd `kultura-bot` | `kultura_bot/` | на странице «Доступ агентов» (`mcp.db`), запасной — `TELEGRAM_MCP_BOT_TOKEN` | long polling напрямую | сам: таймер раз в 2 минуты забирает `main` с GitHub |
 | **@kultura_open_bot**, имя в чатах **kultura.pulse** (в коде — open-check, «kulturaopenclosed») | команда: статус касс, тревоги, отзывы | **сервер сайта** (Selectel, Россия), контейнер `beer-app`, поток внутри сайта | `core/open_check_*.py` | `TELEGRAM_OPEN_CHECK_BOT_TOKEN` в `.env` сайта | long polling через обход блокировок | вместе с сайтом (выкладка после тестов) |
 | **@kult_taplist_bot** (гостевой) | гости баров | **сервер сайта**, тот же контейнер `beer-app` | `core/taplist_polling.py` | `TELEGRAM_BOT_TOKEN` в `.env` сайта | long polling через обход блокировок | вместе с сайтом |
 
@@ -32,7 +32,8 @@ open-check). У гостевого бота @kult_taplist_bot своего им�
 
 | Что уходит | От какого бота | Кому | Когда | Код |
 |---|---|---|---|---|
-| Ответы на вопросы, отчёты, меню, справка | kultura.research | тому, кто спросил (подключённый администратор) | на каждый вопрос | `kultura_bot/engine/` |
+| Ответы на вопросы, отчёты, меню, справка | kultura.research | тому, кто спросил (подключённый администратор или человек по нику) | на каждый вопрос | `kultura_bot/engine/` |
+| «Подключился @ник» — человек из списка ников впервые написал боту | kultura.research — шлёт **сайт**, токеном этого бота | владельцу сайта в личку (его привязанный Telegram) | один раз на ник, когда ник закрепился за аккаунтом | `kultura_bot/access.py` (`notify_new_guest`) |
 | Графики и выжимки отчётов kultura.research | kultura.research — но шлёт **сайт**, токеном этого бота | в чат вопроса | когда модель вызывает `common_chart_send` / `common_report_send` | `kultura_bot/charts/send.py` |
 | Сводка «открыты ли кассы» | open-check | «все открыты» — `TELEGRAM_GROUP_CHAT_ID` + подписчики; «закрыт» или iiko не ответил — `TELEGRAM_ALARM_CHAT_IDS` + подписчики | 14:59 МСК; недоставленное — досылка раз в 5 минут до конца дня | `core/open_check_bot.py`, `open_check_scheduler.py`, `open_check_pending.py` |
 | Новые отзывы с Яндекс Карт | open-check | только подписчики | после каждой проверки отзывов: раз в 3 часа и полный проход в 08:30 МСК | `core/review_notify.py`, `core/yandex_reviews_scheduler.py` |
@@ -295,6 +296,10 @@ Claude, не ставится (`.claude/CLAUDE.md`).
 
 ## Changelog
 
+- **2026-11-09 (2)** — kultura.research пишет и людям без аккаунта на сайте — по нику Telegram из
+  `TELEGRAM_USERNAMES` (решение владельца: @ivanwiwkin, @pk_kvvo, @Chappssful); новая строка в таблице:
+  сайт сообщает владельцу в личку токеном kultura.research, когда ник впервые закрепился за аккаунтом
+  ([kultura-bot.md](kultura-bot.md), раздел 6).
 - **2026-11-09** — сервер kultura.research отвечает и на вопросы со страницы сайта /research
   ([research-page.md](research-page.md)): сайт кладёт вопрос в очередь, ответ — на странице, в Telegram
   ничего не уходит.

@@ -511,7 +511,19 @@
             row.appendChild(td);
             body.appendChild(row);
         });
-        byId('mcpBotLinksEmpty').hidden = links.length > 0;
+        // Люди по нику Telegram (settings.TELEGRAM_USERNAMES): аккаунта на сайте нет, кнопки нет —
+        // доступ закрывает только удаление ника из списка (kultura_bot/access.py).
+        var guests = data.guests || [];
+        guests.forEach(function (guest) {
+            var row = el('tr');
+            cell(row, '@' + guest.username + ' (по нику)');
+            cell(row, guest.tg_name || (guest.tg_user_id ? '' : 'ещё не писал боту'));
+            cell(row, guest.first_seen ? fmtTime(guest.first_seen) : '—');
+            if (guest.listed) row.appendChild(el('td'));
+            else cell(row, 'убран из списка — бот не отвечает');
+            body.appendChild(row);
+        });
+        byId('mcpBotLinksEmpty').hidden = links.length + guests.length > 0;
         botLinksSig = links.map(function (l) { return l.tg_user_id + '@' + l.linked_at; }).join(',');
         if (botLinkPoll && botLinksBaseline !== null && botLinksSig !== botLinksBaseline) {
             clearInterval(botLinkPoll);

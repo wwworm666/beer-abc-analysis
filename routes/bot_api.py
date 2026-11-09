@@ -9,7 +9,10 @@ core/mcp/tools/common.py).
 
     GET  /api/bot/config                {telegram: {token, username}, anthropic_key, paused}
     POST /api/bot/link                  {code, tg_user_id, tg_name} -> {ok, text}
-    GET  /api/bot/actor/<tg_user_id>    {actor: {tg_user_id, user_id, login, display_name} | null}
+    GET  /api/bot/actor/<tg_user_id>?username=&name=
+                                        {actor: {tg_user_id, user_id, login, display_name, guest?} | null}:
+                                        администратор сайта или человек из settings.TELEGRAM_USERNAMES
+                                        (user_id null, login '@ник', guest true; kultura_bot/access.py)
     POST /api/bot/report                {status, usage} -> {ok}
     POST /api/bot/note                  {chat_id, text, title?} -> {id, expires_at}
                                         записка «Как считается» к ответу (kultura_bot/charts/
@@ -117,7 +120,11 @@ def actor(tg_user_id):
         return _denied()
     if not tg_user_id.isdigit():
         return _error(400, 'tg_user_id — число')
-    return _no_store(jsonify({'actor': access.actor_for(tg_user_id)}))
+    # Ник и имя из сообщения: по ним сайт впервые узнаёт человека из settings.TELEGRAM_USERNAMES
+    # (kultura_bot/access.guest_for); кривой ник просто не подойдёт.
+    username = str(request.args.get('username') or '')[:64]
+    tg_name = str(request.args.get('name') or '')[:TG_NAME_MAX]
+    return _no_store(jsonify({'actor': access.actor_for(tg_user_id, username, tg_name)}))
 
 
 @bot_api_bp.route('/api/bot/report', methods=['POST'])

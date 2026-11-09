@@ -13,6 +13,10 @@
                     (user_id, login), tg_name — имя в Telegram, linked_at, linked_by
     bot_link_codes  одноразовые коды привязки (/start <код>): code (PK), user_id, login,
                     created_ts, expires_ts; срок — LINK_CODE_TTL_S, использованный удаляется
+    bot_guests      люди без аккаунта на сайте, которых владелец пустил по нику Telegram
+                    (settings.TELEGRAM_USERNAMES, 2026-11-09): tg_user_id (PK) -> username
+                    (без @, строчными, UNIQUE — один ник за одним аккаунтом), tg_name, first_seen.
+                    Строку пишет первое сообщение человека (kultura_bot/access.py)
     bot_usage       расход по дням (МСК) и моделям из отчётов сервера бота: day + model (PK),
                     requests, input_tokens, output_tokens, cache_read, cache_write, cost_usd
     bot_chat_format вид ответов в чате (2026-11-06, команда /rich): chat_id (PK) -> format
@@ -46,6 +50,12 @@ SCHEMA = (
         login      TEXT NOT NULL,
         created_ts REAL NOT NULL,
         expires_ts REAL NOT NULL
+    )''',
+    '''CREATE TABLE IF NOT EXISTS bot_guests (
+        tg_user_id TEXT PRIMARY KEY,
+        username   TEXT NOT NULL UNIQUE,
+        tg_name    TEXT NOT NULL DEFAULT '',
+        first_seen TEXT NOT NULL
     )''',
     '''CREATE TABLE IF NOT EXISTS bot_usage (
         day           TEXT NOT NULL,
@@ -136,6 +146,42 @@ def delete_links_for_user(user_id: int) -> int:
     with db.write() as conn:
         conn.execute('DELETE FROM bot_link_codes WHERE user_id = ?', (int(user_id),))
         return conn.execute('DELETE FROM bot_links WHERE user_id = ?', (int(user_id),)).rowcount
+
+
+# ------------------------------------------------------------------ люди по нику Telegram
+
+def get_guest(tg_user_id: str) -> Optional[Dict[str, Any]]:
+    _ensure()
+    with db.read() as conn:
+        row = conn.execute('SELECT * FROM bot_guests WHERE tg_user_id = ?', (str(tg_user_id),)).fetchone()
+    return dict(row) if row else None
+
+
+def pin_guest(tg_user_id: str, username: str, tg_name: str = '') -> tuple:
+    """Закрепить ник за аккаунтом Telegram: (запись этого аккаунта или None, создана ли сейчас).
+
+    None — ник уже закреплён за другим аккаунтом (UNIQUE): так второй аккаунт с тем же ником
+    не войдёт. Одновременные первые сообщения одного человека дают одну строку (OR IGNORE)."""
+    _ensure()
+    with db.write() as conn:
+        created = conn.execute('INSERT OR IGNORE INTO bot_guests (tg_user_id, username, tg_name, first_seen) '
+                               'VALUES (?, ?, ?, ?)',
+                               (str(tg_user_id), username, tg_name[:100], _now_iso())).rowcount > 0
+        row = conn.execute('SELECT * FROM bot_guests WHERE tg_user_id = ?', (str(tg_user_id),)).fetchone()
+    return (dict(row) if row else None), created
+
+
+def rename_guest(tg_user_id: str, tg_name: str) -> None:
+    """Имя в Telegram поменялось — для журнала и страницы."""
+    _ensure()
+    with db.write() as conn:
+        conn.execute('UPDATE bot_guests SET tg_name = ? WHERE tg_user_id = ?', (tg_name[:100], str(tg_user_id)))
+
+
+def list_guests() -> List[Dict[str, Any]]:
+    _ensure()
+    with db.read() as conn:
+        return [dict(r) for r in conn.execute('SELECT * FROM bot_guests ORDER BY first_seen')]
 
 
 # ------------------------------------------------------------------ расход
