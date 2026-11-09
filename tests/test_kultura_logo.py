@@ -1,4 +1,5 @@
-"""Логотип сайта «kultura.os», который рисуется как в рендере бренда (static/logo.js, docs/brand.md).
+"""Логотипы сайта «kultura.os» и «kultura.research», которые рисуются как в рендере бренда (static/logo.js,
+docs/brand.md).
 
 Кадры считаются той же функцией, что в браузере (node + vm, без DOM). Без node тест кадров
 пропускается (локально на Windows node может не стоять; в CI на ubuntu он есть).
@@ -29,10 +30,15 @@ const L = sandbox.window.KulturaLogo;
 const count = (s, tag) => (s.match(new RegExp('<' + tag + '\\b', 'g')) || []).length;
 const frame = (f, t) => { const s = f(t, 'm'); return {paths: count(s, 'path'), rects: count(s, 'rect'),
     orange: count(s, 'rect') ? (s.match(/fill="#FF4B0A"/g) || []).length : 0, current: s.includes('currentColor')}; };
-const out = {wordmark: {}, lockup: {}, ends: {wordmark: L.views.wordmark.end, lockup: L.views.lockup.end},
-             viewBoxes: {wordmark: L.views.wordmark.viewBox, lockup: L.views.lockup.viewBox}};
+const out = {wordmark: {}, lockup: {}, research: {},
+             ends: {wordmark: L.views.wordmark.end, lockup: L.views.lockup.end, research: L.views.research.end},
+             viewBoxes: {wordmark: L.views.wordmark.viewBox, lockup: L.views.lockup.viewBox,
+                         research: L.views.research.viewBox},
+             every: {wordmark: !!L.views.wordmark.every, lockup: !!L.views.lockup.every, research: !!L.views.research.every},
+             labels: {wordmark: L.views.wordmark.label, research: L.views.research.label}};
 for (const t of [0, 0.17, 0.18, 0.42, 0.70, 1.0, 1.16, 1.32, 5]) out.wordmark[t] = frame(L.wordmark, t);
 for (const t of [0, 0.3, 0.58, 1.28, 1.32, 1.90, 5]) out.lockup[t] = frame(L.lockup, t);
+for (const t of [0, 0.18, 0.70, 0.99, 1.0, 1.16, 2.12, 2.28, 5]) out.research[t] = frame(L.research, t);
 process.stdout.write(JSON.stringify(out));
 '''
 
@@ -58,6 +64,33 @@ def test_wordmark_types_in_fixed_cells_like_the_render(frames):
     assert w['5']['current'], 'буквы — цвет текста темы'
 
 
+def test_research_wordmark_types_like_the_header(frames):
+    """Пустая беседа /research (решение владельца 2026-11-09: «динамичный логотип из надписи
+    kultura.research»): тот же набор, что у шапки, — «kultura» группами, точка на 0,70 с, «research» по
+    букве с 1,0 с; 16 ячеек по 60 — viewBox 0 0 960 80. Рисуется при каждом показе, не раз за сеанс."""
+    r = frames['research']
+    assert frames['viewBoxes']['research'] == '0 0 960 80'
+    assert [r[k]['paths'] for k in ('0', '0.18', '0.7', '0.99')] == [0, 2, 7, 7]
+    assert r['0.7']['rects'] == 1 and r['0.7']['orange'] == 1, 'точка — с kultura'
+    assert [r[k]['paths'] for k in ('1', '1.16', '2.12', '2.28', '5')] == [7, 8, 14, 15, 15]
+    assert frames['ends']['research'] == pytest.approx(1.0 + 8 * 0.16)
+    assert r['5']['current'] and r['5']['orange'] == 1, 'буквы — цвет текста, точка — оранжевая'
+    assert frames['every'] == {'wordmark': False, 'lockup': False, 'research': True}
+    assert frames['labels'] == {'wordmark': 'kultura.os', 'research': 'kultura.research'}
+
+
+def test_logo_letters_are_the_brand_outlines():
+    """Буквы — контуры IBM Plex Mono Medium из набора бренда слово в слово (не рисовать заново)."""
+    with open(os.path.join(ROOT, 'brand', 'kultura-grid-motion', 'source', 'assets', 'glyphs.json'),
+              encoding='utf-8') as f:
+        brand = json.load(f)['glyphs']
+    with open(LOGO, encoding='utf-8') as f:
+        font = json.loads(re.search(r'var FONT = (\{.*?\});\n', f.read()).group(1))['glyphs']
+    assert set('kultura.osresearch') <= set(font), 'есть все буквы обоих названий'
+    for ch, glyph in font.items():
+        assert glyph['path'] == brand[ch]['path'], ch
+
+
 def test_lockup_lands_mark_and_name_together(frames):
     lk = frames['lockup']
     assert lk['0']['paths'] == 0 and lk['0']['rects'] == 1, 'начало — один оранжевый квадрат'
@@ -75,10 +108,14 @@ def test_logo_is_on_every_entry_point():
     assert nav.count('data-kultura-logo="wordmark"') == 2 and '/static/logo.js' in nav
     login = read('templates', 'login.html')
     assert 'data-kultura-logo="lockup"' in login and '/static/logo.js?v={{ app_version }}' in login
+    research = read('templates', 'research.html')
+    assert research.count('data-kultura-logo="research"') == 3 and '/static/logo.js?v={{ app_version }}' in research, \
+        '/research: крупный логотип пустой беседы, название в панели бесед и в верхней строке телефона'
+    assert research.count('data-kultura-logo-still') == 2, 'мелкие названия — сразу готовые'
     consent = read('templates', 'mcp_consent.html')
     assert 'data-kultura-logo="lockup"' in consent and 'nonce="{{ csp_nonce }}" src="/static/logo.js' in consent, \
         'на странице согласия скрипты — только с nonce (CSP)'
-    for text in (nav, login, consent):
+    for text in (nav, login, consent, research):
         assert 'class="cursor"' not in text and 'class="prompt"' not in text, 'бренд — без курсора и «>»'
     code = read('static', 'logo.js')
     assert '#FF4B0A' in code and not re.search(r'[\U0001F300-\U0001FAFF]', code)

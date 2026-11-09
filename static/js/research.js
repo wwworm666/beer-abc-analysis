@@ -1,12 +1,13 @@
 /* kultura.research — страница вопросов боту (/research, routes/research.py, kultura_bot/web.py).
  *
- * Свой минималистичный дизайн (решение владельца 2026-11-09, static/research.css): беседы — панелью слева
- * (на телефоне — выезжает), пустая беседа — крупный вопрос и поле по центру, в беседе поле прижато книзу.
- * Вопрос уходит в очередь сайта; отвечает сервер бота в Амстердаме тем же кодом, что в Telegram. Пока вопрос
- * в работе, страница раз в POLL_MS спрашивает его состояние: переливающаяся строка, шкала и «что делаю
- * сейчас» (строки хода работы сервера бота), а кнопка «Спросить» становится «Остановить». Готов — ответ,
- * свёрнутое «Как считается», графики (TgChart, как «Открыть интерактивно»), отчёт (TgReport) и расход.
- * Кнопок-подсказок нет (ни готовых вопросов, ни «[[…]]» под ответом) — решение владельца.
+ * Свой минималистичный дизайн (решение владельца 2026-11-09, static/research.css): беседы — панелью, которая
+ * выезжает слева по кнопке; пустая беседа — логотип, который набирается (static/logo.js, вид research), поле
+ * и готовые вопросы меню бота с подсказками (вкладки разделов; нажатие задаёт вопрос, как кнопка в Telegram);
+ * в беседе поле прижато книзу. Вопрос уходит в очередь сайта; отвечает сервер бота в Амстердаме тем же кодом,
+ * что в Telegram. Пока вопрос в работе, страница раз в POLL_MS спрашивает его состояние: переливающаяся
+ * строка, шкала и «что делаю сейчас» (строки хода работы сервера бота), а кнопка «Спросить» становится
+ * «Остановить». Готов — ответ, свёрнутое «Как считается», графики (TgChart, как «Открыть интерактивно»),
+ * отчёт (TgReport) и расход. Кнопок следующего шага («[[…]]» под ответом) нет — решение владельца.
  *
  * Тексты — только textContent; HTML вставляется лишь из полей *_html, которые собрал сервер
  * (kultura_bot/engine/formatting.to_html: всё экранировано, разметка своя — b, i, code, pre, a, blockquote).
@@ -25,7 +26,8 @@
     main: $('rsMain'), title: $('rsTitle'), headActions: $('rsHeadActions'), del: $('rsDelete'),
     feed: $('rsFeed'), form: $('rsForm'), engine: $('rsEngine'), input: $('rsInput'), mode: $('rsMode'),
     fast: $('rsFast'), send: $('rsSend'), error: $('rsError'), info: $('rsInfo'), infoOpen: $('rsInfoOpen'),
-    infoClose: $('rsInfoClose'), toast: $('rsToast'),
+    infoClose: $('rsInfoClose'), toast: $('rsToast'), suggest: $('rsSuggest'),
+    logo: document.querySelector('#rsStart [data-kultura-logo]'),
   };
   const state = {
     threads: [], current: null, questions: [], mode: 'answer', sending: false, pollTimer: 0, listAt: 0,
@@ -148,15 +150,21 @@
     }
     els.threadsEmpty.hidden = state.threads.length > 0;
   }
+  function sideOpen() { return root.classList.contains('is-side-open'); }
   function openSide() {
     root.classList.add('is-side-open');
     els.scrim.hidden = false;
     els.sideToggle.setAttribute('aria-expanded', 'true');
+    // Фокус — в панель: на открытую беседу, иначе на «Новая беседа» (клавиатура и экранный диктор).
+    const target = els.threads.querySelector('[aria-current="true"]') || els.newBtn;
+    requestAnimationFrame(() => target.focus({ preventScroll: true }));
   }
-  function closeSide() {
+  function closeSide(back) {
+    const was = sideOpen();
     root.classList.remove('is-side-open');
     els.scrim.hidden = true;
     els.sideToggle.setAttribute('aria-expanded', 'false');
+    if (was && back) els.sideToggle.focus({ preventScroll: true });
   }
   function renderEngine(engine) {
     const text = engine && !engine.ok ? engine.text : '';
@@ -181,8 +189,12 @@
     els.feed.textContent = '';
   }
   function setEmpty(empty) {
+    const was = els.main.classList.contains('is-empty');
     els.main.classList.toggle('is-empty', empty);
     els.del.hidden = empty || !state.current;
+    if (els.newTop) els.newTop.hidden = empty;
+    // Беседа снова пустая — логотип набирается заново (при открытии страницы его начал static/logo.js).
+    if (empty && !was && window.KulturaLogo && els.logo) window.KulturaLogo.play(els.logo);
   }
   function setTitle() {
     const first = state.questions[0];
@@ -420,7 +432,8 @@
     els.input.style.height = Math.min(els.input.scrollHeight, Math.round(window.innerHeight * 0.4)) + 'px';
   }
 
-  function ask(text) {
+  // typed — вопрос из поля: после отправки поле очищается; готовый вопрос набранный текст не трогает.
+  function ask(text, typed) {
     const question = (text || '').trim();
     if (!question || state.sending || active()) return;
     showError('');
@@ -442,8 +455,10 @@
       const turn = renderTurn(q);
       els.feed.append(turn);
       requestAnimationFrame(() => turn.scrollIntoView({ block: 'start', behavior: 'smooth' }));
-      els.input.value = '';
-      grow();
+      if (typed) {
+        els.input.value = '';
+        grow();
+      }
       if (els.fast) els.fast.setAttribute('aria-pressed', 'false');     // быстрый режим — только для этого вопроса
       loadThreads();
       schedulePoll();
@@ -506,22 +521,50 @@
   }
   els.form.addEventListener('submit', e => {
     e.preventDefault();
-    if (active()) stop(); else ask(els.input.value);
+    if (active()) stop(); else ask(els.input.value, true);
   });
   els.input.addEventListener('input', () => { grow(); syncComposer(); });
   els.input.addEventListener('keydown', e => {
     // Enter — отправить, Shift+Enter — новая строка (как в чатах моделей); во время набора иероглифов — нет.
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
       e.preventDefault();
-      if (!active()) ask(els.input.value);
+      if (!active()) ask(els.input.value, true);
     }
   });
+
+  /* ---------------- готовые вопросы ---------------- */
+
+  // Вкладки разделов (разметку собрал сервер из settings.MENU): нажатие или стрелки влево-вправо.
+  const tabs = els.suggest ? [...els.suggest.querySelectorAll('[role="tab"]')] : [];
+  function selectTab(tab, focus) {
+    for (const t of tabs) {
+      const on = t === tab;
+      t.setAttribute('aria-selected', on ? 'true' : 'false');
+      t.tabIndex = on ? 0 : -1;
+      const panel = $(t.getAttribute('aria-controls'));
+      if (panel) panel.hidden = !on;
+    }
+    if (focus) tab.focus();
+  }
+  tabs.forEach((tab, i) => {
+    tab.addEventListener('click', () => selectTab(tab));
+    tab.addEventListener('keydown', e => {
+      const step = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+      if (!step) return;
+      e.preventDefault();
+      selectTab(tabs[(i + step + tabs.length) % tabs.length], true);
+    });
+  });
+  // Готовый вопрос задаётся сразу — с выбранным видом ответа («Ответ» или «Research») и «Быстро».
+  if (els.suggest) {
+    for (const b of els.suggest.querySelectorAll('.rx-sq')) b.addEventListener('click', () => ask(b.dataset.question, false));
+  }
   els.newBtn.addEventListener('click', () => { closeSide(); newThread(true, true); });
   if (els.newTop) els.newTop.addEventListener('click', () => newThread(true, true));
-  els.sideToggle.addEventListener('click', () => (root.classList.contains('is-side-open') ? closeSide() : openSide()));
-  els.sideClose.addEventListener('click', closeSide);
-  els.scrim.addEventListener('click', closeSide);
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSide(); });
+  els.sideToggle.addEventListener('click', () => (sideOpen() ? closeSide() : openSide()));
+  els.sideClose.addEventListener('click', () => closeSide(true));
+  els.scrim.addEventListener('click', () => closeSide());
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && sideOpen()) closeSide(true); });
   els.infoOpen.addEventListener('click', () => {
     closeSide();
     if (els.info.showModal) els.info.showModal(); else els.info.setAttribute('open', '');
