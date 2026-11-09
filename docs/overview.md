@@ -17,6 +17,8 @@
   (краны, подписка, отзывы) работают внутри сайта
 - ИИ-помощник владельца в Telegram — бот @MCPkulturabot на Claude API с инструментами сайта по MCP;
   работает на отдельном сервере в Амстердаме ([kultura-bot.md](kultura-bot.md), папка `kultura_bot/`)
+- Страница **kultura.research** (/research, только администраторам) — те же вопросы боту из браузера:
+  краткий ответ или Research, беседы сохраняются; отвечает тот же сервер бота ([research-page.md](research-page.md))
 - PWA-виджет выручки (Android/iOS)
 
 Прод: **https://beerkultura.ru** (Selectel Cloud Server, Docker Compose + Caddy + gunicorn `--workers 2`).
@@ -275,12 +277,15 @@ data/
 | Explorer | `/api/explorer/columns`, `/values`, `/report`, `/export`, `/presets`, `/saved` | GET/POST/DELETE | [explorer.md](explorer.md) |
 | Open-check | `/api/admin/open-check/run-now`, `/telegram/openbot/*` | POST/GET | [open-check-bot.md](open-check-bot.md) |
 | Графики бота (Telegram) | `/tg/chart`, `/api/tg/charts/<id>` (только `Authorization: tma <initData>`) | GET | [tg-miniapp.md](tg-miniapp.md) |
-| Сервер бота @MCPkulturabot | `/api/bot/config`, `/api/bot/link`, `/api/bot/actor/<id>`, `/api/bot/report` (только ключ сервера бота) | GET/POST | [kultura-bot.md](kultura-bot.md) |
+| Сервер бота @MCPkulturabot | `/api/bot/config`, `/api/bot/link`, `/api/bot/actor/<id>`, `/api/bot/report`, вопросы со страницы `/api/bot/web/*` (только ключ сервера бота) | GET/POST | [kultura-bot.md](kultura-bot.md) |
+| Страница kultura.research | `/research`, `/api/research/threads[/<id>]`, `/api/research/ask`, `/api/research/questions/<id>[/stop]` (администратор) | GET/POST/DELETE | [research-page.md](research-page.md) |
 
 ---
 
 ## Changelog
 
+- **2026-11-09** — страница kultura.research (`/research`, blueprint `research_bp`): вопросы боту из браузера; очередь —
+  `kultura_bot/web.py`, отвечает сервер бота в Амстердаме по `/api/bot/web/*` ([research-page.md](research-page.md)).
 - **2026-10-19 (2)** — Бот @MCPkulturabot переехал на сервер в Амстердаме: `kultura_bot/engine/` (служба `kultura-bot`, установка и самообновление — `kultura_bot/deploy/`), к сайту — по MCP и API `/api/bot/*` (blueprint `bot_api_bp`); `app.py` бота больше не запускает, сайт к Anthropic не обращается ([kultura-bot.md](kultura-bot.md)).
 - **2026-10-19** — Бот @MCPkulturabot в репозитории: папка `kultura_bot/` (Claude API, инструкции бота и агентов, настройки, графики из `core/tg_*` — в `kultura_bot/charts/`), запуск из `app.py` в одном воркере, внешняя интеграция Claude API ([kultura-bot.md](kultura-bot.md)).
 - **2026-10-18** — Графики бота @MCPkulturabot: blueprint `tg_miniapp_bp` (`/tg/chart`, `/api/tg/charts/<id>`), модули `core/tg_*`, таблица `tg_charts` в `mcp.db`, PNG в Chromium ([tg-miniapp.md](tg-miniapp.md)).

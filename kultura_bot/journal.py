@@ -45,10 +45,11 @@ STATUSES = ('done', 'error', 'stopped', 'budget')
 STATUS_FILTERS = STATUSES + ('problems',)        # problems — всё, кроме done
 RATINGS = ('good', 'bad', 'other')
 MODES = ('answer', 'report')
-SOURCES = ('message', 'button', 'menu')   # menu — вопрос кнопкой из меню раздела (2026-11-06)
-FORMATS = ('', 'rich', 'plain')
+SOURCES = ('message', 'button', 'menu', 'web')   # menu — вопрос кнопкой из меню раздела (2026-11-06);
+#                                                 web — вопрос со страницы сайта /research (2026-11-09)
+FORMATS = ('', 'rich', 'plain', 'web')
 UID_RE = re.compile(r'[0-9a-f]{32}')
-CHAT_RE = re.compile(r'-?\d{1,21}')
+CHAT_RE = re.compile(r'-?\d{1,21}|web:t[A-Za-z0-9_-]{16}')     # web:<беседа> — вопросы со страницы сайта
 
 BATCH_MAX = 50              # записей в одном запросе сервера бота
 QUESTION_MAX = 8000

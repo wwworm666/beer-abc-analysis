@@ -124,6 +124,11 @@ class FakeSite:
         self.journal_error = None           # SiteError — сайт не принял пачку
         self.journal_rejects = set()        # uid, которые «сайт» отвергает
         self.feedback = []                  # (chat_id, message_id, tg_user_id, reactions)
+        self.web_queue = []                 # вопросы со страницы сайта, которые «сайт» отдаст серверу бота
+        self.web_beats = []                 # (qid, ход работы)
+        self.web_cards = []                 # (qid, инструмент, аргументы) — графики и отчёты вопроса с сайта
+        self.web_finished = []              # (qid, итог)
+        self.web_stop = set()               # qid, где на странице нажали «Остановить»
 
     def _check(self):
         if self.down:
@@ -201,6 +206,26 @@ class FakeSite:
             raise self.demo_error
         self.demo_calls.append(str(chat_id))
         return {'message_id': 55, 'chart_id': 'Y' * 22, 'format': 'rich'}
+
+    def web_next(self):
+        self._check()
+        return copy.deepcopy(self.web_queue.pop(0)) if self.web_queue else None
+
+    def web_beat(self, qid, progress):
+        self._check()
+        self.web_beats.append((qid, progress))
+        return {'stop': qid in self.web_stop, 'gone': False}
+
+    def web_card(self, qid, tool, args):
+        self._check()
+        self.web_cards.append((qid, tool, copy.deepcopy(args)))
+        key = 'chart_id' if tool == tools.CHART_TOOL else 'report_id'
+        return {'content': [text(json.dumps({key: f'w{len(self.web_cards)}', 'format': 'web'}))], 'isError': False}
+
+    def web_finish(self, qid, body):
+        self._check()
+        self.web_finished.append((qid, copy.deepcopy(body)))
+        return {'ok': True, 'status': body.get('status')}
 
     def instructions(self, connector='/mcp'):
         self._check()
@@ -2087,14 +2112,17 @@ def test_person_over_limit_is_stopped_others_are_answered(bot):
     mp.setattr(settings, 'DAILY_BUDGET_USD', 0)
     mp.setattr(settings, 'USER_DAILY_BUDGET_USD', 15.0)
     bot.env.site.links['777'] = {'tg_user_id': '777', 'user_id': 2, 'login': 'anna', 'display_name': 'Анна'}
-    bot.env.store.add_user_usage(OWNER_TG, 15.0)
+    # Предел — на администратора сайта (user:<id>), а не на Telegram: с 2026-11-09 он общий с вопросами
+    # со страницы сайта.
+    assert service.person_key(OWNER) == 'user:1'
+    bot.env.store.add_user_usage('user:1', 15.0)
     bot.client.script += [resp(text('Ответ Анне.'))]
     bot.svc.handle_update(message('вопрос', user_id=OWNER_TG))
     assert bot.tg.sent[-1][1].startswith('Ваш дневной предел расхода исчерпан: 15.00 $ из 15.00 $ на человека')
     assert bot.client.calls == [], 'модель не спрашивали'
     bot.svc.handle_update(message('вопрос', chat_id='777', user_id='777'))
     assert bot.tg.sent[-1] == ('777', 'Ответ Анне.', None), 'у другого человека свой предел'
-    assert bot.env.store.spent_by('777') > 0 and bot.env.store.spent_by(OWNER_TG) == pytest.approx(15.0)
+    assert bot.env.store.spent_by('user:2') > 0 and bot.env.store.spent_by('user:1') == pytest.approx(15.0)
     assert bot.env.site.journal_records[0]['status'] == 'budget'
 
 
@@ -2129,8 +2157,8 @@ def test_person_limit_is_shared_with_agents(bot):
     steps = len(bot.client.calls)
     one = claude.cost_usd('claude-opus-5-5', {'input_tokens': 1000, 'output_tokens': 200})
     assert steps == 3, 'вопрос, шаг агента, итог'
-    assert bot.env.store.spent_by(OWNER_TG) == pytest.approx(steps * one)
-    assert bot.env.store.spent_by(OWNER_TG) == pytest.approx(bot.env.store.spent_on()), 'весь расход — на спросившего'
+    assert bot.env.store.spent_by('user:1') == pytest.approx(steps * one)
+    assert bot.env.store.spent_by('user:1') == pytest.approx(bot.env.store.spent_on()), 'весь расход — на спросившего'
 
 
 # ------------------------------------------------------------------ профиль в Telegram (2026-11-06)

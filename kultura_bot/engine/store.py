@@ -36,6 +36,7 @@
 """
 import json
 import os
+import re
 import sqlite3
 import threading
 import time
@@ -123,6 +124,14 @@ SCHEMA = (
         PRIMARY KEY (chat_id, message_id)
     )''',
 )
+
+
+_TELEGRAM_CHAT_RE = re.compile(r'-?\d{1,21}')
+
+
+def is_telegram_chat(chat_id: Any) -> bool:
+    """Чат Telegram (число) — а не беседа страницы сайта web:<id> (2026-11-09)."""
+    return bool(_TELEGRAM_CHAT_RE.fullmatch(str(chat_id or '')))
 
 
 def msk_now() -> datetime:
@@ -222,6 +231,13 @@ class Store:
 
     def delete_dialog(self, chat_id: str) -> bool:
         return self._exec('DELETE FROM dialogs WHERE chat_id = ?', (str(chat_id),)).rowcount > 0
+
+    def prune_dialogs(self, prefix: str, max_idle_s: float, now: Optional[float] = None) -> int:
+        """Диалоги бесед сайта (web:…, 2026-11-09), простоявшие дольше max_idle_s: бот их уже не продолжит
+        (после простоя диалог начинается заново, прошлые ответы беседы присылает сайт), а копились бы без конца."""
+        now = time.time() if now is None else now
+        return self._exec('DELETE FROM dialogs WHERE chat_id LIKE ? AND last_ts < ?',
+                          (prefix + '%', now - max_idle_s)).rowcount
 
     # ---------------------------------------------------------------- вопросы
 
@@ -344,4 +360,5 @@ class Store:
     def known_chats(self, limit: int = 500) -> List[str]:
         """Чаты, где бот уже работал (вопросы и диалоги): в них могут остаться старые меню."""
         rows = self._rows('SELECT chat_id FROM jobs UNION SELECT chat_id FROM dialogs LIMIT ?', (int(limit),))
-        return sorted({str(row['chat_id']) for row in rows if row['chat_id']})
+        # Беседы страницы сайта (web:<id>, 2026-11-09) — не чаты Telegram: у них меню нет.
+        return sorted({str(row['chat_id']) for row in rows if row['chat_id'] and is_telegram_chat(row['chat_id'])})

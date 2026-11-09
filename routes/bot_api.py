@@ -31,6 +31,19 @@ core/mcp/tools/common.py).
     POST /api/bot/journal/feedback      {chat_id, message_id, tg_user_id, reactions} -> {found} —
                                         реакция человека на сообщение бота: оценка записи журнала
 
+Вопросы со страницы сайта /research (2026-11-09, kultura_bot/web.py): сервер бота берёт их, как
+сообщения Telegram, и отвечает тем же кодом; графики и отчёт ложатся в вопрос, а не в Telegram.
+
+    GET  /api/bot/web/next              {job: {id, thread_id, chat_id, question, mode, fast, actor,
+                                        history} | null} — следующий вопрос (сервер берёт, когда есть
+                                        свободное место)
+    POST /api/bot/web/<qid>/beat        {progress} -> {stop, gone} — ход работы для страницы; в ответ —
+                                        нажали ли «Остановить» (или вопрос уже закрыт)
+    POST /api/bot/web/<qid>/card        {tool, args} -> ответ инструмента {content, isError} — график
+                                        (common_chart_send) или отчёт (common_report_send) вопроса
+    POST /api/bot/web/<qid>/finish      {status, answer, how, notice, ask, shown, error, cost_usd, steps,
+                                        fast_steps} -> {ok, status}
+
 401 — нет ключа или не тот; 400 — ошибка ввода. Ответы не кэшируются (Cache-Control:
 no-store): в config — секреты.
 """
@@ -216,6 +229,61 @@ def rich_demo():
         return _error(502, str(exc))
     return _no_store(jsonify({'message_id': sent.get('message_id'), 'chart_id': sent.get('chart_id'),
                               'format': sent.get('format')}))
+
+
+# ------------------------------------------------------------------ вопросы со страницы сайта
+
+@bot_api_bp.route('/api/bot/web/next', methods=['GET'])
+def web_next():
+    """Следующий вопрос со страницы /research (или null)."""
+    if _engine() is None:
+        return _denied()
+    from kultura_bot import web
+    return _no_store(jsonify({'job': web.claim()}))
+
+
+@bot_api_bp.route('/api/bot/web/<qid>/beat', methods=['POST'])
+def web_beat(qid):
+    """Ход работы над вопросом -> страница; в ответ — нажали ли «Остановить»."""
+    if _engine() is None:
+        return _denied()
+    from kultura_bot import web
+    try:
+        progress = _body().get('progress')
+    except ValueError as exc:
+        return _error(400, str(exc))
+    return _no_store(jsonify(web.beat(qid, progress)))
+
+
+@bot_api_bp.route('/api/bot/web/<qid>/card', methods=['POST'])
+def web_card(qid):
+    """График или отчёт вопроса с сайта: та же проверка, что у отправки в Telegram, но карточка
+    ложится в вопрос. Ошибка проверки — ответ инструмента с isError (модель исправит)."""
+    principal = _engine()
+    if principal is None:
+        return _denied()
+    from core.mcp.tools.common import _strip_foreign_links, strip_foreign_urls
+    from kultura_bot import web
+    try:
+        data = _body()
+        result = web.add_card(qid, str(data.get('tool') or ''), data.get('args'), token_id=principal.token_id,
+                              text_filter=_strip_foreign_links, page_filter=strip_foreign_urls)
+    except (ValueError, web.WebError) as exc:
+        return _error(400, str(exc))
+    return _no_store(jsonify(result))
+
+
+@bot_api_bp.route('/api/bot/web/<qid>/finish', methods=['POST'])
+def web_finish(qid):
+    """Итог вопроса: ответ, «Как считается», кнопки следующего шага, расход или текст ошибки."""
+    if _engine() is None:
+        return _denied()
+    from kultura_bot import web
+    try:
+        result = web.finish(qid, _body())
+    except (ValueError, web.WebError) as exc:
+        return _error(400, str(exc))
+    return _no_store(jsonify(result))
 
 
 @bot_api_bp.route('/api/bot/journal', methods=['POST'])

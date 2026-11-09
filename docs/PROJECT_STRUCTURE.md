@@ -240,6 +240,7 @@ beer-abc-analysis/
 | `credentials.py` | **Сайт:** секреты со страницы — токен бота (getMe), ключ Claude API (формат), пауза; `engine_view` для сервера бота |
 | `access.py` | Сайт: привязка Telegram к администратору одноразовой ссылкой `t.me/<бот>?start=<код>`, кто пишет |
 | `store.py` | Сайт: таблицы в `mcp.db` — привязки, коды, расход из отчётов; состояние сервера бота |
+| `web.py` | Сайт: вопросы со страницы /research (таблица `bot_web_questions` в `mcp.db`) — очередь для сервера бота, ход работы, графики и отчёты в вопросе, беседы ([research-page.md](research-page.md)) |
 | `site_api.py` | Сайт: ключ сервера бота, команда установки, приём отчёта, состояние для страницы |
 | `charts/spec.py` | **Графики** (с 2026-10-18, до 2026-10-19 — `core/tg_charts.py`): формат описания графика (`normalize`), хранилище `tg_charts` в `mcp.db` — id `token_urlsafe(16)`, срок 90 дней — [tg-miniapp.md](tg-miniapp.md) |
 | `charts/send.py` | Отправка графика: чат разговора, PNG, `sendPhoto` с подписью-ответом (Markdown -> HTML) и кнопками «Открыть интерактивно» / «Как считается»; `send_report` — отчёт: обложка или сообщение с кнопкой «Открыть отчёт» |
@@ -279,7 +280,8 @@ beer-abc-analysis/
 | `mcp_bp` | `/mcp[/<раздел>][/read\|/draft]` (коннекторы MCP), `/admin/mcp`, `/api/admin/mcp/*` | `mcp.py` |
 | `mcp_oauth_bp` | `/.well-known/oauth-*`, `/oauth/register`, `/oauth/authorize`, `/oauth/token`, `/oauth/revoke` | `mcp_oauth.py` |
 | `tg_miniapp_bp` | `/tg/chart` (мини-приложение Telegram), `/api/tg/charts/<id>` (по initData), `/tg/chart/dev` (только debug) | `tg_miniapp.py` |
-| `bot_api_bp` | `/api/bot/config`, `/api/bot/link`, `/api/bot/actor/<id>`, `/api/bot/report` — сервер бота @MCPkulturabot (только его ключ) | `bot_api.py` |
+| `bot_api_bp` | `/api/bot/config`, `/api/bot/link`, `/api/bot/actor/<id>`, `/api/bot/report`, `/api/bot/web/*` — сервер бота @MCPkulturabot (только его ключ) | `bot_api.py` |
+| `research_bp` | `/research` (страница kultura.research), `/api/research/*` — вопросы боту из браузера, только администратор | `research.py` |
 
 `menu_bp` вынесен в [menu_tool/](../menu_tool/) как отдельное локальное приложение на порту 5050 — в прод не регистрируется.
 
@@ -310,6 +312,7 @@ templates/
 ├── admin_mcp.html       # «Доступ агентов» (/admin/mcp, только админ): коннекторы, токены, OAuth, журнал, настройки
 ├── mcp_consent.html     # Страница согласия OAuth для MCP (и «нет доступа», «подключение не удалось»)
 ├── tg_chart.html        # Мини-приложение «Графики» (/tg/chart) и PNG-карточка для чата; режимы app / dev / png
+├── research.html        # «kultura.research» (/research, только админ): вопросы боту — ответ или Research, беседы
 ├── dashboard/           # Подшаблоны главного дашборда (plans_tab, comparison_tab, ...)
 └── shared/
     ├── nav.html               # Общая навигация sidebar + topbar (секция «Гости»)
@@ -457,6 +460,7 @@ docs/
 ├── telegram-bots.md               # карта трёх ботов: что делают, где работают, кто через кого пишет
 ├── brand.md                       # бренд «Grid motion»: логотипы сайта и ботов, движение, живые аватарки
 ├── kultura-bot.md, tg-miniapp.md   # бот @MCPkulturabot (kultura_bot/) и его графики с мини-приложением
+├── research-page.md               # страница kultura.research: вопросы боту из браузера
 ├── abc-xyz-analysis.md, draft-beer-errors.md, draft-beer-fixes.md, discounts.md
 ├── explorer.md, expiration.md, chz-stock-integration.md, open-check-bot.md
 ├── iiko-integration.md, frontend.md, design-system.md

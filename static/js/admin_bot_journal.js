@@ -138,7 +138,8 @@
         tr.dataset.uid = item.uid;
         tr.appendChild(el('td', 'bj-when', when(item.asked_at)));
         var who = el('td', '', item.name || item.login || '—');
-        if (item.chat_type && item.chat_type !== 'private') { who.appendChild(el('span', 'bj-preview', 'в группе')); }
+        if (item.chat_type === 'web') { who.appendChild(el('span', 'bj-preview', 'на сайте')); }
+        else if (item.chat_type && item.chat_type !== 'private') { who.appendChild(el('span', 'bj-preview', 'в группе')); }
         tr.appendChild(who);
         var q = el('td', 'bj-question', (item.mode === 'report' ? 'Отчёт: ' : '') + (item.question || '(без текста)'));
         var preview = item.status === 'done' ? item.answer : (item.error || item.answer);
@@ -225,7 +226,8 @@
         td.appendChild(grid);
 
         var meta = [];
-        meta.push('Чат: ' + (record.chat_type === 'private' ? 'личный' : 'группа') + ' ' + (record.chat_id || ''));
+        meta.push(record.chat_type === 'web' ? 'Вопрос со страницы сайта kultura.research'
+            : 'Чат: ' + (record.chat_type === 'private' ? 'личный' : 'группа') + ' ' + (record.chat_id || ''));
         if (record.format) { meta.push('вид: ' + (record.format === 'rich' ? 'новый' : 'прежний')); }
         meta.push('запросов к модели: ' + (record.steps || 0) + ', вызовов инструментов: ' + (record.tool_calls || 0));
         meta.push('расход ' + money(record.cost_usd) + ', работа ' + seconds(record.seconds) +
