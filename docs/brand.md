@@ -40,10 +40,10 @@
 | [static/logo.css](../static/logo.css) | размер логотипа в шапке (от кегля ссылки) |
 | [static/favicon.svg](../static/favicon.svg), `favicon-32.png`, `apple-touch-icon.png`, `icon-192.png`, `icon-512.png`, `favicon.png`, `logo.jpg` | значки — статичный знак kultura.os: вкладка (SVG и PNG 32 для браузеров без SVG), экран телефона (180), манифест (192, 512); старые `favicon.png` и `logo.jpg` заменены тем же знаком |
 | [static/manifest.json](../static/manifest.json) | значок и имя сайта на экране телефона: «kultura.os», PNG 192 и 512 |
-| `templates/shared/nav.html`, `templates/login.html`, `templates/mcp_consent.html` | где логотип стоит (`data-kultura-logo`) |
+| `templates/shared/nav.html`, `templates/login.html`, `templates/mcp_consent.html`, `templates/research.html` | где логотип стоит (`data-kultura-logo`); на странице kultura.research — «kultura.research» ([research-page.md](research-page.md)) |
 | `kultura_bot/assets/avatar.mp4`, `avatar.svg` | аватарка kultura.research (копия `motion/kultura-research-avatar-light.mp4`) и её статичный знак (`static/kultura-research-light.svg`) — на сервер бота ставится только папка `kultura_bot/` |
 | `core/open_check_telegram.py` (`BOT_AVATAR`, `_sync_avatar`, `sync_profile`, `profile_status`) | аватарка kultura.pulse — берётся прямо из `motion/kultura-pulse-avatar-light.mp4` набора; итог сверки — для страницы «Доступ агентов» |
-| `tests/test_kultura_logo.py` | кадры логотипа сайта, где он стоит, значок вкладки |
+| `tests/test_kultura_logo.py` | кадры логотипов (шапка, заставка, kultura.research), буквы — контуры набора слово в слово, где логотип стоит, значок вкладки |
 | `tests/test_brand_motion.py` | кадры набора из `grid.cjs`: у аватарки нет букв, знак крупно по центру и целиком в круге Telegram, светлый фон, цикл бесшовный; скругления kultura.research; файлы аватарок на месте |
 
 ## Как работает
@@ -60,12 +60,13 @@
 - `dot` — точка: квадрат 0,18 кегля в восьмой ячейке на базовой линии;
 - ячейка — 0,6 кегля (моноширинный IBM Plex Mono).
 
-Два вида:
+Три вида:
 
 | Вид | Где | Что и когда | viewBox |
 |---|---|---|---|
 | `wordmark` | шапка (меню и верхняя полоса) | «kultura» с 0 с, точка — на 0,70 с, «os» — с 1,00 с (0,3 с паузы после точки), готово на 1,32 с | `0 0 600 80` (кегль 100, базовая линия 77) |
 | `lockup` | страницы входа и согласия MCP | начало общей заставки (`hero`): оранжевый квадрат из центра уходит на место точки (0,2–0,7 с), «kultura» — с 0,58 с, буква «k» знака выезжает из-под маски с 1,32 с за 0,52 с, «os» и оранжевый квадрат знака приземляются вместе на 1,90 с | `160 390 1080 270` |
+| `research` | пустая беседа страницы kultura.research (`/research`, решение владельца 2026-11-09: «динамичный логотип из надписи kultura.research»); сразу готовый — в панели бесед и верхней строке телефона там же | тот же набор, что `wordmark`: «kultura» с 0 с, точка — на 0,70 с, «research» по букве с 1,00 с, готово на 2,28 с | `0 0 960 80` (16 ячеек по 60) |
 
 Буквы — цвет текста темы (`currentColor`), точка и квадрат знака — `#FF4B0A`, поэтому логотип
 одинаково читается в светлой и тёмной теме.
@@ -73,7 +74,9 @@
 **Когда рисуется:** один раз за сеанс браузера — на первой открытой странице; дальше (флаг
 `kultura_logo_typed` в `sessionStorage`) и при системной настройке «уменьшить движение» — сразу
 готовый логотип. Скрипт стоит сразу после логотипа и рисует его до показа страницы, без пустой
-вспышки.
+вспышки. Исключение — вид `research` (`every` в `VIEWS`): он набирается при каждом показе пустой
+беседы и заново после «Новая беседа» (`KulturaLogo.play(el)`) и флаг сеанса не ставит; с атрибутом
+`data-kultura-logo-still` любой вид рисуется сразу готовым (мелкое название рядом с крупным).
 
 **Размер в шапке** (`static/logo.css`): высота 0,78 em, ширина 5,85 em от кегля ссылки (шапка —
 19 px, на планшете 1,3 rem, на телефоне 14 px). «kultura.os» занимает столько же, сколько тот же
@@ -147,6 +150,11 @@ kultura.pulse проверен на подменённом Telegram (запро�
 4. Слить в `main`: сайт — выкладка, сервер бота — самообновление за 2–3 минуты.
 
 ## Changelog
+
+- **2026-11-09** — вид `research` логотипа сайта: «kultura.research» набирается в пустой беседе страницы
+  `/research` при каждом показе (`every`, `KulturaLogo.play`), сразу готовым (`data-kultura-logo-still`) —
+  в панели бесед и верхней строке телефона; в `static/logo.js` добавлены буквы «e», «c», «h» из
+  `glyphs.json` набора; проверка, что буквы — контуры набора слово в слово.
 
 - **2026-11-07 (3)** — аватарки ботов без названия: только знак, крупно (масштаб 1,5 вместо 0,94) и по центру
   (`avatar(k, t, theme)` в `grid.cjs`, `render.cjs avatar light`, `motion/*-avatar-light.*`); углы

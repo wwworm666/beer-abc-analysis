@@ -1,7 +1,9 @@
 /* kultura.research — отдельный продукт на сайте (templates/research.html, static/js/research.js).
 
-   Решения владельца 2026-11-09: свой минималистичный дизайн, без шапки сайта, его оранжево-бежевой палитры и
-   кнопок-подсказок; «светлая тема, никаких тёмных тем никогда»; консистентность с сайтом — шрифты IBM Plex.
+   Решения владельца 2026-11-09: свой минималистичный дизайн, без шапки сайта и его оранжево-бежевой палитры;
+   «светлая тема, никаких тёмных тем никогда»; консистентность с сайтом — шрифты IBM Plex. Правки по снимку:
+   панель бесед скрыта — выезжает по кнопке на любой ширине; в пустой беседе — логотип, который набирается
+   (static/logo.js), поле вопроса и готовые вопросы с подсказками; заголовка нет.
    Ориентир — светлые аналитические продукты (Hex, Linear, Stripe, Perplexity): белый холст, волосяные линии
    вместо рамок, глубина мягкими тенями, монохромный интерфейс; IBM Plex Sans — текст, IBM Plex Mono (шрифт
    сайта и бренда) — цифры, метки, состояния. Цвет — только знак бренда (brand/kultura-grid-motion) и
@@ -65,7 +67,8 @@
     --rx-ink-4: #A1A1AA;
     --rx-on-ink: #FFFFFF;
     /* бренд и состояния */
-    --rx-brand: #FF4B0A;             /* фирменный оранжевый (brand/kultura-grid-motion) — только квадрат «бот работает» */
+    --rx-brand: #FF4B0A;             /* фирменный оранжевый (brand/kultura-grid-motion) — квадрат «бот работает»; точку
+                                        логотипа тем же цветом рисует static/logo.js */
     --rx-warn-bg: #FFFAEB;
     --rx-warn-line: #FEDF89;
     --rx-warn-ink: #93370D;
@@ -152,26 +155,32 @@ body.rx {
 /* ---------------- каркас ---------------- */
 
 .rx-app {
-    display: grid;
-    grid-template-columns: 264px minmax(0, 1fr);
     min-height: 100vh;
     min-height: 100dvh;
 }
 
-/* ---------------- беседы ---------------- */
+/* ---------------- беседы: панель выезжает слева по кнопке ---------------- */
 
 .rx-side {
-    position: sticky;
-    top: 0;
-    height: 100vh;
-    height: 100dvh;
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 30;
+    width: min(86vw, 300px);
     display: flex;
     flex-direction: column;
     gap: 14px;
-    padding: 16px 12px 14px;
+    padding: calc(14px + env(safe-area-inset-top, 0px)) 12px calc(14px + env(safe-area-inset-bottom, 0px));
     background: var(--rx-side);
     border-right: 1px solid var(--rx-line);
-    min-width: 0;
+    box-shadow: var(--rx-shadow-lg);
+    transform: translateX(-104%);
+    visibility: hidden;              /* закрытая — не в порядке Tab и не для экранного диктора */
+    transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1), visibility 0s linear 0.28s;
+}
+.rx-app.is-side-open .rx-side {
+    transform: none;
+    visibility: visible;
+    transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 .rx-side-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 2px 4px 0; }
 .rx-brand {
@@ -180,14 +189,12 @@ body.rx {
     gap: 0;
     min-width: 0;
     color: var(--rx-ink);
-    font-family: var(--rx-mono);
-    font-weight: 500;
-    font-size: 14px;
-    letter-spacing: -0.01em;
+    font-size: 14px;                 /* от него — размер названия (.rx-wordmark) */
     text-decoration: none;
-    white-space: nowrap;
 }
-.rx-brand span { color: var(--rx-ink-4); }
+/* название — логотип бренда (static/logo.js, вид research, сразу готовый): 9,6 em на 0,8 em от кегля */
+.rx-wordmark { display: block; color: var(--rx-ink); line-height: 0; }
+.rx-wordmark svg { display: block; width: 9.6em; height: 0.8em; overflow: visible; }
 .rx-mark {
     width: 26px;
     height: 26px;
@@ -287,7 +294,15 @@ body.rx {
     cursor: pointer;
 }
 .rx-foot-link:hover { color: var(--rx-ink); }
-.rx-scrim { display: none; }
+.rx-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 25;
+    background: var(--rx-scrim);
+    -webkit-backdrop-filter: blur(2px);
+    backdrop-filter: blur(2px);
+}
+.rx-scrim[hidden] { display: none; }
 
 /* ---------------- основная колонка ---------------- */
 
@@ -315,6 +330,7 @@ body.rx {
 }
 .rx-main.is-empty .rx-top { background: transparent; border-bottom-color: transparent; -webkit-backdrop-filter: none;
     backdrop-filter: none; }
+.rx-main.is-empty .rx-top .rx-brand { visibility: hidden; }      /* в пустой беседе логотип — крупно в центре */
 .rx-top-title {
     flex: 1;
     min-width: 0;
@@ -360,55 +376,112 @@ body.rx {
 .rx-pill-danger:hover { border-color: var(--rx-bad); }
 .rx-pill:disabled { opacity: 0.5; cursor: default; }
 
-/* пустая беседа: вопрос и поле по центру, точечная сетка бренда «Grid motion» */
+/* пустая беседа: логотип, поле и готовые вопросы по центру, точечная сетка бренда «Grid motion» */
 .rx-hero {
     display: none;
     width: 100%;
     max-width: var(--rx-col);
     margin: 0 auto;
-    padding: 0 24px 28px;
-    text-align: center;
+    padding: 0 24px 30px;
 }
 .rx-main.is-empty .rx-hero { display: block; margin-top: auto; position: relative; z-index: 1; }
 .rx-main.is-empty .rx-dock { position: relative; z-index: 1; margin-bottom: auto; padding-bottom: 14vh; background: none; }
 .rx-main.is-empty .rx-feed { display: none; }
-.rx-main.is-empty::before {
+/* сетка — только за логотипом: под готовыми вопросами точки мешали читать */
+.rx-hero::before {
     content: "";
     position: absolute;
-    inset: 0;
+    left: 0;
+    right: 0;
+    top: -130px;
+    z-index: -1;
+    height: 300px;
     pointer-events: none;
     background-image: radial-gradient(var(--rx-dot-grid) 1px, transparent 1px);
     background-size: 22px 22px;
-    -webkit-mask-image: radial-gradient(ellipse 560px 340px at 50% 44%, #000 0%, transparent 72%);
-    mask-image: radial-gradient(ellipse 560px 340px at 50% 44%, #000 0%, transparent 72%);
+    background-position: center;
+    -webkit-mask-image: radial-gradient(closest-side, #000 0%, transparent 100%);
+    mask-image: radial-gradient(closest-side, #000 0%, transparent 100%);
 }
-.rx-hero-kicker {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 18px;
-    padding: 5px 11px 5px 9px;
-    border: 1px solid var(--rx-line-2);
-    border-radius: 999px;
-    background: var(--rx-bg);
-    color: var(--rx-ink-3);
-    font-family: var(--rx-mono);
-    font-size: 11.5px;
-    letter-spacing: 0.02em;
-    box-shadow: var(--rx-shadow-sm);
+/* Логотип рисует static/logo.js (вид research): 16 ячеек по 0,6 кегля — 9,6 em в ширину, 0,8 em в высоту */
+.rx-logo { margin: 0; color: var(--rx-ink); font-size: clamp(28px, 8.4vw, 44px); line-height: 1; }
+.rx-logo svg { display: block; width: 9.6em; height: 0.8em; margin: 0 auto; overflow: visible; }
+
+/* готовые вопросы: вкладки разделов и список «вопрос — подсказка» с волосяными линиями */
+.rx-suggest { display: none; margin-top: 28px; }
+.rx-main.is-empty .rx-suggest { display: block; }
+.rx-suggest-tabs {
+    display: flex;
+    gap: 24px;
+    padding: 0 6px;
+    border-bottom: 1px solid var(--rx-line);
 }
-.rx-hero-kicker i { width: 6px; height: 6px; border-radius: 1.5px; background: var(--rx-brand); }
-.rx-hero h1 {
-    margin: 0 0 12px;
-    color: var(--rx-ink);
+.rx-suggest-tabs button {
+    position: relative;
+    padding: 0 0 10px;
+    border: 0;
+    background: none;
+    color: var(--rx-ink-4);
     font-family: var(--rx-mono);
-    font-size: clamp(30px, 4.2vw, 44px);
+    font-size: 11px;
     font-weight: 500;
-    line-height: 1.1;
-    letter-spacing: -0.04em;
-    word-spacing: -0.28em;           /* у моноширинного пробел — целая ячейка: без этого слова «разъезжаются» */
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: color 0.12s ease;
 }
-.rx-hero p { margin: 0 auto; max-width: 480px; color: var(--rx-ink-3); font-size: 15px; line-height: 1.55; text-wrap: balance; }
+.rx-suggest-tabs button:hover { color: var(--rx-ink-2); }
+.rx-suggest-tabs button[aria-selected="true"] { color: var(--rx-ink); }
+.rx-suggest-tabs button[aria-selected="true"]::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -1px;
+    height: 1.5px;
+    background: var(--rx-ink);
+}
+.rx-suggest-list { display: grid; }
+.rx-suggest-list[hidden] { display: none; }
+.rx-sq {
+    display: grid;
+    grid-template-columns: minmax(0, 14.5em) minmax(0, 1fr) 16px;
+    align-items: baseline;
+    gap: 2px 20px;
+    width: 100%;
+    padding: 12px 6px;
+    border: 0;
+    border-bottom: 1px solid var(--rx-line);
+    border-radius: 0;
+    background: none;
+    color: var(--rx-ink);
+    font-size: 14.5px;               /* от него — ширина колонки вопроса (14,5 em: самый длинный вопрос) */
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.12s ease;
+}
+.rx-sq:disabled { cursor: default; opacity: 0.6; }
+.rx-sq-q { font-weight: 500; line-height: 1.4; }
+.rx-sq-h { color: var(--rx-ink-3); font-size: 13.5px; line-height: 1.45; }
+.rx-sq-go {
+    align-self: center;
+    width: 16px;
+    height: 16px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.7;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    color: var(--rx-ink-4);
+    opacity: 0;
+    transform: translateX(-4px);
+    transition: opacity 0.15s ease, transform 0.15s ease, color 0.15s ease;
+}
+.rx-sq:focus-visible .rx-sq-go { opacity: 1; transform: none; color: var(--rx-ink); }
+@media (hover: hover) {                /* на касание подсветка «залипала» бы на нажатой строке */
+    .rx-sq:hover { background: var(--rx-soft-2); }
+    .rx-sq:hover .rx-sq-go { opacity: 1; transform: none; color: var(--rx-ink); }
+}
 
 /* ---------------- лента ---------------- */
 
@@ -727,41 +800,23 @@ details.rx-how[open] > summary { margin-bottom: 10px; }
 @keyframes rx-shimmer { from { background-position: 120% 0; } to { background-position: -120% 0; } }
 @media (prefers-reduced-motion: reduce) {
     .rx-turn, .rx-dot, .rx-thread-live, .rx-shimmer { animation: none; }
+    .rx-side, .rx-app.is-side-open .rx-side { transition: none; }
     .rx-shimmer { color: var(--rx-ink-2); background: none; }
 }
 
 /* ---------------- телефон и узкое окно ---------------- */
 
 @media (max-width: 860px) {
-    .rx-app { grid-template-columns: minmax(0, 1fr); }
-    .rx-side {
-        position: fixed;
-        inset: 0 auto 0 0;
-        z-index: 30;
-        width: min(86vw, 320px);
-        height: 100%;
-        padding-top: calc(14px + env(safe-area-inset-top, 0px));
-        background: var(--rx-bg);
-        transform: translateX(-104%);
-        transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
-        box-shadow: var(--rx-shadow-lg);
-    }
-    .rx-app.is-side-open .rx-side { transform: none; }
-    .rx-scrim {
-        display: block;
-        position: fixed;
-        inset: 0;
-        z-index: 25;
-        background: var(--rx-scrim);
-        -webkit-backdrop-filter: blur(2px);
-        backdrop-filter: blur(2px);
-    }
-    .rx-scrim[hidden] { display: none; }
     .rx-only-narrow { display: grid !important; }
     a.rx-brand.rx-only-narrow { display: inline-flex !important; flex: 1; justify-content: center; }
     .rx-top { padding: calc(6px + env(safe-area-inset-top, 0px)) 8px 6px; }
     .rx-top-title { display: none; }
-    .rx-hero { padding: 0 20px 22px; }
+    .rx-hero { padding: 0 20px 24px; }
+    .rx-suggest { margin-top: 22px; }
+    .rx-suggest-tabs { gap: 20px; padding: 0 4px; }
+    .rx-sq { grid-template-columns: minmax(0, 1fr) 16px; padding: 11px 4px; }
+    .rx-sq-h { grid-column: 1; }
+    .rx-sq-go { grid-row: 1 / span 2; grid-column: 2; opacity: 1; transform: none; }   /* на касание наведения нет */
     .rx-feed { padding: 14px 16px 20px; gap: 34px; }
     .rx-dock { padding: 16px 12px calc(12px + env(safe-area-inset-bottom, 0px)); }
     .rx-main.is-empty .rx-dock { padding-bottom: 9vh; }

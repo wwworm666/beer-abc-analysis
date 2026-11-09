@@ -7,6 +7,7 @@ Telegram, — сайт к Claude не обращается. Только адм�
     GET    /research                              страница (templates/research.html)
     GET    /api/research/threads                  {threads, engine, fast, sections} — беседы, отвечает ли
                                                   сервер бота, есть ли быстрый режим, готовые вопросы меню
+                                                  с подсказками (те же, что страница рисует под полем)
     GET    /api/research/threads/<thread_id>      {thread: {id, questions}} — беседа целиком
     DELETE /api/research/threads/<thread_id>      удалить беседу
     POST   /api/research/ask                      {question, mode: answer|report, fast, thread_id?} -> {question}
@@ -45,9 +46,12 @@ def _body():
 
 
 def _menu_sections():
-    """Готовые вопросы меню бота (kultura_bot/settings.MENU) — подсказки пустой беседы."""
+    """Готовые вопросы пустой беседы — разделы меню бота (kultura_bot/settings.MENU) с короткими именами
+    вкладок и подсказками (WEB_SECTION_LABELS, WEB_QUESTION_HINTS); нет подсказки — вопрос без неё."""
     from kultura_bot import settings
-    return [{'title': item['description'], 'questions': list(item['questions'])}
+    return [{'command': item['command'], 'title': item['description'],
+             'label': settings.WEB_SECTION_LABELS.get(item['command'], item['description']),
+             'questions': [{'text': q, 'hint': settings.WEB_QUESTION_HINTS.get(q, '')} for q in item['questions']]}
             for item in settings.MENU if item.get('questions')]
 
 
@@ -55,10 +59,12 @@ def _menu_sections():
 @admin_required
 def research_page():
     from kultura_bot import settings
-    # Числа для «Как работает» — из настроек бота, а не из текста страницы.
+    # Числа для «Как работает» — из настроек бота, а не из текста страницы. has_thread — открыта беседа
+    # по ссылке (?t=): страница не рисуется сначала пустой (само значение в разметку не попадает).
     return render_template('research.html', question_budget=settings.QUESTION_BUDGET_USD,
                            report_budget=settings.REPORT_BUDGET_USD, user_budget=settings.USER_DAILY_BUDGET_USD,
-                           fast_mode=settings.FAST_MODE, idle_minutes=settings.DIALOG_IDLE_MINUTES)
+                           fast_mode=settings.FAST_MODE, idle_minutes=settings.DIALOG_IDLE_MINUTES,
+                           sections=_menu_sections(), has_thread=bool(request.args.get('t')))
 
 
 @research_bp.route('/api/research/threads', methods=['GET'])

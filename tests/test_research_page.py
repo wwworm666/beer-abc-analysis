@@ -14,8 +14,10 @@
   «Как считается» и кнопки — полями итога, строка цены — данными; отчёт; «Остановить» со страницы;
   диалог начат заново — прошлые ответы беседы перед вопросом; предел на человека общий с Telegram;
   беседы сайта не попадают в чистку меню и в «повторите вопрос» Telegram;
-- страница в Chromium: вопрос, ход работы, ответ с графиком и отчётом, «Как считается» свёрнуто, кнопка
-  следующего шага, беседа по адресу, телефон без горизонтальной прокрутки.
+- страница в Chromium: пустая беседа — логотип набирается, панель бесед скрыта и выезжает по кнопке,
+  готовые вопросы с подсказками вкладками; вопрос, ход работы, ответ с графиком и отчётом, «Как
+  считается» свёрнуто, кнопок следующего шага нет, беседа по адресу, телефон без горизонтальной
+  прокрутки, готовый вопрос задаётся нажатием.
 
 Запуск: `py -3 -m pytest tests/test_research_page.py`.
 """
@@ -224,7 +226,20 @@ def test_page_and_api_are_for_admins_and_json_only(web_app):
     assert 'Быстро · цена ×2' in body and '$2.00 на вопрос' in body and '$5.00' in body, 'числа — из настроек бота'
     assert 'sidebar-link' not in body and 'dashboard/styles' not in body and 'admin_mcp.css' not in body, \
         'свой дизайн (2026-11-09): без меню, шапки и стилей сайта'
-    assert 'rs-chip' not in body and 'rsSuggest' not in body, 'без кнопок-подсказок'
+    # Правки владельца по снимку (2026-11-09): заголовка и плашки нет, логотип набирается, готовые вопросы
+    # с подсказками — все вопросы разделов меню бота.
+    assert 'Что посчитать?' not in body and 'rx-hero-kicker' not in body and 'данные сети' not in body
+    assert 'data-kultura-logo="research"' in body and '/static/logo.js?v=test' in body
+    assert body.index('data-kultura-logo="research"') < body.index('/static/logo.js'), 'скрипт — сразу за логотипом'
+    assert 'class="rx-main is-empty"' in body
+    for item in bot_settings.MENU:
+        for question in item.get('questions', ()):
+            assert f'data-question="{question}"' in body and bot_settings.WEB_QUESTION_HINTS[question] in body
+    assert body.count('role="tab"') == 4 and body.count('aria-selected="true"') == 1
+    assert 'title="Новая беседа" hidden>' in body, '«+» в пустой беседе не мелькает до скрипта'
+    opened = c.get('/research?t=t' + 'A' * 16).get_data(as_text=True)
+    assert 'class="rx-main"' in opened and 'title="Новая беседа">' in opened, \
+        'беседа по ссылке не рисуется сначала пустой'
     assert '<html lang="ru" data-theme="light">' in body and 'content="light only"' in body, \
         'только светлая тема — «никаких тёмных тем никогда» (2026-11-09)'
     assert '/static/research/kultura-research-mark.svg' in body, 'знак — из набора бренда'
@@ -241,7 +256,9 @@ def test_page_and_api_are_for_admins_and_json_only(web_app):
     assert q['status'] == 'queued' and q['fast'] is True
     listing = c.get('/api/research/threads').get_json()
     assert listing['threads'][0]['id'] == q['thread_id'] and listing['fast'] is True
-    assert listing['sections'][0]['questions'][0] == bot_settings.MENU[0]['questions'][0]
+    first = bot_settings.MENU[0]['questions'][0]
+    assert listing['sections'][0]['questions'][0] == {'text': first, 'hint': bot_settings.WEB_QUESTION_HINTS[first]}
+    assert [x['label'] for x in listing['sections']] == ['Продажи', 'Остатки', 'Смены', 'Контент']
     assert 'engine' in listing and c.get('/api/research/threads').headers['Cache-Control'] == 'no-store'
     assert c.get(f'/api/research/threads/{q["thread_id"]}').get_json()['thread']['questions'][0]['id'] == q['id']
     assert c.get(f'/api/research/questions/{q["id"]}').get_json()['question']['status'] == 'queued'
@@ -252,6 +269,18 @@ def test_page_and_api_are_for_admins_and_json_only(web_app):
     web_app.user['value'] = dict(ADMIN, is_admin=False)
     assert c.get('/api/research/threads').status_code == 403 and c.get('/research').status_code == 403
     assert c.post('/api/research/ask', json={'question': 'x'}).status_code == 403
+
+
+def test_every_menu_question_has_a_hint_on_the_page():
+    """Готовые вопросы страницы — разделы меню бота: у каждого вопроса подсказка, у раздела — короткое имя.
+    Новый вопрос в settings.MENU без подсказки — сюда; лишних подсказок (от убранных вопросов) нет."""
+    questions = [q for item in bot_settings.MENU for q in item.get('questions', ())]
+    assert set(bot_settings.WEB_QUESTION_HINTS) == set(questions)
+    assert all(3 <= len(hint) <= 42 for hint in bot_settings.WEB_QUESTION_HINTS.values()), \
+        'одна строка на телефоне шириной 360'
+    sections = {item['command'] for item in bot_settings.MENU if item.get('questions')}
+    assert set(bot_settings.WEB_SECTION_LABELS) == sections
+    assert all(len(label) <= 10 for label in bot_settings.WEB_SECTION_LABELS.values()), 'вкладки — в ряд на телефоне'
 
 
 def test_engine_api_needs_the_engine_key(web_app):
@@ -441,11 +470,29 @@ def test_page_in_browser(web_app, monkeypatch):
             page.on('pageerror', lambda exc: errors.append(str(exc)))
             page.goto(base + '/research')
             page.wait_for_selector('.rx-main.is-empty #rsInput')
-            assert page.is_visible('#rsStart') and 'Что посчитать?' in page.inner_text('#rsStart')
-            assert page.locator('.rs-chip, .rx-chip, .sidebar').count() == 0, 'без подсказок и меню сайта'
+            # Логотип набирается: «kultura» — 7 букв, «research» — 8, точка — оранжевый квадрат.
+            page.wait_for_function("document.querySelectorAll('#rsStart .kultura-logo-svg path').length === 15")
+            assert page.locator('#rsStart .kultura-logo-svg rect[fill="#FF4B0A"]').count() == 1
+            assert page.get_attribute('#rsStart .kultura-logo-svg', 'aria-label') == 'kultura.research'
+            assert page.locator('.sidebar, .rx-hero-kicker').count() == 0
+            assert not page.is_visible('#rsNew'), 'беседы — за краем, пока не открыть (решение владельца)'
+            assert page.is_visible('#rsSideToggle') and not page.is_visible('#rsNewTop')
+            assert page.locator('.rx-sq:visible').count() == 4, 'вопросы одного раздела'
+            assert 'Итог дня по каждому бару' in page.inner_text('#rsSuggest')
+            page.click('#rsTab-stock')
+            assert page.locator('.rx-sq:visible').first.inner_text().startswith('Что заказать на неделю')
+            page.keyboard.press('ArrowRight')
+            assert page.get_attribute('#rsTab-staff', 'aria-selected') == 'true', 'вкладки — и стрелками'
+            page.click('#rsTab-sales')
             assert page.is_disabled('#rsSend'), 'пустой вопрос не отправить'
             if SHOTS:
                 page.screenshot(path=os.path.join(SHOTS, 'research-empty.png'))
+            page.click('#rsSideToggle')
+            page.wait_for_selector('.rx-app.is-side-open')
+            page.wait_for_function("document.activeElement && document.activeElement.id === 'rsNew'")
+            page.keyboard.press('Escape')
+            page.wait_for_selector('.rx-app:not(.is-side-open)')
+            assert page.evaluate('document.activeElement.id') == 'rsSideToggle', 'фокус — обратно на кнопку'
             page.click('#rsMode button[data-mode="report"]')
             page.fill('#rsInput', 'Как бельгийское пиво в сентябре против августа?')
             page.keyboard.press('Enter')
@@ -480,7 +527,7 @@ def test_page_in_browser(web_app, monkeypatch):
             assert page.locator('.rx-turn .rx-a details[open]').count() == 0, '«Как считается» — свёрнуто'
             assert page.get_attribute('.rx-report-foot a', 'href').startswith('/tg/report/')
             assert page.get_attribute('#rsSend', 'aria-label') == 'Спросить'
-            listed = page.inner_text('#rsThreads')
+            listed = page.text_content('#rsThreads')            # панель закрыта — текст разметки
             assert 'Как бельгийское пиво' in listed and 'сегодня' in listed.lower(), 'беседы — по дням'
             if SHOTS:
                 page.wait_for_timeout(700)
@@ -520,6 +567,29 @@ def test_page_in_browser(web_app, monkeypatch):
                 phone.screenshot(path=os.path.join(SHOTS, 'research-phone-threads.png'))
             phone.click('#rsScrim', position={'x': 370, 'y': 400})
             phone.wait_for_selector('.rx-app:not(.is-side-open)')
+            phone.goto(base + '/research')
+            phone.wait_for_function("document.querySelectorAll('#rsStart .kultura-logo-svg path').length === 15")
+            assert phone.evaluate('document.documentElement.scrollWidth') <= 390 + 1
+            if SHOTS:
+                phone.screenshot(path=os.path.join(SHOTS, 'research-phone-empty.png'))
+            page.click('#rsDelete')
+            page.click('#rsHeadActions .rx-pill-danger')
+            page.wait_for_selector('.rx-main.is-empty')
+            # Беседа снова пустая — логотип набирается заново.
+            page.wait_for_function("document.querySelectorAll('#rsStart .kultura-logo-svg path').length < 15")
+            page.wait_for_function("document.querySelectorAll('#rsStart .kultura-logo-svg path').length === 15")
+            # Готовый вопрос — сразу вопрос боту, с выбранным видом ответа; набранный текст остаётся.
+            page.click('#rsMode button[data-mode="answer"]')
+            page.fill('#rsInput', 'черновик')
+            page.click('#rsTab-stock')
+            page.click('.rx-sq[data-question="Что заканчивается"]')
+            page.wait_for_selector('.rx-turn .rx-run')
+            assert page.inner_text('.rx-q-text') == 'Что заканчивается' and page.input_value('#rsInput') == 'черновик'
+            ready = engine.get('/api/bot/web/next', headers=ENGINE).get_json()['job']
+            assert ready['question'] == 'Что заканчивается' and ready['mode'] == 'answer'
+            engine.post(f'/api/bot/web/{ready["id"]}/finish', headers=ENGINE,
+                        json={'status': 'done', 'answer': 'Кега IPA — на 2 дня.', 'cost_usd': 0.12, 'steps': 3})
+            page.wait_for_selector('.rx-turn .rx-prose')
             page.click('#rsDelete')
             page.click('#rsHeadActions .rx-pill-danger')
             page.wait_for_selector('.rx-main.is-empty')
