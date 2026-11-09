@@ -247,6 +247,23 @@ def test_query_filters_stats_and_pages(site_db):
             journal.query(bad)
 
 
+def test_each_person_sees_only_own_records(site_db):
+    """Решение владельца 2026-11-09: «история у каждого своя; храним только мы у себя и у пользователя; между
+    клиентами не передаём» — список, запись, выгрузка, удаление и список людей — только свои."""
+    from kultura_bot import journal
+    mine, theirs = record(login='anna', name='Анна', question='Мой вопрос'), record(question='Вопрос владельца')
+    journal.save([mine, theirs])
+    own = journal.query({'days': 7}, only_login='anna')
+    assert [i['uid'] for i in own['items']] == [mine['uid']] and own['stats']['count'] == 1
+    assert [p['login'] for p in own['people']] == ['anna'], 'в списке людей — только сам'
+    assert journal.query({'days': 7, 'login': 'owner'}, only_login='anna')['items'][0]['uid'] == mine['uid'], \
+        'фильтр по чужому логину не открывает чужие записи'
+    assert journal.get(theirs['uid'], only_login='anna') is None and journal.get(mine['uid'], only_login='anna')
+    assert 'Вопрос владельца' not in journal.csv_text({'days': 7}, only_login='anna')
+    assert journal.delete(theirs['uid'], only_login='anna') is False and journal.get(theirs['uid']) is not None
+    assert journal.query({'days': 7}, only_login='')['items'] == [], 'без логина — ничего'
+
+
 def test_delete_and_csv(site_db):
     from kultura_bot import journal
     one = record(question='Вопрос; с точкой с запятой', cost_usd=1.5)
@@ -310,6 +327,14 @@ def test_admin_api_page_and_permissions(web):
     assert r.status_code == 200 and r.mimetype == 'text/csv' and 'bot-journal.csv' in r.headers['Content-Disposition']
     page = web.client.get('/admin/bot/journal')
     assert page.status_code == 200 and 'Вопросы и ответы' in page.get_data(as_text=True)
+    # Чужие записи — как будто их нет: ни в списке, ни по uid, ни в выгрузке, ни удалить.
+    other = record(login='anna', name='Анна', question='Вопрос Анны')
+    journal.save([other])
+    listed = web.client.get('/api/admin/bot/journal?days=7').get_json()
+    assert [i['uid'] for i in listed['items']] == [one['uid']] and [p['login'] for p in listed['people']] == ['owner']
+    assert web.client.get(f'/api/admin/bot/journal?uid={other["uid"]}').status_code == 404
+    assert 'Вопрос Анны' not in web.client.get('/api/admin/bot/journal.csv?days=7').get_data(as_text=True)
+    assert web.client.delete(f'/api/admin/bot/journal/{other["uid"]}').status_code == 404
     assert web.client.delete(f'/api/admin/bot/journal/{one["uid"]}').get_json() == {'ok': True}
     assert web.client.delete(f'/api/admin/bot/journal/{one["uid"]}').status_code == 404
     web.user['value'] = dict(web.user['value'], is_admin=False)
@@ -340,16 +365,20 @@ def test_mcp_tool_only_on_full_connector(site_db, monkeypatch):
     spec = {t.name: t for t in common.TOOLS}['common_bot_journal']
     assert spec.read_only and spec.domain == 'common'
     monkeypatch.setattr(bridge, 'current_call', lambda: SimpleNamespace(connector=None, mode='read'))
-    out = common._bot_journal({'days': 7}, None)
+    owner, anna = SimpleNamespace(login='owner'), SimpleNamespace(login='anna')
+    out = common._bot_journal({'days': 7}, owner)
     assert out['items'][0]['uid'] == one['uid']
-    assert common._bot_journal({'uid': one['uid']}, None)['record']['question'] == one['question']
+    assert common._bot_journal({'uid': one['uid']}, owner)['record']['question'] == one['question']
+    assert common._bot_journal({'days': 7}, anna)['items'] == [], 'агенту — только записи владельца токена'
     with pytest.raises(ToolError, match='Записи нет'):
-        common._bot_journal({'uid': 'b' * 32}, None)
+        common._bot_journal({'uid': one['uid']}, anna)
+    with pytest.raises(ToolError, match='Записи нет'):
+        common._bot_journal({'uid': 'b' * 32}, owner)
     with pytest.raises(ToolError, match='status'):
-        common._bot_journal({'status': 'x'}, None)
+        common._bot_journal({'status': 'x'}, owner)
     monkeypatch.setattr(bridge, 'current_call', lambda: SimpleNamespace(connector='staff', mode='full'))
     with pytest.raises(ToolError, match='полном коннекторе'):
-        common._bot_journal({}, None)
+        common._bot_journal({}, owner)
 
 
 def test_engine_client_talks_to_real_routes(web):
@@ -388,7 +417,8 @@ def test_page_in_browser(web):
     bad = record(question='Почему план Кременчугской 89%?', answer='Потому что пятница.',
                  calls=[{'name': 'analytics_sales', 'args': '{"bar":"kremenchugskaya"}', 'seconds': 2.5, 'ok': False,
                          'error': 'Ошибка HTTP 400: нет даты'}])
-    journal.save([bad, record(question='Выручка вчера', login='anna', name='Анна', status='error', error='site: x')])
+    journal.save([bad, record(question='Выручка вчера', status='error', error='site: x', messages=[702]),
+                  record(question='Вопрос Анны', login='anna', name='Анна', messages=[703])])   # чужой — не виден
     journal.set_feedback('555', 701, '555', ['\U0001F44E'])
     srv = make_server('127.0.0.1', 0, web.app, threaded=True)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
@@ -401,8 +431,8 @@ def test_page_in_browser(web):
             page.goto(f'http://127.0.0.1:{srv.server_port}/admin/bot/journal')
             page.wait_for_selector('#journalRows tr')
             assert '2 вопроса' in page.inner_text('#journalStats') and 'плохих оценок 1' in page.inner_text('#journalStats')
-            assert page.locator('#journalRows tr.bj-row').count() == 2
-            assert page.locator('#jLogin option').count() == 3, 'все + два человека'
+            assert page.locator('#journalRows tr.bj-row').count() == 2 and 'Вопрос Анны' not in page.inner_text('#journalRows')
+            assert page.locator('#jLogin option').count() == 2, 'все + только сам: чужих в списке нет'
             page.locator('#journalRows tr.bj-row', has_text='Кременчугской').click()
             page.wait_for_selector('.bj-detail')
             detail = page.inner_text('.bj-detail')
@@ -421,7 +451,8 @@ def test_page_in_browser(web):
             browser.close()
     finally:
         srv.shutdown()
-    assert len(journal.query({'days': 7})['items']) == 1
+    assert len(journal.query({'days': 7}, only_login='owner')['items']) == 1
+    assert len(journal.query({'days': 7}, only_login='anna')['items']) == 1, 'чужую запись удалить нельзя'
 
 
 # ------------------------------------------------------------------ сторож

@@ -34,7 +34,13 @@ Telegram; простой дольше DIALOG_IDLE_MINUTES — разговор �
 (reports.normalize_report). Поэтому старый ответ рисуется со всеми графиками и через год, хотя
 у графиков и отчётов Telegram срок — 90 дней. Отчёт к тому же сохраняется в tg_reports — пока он
 там (90 дней), у карточки есть отдельная страница /tg/report/<id> и ссылка для браузера.
-Удалить можно только беседу целиком — кнопкой на странице. Каждый человек видит только свои беседы.
+Удалить можно только беседу целиком — кнопкой на странице. Каждый человек видит только свои беседы
+(решение владельца 2026-11-09: «история у каждого своя; храним только мы у себя и у пользователя; между
+клиентами не передаём»): все выборки — по user_id, чужая беседа — как будто её нет, отчёт беседы
+(/tg/report/<id>) открывает только её хозяин (thread_owner).
+
+Файлы к вопросу (картинки, PDF, Excel, CSV, текст) — kultura_bot/web_files.py: на диске сайта, список —
+колонка files; страница отдаёт файл только хозяину вопроса, сервер бота берёт копию по своему ключу.
 
 Кода сервера бота модуль не импортирует, кроме общих функций разметки (kultura_bot/engine/
 formatting.py — их уже использует сайт для подписей и отчётов).
@@ -103,7 +109,8 @@ SCHEMA = (
         taken_ts    INTEGER,
         beat_ts     INTEGER,
         finished_ts INTEGER,
-        stop        INTEGER NOT NULL DEFAULT 0
+        stop        INTEGER NOT NULL DEFAULT 0,
+        files       TEXT NOT NULL DEFAULT '[]'
     )''',
     'CREATE INDEX IF NOT EXISTS idx_bot_web_user ON bot_web_questions(user_id, asked_ts)',
     'CREATE INDEX IF NOT EXISTS idx_bot_web_thread ON bot_web_questions(thread_id, asked_ts)',
@@ -117,8 +124,24 @@ class WebError(ValueError):
     """Вопрос или вызов не прошли проверку: текст — для человека (страница) или сервера бота."""
 
 
+_migrated: set = set()                             # пути БД, где колонка files уже проверена
+
+
 def _ensure() -> None:
     db.ensure_schema('bot_web_questions', SCHEMA)
+    path = db.db_path()
+    if path in _migrated:
+        return
+    # Колонка files (2026-11-09) — в таблицу, созданную раньше: миграция только добавляет колонку.
+    with db.write() as conn:
+        columns = {row['name'] for row in conn.execute('PRAGMA table_info(bot_web_questions)')}
+        if 'files' not in columns:
+            try:
+                conn.execute("ALTER TABLE bot_web_questions ADD COLUMN files TEXT NOT NULL DEFAULT '[]'")
+            except Exception as exc:  # noqa: BLE001 — другой процесс сервера успел раньше
+                if 'duplicate column' not in str(exc).lower():
+                    raise
+    _migrated.add(path)
 
 
 def new_id(prefix: str) -> str:
@@ -142,7 +165,7 @@ def _iso(ts: Optional[float]) -> Optional[str]:
 
 def _row(row) -> Dict[str, Any]:
     out = dict(row)
-    for key in ('ask', 'cards'):
+    for key in ('ask', 'cards', 'files'):
         try:
             value = json.loads(out.get(key) or '[]')
         except ValueError:
@@ -154,20 +177,40 @@ def _row(row) -> Dict[str, Any]:
 # ------------------------------------------------------------------ страница: вопрос, беседы
 
 def ask(user: Dict[str, Any], question: Any, *, mode: Any = 'answer', fast: Any = False,
-        thread_id: Any = None, now: Optional[float] = None) -> Dict[str, Any]:
-    """Новый вопрос в очередь. thread_id — продолжить свою беседу, без него — новая беседа."""
+        thread_id: Any = None, files: Any = None, now: Optional[float] = None) -> Dict[str, Any]:
+    """Новый вопрос в очередь. thread_id — продолжить свою беседу, без него — новая беседа. files —
+    приложенные файлы [{name, data: base64}] (kultura_bot/web_files.py)."""
     text = str(question if question is not None else '').strip()
     if not text:
         raise WebError('Напишите вопрос')
     if len(text) > QUESTION_MAX:
         raise WebError(f'Вопрос длиннее {QUESTION_MAX} знаков — сократите его')
     if mode not in MODES:
-        raise WebError('mode — answer (ответ) или report (Research)')
+        raise WebError('mode — answer (ответ) или report (исследование)')
     if thread_id not in (None, '') and not valid_id(thread_id, 't'):
         raise WebError('Нет такой беседы')
+    from kultura_bot import web_files
+    try:
+        prepared = web_files.prepare(files)
+    except web_files.FileError as exc:
+        raise WebError(str(exc)) from None
     now = time.time() if now is None else now
     _ensure()
     qid = new_id('q')
+    try:
+        meta = web_files.store(qid, prepared)
+    except web_files.FileError as exc:
+        raise WebError(str(exc)) from None
+    try:
+        _insert(user, qid, text, mode, fast, thread_id, meta, now)
+    except BaseException:
+        web_files.delete(qid)                    # вопрос не записан — и файлам незачем лежать
+        raise
+    return get(int(user['id']), qid)
+
+
+def _insert(user: Dict[str, Any], qid: str, text: str, mode: str, fast: Any, thread_id: Any,
+            meta: List[Dict[str, Any]], now: float) -> None:
     with db.write() as conn:
         if thread_id:
             own = conn.execute('SELECT 1 FROM bot_web_questions WHERE thread_id = ? AND user_id = ? LIMIT 1',
@@ -185,11 +228,10 @@ def ask(user: Dict[str, Any], question: Any, *, mode: Any = 'answer', fast: Any 
         if active >= ACTIVE_MAX:
             raise WebError(f'Уже идут {active} вопроса — дождитесь ответа хотя бы на один')
         conn.execute('INSERT INTO bot_web_questions (id, thread_id, user_id, login, name, question, mode, fast, '
-                     'status, asked_ts) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                     'status, asked_ts, files) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                      (qid, thread_id, int(user['id']), str(user.get('login') or ''),
                       str(user.get('display_name') or user.get('login') or ''), text, mode, 1 if fast else 0,
-                      'queued', int(now)))
-    return get(int(user['id']), qid)
+                      'queued', int(now), json.dumps(meta, ensure_ascii=False, separators=(',', ':'))))
 
 
 def get(user_id: int, qid: str) -> Optional[Dict[str, Any]]:
@@ -261,15 +303,81 @@ def stop(user_id: int, qid: str, now: Optional[float] = None) -> Optional[Dict[s
     return get(user_id, qid)
 
 
+def thread_owner(chat: str) -> Optional[int]:
+    """Чья беседа у чата «web:<id беседы>» (графики и отчёты вопроса с сайта): id администратора или None
+    (беседу удалили, чат не сайта). Отчёт беседы видит только её хозяин — «история у каждого своя»."""
+    chat = str(chat or '')
+    if not chat.startswith('web:') or not valid_id(chat[4:], 't'):
+        return None
+    _ensure()
+    with db.read() as conn:
+        row = conn.execute('SELECT user_id FROM bot_web_questions WHERE thread_id = ? LIMIT 1', (chat[4:],)).fetchone()
+    return int(row['user_id']) if row else None
+
+
 def delete_thread(user_id: int, thread_id: str) -> bool:
-    """Удалить беседу целиком (кнопка на странице). Идущий в ней ответ сервер бота доведёт до конца,
-    но сохранить его будет некуда."""
+    """Удалить беседу целиком (кнопка на странице) — с файлами. Идущий в ней ответ сервер бота доведёт до
+    конца, но сохранить его будет некуда."""
     if not valid_id(thread_id, 't'):
         return False
+    from kultura_bot import web_files
     _ensure()
     with db.write() as conn:
-        return conn.execute('DELETE FROM bot_web_questions WHERE thread_id = ? AND user_id = ?',
+        ids = [row['id'] for row in conn.execute('SELECT id FROM bot_web_questions WHERE thread_id = ? AND '
+                                                 'user_id = ?', (thread_id, int(user_id)))]
+        gone = conn.execute('DELETE FROM bot_web_questions WHERE thread_id = ? AND user_id = ?',
                             (thread_id, int(user_id))).rowcount > 0
+    for qid in ids:
+        web_files.delete(qid)
+    return gone
+
+
+def _file_entry(row: Optional[Dict[str, Any]], n: int) -> Optional[Dict[str, Any]]:
+    if row is None:
+        return None
+    for entry in row['files']:
+        if isinstance(entry, dict) and entry.get('n') == n:
+            return entry
+    return None
+
+
+def user_file(user_id: int, qid: str, n: int) -> Optional[Dict[str, Any]]:
+    """Файл вопроса — только тому, кто его приложил: {name, mime, kind, data} или None."""
+    if not valid_id(qid, 'q'):
+        return None
+    from kultura_bot import web_files
+    _ensure()
+    with db.read() as conn:
+        row = conn.execute('SELECT id, files FROM bot_web_questions WHERE id = ? AND user_id = ?',
+                           (qid, int(user_id))).fetchone()
+    entry = _file_entry(_row(row) if row else None, int(n))
+    if entry is None:
+        return None
+    try:
+        data = web_files.read(qid, entry)
+    except (OSError, web_files.FileError):
+        return None
+    return {'name': entry['name'], 'mime': entry['mime'], 'kind': entry['kind'], 'data': data}
+
+
+def engine_file(qid: str, n: int) -> Optional[Dict[str, Any]]:
+    """Файл вопроса серверу бота — пока вопрос в работе: копия для бота (уменьшенная картинка, текст
+    таблицы) или сам файл. {mime, data} или None."""
+    if not valid_id(qid, 'q'):
+        return None
+    from kultura_bot import web_files
+    _ensure()
+    with db.read() as conn:
+        row = conn.execute("SELECT id, files FROM bot_web_questions WHERE id = ? AND status IN ('taken', 'running')",
+                           (qid,)).fetchone()
+    entry = _file_entry(_row(row) if row else None, int(n))
+    if entry is None:
+        return None
+    try:
+        data = web_files.read(qid, entry, for_bot=True)
+    except (OSError, web_files.FileError):
+        return None
+    return {'mime': web_files.bot_mime(entry), 'data': data}
 
 
 _expired_at = 0.0                                  # последняя проверка молчания — не чаще EXPIRE_EVERY_S
@@ -330,6 +438,9 @@ def view(row: Dict[str, Any]) -> Dict[str, Any]:
         'answer_html': formatting.to_html(row['answer']) if row['answer'] else '',
         'how_html': formatting.to_html(row['how']) if row['how'] else '',
         'notice': row['notice'], 'ask': row['ask'], 'cards': cards, 'shown': row['shown'],
+        'files': [{'n': f['n'], 'name': f['name'], 'kind': f['kind'], 'size': f['size'],
+                   'url': f'/api/research/files/{row["id"]}/{f["n"]}'} for f in row.get('files') or []
+                  if isinstance(f, dict) and 'n' in f],
         'cost': ({'usd': round(float(row['cost_usd']), 4), 'steps': int(row['steps']),
                   'fast_steps': int(row['fast_steps']),
                   'line': cost_line(float(row['cost_usd']), int(row['steps']), int(row['fast_steps']))}
@@ -345,6 +456,7 @@ def _history(conn, thread_id: str, before_ts: int) -> List[Dict[str, Any]]:
     rows = conn.execute("SELECT * FROM bot_web_questions WHERE thread_id = ? AND asked_ts <= ? AND status = 'done' "
                         'ORDER BY asked_ts DESC, rowid DESC LIMIT ?',
                         (thread_id, int(before_ts), HISTORY_QUESTIONS)).fetchall()
+    from kultura_bot import web_files
     from kultura_bot.charts import reports as report_store
     out = []
     items = [_row(row) for row in reversed(rows)]
@@ -353,6 +465,7 @@ def _history(conn, thread_id: str, before_ts: int) -> List[Dict[str, Any]]:
         cards = [c for c in item['cards'] if c.get('kind') == 'report' and isinstance(c.get('body'), dict)]
         charts = [c for c in item['cards'] if c.get('kind') == 'chart']
         entry = {'question': item['question'], 'mode': item['mode'], 'answer': answer,
+                 'files': web_files.describe(item.get('files') or []),
                  'reports': [{'title': c['body'].get('title', ''),
                               'summary': str(c['body'].get('summary', ''))[:HISTORY_ANSWER_MAX]} for c in cards],
                  'charts': [{'title': str((c.get('spec') or {}).get('title') or ''),
@@ -411,6 +524,9 @@ def claim(now: Optional[float] = None) -> Optional[Dict[str, Any]]:
             'actor': {'user_id': int(user['id']), 'login': str(user.get('login') or row['login']),
                       'display_name': str(user.get('display_name') or user.get('login') or row['name'])},
             'history': history,
+            'files': [{'n': f['n'], 'name': f['name'], 'kind': f['kind'], 'mime': str(f.get('bot_mime') or f['mime']),
+                       'size': int(f.get('bot_size') or f['size'])}
+                      for f in _row(row).get('files') or [] if isinstance(f, dict) and 'n' in f],
         }
     return None
 

@@ -78,6 +78,7 @@ PUBLIC_ENDPOINTS = {
     'bot_api.web_beat',                # … ход работы и «Остановить»
     'bot_api.web_card',                # … график или отчёт вопроса — в вопрос, а не в Telegram
     'bot_api.web_finish',              # … итог вопроса
+    'bot_api.web_file',                # … файл, приложенный к вопросу (картинка, PDF, текст таблицы)
 }
 
 

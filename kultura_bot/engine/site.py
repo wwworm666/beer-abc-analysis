@@ -160,6 +160,24 @@ class Site:
         """Итог вопроса с сайта: ответ, «Как считается», кнопки, расход или текст ошибки."""
         return self._request('POST', f'/api/bot/web/{qid}/finish', body=body)
 
+    def web_file(self, qid: str, n: int, limit: int) -> bytes:
+        """Файл, приложенный к вопросу с сайта (картинка, PDF или текст таблицы), — байтами, не больше limit.
+        Нет файла, ошибка сайта или файл больше предела — SiteError."""
+        path = f'/api/bot/web/{qid}/files/{int(n)}'
+        sent = {'Authorization': f'Bearer {self.key}'}
+        try:
+            resp = self._session().get(self.base_url + path, headers=sent, timeout=(CONNECT_TIMEOUT_S, TOOL_TIMEOUT_S))
+        except requests.RequestException as exc:
+            raise SiteError('offline', f'Сайт {self.base_url} не отвечает ({type(exc).__name__}).') from None
+        if resp.status_code in (401, 403):
+            raise SiteError('auth', 'Сайт не принял ключ сервера бота.')
+        if resp.status_code >= 400:
+            raise SiteError('http', f'Сайт ответил {resp.status_code} на {path}')
+        data = resp.content or b''
+        if len(data) > limit:
+            raise SiteError('http', f'Файл {path} больше {limit} байт')
+        return data
+
     # ---------------------------------------------------------------- MCP
 
     def mcp(self, method: str, params: Optional[Dict[str, Any]] = None, connector: str = '/mcp',

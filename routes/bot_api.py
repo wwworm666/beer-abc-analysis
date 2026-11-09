@@ -273,6 +273,22 @@ def web_card(qid):
     return _no_store(jsonify(result))
 
 
+@bot_api_bp.route('/api/bot/web/<qid>/files/<int:n>', methods=['GET'])
+def web_file(qid, n):
+    """Файл вопроса с сайта — серверу бота, пока вопрос в работе: картинка (уменьшенная, если была
+    велика), PDF или текст таблицы (kultura_bot/web_files.py)."""
+    if _engine() is None:
+        return _denied()
+    from flask import Response
+    from kultura_bot import web
+    found = web.engine_file(qid, n)
+    if found is None:
+        return _error(404, 'Файла нет: вопрос закрыт или удалён')
+    resp = Response(found['data'], mimetype=found['mime'])
+    resp.headers['Cache-Control'] = 'no-store'
+    return resp
+
+
 @bot_api_bp.route('/api/bot/web/<qid>/finish', methods=['POST'])
 def web_finish(qid):
     """Итог вопроса: ответ, «Как считается», кнопки следующего шага, расход или текст ошибки."""

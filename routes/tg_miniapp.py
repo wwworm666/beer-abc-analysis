@@ -185,7 +185,7 @@ def _link_access(report_id: str):
         if not user.get('is_admin'):
             return None, None, _api_error(403, 'not_owner', NOT_OWNER_TEXT)
         record = reports.get(report_id)
-        if record is None:
+        if record is None or not _web_owner_ok(record, user):
             return None, None, _api_error(404, 'report_not_found', 'Отчёт не найден или срок хранения (90 дней) истёк')
         return record, 'site:' + str(user.get('login') or user.get('id') or ''), None
     viewer, token, error = _auth('отчёт')
@@ -237,13 +237,25 @@ def shared_report(token):
     return resp
 
 
+def _web_owner_ok(record, user) -> bool:
+    """Отчёт из беседы страницы kultura.research (чат «web:<беседа>») — только её хозяину: «история у
+    каждого своя, между клиентами не передаём» (решение владельца 2026-11-09). Остальные отчёты — как были."""
+    chat = str(record.get('chat_id') or '')
+    if not chat.startswith('web:'):
+        return True
+    from kultura_bot import web
+    owner = web.thread_owner(chat)
+    return owner is not None and bool(user) and int(user.get('id') or 0) == owner
+
+
 @tg_miniapp_bp.route('/tg/report/<report_id>')
 def report_page(report_id):
-    """Отчёт или записка страницей сайта: вход — обычный вход сайта (гейт core/auth_guard)."""
+    """Отчёт или записка страницей сайта: вход — обычный вход сайта (гейт core/auth_guard). Отчёт из
+    беседы kultura.research — только хозяину беседы (чужому — 404, как будто его нет)."""
     record = reports.get(report_id)
-    if record is None:
-        abort(404)
     from core.auth_guard import current_user
+    if record is None or not _web_owner_ok(record, current_user()):
+        abort(404)
     can_share = bool((current_user() or {}).get('is_admin'))
     payload = {'report': reports.view(record), 'expires_at': _expires(record),
                'link': _link(record) if can_share else '', 'can_share': can_share}

@@ -169,6 +169,7 @@ EXCLUDED = {
     ('POST', '/api/bot/web/<qid>/card'): _ENGINE_REASON + ' (график или отчёт вопроса со страницы /research; агенту — '
                                                          'common_chart_send и common_report_send)',
     ('POST', '/api/bot/web/<qid>/finish'): _ENGINE_REASON + ' (итог вопроса со страницы /research)',
+    ('GET', '/api/bot/web/<qid>/files/<int:n>'): _ENGINE_REASON + ' (файл, приложенный к вопросу со страницы /research)',
     ('GET', '/api/admin/bot/journal'): 'журнал вопросов бота для страницы администратора; агенту та же выборка — '
                                        'инструмент common_bot_journal (только полный коннектор /mcp)',
     ('GET', '/api/admin/bot/journal.csv'): 'выгрузка журнала вопросов бота файлом для человека; агенту — '
@@ -181,6 +182,7 @@ EXCLUDED = {
     ('POST', '/api/research/ask'): _RESEARCH_REASON,
     ('GET', '/api/research/questions/<qid>'): _RESEARCH_REASON,
     ('POST', '/api/research/questions/<qid>/stop'): _RESEARCH_REASON,
+    ('GET', '/api/research/files/<qid>/<int:n>'): _RESEARCH_REASON + ' Файл вопроса — только тому, кто его приложил.',
 }
 
 _NO_ARGS = {'type': 'object', 'properties': {}, 'additionalProperties': False}
@@ -878,7 +880,8 @@ def _report_send(args: Dict[str, Any], principal: Principal) -> Dict[str, Any]:
 
 def _bot_journal(args: Dict[str, Any], principal: Principal) -> Dict[str, Any]:
     """Журнал вопросов и ответов бота (kultura_bot/journal.py) — только на полном коннекторе /mcp: в нём
-    вопросы и ответы всех разделов, коннектор одного раздела их не открывает."""
+    вопросы и ответы всех разделов, коннектор одного раздела их не открывает. Только записи владельца
+    токена (решение владельца 2026-11-09: «история у каждого своя»); у самого бота инструмента нет."""
     call = bridge.current_call()
     if call is None or call.connector is not None:
         raise ToolError('Журнал вопросов бота — только на полном коннекторе /mcp: в нём вопросы и ответы всех '
@@ -887,11 +890,11 @@ def _bot_journal(args: Dict[str, Any], principal: Principal) -> Dict[str, Any]:
     uid = str(args.get('uid') or '').strip()
     try:
         if uid:
-            record = journal.get(uid)
+            record = journal.get(uid, only_login=principal.login)
             if record is None:
-                raise ToolError('Записи нет: удалена или срок хранения вышел')
+                raise ToolError('Записи нет: удалена, срок хранения вышел или вопрос задавали не вы')
             return {'record': record}
-        return journal.query(args)
+        return journal.query(args, only_login=principal.login)
     except journal.JournalError as exc:
         raise ToolError(str(exc)) from None
 
@@ -1025,7 +1028,8 @@ TOOLS = [
         handler=_report_send, read_only=False, destructive=True, idempotent=False, open_world=True),
     ToolSpec(
         name='common_bot_journal', domain='common', title='Журнал вопросов бота',
-        description='Журнал вопросов и ответов бота @MCPkulturabot (новые сверху): когда и кто спросил, вопрос, '
+        description='Журнал вопросов и ответов бота @MCPkulturabot (новые сверху), только свои — заданные '
+                    'владельцем токена (у каждого своя история): когда спросил, вопрос, '
                     'ответ (Markdown, начало — в списке, целиком — по uid), итог done/error/stopped/budget, расход $, '
                     'секунды, запросы к модели, вызовы инструментов, оценка реакцией (good/bad/other), итоги за '
                     'выбранное. Чтобы разобрать, где бот ошибается: status=problems — всё, что не done; '
