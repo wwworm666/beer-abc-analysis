@@ -104,6 +104,8 @@ class FakeSite:
                     'paused': False}
         self.links = {OWNER_TG: dict(OWNER)}
         self.codes = {}
+        self.guests = {}                    # ник строчными -> человек по нику (settings.TELEGRAM_USERNAMES)
+        self.actor_calls = []               # (tg_user_id, username, name) — что сервер бота спросил у сайта
         self.reports = []
         self.calls = []                     # (name, arguments)
         self.down = False
@@ -149,9 +151,13 @@ class FakeSite:
         self.links[str(tg_user_id)] = dict(actor, tg_user_id=str(tg_user_id))
         return {'ok': True, 'text': f'Готово: вы подключены как {actor["display_name"]}.'}
 
-    def actor(self, tg_user_id):
+    def actor(self, tg_user_id, username='', name=''):
         self._check()
-        return copy.deepcopy(self.links.get(str(tg_user_id)))
+        self.actor_calls.append((str(tg_user_id), username, name))
+        found = self.links.get(str(tg_user_id))
+        if found is None and username.lower() in self.guests:      # как сайт: ник закрепляется за аккаунтом
+            found = self.links[str(tg_user_id)] = dict(self.guests.pop(username.lower()), tg_user_id=str(tg_user_id))
+        return copy.deepcopy(found)
 
     def report(self, payload):
         self._check()
@@ -996,6 +1002,25 @@ def test_stranger_gets_one_refusal_and_costs_nothing(bot):
     bot.svc.handle_update(message('ну покажи', user_id='4040', chat_id='4040'))
     assert [s[1].startswith('Это закрытый бот') for s in bot.tg.sent] == [True]
     assert bot.client.calls == []
+
+
+def test_guest_by_username_needs_no_code(bot):
+    """Человек из списка ников владельца (settings.TELEGRAM_USERNAMES, 2026-11-09): /start без кода —
+    справка; ник и имя из сообщения уходят сайту (по ним сайт узнаёт его в первый раз); вопрос — от его
+    имени (@ник), дневной предел — по номеру аккаунта Telegram."""
+    bot.env.site.guests['pk_kvvo'] = {'user_id': None, 'login': '@pk_kvvo', 'display_name': 'Павел К',
+                                      'guest': True}
+    start = message('/start', user_id='777', chat_id='777')
+    start['message']['from'].update(username='PK_kvvo', first_name='Павел', last_name='К')
+    bot.svc.handle_update(start)
+    assert bot.tg.sent[-1][:2] == ('777', service.HELP_TEXT)
+    assert bot.env.site.actor_calls[-1] == ('777', 'PK_kvvo', 'Павел К')
+    bot.client.script += [resp(text('Ответ'))]
+    bot.svc.handle_update(message('сколько кег?', user_id='777', chat_id='777'))
+    first = bot.client.calls[-1]['messages'][0]['content'][0]['text']
+    assert 'пишет Павел К (@pk_kvvo)]' in first and first.endswith('\nсколько кег?')
+    assert service.person_key(bot.env.site.links['777']) == '777'
+    assert service.tg_name_of({'username': 'nick'}) == 'nick' and service.tg_name_of(None) == ''
 
 
 def test_start_with_code_links_and_question_is_answered(bot):

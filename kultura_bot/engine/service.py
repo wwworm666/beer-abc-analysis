@@ -29,9 +29,11 @@ conflict на странице, пока её не остановят.
 1. Только личка и группы (в группе — если к боту обратились: @имя, ответ на его
    сообщение, команда /…@имя). Свои сообщения и сообщения ботов — мимо.
 2. /start <код> — привязка Telegram к администратору сайта (сайт: POST /api/bot/link).
-3. Кто пишет — спрашиваем сайт (GET /api/bot/actor/<id>, ответ помнится ACTOR_CACHE_S):
-   привязанный активный администратор, иначе одна фраза «закрытый бот» (в личке, не
-   чаще раза в REFUSAL_EVERY_S) и всё.
+3. Кто пишет — спрашиваем сайт (GET /api/bot/actor/<id>?username=&name=, ответ помнится
+   ACTOR_CACHE_S): привязанный активный администратор или человек из списка ников владельца
+   (settings.TELEGRAM_USERNAMES, 2026-11-09: ник из сообщения нужен сайту, чтобы узнать его в
+   первый раз; /start без кода — справка), иначе одна фраза «закрытый бот» (в личке, не чаще
+   раза в REFUSAL_EVERY_S) и всё.
 4. /new — новый диалог (в очереди чата); /help — что умеет бот; /research <вопрос> (прежнее
    имя — /report, settings.REPORT_ALIASES) или сообщение со слова из settings.REPORT_WORDS
    («отчёт: …», «исследуй …») — режим отчёта; /fast <вопрос> — этот вопрос в быстром режиме.
@@ -157,7 +159,7 @@ def _help_text() -> str:
             'Графики приходят с кнопкой «Открыть интерактивно», пояснение расчёта — «Как считается». '
             'Вернуться к прошлой работе — ответьте на моё сообщение с отчётом или графиком («Ответить»).\n\n'
             '/rich — вид ответов: таблицы и «Как считается» прямо в сообщении или прежний.\n\n'
-            'Вопросы и ответы сохраняются в журнале на сайте (его видят администраторы). Ответ не помог — '
+            'Вопросы и ответы сохраняются в журнале на сайте (все вопросы видит владелец сайта). Ответ не помог — '
             'поставьте под ним реакцию с пальцем вниз: так видно, где бот ошибается.')
 
 
@@ -276,10 +278,17 @@ def menu_markup(section: Dict[str, Any]) -> Dict[str, Any]:
     return {'inline_keyboard': [[{'text': q, 'callback_data': formatting.menu_data(q)}]
                                 for q in section.get('questions') or ()]}
 
+def tg_name_of(author: Optional[Dict[str, Any]]) -> str:
+    """Имя человека из поля from сообщения: имя и фамилия, иначе ник."""
+    author = author or {}
+    return ' '.join(filter(None, [author.get('first_name'), author.get('last_name')])) or \
+        str(author.get('username') or '')
+
+
 def person_key(actor: Optional[Dict[str, Any]]) -> str:
     """Кто спросил — для дневного предела на человека (USER_DAILY_BUDGET_USD): администратор сайта
     (user:<id>), чем бы он ни спрашивал — Telegram или страница сайта (2026-11-09: иначе два пути дали бы
-    вдвое больший предел). Нет id администратора — id Telegram."""
+    вдвое больший предел). Нет id администратора (человек по нику Telegram) — id Telegram."""
     actor = actor or {}
     if actor.get('user_id') not in (None, ''):
         return f'user:{actor["user_id"]}'
@@ -839,13 +848,18 @@ class Service:
 
     # ---------------------------------------------------------------- кто пишет
 
-    def actor(self, tg_user_id: str, fresh: bool = False) -> Optional[Dict[str, Any]]:
-        """Привязанный активный администратор (спрашиваем сайт) или None. SiteError — наверх."""
+    def actor(self, tg_user_id: str, fresh: bool = False, author: Optional[Dict[str, Any]] = None
+              ) -> Optional[Dict[str, Any]]:
+        """Кто пишет (спрашиваем сайт): привязанный активный администратор, человек из списка ников
+        (settings.TELEGRAM_USERNAMES) или None. SiteError — наверх.
+
+        author — поле from сообщения: ник и имя нужны сайту, чтобы впервые узнать человека по нику."""
         now = time.time()
         cached = self.actor_cache.get(tg_user_id)
         if cached is not None and not fresh and now - cached[0] < ACTOR_CACHE_S:
             return cached[1]
-        actor = self.site.actor(tg_user_id)
+        author = author or {}
+        actor = self.site.actor(tg_user_id, username=str(author.get('username') or ''), name=tg_name_of(author))
         if len(self.actor_cache) > 5000:           # не копим память на спамерах
             self.actor_cache.clear()
         self.actor_cache[tg_user_id] = (now, actor)
@@ -978,8 +992,7 @@ class Service:
         elif chat_type != 'private':
             return
         command, rest = self._command(text)
-        tg_name = ' '.join(filter(None, [author.get('first_name'), author.get('last_name')])) or \
-            author.get('username') or ''
+        tg_name = tg_name_of(author)
 
         try:
             if command == 'start' and rest and chat_type == 'private':
@@ -987,7 +1000,7 @@ class Service:
                 self.actor_cache.pop(tg_user_id, None)
                 self.tg.send_plain(chat_id, str(answer.get('text') or ''))
                 return
-            actor = self.actor(tg_user_id)
+            actor = self.actor(tg_user_id, author=author)
         except SiteError as exc:
             log.warning('[BOT] сайт не ответил на вопрос о доступе: %s', exc.text)
             self.tg.send_plain(chat_id, SITE_DOWN_TEXT)
@@ -1184,7 +1197,7 @@ class Service:
             return
         tg_user_id = str(author['id'])
         try:
-            actor = self.actor(tg_user_id)
+            actor = self.actor(tg_user_id, author=author)
         except SiteError as exc:
             log.warning('[BOT] сайт не ответил на вопрос о доступе: %s', exc.text)
             self.tg.answer_callback(callback_id, 'Сайт не отвечает — нажмите ещё раз через пару минут')

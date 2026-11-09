@@ -87,8 +87,10 @@
                 </div>
 
                 <h2 class="mcp-subhead">Кто может писать боту</h2>
-                <p class="mcp-note">Только администраторы сайта, подключившие свой Telegram: бот видит всё, что видит
-                   администратор. Остальным он отвечает «закрытый бот» и ничего не тратит.</p>
+                <p class="mcp-note">Администраторы сайта, подключившие свой Telegram, и люди из списка ников владельца
+                   (TELEGRAM_USERNAMES в kultura_bot/settings.py): им достаточно открыть t.me/{{ bot_username|default('MCPkulturabot') }}
+                   и нажать «Старт» — бот закрепит ник за их аккаунтом Telegram и напишет владельцу. Бот видит всё,
+                   что видит администратор. Остальным он отвечает «закрытый бот» и ничего не тратит.</p>
                 <div class="mcp-actions">
                     <button type="button" class="mcp-btn mcp-btn-ghost" id="mcpBotLink">Подключить мой Telegram</button>
                     <a class="mcp-btn mcp-btn-primary" id="mcpBotLinkUrl" target="_blank" rel="noopener" hidden>

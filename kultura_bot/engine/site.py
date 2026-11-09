@@ -89,9 +89,14 @@ class Site:
         return self._request('POST', '/api/bot/link', body={'code': code, 'tg_user_id': str(tg_user_id),
                                                             'tg_name': tg_name})
 
-    def actor(self, tg_user_id: str) -> Optional[Dict[str, Any]]:
-        """Кто пишет: привязанный активный администратор или None."""
-        return self._request('GET', f'/api/bot/actor/{int(tg_user_id)}').get('actor')
+    def actor(self, tg_user_id: str, username: str = '', name: str = '') -> Optional[Dict[str, Any]]:
+        """Кто пишет: привязанный активный администратор, человек из списка ников или None.
+
+        username и name — из сообщения: по нику сайт впервые узнаёт человека из
+        settings.TELEGRAM_USERNAMES (дальше — по номеру аккаунта)."""
+        query = {k: v for k, v in (('username', username), ('name', name)) if v}
+        path = f'/api/bot/actor/{int(tg_user_id)}' + ('?' + urlencode(query) if query else '')
+        return self._request('GET', path).get('actor')
 
     def report(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         """Отчёт для страницы: состояние и расход с прошлого отчёта."""

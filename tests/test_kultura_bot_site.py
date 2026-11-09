@@ -353,6 +353,50 @@ def test_link_and_actor(site_env):
     assert [x['tg_user_id'] for x in bot_store.list_links()] == ['555']
 
 
+def test_guests_by_telegram_username(site_env, monkeypatch):
+    """Люди из settings.TELEGRAM_USERNAMES (решение владельца 2026-11-09): без кода и без аккаунта на сайте.
+    Первый раз — по нику из сообщения (регистр и @ не важны): ник закрепляется за аккаунтом, владельцу —
+    сообщение в личку от бота, один раз; дальше — по номеру аккаунта (сменил ник — всё равно он); другой
+    аккаунт с тем же ником не входит; убрали ник из списка — бот не отвечает. Страница видит, кто уже писал."""
+    env = site_env
+    monkeypatch.setattr(bot_settings, 'TELEGRAM_USERNAMES', ('ivan_test', '@Pk_Test', 'плохой ник'))
+    sent = []
+    monkeypatch.setattr(access, '_background', lambda fn, *args: fn(*args))
+    monkeypatch.setattr(access, '_send', lambda chat_id, text, token: sent.append((chat_id, text, token)) or True)
+    cs.save(token=GOOD)
+    key = engine_key(site_api.issue_install(env.owner)['command'])
+    code = access.create_code(env.owner['id'], 'owner')['code']
+    assert access.link_by_code(code, '555', 'Владелец')['ok']
+
+    def actor(path):
+        return call(env, 'GET', path, key).get_json()['actor']
+
+    assert actor('/api/bot/actor/900') is None, 'без ника в первый раз не узнать'
+    assert actor('/api/bot/actor/900?username=stranger') is None and actor('/api/bot/actor/900?username=a%20b') is None
+    assert sent == [] and bot_store.list_guests() == []
+    guest = {'tg_user_id': '900', 'user_id': None, 'login': '@pk_test', 'display_name': 'Павел', 'guest': True}
+    assert actor('/api/bot/actor/900?username=PK_TEST&name=' + urllib.parse.quote('Павел')) == guest
+    assert len(sent) == 1 and sent[0][0] == '555' and sent[0][2] == GOOD, 'владельцу — в личку, от бота'
+    assert '@pk_test (Павел)' in sent[0][1] and '900' in sent[0][1] and 'TELEGRAM_USERNAMES' in sent[0][1]
+    assert actor('/api/bot/actor/900') == guest, 'дальше — по номеру аккаунта'
+    assert actor('/api/bot/actor/900?username=renamed') == guest, 'сменил ник — бот его по-прежнему знает'
+    assert actor('/api/bot/actor/901?username=pk_test') is None, 'другой аккаунт с тем же ником не входит'
+    assert len(sent) == 1, 'сообщение владельцу — один раз'
+    assert actor('/api/bot/actor/900?name=' + urllib.parse.quote('Павел К'))['display_name'] == 'Павел К'
+    assert access.actor_for('900')['login'] == '@pk_test', 'мини-приложение (графики, отчёты) его тоже узнаёт'
+    assert actor('/api/bot/actor/555?username=pk_test')['login'] == 'owner', 'администратор — по привязке'
+    assert [(g['username'], g['listed'], g['tg_user_id'], g['tg_name']) for g in access.guests_view()] == [
+        ('ivan_test', True, '', ''), ('Pk_Test', True, '900', 'Павел К')], 'плохой ник из списка пропущен'
+    assert [g['username'] for g in site_api.page_view()['guests']] == ['ivan_test', 'Pk_Test']
+
+    monkeypatch.setattr(bot_settings, 'TELEGRAM_USERNAMES', ('ivan_test',))
+    assert actor('/api/bot/actor/900') is None, 'ник убрали из списка — доступ закрыт'
+    assert [(g['username'], g['listed']) for g in access.guests_view()] == [('ivan_test', True), ('pk_test', False)]
+    bot_store.delete_link('555')
+    assert actor('/api/bot/actor/902?username=ivan_test')['login'] == '@ivan_test'
+    assert len(sent) == 1, 'у владельца нет Telegram — писать некуда, а вход не ломается'
+
+
 def test_report_checked_summed_and_shown(site_env):
     env = site_env
     key = engine_key(site_api.issue_install(env.owner)['command'])
