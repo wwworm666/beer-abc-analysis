@@ -224,7 +224,16 @@ def test_page_and_api_are_for_admins_and_json_only(web_app):
     assert 'Быстро · цена ×2' in body and '$2.00 на вопрос' in body and '$5.00' in body, 'числа — из настроек бота'
     assert 'sidebar-link' not in body and 'dashboard/styles' not in body and 'admin_mcp.css' not in body, \
         'свой дизайн (2026-11-09): без меню, шапки и стилей сайта'
-    assert 'data-theme="dark"' in body and 'rs-chip' not in body and 'rsSuggest' not in body, 'без кнопок-подсказок'
+    assert 'rs-chip' not in body and 'rsSuggest' not in body, 'без кнопок-подсказок'
+    assert '<html lang="ru" data-theme="light">' in body and 'content="light only"' in body, \
+        'только светлая тема — «никаких тёмных тем никогда» (2026-11-09)'
+    assert '/static/research/kultura-research-mark.svg' in body, 'знак — из набора бренда'
+    css = open(os.path.join(ROOT, 'static', 'research.css'), encoding='utf-8').read()
+    assert 'prefers-color-scheme: dark' not in css and '[data-theme="dark"]' not in css, 'тёмных правил нет'
+    assert "'IBM Plex Sans'" in css and "'IBM Plex Mono'" in css, 'шрифты — IBM Plex, как у сайта'
+    import re as _re
+    tokens, _, rest = css.partition('html, body {')
+    assert not _re.findall(r'#[0-9A-Fa-f]{3,8}\b', rest.replace('#000 0%', '')), 'цвета — только в блоке токенов'
     r = c.post('/api/research/ask', data={'question': 'форма'})
     assert r.status_code == 400 and 'JSON' in r.get_json()['error'], 'форма с чужого сайта не пройдёт'
     asked = c.post('/api/research/ask', json={'question': 'Выручка вчера', 'mode': 'answer', 'fast': True}).get_json()
@@ -441,7 +450,7 @@ def test_page_in_browser(web_app, monkeypatch):
             page.fill('#rsInput', 'Как бельгийское пиво в сентябре против августа?')
             page.keyboard.press('Enter')
             page.wait_for_selector('.rx-turn .rx-run')
-            assert 'В очереди' in page.inner_text('.rx-turn') and 'RESEARCH' in page.inner_text('.rx-q-meta')
+            assert 'В очереди' in page.text_content('.rx-turn') and 'RESEARCH' in page.inner_text('.rx-q-meta')
             assert page.get_attribute('#rsSend', 'aria-label') == 'Остановить', 'пока бот отвечает — «Остановить»'
             assert not page.locator('.rx-main.is-empty').count()
             job = engine.get('/api/bot/web/next', headers=ENGINE).get_json()['job']
@@ -451,7 +460,7 @@ def test_page_in_browser(web_app, monkeypatch):
                                           'периодов» — 12 с\nСделано: 4 шага, 2 запроса данных · $0.61 из $5.00'})
             page.wait_for_function("[...document.querySelectorAll('.rx-run-line')]"
                                    ".some(e => e.textContent.includes('Сравнение периодов'))")
-            assert page.inner_text('.rx-run .rx-shimmer') == 'Собираю отчёт' and page.inner_text('.rx-clock') == '0:42'
+            assert page.text_content('.rx-run .rx-shimmer') == 'Собираю отчёт' and page.inner_text('.rx-clock') == '0:42'
             assert page.evaluate("document.querySelector('.rx-meter span').style.width") == '30%'
             if SHOTS:
                 page.screenshot(path=os.path.join(SHOTS, 'research-progress.png'))
@@ -474,6 +483,7 @@ def test_page_in_browser(web_app, monkeypatch):
             listed = page.inner_text('#rsThreads')
             assert 'Как бельгийское пиво' in listed and 'сегодня' in listed.lower(), 'беседы — по дням'
             if SHOTS:
+                page.wait_for_timeout(700)
                 page.evaluate("document.querySelector('.rx-turn').scrollIntoView({block: 'start'})")
                 page.screenshot(path=os.path.join(SHOTS, 'research-desktop.png'))
                 page.evaluate("document.querySelector('.rx-report').scrollIntoView({block: 'start'})")
@@ -501,6 +511,7 @@ def test_page_in_browser(web_app, monkeypatch):
             assert not phone.is_visible('.rx-side .rx-new') or phone.evaluate(
                 "document.querySelector('.rx-side').getBoundingClientRect().right <= 0"), 'беседы — за краем'
             if SHOTS:
+                phone.wait_for_timeout(900)                    # появление ответа и прокрутка к нему
                 phone.screenshot(path=os.path.join(SHOTS, 'research-phone.png'))
             phone.click('#rsSideToggle')
             phone.wait_for_selector('.rx-app.is-side-open')

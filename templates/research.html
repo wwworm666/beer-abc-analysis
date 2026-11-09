@@ -1,20 +1,22 @@
 <!DOCTYPE html>
 {#- kultura.research — отдельный продукт на сайте (routes/research.py, kultura_bot/web.py, docs/research-page.md).
-    Решение владельца 2026-11-09: свой минималистичный дизайн — без шапки и меню сайта, без его оранжево-белой
-    палитры и кнопок-подсказок. Стили сайта не подключаются; графики и отчёты рисуют скрипты мини-приложения бота
+    Решения владельца 2026-11-09: свой минималистичный дизайн — без шапки и меню сайта, без его оранжево-бежевой
+    палитры и кнопок-подсказок; только светлая тема («никаких тёмных тем никогда»); шрифты — IBM Plex, как у
+    сайта. Стили сайта не подключаются; графики и отчёты рисуют скрипты мини-приложения бота
     (static/tg_chart/charts.js, report.js) — их цвета перекрашены токенами в static/research.css. -#}
-<html lang="ru" data-theme="dark">
+<html lang="ru" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <meta name="color-scheme" content="dark">
-    <meta name="theme-color" content="#09090B">
+    <meta name="color-scheme" content="light only">
+    <meta name="theme-color" content="#FFFFFF">
     <meta name="referrer" content="same-origin">
     <title>kultura.research</title>
     <link rel="icon" type="image/svg+xml" href="/static/favicon.svg?v={{ app_version }}">
     <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png?v={{ app_version }}">
     <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v={{ app_version }}">
-    <link rel="preload" href="/static/fonts/ibm-plex-mono/IBMPlexMono-Regular.subset.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="/static/fonts/ibm-plex-sans/IBMPlexSans-400-cyrillic.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="/static/fonts/ibm-plex-mono/IBMPlexMono-Medium.subset.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="/static/tg_chart/tg_chart.css?v={{ app_version }}">
     <link rel="stylesheet" href="/static/research.css?v={{ app_version }}">
 </head>
@@ -22,7 +24,8 @@
 <div class="rx-app" id="rsRoot" data-fast="{{ 1 if fast_mode else 0 }}">
     <aside class="rx-side" id="rsSide" aria-label="Беседы">
         <div class="rx-side-head">
-            <a class="rx-brand" href="/research" aria-label="kultura.research — новая беседа">kultura<span>.research</span></a>
+            <a class="rx-brand" href="/research" aria-label="kultura.research — новая беседа"><img class="rx-mark"
+               src="/static/research/kultura-research-mark.svg?v={{ app_version }}" alt="">kultura<span>.research</span></a>
             <button class="rx-icon rx-only-narrow" type="button" id="rsSideClose" aria-label="Закрыть список бесед">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
             </button>
@@ -46,7 +49,8 @@
                     aria-controls="rsSide" aria-expanded="false">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h10"/></svg>
             </button>
-            <a class="rx-brand rx-only-narrow" href="/research">kultura<span>.research</span></a>
+            <a class="rx-brand rx-only-narrow" href="/research"><img class="rx-mark"
+               src="/static/research/kultura-research-mark.svg?v={{ app_version }}" alt="">kultura<span>.research</span></a>
             <div class="rx-top-title" id="rsTitle"></div>
             <div class="rx-top-actions" id="rsHeadActions">
                 <button class="rx-icon" type="button" id="rsDelete" aria-label="Удалить беседу" title="Удалить беседу" hidden>
@@ -59,6 +63,7 @@
         </header>
 
         <section class="rx-hero" id="rsStart">
+            <div class="rx-hero-kicker"><i></i>kultura.research · данные сети</div>
             <h1>Что посчитать?</h1>
             <p>Выручка, остатки, смены, отзывы — ответ по данным сети. Research — полный разбор с графиками.</p>
         </section>
