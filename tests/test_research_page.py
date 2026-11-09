@@ -15,9 +15,10 @@
   диалог начат заново — прошлые ответы беседы перед вопросом; предел на человека общий с Telegram;
   беседы сайта не попадают в чистку меню и в «повторите вопрос» Telegram;
 - страница в Chromium: пустая беседа — логотип набирается, панель бесед скрыта и выезжает по кнопке,
-  готовые вопросы с подсказками вкладками; вопрос, ход работы, ответ с графиком и отчётом, «Как
-  считается» свёрнуто, кнопок следующего шага нет, беседа по адресу, телефон без горизонтальной
-  прокрутки, готовый вопрос задаётся нажатием.
+  три готовых вопроса с подсказками; глубина ответа — меню справа («Ответ» / «Исследование»), молния
+  быстрого режима с подсказкой; вопрос, ход работы, ответ с графиком и отчётом, «Как считается»
+  свёрнуто, кнопок следующего шага нет, беседа по адресу, телефон без горизонтальной прокрутки, готовый
+  вопрос задаётся нажатием.
 
 Запуск: `py -3 -m pytest tests/test_research_page.py`.
 """
@@ -223,19 +224,26 @@ def test_page_and_api_are_for_admins_and_json_only(web_app):
     assert page.status_code == 200
     body = page.get_data(as_text=True)
     assert 'kultura.research' in body and 'id="rsInput"' in body and '/static/js/research.js?v=test' in body
-    assert 'Быстро · цена ×2' in body and '$2.00 на вопрос' in body and '$5.00' in body, 'числа — из настроек бота'
+    assert '$2.00 на вопрос' in body and '$5.00' in body and 'до $2<' in body and 'до $5<' in body, \
+        'числа — из настроек бота'
+    # Снимок владельца (2026-11-09, второй): глубина ответа — оба названия по-русски, меню справа, как выбор
+    # усилия у моделей; молния — «до 2,5 раза быстрее, в 2 раза дороже» (FAST_SPEEDUP_UP_TO,
+    # FAST_PRICE_MULTIPLIER; владелец написал наоборот — цифры из прайса Anthropic).
+    assert '>Ответ<' in body and '>Исследование<' in body and '>Research<' not in body and 'rsMode' not in body
+    assert body.index('id="rsFast"') < body.index('id="rsEffortBtn"') < body.index('id="rsSend"'), \
+        'молния слева, глубина ответа — справа у кнопки «Спросить»'
+    assert 'Быстро: до 2,5 раза быстрее,' in body and 'но в 2 раза дороже — только для этого вопроса' in body
     assert 'sidebar-link' not in body and 'dashboard/styles' not in body and 'admin_mcp.css' not in body, \
         'свой дизайн (2026-11-09): без меню, шапки и стилей сайта'
-    # Правки владельца по снимку (2026-11-09): заголовка и плашки нет, логотип набирается, готовые вопросы
-    # с подсказками — все вопросы разделов меню бота.
+    # Правки владельца по снимку (2026-11-09): заголовка и плашки нет, логотип набирается; готовые вопросы —
+    # три сложных среза с подсказками (WEB_SUGGESTIONS), без вкладок.
     assert 'Что посчитать?' not in body and 'rx-hero-kicker' not in body and 'данные сети' not in body
     assert 'data-kultura-logo="research"' in body and '/static/logo.js?v=test' in body
     assert body.index('data-kultura-logo="research"') < body.index('/static/logo.js'), 'скрипт — сразу за логотипом'
     assert 'class="rx-main is-empty"' in body
-    for item in bot_settings.MENU:
-        for question in item.get('questions', ()):
-            assert f'data-question="{question}"' in body and bot_settings.WEB_QUESTION_HINTS[question] in body
-    assert body.count('role="tab"') == 4 and body.count('aria-selected="true"') == 1
+    for item in bot_settings.WEB_SUGGESTIONS:
+        assert f'data-question="{item["question"]}"' in body and item['hint'] in body
+    assert body.count('class="rx-sq"') == 3 and 'role="tab"' not in body
     assert 'title="Новая беседа" hidden>' in body, '«+» в пустой беседе не мелькает до скрипта'
     opened = c.get('/research?t=t' + 'A' * 16).get_data(as_text=True)
     assert 'class="rx-main"' in opened and 'title="Новая беседа">' in opened, \
@@ -256,9 +264,7 @@ def test_page_and_api_are_for_admins_and_json_only(web_app):
     assert q['status'] == 'queued' and q['fast'] is True
     listing = c.get('/api/research/threads').get_json()
     assert listing['threads'][0]['id'] == q['thread_id'] and listing['fast'] is True
-    first = bot_settings.MENU[0]['questions'][0]
-    assert listing['sections'][0]['questions'][0] == {'text': first, 'hint': bot_settings.WEB_QUESTION_HINTS[first]}
-    assert [x['label'] for x in listing['sections']] == ['Продажи', 'Остатки', 'Смены', 'Контент']
+    assert listing['suggestions'] == [{'question': x['question'], 'hint': x['hint']} for x in bot_settings.WEB_SUGGESTIONS]
     assert 'engine' in listing and c.get('/api/research/threads').headers['Cache-Control'] == 'no-store'
     assert c.get(f'/api/research/threads/{q["thread_id"]}').get_json()['thread']['questions'][0]['id'] == q['id']
     assert c.get(f'/api/research/questions/{q["id"]}').get_json()['question']['status'] == 'queued'
@@ -271,16 +277,17 @@ def test_page_and_api_are_for_admins_and_json_only(web_app):
     assert c.post('/api/research/ask', json={'question': 'x'}).status_code == 403
 
 
-def test_every_menu_question_has_a_hint_on_the_page():
-    """Готовые вопросы страницы — разделы меню бота: у каждого вопроса подсказка, у раздела — короткое имя.
-    Новый вопрос в settings.MENU без подсказки — сюда; лишних подсказок (от убранных вопросов) нет."""
-    questions = [q for item in bot_settings.MENU for q in item.get('questions', ())]
-    assert set(bot_settings.WEB_QUESTION_HINTS) == set(questions)
-    assert all(3 <= len(hint) <= 42 for hint in bot_settings.WEB_QUESTION_HINTS.values()), \
-        'одна строка на телефоне шириной 360'
-    sections = {item['command'] for item in bot_settings.MENU if item.get('questions')}
-    assert set(bot_settings.WEB_SECTION_LABELS) == sections
-    assert all(len(label) <= 10 for label in bot_settings.WEB_SECTION_LABELS.values()), 'вкладки — в ряд на телефоне'
+def test_ready_questions_are_three_deep_slices():
+    """Снимок владельца (2026-11-09, второй): «оставляем три вопроса, но реально сложных, неочевидных — не
+    базовые метрики, как цифры из дашборда». Вопрос уходит боту целиком, подсказка — одна строка под ним."""
+    items = bot_settings.WEB_SUGGESTIONS
+    assert len(items) == 3 and len({x['question'] for x in items}) == 3
+    menu = {q for item in bot_settings.MENU for q in item.get('questions', ())}
+    for item in items:
+        assert item['question'] not in menu, 'не вопрос из меню разделов: там — базовые срезы'
+        assert 60 <= len(item['question']) <= 180, 'разбор с периодом и разрезом, но читается в 2–3 строки'
+        assert 3 <= len(item['hint']) <= 60
+    assert bot_settings.FAST_SPEEDUP_UP_TO == 2.5 and bot_settings.FAST_PRICE_MULTIPLIER == 2.0
 
 
 def test_engine_api_needs_the_engine_key(web_app):
@@ -477,14 +484,29 @@ def test_page_in_browser(web_app, monkeypatch):
             assert page.locator('.sidebar, .rx-hero-kicker').count() == 0
             assert not page.is_visible('#rsNew'), 'беседы — за краем, пока не открыть (решение владельца)'
             assert page.is_visible('#rsSideToggle') and not page.is_visible('#rsNewTop')
-            assert page.locator('.rx-sq:visible').count() == 4, 'вопросы одного раздела'
-            assert 'Итог дня по каждому бару' in page.inner_text('#rsSuggest')
-            page.click('#rsTab-stock')
-            assert page.locator('.rx-sq:visible').first.inner_text().startswith('Что заказать на неделю')
-            page.keyboard.press('ArrowRight')
-            assert page.get_attribute('#rsTab-staff', 'aria-selected') == 'true', 'вкладки — и стрелками'
-            page.click('#rsTab-sales')
+            assert page.locator('.rx-sq:visible').count() == 3, 'три готовых вопроса'
+            assert bot_settings.WEB_SUGGESTIONS[0]['hint'] in page.inner_text('#rsSuggest')
             assert page.is_disabled('#rsSend'), 'пустой вопрос не отправить'
+            # Молния: подсказка при наведении, включение — свечение (aria-pressed).
+            assert not page.is_visible('#rsFastTip')
+            page.hover('#rsFast')
+            page.wait_for_selector('#rsFastTip', state='visible')
+            assert 'до 2,5 раза быстрее' in page.inner_text('#rsFastTip')
+            page.click('#rsFast')
+            assert page.get_attribute('#rsFast', 'aria-pressed') == 'true'
+            page.wait_for_function("getComputedStyle(document.querySelector('#rsFast')).color === 'rgb(255, 75, 10)'")
+            page.click('#rsFast')
+            assert page.get_attribute('#rsFast', 'aria-pressed') == 'false'
+            # Глубина ответа: меню справа, выбранное — галочкой, Esc закрывает.
+            assert page.inner_text('#rsEffortBtn').strip() == 'Ответ' and not page.is_visible('#rsEffortMenu')
+            page.click('#rsEffortBtn')
+            page.wait_for_selector('#rsEffortMenu', state='visible')
+            assert page.get_attribute('#rsEffortBtn', 'aria-expanded') == 'true'
+            assert page.get_attribute('#rsEffortMenu [data-mode="answer"]', 'aria-checked') == 'true'
+            assert 'несколько минут' in page.inner_text('#rsEffortMenu')
+            page.keyboard.press('Escape')
+            page.wait_for_selector('#rsEffortMenu', state='hidden')
+            assert page.evaluate('document.activeElement.id') == 'rsEffortBtn', 'фокус — обратно на кнопку'
             if SHOTS:
                 page.screenshot(path=os.path.join(SHOTS, 'research-empty.png'))
             page.click('#rsSideToggle')
@@ -493,11 +515,13 @@ def test_page_in_browser(web_app, monkeypatch):
             page.keyboard.press('Escape')
             page.wait_for_selector('.rx-app:not(.is-side-open)')
             assert page.evaluate('document.activeElement.id') == 'rsSideToggle', 'фокус — обратно на кнопку'
-            page.click('#rsMode button[data-mode="report"]')
+            page.click('#rsEffortBtn')
+            page.click('#rsEffortMenu [data-mode="report"]')
+            assert page.inner_text('#rsEffortBtn').strip() == 'Исследование' and not page.is_visible('#rsEffortMenu')
             page.fill('#rsInput', 'Как бельгийское пиво в сентябре против августа?')
             page.keyboard.press('Enter')
             page.wait_for_selector('.rx-turn .rx-run')
-            assert 'В очереди' in page.text_content('.rx-turn') and 'RESEARCH' in page.inner_text('.rx-q-meta')
+            assert 'В очереди' in page.text_content('.rx-turn') and 'ИССЛЕДОВАНИЕ' in page.inner_text('.rx-q-meta')
             assert page.get_attribute('#rsSend', 'aria-label') == 'Остановить', 'пока бот отвечает — «Остановить»'
             assert not page.locator('.rx-main.is-empty').count()
             job = engine.get('/api/bot/web/next', headers=ENGINE).get_json()['job']
@@ -578,15 +602,19 @@ def test_page_in_browser(web_app, monkeypatch):
             # Беседа снова пустая — логотип набирается заново.
             page.wait_for_function("document.querySelectorAll('#rsStart .kultura-logo-svg path').length < 15")
             page.wait_for_function("document.querySelectorAll('#rsStart .kultura-logo-svg path').length === 15")
-            # Готовый вопрос — сразу вопрос боту, с выбранным видом ответа; набранный текст остаётся.
-            page.click('#rsMode button[data-mode="answer"]')
+            # Готовый вопрос — сразу вопрос боту, с выбранной глубиной и молнией; набранный текст остаётся.
+            page.click('#rsEffortBtn')
+            page.click('#rsEffortMenu [data-mode="answer"]')
+            page.click('#rsFast')
             page.fill('#rsInput', 'черновик')
-            page.click('#rsTab-stock')
-            page.click('.rx-sq[data-question="Что заканчивается"]')
+            deep = bot_settings.WEB_SUGGESTIONS[2]['question']
+            page.locator('.rx-sq').nth(2).click()
             page.wait_for_selector('.rx-turn .rx-run')
-            assert page.inner_text('.rx-q-text') == 'Что заканчивается' and page.input_value('#rsInput') == 'черновик'
+            assert page.inner_text('.rx-q-text') == deep and page.input_value('#rsInput') == 'черновик'
+            assert 'БЫСТРО' in page.inner_text('.rx-q-meta')
+            assert page.get_attribute('#rsFast', 'aria-pressed') == 'false', 'молния — только для этого вопроса'
             ready = engine.get('/api/bot/web/next', headers=ENGINE).get_json()['job']
-            assert ready['question'] == 'Что заканчивается' and ready['mode'] == 'answer'
+            assert ready['question'] == deep and ready['mode'] == 'answer' and ready['fast'] is True
             engine.post(f'/api/bot/web/{ready["id"]}/finish', headers=ENGINE,
                         json={'status': 'done', 'answer': 'Кега IPA — на 2 дня.', 'cost_usd': 0.12, 'steps': 3})
             page.wait_for_selector('.rx-turn .rx-prose')

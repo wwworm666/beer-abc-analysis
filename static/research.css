@@ -3,7 +3,8 @@
    Решения владельца 2026-11-09: свой минималистичный дизайн, без шапки сайта и его оранжево-бежевой палитры;
    «светлая тема, никаких тёмных тем никогда»; консистентность с сайтом — шрифты IBM Plex. Правки по снимку:
    панель бесед скрыта — выезжает по кнопке на любой ширине; в пустой беседе — логотип, который набирается
-   (static/logo.js), поле вопроса и готовые вопросы с подсказками; заголовка нет.
+   (static/logo.js), поле вопроса и три сложных готовых вопроса; заголовка нет. В поле: молния быстрого
+   режима слева (с подсветкой и подсказкой), глубина ответа справа — меню, как выбор усилия у моделей.
    Ориентир — светлые аналитические продукты (Hex, Linear, Stripe, Perplexity): белый холст, волосяные линии
    вместо рамок, глубина мягкими тенями, монохромный интерфейс; IBM Plex Sans — текст, IBM Plex Mono (шрифт
    сайта и бренда) — цифры, метки, состояния. Цвет — только знак бренда (brand/kultura-grid-motion) и
@@ -67,8 +68,11 @@
     --rx-ink-4: #A1A1AA;
     --rx-on-ink: #FFFFFF;
     /* бренд и состояния */
-    --rx-brand: #FF4B0A;             /* фирменный оранжевый (brand/kultura-grid-motion) — квадрат «бот работает»; точку
-                                        логотипа тем же цветом рисует static/logo.js */
+    --rx-brand: #FF4B0A;             /* фирменный оранжевый (brand/kultura-grid-motion) — квадрат «бот работает»,
+                                        включённая молния; точку логотипа тем же цветом рисует static/logo.js */
+    --rx-brand-soft: rgba(255, 75, 10, 0.09);    /* фон включённой молнии */
+    --rx-brand-line: rgba(255, 75, 10, 0.42);    /* её граница */
+    --rx-brand-glow: rgba(255, 75, 10, 0.36);    /* её свечение */
     --rx-warn-bg: #FFFAEB;
     --rx-warn-line: #FEDF89;
     --rx-warn-ink: #93370D;
@@ -407,63 +411,42 @@ body.rx {
 .rx-logo { margin: 0; color: var(--rx-ink); font-size: clamp(28px, 8.4vw, 44px); line-height: 1; }
 .rx-logo svg { display: block; width: 9.6em; height: 0.8em; margin: 0 auto; overflow: visible; }
 
-/* готовые вопросы: вкладки разделов и список «вопрос — подсказка» с волосяными линиями */
+/* готовые вопросы: подпись и три строки «вопрос, под ним — подсказка» с волосяными линиями */
 .rx-suggest { display: none; margin-top: 28px; }
 .rx-main.is-empty .rx-suggest { display: block; }
-.rx-suggest-tabs {
-    display: flex;
-    gap: 24px;
-    padding: 0 6px;
+.rx-suggest-head {
+    padding: 0 6px 10px;
     border-bottom: 1px solid var(--rx-line);
-}
-.rx-suggest-tabs button {
-    position: relative;
-    padding: 0 0 10px;
-    border: 0;
-    background: none;
     color: var(--rx-ink-4);
     font-family: var(--rx-mono);
     font-size: 11px;
     font-weight: 500;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    cursor: pointer;
-    transition: color 0.12s ease;
 }
-.rx-suggest-tabs button:hover { color: var(--rx-ink-2); }
-.rx-suggest-tabs button[aria-selected="true"] { color: var(--rx-ink); }
-.rx-suggest-tabs button[aria-selected="true"]::after {
-    content: "";
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: -1px;
-    height: 1.5px;
-    background: var(--rx-ink);
-}
-.rx-suggest-list { display: grid; }
-.rx-suggest-list[hidden] { display: none; }
 .rx-sq {
     display: grid;
-    grid-template-columns: minmax(0, 14.5em) minmax(0, 1fr) 16px;
+    grid-template-columns: minmax(0, 1fr) 16px;
     align-items: baseline;
-    gap: 2px 20px;
+    gap: 3px 20px;
     width: 100%;
-    padding: 12px 6px;
+    padding: 13px 6px;
     border: 0;
     border-bottom: 1px solid var(--rx-line);
     border-radius: 0;
     background: none;
     color: var(--rx-ink);
-    font-size: 14.5px;               /* от него — ширина колонки вопроса (14,5 em: самый длинный вопрос) */
+    font-size: 14.5px;
     text-align: left;
     cursor: pointer;
     transition: background 0.12s ease;
 }
 .rx-sq:disabled { cursor: default; opacity: 0.6; }
-.rx-sq-q { font-weight: 500; line-height: 1.4; }
-.rx-sq-h { color: var(--rx-ink-3); font-size: 13.5px; line-height: 1.45; }
+.rx-sq-q { font-weight: 500; line-height: 1.45; text-wrap: pretty; }
+.rx-sq-h { grid-column: 1; color: var(--rx-ink-3); font-size: 13px; line-height: 1.45; }
 .rx-sq-go {
+    grid-row: 1 / span 2;
+    grid-column: 2;
     align-self: center;
     width: 16px;
     height: 16px;
@@ -697,48 +680,139 @@ details.rx-how[open] > summary { margin-bottom: 10px; }
 .rx-composer textarea::placeholder { color: var(--rx-ink-4); }
 .rx-composer textarea:focus-visible { outline: 0; }
 .rx-bar { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.rx-seg {
-    display: inline-flex;
-    padding: 2px;
-    border-radius: 9px;
-    background: var(--rx-soft);
-}
-.rx-seg button {
-    padding: 5px 12px;
-    border: 0;
-    border-radius: 7px;
-    background: transparent;
-    color: var(--rx-ink-3);
-    font-family: var(--rx-mono);
-    font-size: 12px;
-    font-weight: 500;
-    line-height: 1.3;
-    cursor: pointer;
-    transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
-}
-.rx-seg button:hover { color: var(--rx-ink); }
-.rx-seg button[aria-checked="true"] { background: var(--rx-bg); color: var(--rx-ink); box-shadow: 0 0 0 1px var(--rx-line), var(--rx-shadow-sm); }
+.rx-fast-wrap { position: relative; display: inline-flex; }
 .rx-fast {
-    padding: 5px 10px;
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    padding: 0;
     border: 1px solid var(--rx-line-2);
-    border-radius: 8px;
+    border-radius: 9px;
     background: var(--rx-bg);
     color: var(--rx-ink-3);
-    font-family: var(--rx-mono);
-    font-size: 12px;
+    cursor: pointer;
+    transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease, box-shadow 0.2s ease;
+}
+.rx-fast svg {
+    width: 17px;
+    height: 17px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.7;
+    stroke-linejoin: round;
+    transition: fill 0.15s ease, filter 0.2s ease;
+}
+.rx-fast:hover { color: var(--rx-ink); border-color: var(--rx-line-3); }
+/* включена — молния фирменным оранжевым и мягкое свечение */
+.rx-fast[aria-pressed="true"] {
+    border-color: var(--rx-brand-line);
+    background: var(--rx-brand-soft);
+    color: var(--rx-brand);
+    box-shadow: 0 0 0 3px var(--rx-brand-soft), 0 0 18px -2px var(--rx-brand-glow);
+    animation: rx-charge 0.6s ease-out;
+}
+.rx-fast[aria-pressed="true"] svg { fill: currentColor; filter: drop-shadow(0 0 3px var(--rx-brand-glow)); }
+/* подсказка у молнии: при наведении и фокусе с клавиатуры (на телефоне — сообщением, research.js) */
+.rx-tip {
+    position: absolute;
+    left: 0;
+    bottom: calc(100% + 10px);
+    z-index: 6;
+    width: max-content;
+    max-width: min(270px, 80vw);
+    padding: 8px 11px;
+    border-radius: 9px;
+    background: var(--rx-ink);
+    color: var(--rx-on-ink);
+    font-size: 12.5px;
+    line-height: 1.45;
+    box-shadow: var(--rx-shadow-lg);
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(4px);
+    pointer-events: none;
+    transition: opacity 0.15s ease, transform 0.15s ease, visibility 0s linear 0.15s;
+}
+.rx-fast:focus-visible + .rx-tip { opacity: 1; visibility: visible; transform: none; transition-delay: 0s; }
+@media (hover: hover) {
+    .rx-fast-wrap:hover .rx-tip { opacity: 1; visibility: visible; transform: none; transition-delay: 0.25s; }
+}
+
+/* глубина ответа: кнопка справа и меню, как выбор усилия у моделей; столбики — уровень (1 или 3) */
+.rx-effort { position: relative; margin-left: auto; }
+.rx-effort-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    height: 34px;
+    padding: 0 8px 0 10px;
+    border: 0;
+    border-radius: 9px;
+    background: transparent;
+    color: var(--rx-ink-2);
+    font-size: 13.5px;               /* шрифт — IBM Plex Sans, как у выбора модели в Claude и ChatGPT */
     font-weight: 500;
     white-space: nowrap;
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: background 0.12s ease, color 0.12s ease;
 }
-.rx-fast:hover { color: var(--rx-ink); border-color: var(--rx-line-3); }
-.rx-fast[aria-pressed="true"] { border-color: var(--rx-ink); background: var(--rx-ink); color: var(--rx-on-ink); }
+.rx-effort-btn:hover, .rx-effort-btn[aria-expanded="true"] { background: var(--rx-hover); color: var(--rx-ink); }
+.rx-chev { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round;
+    stroke-linejoin: round; color: var(--rx-ink-4); transition: transform 0.15s ease; }
+.rx-effort-btn[aria-expanded="true"] .rx-chev { transform: rotate(180deg); }
+.rx-bars { display: inline-flex; align-items: flex-end; gap: 2px; height: 12px; }
+.rx-bars i { display: block; width: 3px; border-radius: 1px; background: var(--rx-line-3); }
+.rx-bars i:nth-child(1) { height: 5px; }
+.rx-bars i:nth-child(2) { height: 8px; }
+.rx-bars i:nth-child(3) { height: 12px; }
+.rx-bars[data-level="1"] i:nth-child(1),
+.rx-effort-btn[data-mode="answer"] .rx-bars i:nth-child(1),
+.rx-bars[data-level="3"] i,
+.rx-effort-btn[data-mode="report"] .rx-bars i { background: var(--rx-ink); }
+.rx-effort-menu {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 8px);
+    z-index: 6;
+    width: min(320px, calc(100vw - 32px));
+    padding: 6px;
+    border: 1px solid var(--rx-line);
+    border-radius: 14px;
+    background: var(--rx-bg);
+    box-shadow: var(--rx-shadow-lg);
+    animation: rx-pop 0.14s ease-out;
+}
+.rx-effort-menu.is-up { top: auto; bottom: calc(100% + 8px); }
+.rx-effort-menu[hidden] { display: none; }
+.rx-effort-menu [role="menuitemradio"] {
+    display: grid;
+    grid-template-columns: 14px minmax(0, 1fr) 16px;
+    align-items: start;
+    gap: 12px;
+    width: 100%;
+    padding: 10px 10px 11px;
+    border: 0;
+    border-radius: 9px;
+    background: transparent;
+    color: var(--rx-ink);
+    text-align: left;
+    cursor: pointer;
+}
+.rx-effort-menu [role="menuitemradio"]:hover,
+.rx-effort-menu [role="menuitemradio"]:focus-visible { background: var(--rx-soft); outline: 0; }
+.rx-effort-menu .rx-bars { margin-top: 4px; }
+.rx-effort-text { display: grid; gap: 2px; }
+.rx-effort-text b { font-size: 14px; font-weight: 500; }
+.rx-effort-text small { color: var(--rx-ink-3); font-size: 12.5px; line-height: 1.45; }
+.rx-check { width: 16px; height: 16px; margin-top: 2px; fill: none; stroke: var(--rx-ink); stroke-width: 2;
+    stroke-linecap: round; stroke-linejoin: round; visibility: hidden; }
+.rx-effort-menu [aria-checked="true"] .rx-check { visibility: visible; }
 .rx-send {
     display: grid;
     place-items: center;
     width: 34px;
     height: 34px;
-    margin-left: auto;
     padding: 0;
     border: 0;
     border-radius: 9px;
@@ -783,6 +857,8 @@ details.rx-how[open] > summary { margin-bottom: 10px; }
     left: 50%;
     bottom: calc(24px + env(safe-area-inset-bottom, 0px));
     z-index: 50;
+    width: max-content;              /* иначе текст ужимается в половину экрана (left: 50%) */
+    max-width: min(420px, calc(100vw - 32px));
     transform: translateX(-50%);
     padding: 9px 14px;
     border-radius: 10px;
@@ -798,9 +874,13 @@ details.rx-how[open] > summary { margin-bottom: 10px; }
 @keyframes rx-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 @keyframes rx-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
 @keyframes rx-shimmer { from { background-position: 120% 0; } to { background-position: -120% 0; } }
+@keyframes rx-charge { 0% { box-shadow: 0 0 0 0 var(--rx-brand-glow), 0 0 0 0 var(--rx-brand-glow); }
+    100% { box-shadow: 0 0 0 3px var(--rx-brand-soft), 0 0 18px -2px var(--rx-brand-glow); } }
+@keyframes rx-pop { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) {
     .rx-turn, .rx-dot, .rx-thread-live, .rx-shimmer { animation: none; }
     .rx-side, .rx-app.is-side-open .rx-side { transition: none; }
+    .rx-fast[aria-pressed="true"], .rx-effort-menu { animation: none; }
     .rx-shimmer { color: var(--rx-ink-2); background: none; }
 }
 
@@ -813,15 +893,13 @@ details.rx-how[open] > summary { margin-bottom: 10px; }
     .rx-top-title { display: none; }
     .rx-hero { padding: 0 20px 24px; }
     .rx-suggest { margin-top: 22px; }
-    .rx-suggest-tabs { gap: 20px; padding: 0 4px; }
-    .rx-sq { grid-template-columns: minmax(0, 1fr) 16px; padding: 11px 4px; }
-    .rx-sq-h { grid-column: 1; }
-    .rx-sq-go { grid-row: 1 / span 2; grid-column: 2; opacity: 1; transform: none; }   /* на касание наведения нет */
+    .rx-suggest-head { padding: 0 4px 10px; }
+    .rx-sq { padding: 12px 4px; }
+    .rx-sq-go { opacity: 1; transform: none; }   /* на касание наведения нет */
     .rx-feed { padding: 14px 16px 20px; gap: 34px; }
     .rx-dock { padding: 16px 12px calc(12px + env(safe-area-inset-bottom, 0px)); }
     .rx-main.is-empty .rx-dock { padding-bottom: 9vh; }
     .rx-composer { padding: 12px 10px 8px 14px; border-radius: 14px; }
     .rx-q { max-width: 92%; }
     .rx-report { padding: 16px 14px 14px; border-radius: 14px; }
-    .rx-seg button { padding: 5px 10px; }
 }
