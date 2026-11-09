@@ -1,111 +1,124 @@
 <!DOCTYPE html>
-{#- Страница kultura.research (routes/research.py, kultura_bot/web.py, docs/research-page.md): вопросы боту из
-    браузера — краткий ответ или Research (отчёт страницей), беседы сохраняются. Отвечает сервер бота
-    в Амстердаме; графики и отчёты рисуют те же скрипты, что у мини-приложения бота
-    (static/tg_chart/charts.js, report.js), поэтому их стили — первыми, а стили сайта — поверх. -#}
-<html lang="ru">
+{#- kultura.research — отдельный продукт на сайте (routes/research.py, kultura_bot/web.py, docs/research-page.md).
+    Решение владельца 2026-11-09: свой минималистичный дизайн — без шапки и меню сайта, без его оранжево-белой
+    палитры и кнопок-подсказок. Стили сайта не подключаются; графики и отчёты рисуют скрипты мини-приложения бота
+    (static/tg_chart/charts.js, report.js) — их цвета перекрашены токенами в static/research.css. -#}
+<html lang="ru" data-theme="dark">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="color-scheme" content="dark">
+    <meta name="theme-color" content="#09090B">
+    <meta name="referrer" content="same-origin">
+    <title>kultura.research</title>
     <link rel="icon" type="image/svg+xml" href="/static/favicon.svg?v={{ app_version }}">
     <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png?v={{ app_version }}">
     <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v={{ app_version }}">
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>kultura.research — kultura.os</title>
+    <link rel="preload" href="/static/fonts/ibm-plex-mono/IBMPlexMono-Regular.subset.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="/static/tg_chart/tg_chart.css?v={{ app_version }}">
-    <link rel="stylesheet" href="/static/dashboard/styles/fonts.css?v={{ app_version }}">
-    <link rel="preload" href="/static/fonts/ibm-plex-mono/IBMPlexMono-Regular.site.woff2" as="font" type="font/woff2" crossorigin>
-    <link rel="stylesheet" href="/static/dashboard/styles/variables.css?v={{ app_version }}">
-    <link rel="stylesheet" href="/static/dashboard/styles/base.css?v={{ app_version }}">
-    <link rel="stylesheet" href="/static/dashboard/styles/sidebar.css?v={{ app_version }}">
-    <link rel="stylesheet" href="/static/dashboard/styles/mobile.css?v={{ app_version }}">
-    <link rel="stylesheet" href="/static/logo.css?v={{ app_version }}">
-    <link rel="stylesheet" href="/static/admin_mcp.css?v={{ app_version }}">
     <link rel="stylesheet" href="/static/research.css?v={{ app_version }}">
 </head>
-<body class="dashboard-page mcp-page rs-page">
-    <div class="container">
-        {% set page_title = "kultura.research" %}
-        {% set page_subtitle = "Вопросы боту: ответ или Research" %}
-        {% include 'shared/nav.html' %}
-    </div>
-    {#- Графики берут цвета темы из data-theme: без него в светлой теме сайта при тёмной системе они
-        были бы тёмными. -#}
-    <script>(function(){var d=document.documentElement;if(!d.getAttribute('data-theme'))d.setAttribute('data-theme','light');})();</script>
+<body class="rx">
+<div class="rx-app" id="rsRoot" data-fast="{{ 1 if fast_mode else 0 }}">
+    <aside class="rx-side" id="rsSide" aria-label="Беседы">
+        <div class="rx-side-head">
+            <a class="rx-brand" href="/research" aria-label="kultura.research — новая беседа">kultura<span>.research</span></a>
+            <button class="rx-icon rx-only-narrow" type="button" id="rsSideClose" aria-label="Закрыть список бесед">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+            </button>
+        </div>
+        <button class="rx-new" type="button" id="rsNew">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+            Новая беседа
+        </button>
+        <nav class="rx-threads" id="rsThreads" aria-label="Список бесед"></nav>
+        <p class="rx-threads-empty" id="rsThreadsEmpty" hidden>Здесь появятся ваши беседы.</p>
+        <div class="rx-side-foot">
+            <button class="rx-foot-link" type="button" id="rsInfoOpen">Как работает</button>
+            <a class="rx-foot-link" href="/">kultura.os</a>
+        </div>
+    </aside>
+    <div class="rx-scrim" id="rsScrim" hidden></div>
 
-    <main class="main-content">
-        <div class="rs-wrap" id="rsRoot" data-fast="{{ 1 if fast_mode else 0 }}">
-            <aside class="rs-side" id="rsSide">
-                <button class="mcp-btn mcp-btn-primary rs-new" type="button" id="rsNew">Новая беседа</button>
-                <button class="rs-side-toggle" type="button" id="rsSideToggle" aria-expanded="false"
-                        aria-controls="rsThreads">Беседы</button>
-                <nav class="rs-threads" id="rsThreads" aria-label="Беседы"></nav>
-                <p class="mcp-empty" id="rsThreadsEmpty" hidden>Бесед пока нет — задайте первый вопрос.</p>
-            </aside>
+    <main class="rx-main is-empty" id="rsMain">
+        <header class="rx-top">
+            <button class="rx-icon rx-only-narrow" type="button" id="rsSideToggle" aria-label="Беседы"
+                    aria-controls="rsSide" aria-expanded="false">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h10"/></svg>
+            </button>
+            <a class="rx-brand rx-only-narrow" href="/research">kultura<span>.research</span></a>
+            <div class="rx-top-title" id="rsTitle"></div>
+            <div class="rx-top-actions" id="rsHeadActions">
+                <button class="rx-icon" type="button" id="rsDelete" aria-label="Удалить беседу" title="Удалить беседу" hidden>
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M10 11v6M14 11v6M7 7l1 12h8l1-12M9 7V4h6v3"/></svg>
+                </button>
+                <button class="rx-icon rx-only-narrow" type="button" id="rsNewTop" aria-label="Новая беседа">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+                </button>
+            </div>
+        </header>
 
-            <section class="rs-main" aria-label="Беседа">
-                <header class="rs-head" id="rsHead" hidden>
-                    <h2 class="rs-title" id="rsTitle"></h2>
-                    <div class="rs-head-actions" id="rsHeadActions">
-                        <button class="mcp-btn mcp-btn-ghost mcp-btn-sm" type="button" id="rsDelete">Удалить беседу</button>
+        <section class="rx-hero" id="rsStart">
+            <h1>Что посчитать?</h1>
+            <p>Выручка, остатки, смены, отзывы — ответ по данным сети. Research — полный разбор с графиками.</p>
+        </section>
+
+        <div class="rx-feed" id="rsFeed" aria-live="polite"></div>
+
+        <div class="rx-dock" id="rsDock">
+            <div class="rx-engine" id="rsEngine" role="status" hidden></div>
+            <form class="rx-composer" id="rsForm" novalidate>
+                <label class="rx-sr" for="rsInput">Вопрос</label>
+                <textarea id="rsInput" rows="1" maxlength="8000" enterkeyhint="send"
+                          placeholder="Спросите о выручке, остатках, сменах…"></textarea>
+                <div class="rx-bar">
+                    <div class="rx-seg" id="rsMode" role="radiogroup" aria-label="Вид ответа">
+                        <button type="button" role="radio" aria-checked="true" data-mode="answer">Ответ</button>
+                        <button type="button" role="radio" aria-checked="false" data-mode="report">Research</button>
                     </div>
-                </header>
-
-                <div class="rs-start" id="rsStart">
-                    <h2>Спросите kultura.research</h2>
-                    <p class="mcp-note">Тот же бот, что в Telegram: отвечает по данным сайта — продажи, остатки,
-                       смены и зарплаты, контент и отзывы. Ответ — коротко; Research — полный разбор страницей с
-                       графиками и таблицами.</p>
-                    <div class="rs-suggest" id="rsSuggest"></div>
+                    {% if fast_mode %}
+                    <button class="rx-fast" type="button" id="rsFast" aria-pressed="false"
+                            title="Быстро · цена ×2 — только для этого вопроса">Быстро · ×2</button>
+                    {% endif %}
+                    <button class="rx-send" type="submit" id="rsSend" aria-label="Спросить">
+                        <svg class="rx-send-go" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg>
+                        <svg class="rx-send-stop" viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="2"/></svg>
+                    </button>
                 </div>
-
-                <div class="rs-feed" id="rsFeed"></div>
-
-                <form class="rs-composer" id="rsForm" novalidate>
-                    <div class="rs-engine" id="rsEngine" role="status" hidden></div>
-                    <label class="rs-sr" for="rsInput">Вопрос</label>
-                    <textarea class="mcp-input rs-input" id="rsInput" rows="3" maxlength="8000"
-                              placeholder="Вопрос по данным сети: выручка, остатки, смены, отзывы…"></textarea>
-                    <div class="rs-controls">
-                        <div class="rs-seg" id="rsMode" role="radiogroup" aria-label="Вид ответа">
-                            <button type="button" role="radio" aria-checked="true" data-mode="answer">Ответ</button>
-                            <button type="button" role="radio" aria-checked="false" data-mode="report">Research</button>
-                        </div>
-                        {% if fast_mode %}
-                        <label class="mcp-check rs-fast"><input type="checkbox" id="rsFast"> Быстро · цена ×2</label>
-                        {% endif %}
-                        <span class="rs-keys">Ctrl+Enter — отправить</span>
-                        <button class="mcp-btn mcp-btn-primary rs-send" type="submit" id="rsSend">Спросить</button>
-                    </div>
-                    <p class="mcp-err rs-error" id="rsError" role="alert" hidden></p>
-                    <details class="rs-fold">
-                        <summary>Как работает</summary>
-                        <div class="mcp-note rs-fold-body">
-                            <p><b>Ответ</b> — коротко, по данным сайта: те же инструкции, инструменты и агенты, что у
-                               бота @MCPkulturabot в Telegram. Предел — ${{ '%.2f'|format(question_budget) }} на вопрос.</p>
-                            <p><b>Research</b> — полный разбор: страница с выводами, разделами, интерактивными
-                               графиками и таблицами. Предел — ${{ '%.2f'|format(report_budget) }}, собирается несколько
-                               минут.</p>
-                            {% if fast_mode %}
-                            <p><b>Быстро</b> — та же модель отвечает быстрее, но вдвое дороже; без галочки — обычная
-                               скорость (как команда /fast в Telegram).</p>
-                            {% endif %}
-                            <p>Дневной предел — ${{ '%.2f'|format(user_budget) }} на человека, общий с Telegram. Под каждым
-                               ответом — во что он обошёлся.</p>
-                            <p>Отвечает сервер бота в Амстердаме: сайт только принимает вопрос и хранит ответ. Беседа
-                               помнит прошлые вопросы: следующий вопрос в ней — продолжение. После перерыва дольше
-                               {{ idle_minutes }} минут бот перечитывает беседу кратко — прошлые ответы, а не весь
-                               разговор. Беседы хранятся без срока; каждый видит только свои.</p>
-                        </div>
-                    </details>
-                </form>
-            </section>
+            </form>
+            <p class="rx-error" id="rsError" role="alert" hidden></p>
         </div>
     </main>
-    <div class="rs-toast" id="rsToast" role="status" hidden></div>
+</div>
 
-    <script src="/static/libs/echarts-5.5.1/echarts.min.js"></script>
-    <script src="/static/tg_chart/charts.js?v={{ app_version }}"></script>
-    <script src="/static/tg_chart/report.js?v={{ app_version }}"></script>
-    <script src="/static/js/research.js?v={{ app_version }}"></script>
+<dialog class="rx-info" id="rsInfo" aria-labelledby="rsInfoTitle">
+    <div class="rx-info-head">
+        <h2 id="rsInfoTitle">Как работает</h2>
+        <button class="rx-icon" type="button" id="rsInfoClose" aria-label="Закрыть">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+    </div>
+    <div class="rx-info-body">
+        <p><b>Ответ</b> — коротко, по данным сайта: те же инструкции, инструменты и агенты, что у бота
+           @MCPkulturabot в Telegram. Предел — ${{ '%.2f'|format(question_budget) }} на вопрос.</p>
+        <p><b>Research</b> — полный разбор: выводы, разделы, интерактивные графики и таблицы. Предел —
+           ${{ '%.2f'|format(report_budget) }}, собирается несколько минут.</p>
+        {% if fast_mode %}
+        <p><b>Быстро · ×2</b> — та же модель отвечает быстрее, но вдвое дороже; включается для одного вопроса
+           (как команда /fast в Telegram).</p>
+        {% endif %}
+        <p>Дневной предел — ${{ '%.2f'|format(user_budget) }} на человека, общий с Telegram. Под каждым ответом —
+           во что он обошёлся.</p>
+        <p>Отвечает сервер бота в Амстердаме: сайт только принимает вопрос и хранит ответ. Беседа помнит прошлые
+           вопросы; после перерыва дольше {{ idle_minutes }} минут бот перечитывает беседу кратко. Беседы хранятся
+           без срока, каждый видит только свои.</p>
+    </div>
+</dialog>
+<div class="rx-toast" id="rsToast" role="status" hidden></div>
+
+<script src="/static/libs/echarts-5.5.1/echarts.min.js"></script>
+<script src="/static/tg_chart/charts.js?v={{ app_version }}"></script>
+<script src="/static/tg_chart/report.js?v={{ app_version }}"></script>
+<script src="/static/js/research.js?v={{ app_version }}"></script>
 </body>
 </html>

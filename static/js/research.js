@@ -1,14 +1,16 @@
-/* Страница kultura.research (/research, routes/research.py, kultura_bot/web.py).
+/* kultura.research — страница вопросов боту (/research, routes/research.py, kultura_bot/web.py).
  *
- * Беседы человека слева, беседа справа, поле вопроса внизу. Вопрос уходит в очередь сайта; отвечает
- * сервер бота в Амстердаме тем же кодом, что в Telegram. Пока вопрос в работе, страница раз в
- * POLL_MS спрашивает его состояние: строки хода работы («Отвечаю · 0:40», «Сейчас: …») и кнопка
- * «Остановить»; готов — ответ, свёрнутое «Как считается», графики (TgChart, как «Открыть
- * интерактивно»), отчёт (TgReport, как страница отчёта), кнопки следующего шага и строка цены.
+ * Свой минималистичный дизайн (решение владельца 2026-11-09, static/research.css): беседы — панелью слева
+ * (на телефоне — выезжает), пустая беседа — крупный вопрос и поле по центру, в беседе поле прижато книзу.
+ * Вопрос уходит в очередь сайта; отвечает сервер бота в Амстердаме тем же кодом, что в Telegram. Пока вопрос
+ * в работе, страница раз в POLL_MS спрашивает его состояние: переливающаяся строка, шкала и «что делаю
+ * сейчас» (строки хода работы сервера бота), а кнопка «Спросить» становится «Остановить». Готов — ответ,
+ * свёрнутое «Как считается», графики (TgChart, как «Открыть интерактивно»), отчёт (TgReport) и расход.
+ * Кнопок-подсказок нет (ни готовых вопросов, ни «[[…]]» под ответом) — решение владельца.
  *
- * Тексты — только textContent; HTML вставляется лишь из полей *_html, которые сервер собрал сам
+ * Тексты — только textContent; HTML вставляется лишь из полей *_html, которые собрал сервер
  * (kultura_bot/engine/formatting.to_html: всё экранировано, разметка своя — b, i, code, pre, a, blockquote).
- * Беседа в адресе — ?t=<id>: ссылку можно открыть снова. */
+ * Беседа в адресе — ?t=<id>. */
 (function () {
   'use strict';
 
@@ -18,16 +20,16 @@
   if (!root) return;
   const $ = id => document.getElementById(id);
   const els = {
-    side: $('rsSide'), sideToggle: $('rsSideToggle'), threads: $('rsThreads'), threadsEmpty: $('rsThreadsEmpty'),
-    newBtn: $('rsNew'), head: $('rsHead'), title: $('rsTitle'), headActions: $('rsHeadActions'), del: $('rsDelete'),
-    start: $('rsStart'), suggest: $('rsSuggest'), feed: $('rsFeed'), form: $('rsForm'), engine: $('rsEngine'),
-    input: $('rsInput'), mode: $('rsMode'), fast: $('rsFast'), send: $('rsSend'), error: $('rsError'),
-    toast: $('rsToast'),
+    side: $('rsSide'), sideClose: $('rsSideClose'), sideToggle: $('rsSideToggle'), scrim: $('rsScrim'),
+    threads: $('rsThreads'), threadsEmpty: $('rsThreadsEmpty'), newBtn: $('rsNew'), newTop: $('rsNewTop'),
+    main: $('rsMain'), title: $('rsTitle'), headActions: $('rsHeadActions'), del: $('rsDelete'),
+    feed: $('rsFeed'), form: $('rsForm'), engine: $('rsEngine'), input: $('rsInput'), mode: $('rsMode'),
+    fast: $('rsFast'), send: $('rsSend'), error: $('rsError'), info: $('rsInfo'), infoOpen: $('rsInfoOpen'),
+    infoClose: $('rsInfoClose'), toast: $('rsToast'),
   };
-
   const state = {
-    threads: [], current: null, questions: [], mode: 'answer', sending: false,
-    pollTimer: 0, listAt: 0, mounted: [], fonts: null,
+    threads: [], current: null, questions: [], mode: 'answer', sending: false, pollTimer: 0, listAt: 0,
+    mounted: [], fonts: null,
   };
 
   /* ---------------- запросы ---------------- */
@@ -40,7 +42,7 @@
     }
     return fetch(url, opts).then(async resp => {
       const data = await resp.json().catch(() => ({}));
-      if (resp.status === 401) { window.location.href = '/login?next=' + encodeURIComponent(location.pathname + location.search); }
+      if (resp.status === 401) window.location.href = '/login?next=' + encodeURIComponent(location.pathname + location.search);
       if (!resp.ok) throw new Error(data.error || ('Ошибка сервера ' + resp.status));
       return data;
     });
@@ -69,6 +71,17 @@
     for (const a of e.querySelectorAll('a[href]')) { a.target = '_blank'; a.rel = 'noopener noreferrer'; }
     return e;
   }
+  function svg(paths, cls) {
+    const ns = 'http://www.w3.org/2000/svg';
+    const s = document.createElementNS(ns, 'svg');
+    s.setAttribute('viewBox', '0 0 24 24');
+    s.setAttribute('aria-hidden', 'true');
+    if (cls) s.setAttribute('class', cls);
+    const p = document.createElementNS(ns, 'path');
+    p.setAttribute('d', paths);
+    s.append(p);
+    return s;
+  }
   let toastTimer = 0;
   function toast(msg) {
     els.toast.textContent = msg;
@@ -80,16 +93,30 @@
     els.error.textContent = msg || '';
     els.error.hidden = !msg;
   }
+  function plural(n, forms) {
+    const a = Math.abs(n) % 100, b = a % 10;
+    if (a > 10 && a < 20) return forms[2];
+    if (b > 1 && b < 5) return forms[1];
+    if (b === 1) return forms[0];
+    return forms[2];
+  }
+  const MSK = { timeZone: 'Europe/Moscow' };
+  function dayKey(d) { return d.toLocaleDateString('ru-RU', MSK); }
   function when(iso) {
-    if (!iso) return '';
-    const d = new Date(iso);
+    const d = new Date(iso || '');
     if (isNaN(d)) return '';
+    const time = d.toLocaleTimeString('ru-RU', Object.assign({ hour: '2-digit', minute: '2-digit' }, MSK));
+    if (dayKey(d) === dayKey(new Date())) return time;
+    return d.toLocaleDateString('ru-RU', Object.assign({ day: 'numeric', month: 'short' }, MSK)) + ', ' + time;
+  }
+  function group(iso) {
+    const d = new Date(iso || '');
+    if (isNaN(d)) return 'Ранее';
     const now = new Date();
-    const time = d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Moscow' });
-    const sameDay = d.toLocaleDateString('ru-RU', { timeZone: 'Europe/Moscow' }) ===
-      now.toLocaleDateString('ru-RU', { timeZone: 'Europe/Moscow' });
-    if (sameDay) return time;
-    return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', timeZone: 'Europe/Moscow' }) + ' ' + time;
+    if (dayKey(d) === dayKey(now)) return 'Сегодня';
+    if (dayKey(d) === dayKey(new Date(now.getTime() - 864e5))) return 'Вчера';
+    if (now - d < 7 * 864e5) return 'Последние 7 дней';
+    return 'Ранее';
   }
   function fontsReady() {
     if (!state.fonts) state.fonts = window.TgChart ? window.TgChart.fontsReady() : Promise.resolve();
@@ -100,70 +127,48 @@
     if (url === location.pathname + location.search) return;
     (push ? history.pushState : history.replaceState).call(history, { t: threadId || null }, '', url);
   }
+  function active() { return state.questions.find(q => q.active) || null; }
 
   /* ---------------- беседы ---------------- */
 
   function renderThreads() {
     els.threads.textContent = '';
+    let last = '';
     for (const t of state.threads) {
-      const b = el('button', 'rs-thread');
+      const g = group(t.last_at);
+      if (g !== last) { els.threads.append(el('div', 'rx-group', g)); last = g; }
+      const b = el('button', 'rx-thread');
       b.type = 'button';
+      b.title = t.title || '';
       b.setAttribute('aria-current', t.id === state.current ? 'true' : 'false');
-      b.append(el('span', 'rs-thread-title', t.title || 'Без вопроса'));
-      const meta = el('span', 'rs-thread-meta');
-      meta.append(el('span', null, when(t.last_at)));
-      meta.append(el('span', null, t.questions + ' ' + plural(t.questions, ['вопрос', 'вопроса', 'вопросов'])));
-      if (t.reports) meta.append(el('span', null, 'Research: ' + t.reports));
-      if (t.active) meta.append(el('span', 'rs-live', 'идёт ответ'));
-      b.append(meta);
-      b.addEventListener('click', () => { openThread(t.id, true); closeSide(); });
+      b.append(el('span', 'rx-thread-title', t.title || 'Без вопроса'));
+      if (t.active) b.append(el('span', 'rx-thread-live'));
+      b.addEventListener('click', () => { closeSide(); if (t.id !== state.current) openThread(t.id, true); });
       els.threads.append(b);
     }
     els.threadsEmpty.hidden = state.threads.length > 0;
-    els.sideToggle.textContent = 'Беседы' + (state.threads.length ? ' (' + state.threads.length + ')' : '');
   }
-  function plural(n, forms) {
-    const a = Math.abs(n) % 100, b = a % 10;
-    if (a > 10 && a < 20) return forms[2];
-    if (b > 1 && b < 5) return forms[1];
-    if (b === 1) return forms[0];
-    return forms[2];
+  function openSide() {
+    root.classList.add('is-side-open');
+    els.scrim.hidden = false;
+    els.sideToggle.setAttribute('aria-expanded', 'true');
   }
   function closeSide() {
-    els.side.dataset.open = 'false';
+    root.classList.remove('is-side-open');
+    els.scrim.hidden = true;
     els.sideToggle.setAttribute('aria-expanded', 'false');
   }
-
   function renderEngine(engine) {
     const text = engine && !engine.ok ? engine.text : '';
     els.engine.textContent = text || '';
     els.engine.hidden = !text;
   }
-
-  function renderSuggest(sections) {
-    els.suggest.textContent = '';
-    for (const s of sections || []) {
-      const group = el('div', 'rs-suggest-group');
-      group.append(el('div', 'rs-suggest-title', s.title));
-      const chips = el('div', 'rs-chips');
-      for (const q of s.questions || []) {
-        const chip = el('button', 'rs-chip', q);
-        chip.type = 'button';
-        chip.addEventListener('click', () => ask(q));
-        chips.append(chip);
-      }
-      group.append(chips);
-      els.suggest.append(group);
-    }
-  }
-
   function loadThreads() {
     state.listAt = Date.now();
     return API.threads().then(data => {
       state.threads = data.threads || [];
       renderThreads();
       renderEngine(data.engine);
-      if (!els.suggest.childElementCount) renderSuggest(data.sections);
       return data;
     }).catch(err => showError(err.message));
   }
@@ -175,13 +180,24 @@
     state.mounted = [];
     els.feed.textContent = '';
   }
+  function setEmpty(empty) {
+    els.main.classList.toggle('is-empty', empty);
+    els.del.hidden = empty || !state.current;
+  }
+  function setTitle() {
+    const first = state.questions[0];
+    els.title.textContent = first ? first.question.replace(/\s+/g, ' ').slice(0, 160) : '';
+    document.title = first ? els.title.textContent.slice(0, 60) + ' — kultura.research' : 'kultura.research';
+  }
 
   function newThread(push, focus) {
+    clearTimeout(state.pollTimer);
     state.current = null;
     state.questions = [];
     clearFeed();
-    els.head.hidden = true;
-    els.start.hidden = false;
+    resetDelete();
+    setTitle();
+    setEmpty(true);
     setUrl(null, push);
     renderThreads();
     syncComposer();
@@ -205,100 +221,127 @@
 
   function renderThread() {
     clearFeed();
-    els.start.hidden = state.questions.length > 0;
-    els.head.hidden = !state.current;
-    const first = state.questions[0];
-    els.title.textContent = first ? first.question.replace(/\s+/g, ' ').slice(0, 200) : '';
     resetDelete();
-    for (const q of state.questions) els.feed.append(renderQuestion(q));
+    setTitle();
+    setEmpty(state.questions.length === 0);
+    for (const q of state.questions) els.feed.append(renderTurn(q));
     syncComposer();
+    // К началу последнего вопроса — когда графики уже нарисованы (они ждут те же шрифты, раньше в очереди).
     const last = els.feed.lastElementChild;
-    if (last) last.scrollIntoView({ block: 'start' });
+    if (last) fontsReady().then(() => requestAnimationFrame(() => last.scrollIntoView({ block: 'start' })));
   }
 
-  function renderQuestion(q) {
-    const art = el('article', 'rs-q');
-    art.dataset.id = q.id;
-    const askBox = el('div', 'rs-ask');
-    const meta = el('div', 'rs-ask-meta');
-    meta.append(el('span', 'rs-badge' + (q.mode === 'report' ? ' rs-badge-report' : ''),
-      q.mode === 'report' ? 'Research' : 'Ответ'));
-    if (q.fast) meta.append(el('span', 'rs-badge', 'быстро'));
-    meta.append(el('span', null, when(q.asked_at)));
-    askBox.append(meta, el('div', 'rs-ask-text', q.question));
-    art.append(askBox);
-    const answer = el('div', 'rs-answer');
-    art.append(answer);
+  function renderTurn(q) {
+    const turn = el('article', 'rx-turn');
+    turn.dataset.id = q.id;
+    const ask = el('div', 'rx-q');
+    const tags = [q.mode === 'report' ? 'RESEARCH' : '', q.fast ? '×2' : ''].filter(Boolean);
+    if (tags.length) ask.append(el('div', 'rx-q-meta', tags.join(' · ')));
+    ask.append(el('div', 'rx-q-text', q.question));
+    turn.append(ask);
+    const answer = el('div', 'rx-a');
+    turn.append(answer);
     fillAnswer(answer, q);
-    return art;
+    return turn;
+  }
+
+  // Строки хода работы сервера бота (kultura_bot/engine/progress.Tracker.render):
+  // «Собираю отчёт · 0:42», «▰▰▰▱▱▱▱▱▱▱ ≈ 2 мин осталось», «Сейчас: …», «Сделано: …».
+  function parseProgress(text) {
+    const lines = String(text || '').split('\n').map(s => s.trim()).filter(Boolean);
+    const out = { title: '', clock: '', fraction: null, left: '', rest: [] };
+    if (!lines.length) return out;
+    const head = lines[0].split(' · ');
+    out.title = head[0];
+    if (head.length > 1) out.clock = head[head.length - 1];
+    for (const line of lines.slice(1)) {
+      const m = out.fraction === null ? line.match(/^([▰▱]+)\s*(.*)$/) : null;
+      if (m) {
+        out.fraction = (m[1].match(/▰/g) || []).length / m[1].length;
+        out.left = m[2];
+      } else {
+        out.rest.push(line);
+      }
+    }
+    return out;
+  }
+
+  function runBox(q) {
+    const box = el('div', 'rx-run');
+    const head = el('div', 'rx-run-head');
+    head.append(el('span', 'rx-dot'));
+    let p = { title: '', clock: '', fraction: null, left: '', rest: [] };
+    if (q.status === 'queued') {
+      head.append(el('span', 'rx-shimmer', 'В очереди'));
+      box.append(head, el('div', 'rx-run-line', 'Сервер бота возьмёт вопрос, когда освободится.'));
+    } else if (q.status === 'taken' || !q.progress) {
+      head.append(el('span', 'rx-shimmer', 'Начинаю…'));
+      box.append(head);
+    } else {
+      p = parseProgress(q.progress);
+      head.append(el('span', 'rx-shimmer', p.title || 'Отвечаю'));
+      if (p.clock) head.append(el('span', 'rx-clock', p.clock));
+      box.append(head);
+      if (p.fraction !== null) {
+        const meter = el('div', 'rx-meter');
+        const fill = el('span');
+        fill.style.width = Math.max(4, Math.round(p.fraction * 100)) + '%';
+        meter.append(fill);
+        box.append(meter);
+      }
+      if (p.left) box.append(el('div', 'rx-run-line', p.left));
+      for (const line of p.rest) box.append(el('div', 'rx-run-line' + (/^Сделано:/.test(line) ? ' is-mono' : ''), line));
+    }
+    if (q.stopping) box.append(el('div', 'rx-run-line', 'Останавливаю: шаг, который уже идёт, дойдёт до конца…'));
+    return box;
+  }
+
+  function costLine(cost) {
+    if (!cost || !cost.steps) return '';
+    let line = '$' + Number(cost.usd || 0).toFixed(2) + ' · ' + cost.steps + ' ' +
+      plural(cost.steps, ['запрос', 'запроса', 'запросов']) + ' к модели';
+    if (cost.fast_steps) line += ' · быстрых ' + cost.fast_steps + ', цена ×2';
+    return line;
   }
 
   function fillAnswer(box, q) {
     box.textContent = '';
-    if (q.active) {
-      const wait = el('div', 'rs-wait');
-      if (q.status === 'queued' || q.status === 'taken') {
-        wait.append(el('p', 'rs-progress', q.status === 'queued'
-          ? 'В очереди: сервер бота возьмёт вопрос, когда освободится.' : 'Сервер бота взял вопрос — начинаю…'));
-      } else {
-        wait.append(el('p', 'rs-progress', q.progress || 'Отвечаю…'));
-      }
-      const actions = el('div', 'rs-wait-actions');
-      if (q.stopping) {
-        actions.append(el('span', 'rs-muted', 'Останавливаю: шаг, который уже идёт, дойдёт до конца…'));
-      } else {
-        const stop = el('button', 'mcp-btn mcp-btn-ghost mcp-btn-sm', 'Остановить');
-        stop.type = 'button';
-        stop.addEventListener('click', () => {
-          stop.disabled = true;
-          API.stop(q.id).then(data => updateQuestion(data.question)).catch(err => { stop.disabled = false; toast(err.message); });
-        });
-        actions.append(stop);
-      }
-      wait.append(actions);
-      box.append(wait);
-      return;
-    }
+    if (q.active) { box.append(runBox(q)); return; }
+    const meta = el('div', 'rx-meta-line');
+    const cost = costLine(q.cost);
+    if (cost) meta.append(el('span', null, cost));
+    if (q.finished_at) meta.append(el('span', null, when(q.finished_at)));
     if (q.status !== 'done') {
-      box.append(el('div', 'rs-fail' + (q.status === 'error' ? ' rs-fail-error' : ''),
+      box.append(el('div', 'rx-fail' + (q.status === 'error' ? ' is-error' : ''),
         q.shown || (q.status === 'stopped' ? 'Остановлено.' : 'Ответа нет.')));
-      if (q.cost && q.cost.line) box.append(el('div', 'rs-cost', q.cost.line));
+      if (meta.childElementCount) box.append(meta);
       return;
     }
-    if (q.notice) box.append(el('div', 'rs-notice', q.notice));
+    if (q.notice) box.append(el('div', 'rx-notice', q.notice));
     const later = [];
     for (const card of q.cards || []) {
       if (card.kind === 'chart') box.append(chartCard(card, later));
       else if (card.kind === 'report') box.append(reportCard(card, later));
     }
-    if (q.answer_html) box.append(html('div', 'rs-text', q.answer_html));
+    if (q.answer_html) box.append(html('div', 'rx-prose', q.answer_html));
     if (q.how_html) {
-      const fold = el('details', 'rs-fold');
-      fold.append(el('summary', null, 'Как считается'), html('div', 'rs-text', q.how_html));
+      const fold = el('details', 'rx-how');
+      const sum = el('summary');
+      sum.append(svg('M9 6l6 6-6 6', 'rx-how-chev'), document.createTextNode('Как считается'));
+      fold.append(sum, html('div', 'rx-prose rx-prose-sm', q.how_html));
       box.append(fold);
     }
-    const asks = [].concat(q.ask || [], ...(q.cards || []).map(c => c.ask || []));
-    if (asks.length) {
-      const chips = el('div', 'rs-chips');
-      for (const text of [...new Set(asks)]) {
-        const chip = el('button', 'rs-chip', text);
-        chip.type = 'button';
-        chip.addEventListener('click', () => ask(text, q.thread_id));
-        chips.append(chip);
-      }
-      box.append(chips);
-    }
-    if (q.cost && q.cost.line) box.append(el('div', 'rs-cost', q.cost.line));
+    if (meta.childElementCount) box.append(meta);
     if (later.length) fontsReady().then(() => later.forEach(fn => fn()));
   }
 
   function chartCard(card, later) {
-    const wrap = el('div', 'rs-card');
-    if (card.caption_html) wrap.append(html('div', 'rs-card-caption rs-text', card.caption_html));
+    const wrap = el('div', 'rx-card');
+    if (card.caption_html) wrap.append(html('div', 'rx-prose', card.caption_html));
     const box = el('div');
     wrap.append(box);
     later.push(() => {
-      if (!window.TgChart) { box.append(el('p', 'rs-muted', 'График не загрузился.')); return; }
+      if (!window.TgChart) { box.append(el('p', 'rx-notice', 'График не загрузился.')); return; }
       const howNode = card.how_html ? html('div', 'rep-text', card.how_html) : null;
       state.mounted.push(window.TgChart.mount(box, card.spec, { mode: 'app', toast, howNode }));
     });
@@ -306,21 +349,20 @@
   }
 
   function reportCard(card, later) {
-    const wrap = el('div', 'rs-report');
+    const wrap = el('div', 'rx-report');
     const box = el('div');
     wrap.append(box);
-    const actions = el('div', 'rs-report-actions');
     if (card.page) {
+      const foot = el('div', 'rx-report-foot');
       const a = el('a', null, 'Открыть отдельной страницей');
       a.href = card.page;
       a.target = '_blank';
       a.rel = 'noopener';
-      actions.append(a);
-      actions.append(el('span', 'rs-muted', 'там же — ссылка для браузера'));
+      foot.append(a, el('span', null, 'там же — ссылка для браузера'));
+      wrap.append(foot);
     }
-    if (actions.childElementCount) wrap.append(actions);
     later.push(() => {
-      if (!window.TgReport) { box.append(el('p', 'rs-muted', 'Отчёт не загрузился.')); return; }
+      if (!window.TgReport) { box.append(el('p', 'rx-notice', 'Отчёт не загрузился.')); return; }
       state.mounted.push(window.TgReport.mount(box, card.view, { toast }));
     });
     return wrap;
@@ -332,30 +374,30 @@
     if (i < 0) return;
     const before = state.questions[i];
     state.questions[i] = q;
-    const art = els.feed.querySelector('article[data-id="' + CSS.escape(q.id) + '"]');
-    if (!art) return;
-    const box = art.querySelector('.rs-answer');
-    const changed = before.status !== q.status || before.progress !== q.progress || before.stopping !== q.stopping;
-    if (changed) fillAnswer(box, q);
-    if (before.active && !q.active) {
-      syncComposer();
-      loadThreads();
-      art.scrollIntoView({ block: 'nearest' });
+    const turn = els.feed.querySelector('article[data-id="' + CSS.escape(q.id) + '"]');
+    if (!turn) return;
+    if (before.status !== q.status || before.progress !== q.progress || before.stopping !== q.stopping) {
+      fillAnswer(turn.querySelector('.rx-a'), q);
     }
+    if (before.active && !q.active) {
+      loadThreads();
+      turn.querySelector('.rx-a').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+    syncComposer();
   }
 
   /* ---------------- опрос ---------------- */
 
   function schedulePoll() {
     clearTimeout(state.pollTimer);
-    if (!state.questions.some(q => q.active)) return;
+    if (!active()) return;
     state.pollTimer = setTimeout(poll, POLL_MS);
   }
   function poll() {
-    const active = state.questions.filter(q => q.active);
-    if (!active.length) return;
+    const running = state.questions.filter(q => q.active);
+    if (!running.length) return;
     if (document.hidden) { schedulePoll(); return; }
-    Promise.all(active.map(q => API.question(q.id).then(d => updateQuestion(d.question)).catch(() => {})))
+    Promise.all(running.map(q => API.question(q.id).then(d => updateQuestion(d.question)).catch(() => {})))
       .then(() => {
         if (Date.now() - state.listAt > LIST_EVERY_MS) loadThreads();
         schedulePoll();
@@ -365,22 +407,27 @@
   /* ---------------- вопрос ---------------- */
 
   function syncComposer() {
-    const busy = state.sending || state.questions.some(q => q.active);
-    els.send.disabled = busy;
-    els.send.textContent = state.sending ? 'Отправляю…' : (busy ? 'Бот отвечает…' : 'Спросить');
-    for (const chip of document.querySelectorAll('.rs-chip')) chip.disabled = busy;
+    const running = active();
+    const stop = !!running;
+    els.send.classList.toggle('is-stop', stop);
+    els.send.setAttribute('aria-label', stop ? 'Остановить' : 'Спросить');
+    els.send.title = stop ? 'Остановить' : 'Спросить';
+    els.send.disabled = stop ? !!running.stopping : (state.sending || !els.input.value.trim());
   }
 
-  function ask(text, threadId) {
+  function grow() {
+    els.input.style.height = 'auto';
+    els.input.style.height = Math.min(els.input.scrollHeight, Math.round(window.innerHeight * 0.4)) + 'px';
+  }
+
+  function ask(text) {
     const question = (text || '').trim();
-    if (!question) { els.input.focus(); return; }
-    if (state.sending || state.questions.some(q => q.active)) { toast('Бот ещё отвечает на прошлый вопрос'); return; }
+    if (!question || state.sending || active()) return;
     showError('');
     state.sending = true;
     syncComposer();
-    const body = { question, mode: state.mode, fast: !!(els.fast && els.fast.checked) };
-    const thread = threadId || state.current;
-    if (thread) body.thread_id = thread;
+    const body = { question, mode: state.mode, fast: !!(els.fast && els.fast.getAttribute('aria-pressed') === 'true') };
+    if (state.current) body.thread_id = state.current;
     API.ask(body).then(data => {
       const q = data.question;
       if (q.thread_id !== state.current) {
@@ -390,14 +437,14 @@
         setUrl(q.thread_id, true);
       }
       state.questions.push(q);
-      els.start.hidden = true;
-      els.head.hidden = false;
-      if (state.questions.length === 1) els.title.textContent = q.question.replace(/\s+/g, ' ').slice(0, 200);
-      const art = renderQuestion(q);
-      els.feed.append(art);
-      art.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      setTitle();
+      setEmpty(false);
+      const turn = renderTurn(q);
+      els.feed.append(turn);
+      requestAnimationFrame(() => turn.scrollIntoView({ block: 'start', behavior: 'smooth' }));
       els.input.value = '';
-      if (els.fast) els.fast.checked = false;            // быстрый режим — только для этого вопроса
+      grow();
+      if (els.fast) els.fast.setAttribute('aria-pressed', 'false');     // быстрый режим — только для этого вопроса
       loadThreads();
       schedulePoll();
     }).catch(err => showError(err.message)).finally(() => {
@@ -406,20 +453,29 @@
     });
   }
 
+  function stop() {
+    const running = active();
+    if (!running || running.stopping) return;
+    els.send.disabled = true;
+    API.stop(running.id).then(data => updateQuestion(data.question)).catch(err => { toast(err.message); syncComposer(); });
+  }
+
   /* ---------------- удаление беседы ---------------- */
 
   function resetDelete() {
     els.headActions.textContent = '';
     els.headActions.append(els.del);
+    if (els.newTop) els.headActions.append(els.newTop);
+    els.del.hidden = !state.current;
   }
   els.del.addEventListener('click', () => {
     const id = state.current;
     if (!id) return;
     els.headActions.textContent = '';
-    els.headActions.append(el('span', 'rs-muted', 'Удалить беседу со всеми ответами?'));
-    const yes = el('button', 'mcp-btn mcp-btn-danger mcp-btn-sm', 'Удалить');
+    els.headActions.append(el('span', 'rx-confirm', 'Удалить беседу?'));
+    const yes = el('button', 'rx-pill rx-pill-danger', 'Удалить');
     yes.type = 'button';
-    const no = el('button', 'mcp-btn mcp-btn-ghost mcp-btn-sm', 'Отмена');
+    const no = el('button', 'rx-pill', 'Отмена');
     no.type = 'button';
     no.addEventListener('click', resetDelete);
     yes.addEventListener('click', () => {
@@ -443,28 +499,44 @@
       }
     });
   }
-  els.form.addEventListener('submit', e => { e.preventDefault(); ask(els.input.value); });
+  if (els.fast) {
+    els.fast.addEventListener('click', () => {
+      els.fast.setAttribute('aria-pressed', els.fast.getAttribute('aria-pressed') === 'true' ? 'false' : 'true');
+    });
+  }
+  els.form.addEventListener('submit', e => {
+    e.preventDefault();
+    if (active()) stop(); else ask(els.input.value);
+  });
+  els.input.addEventListener('input', () => { grow(); syncComposer(); });
   els.input.addEventListener('keydown', e => {
-    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); ask(els.input.value); }
+    // Enter — отправить, Shift+Enter — новая строка (как в чатах моделей); во время набора иероглифов — нет.
+    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+      e.preventDefault();
+      if (!active()) ask(els.input.value);
+    }
   });
-  els.newBtn.addEventListener('click', () => { newThread(true, true); closeSide(); });
-  els.sideToggle.addEventListener('click', () => {
-    const open = els.side.dataset.open !== 'true';
-    els.side.dataset.open = open ? 'true' : 'false';
-    els.sideToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+  els.newBtn.addEventListener('click', () => { closeSide(); newThread(true, true); });
+  if (els.newTop) els.newTop.addEventListener('click', () => newThread(true, true));
+  els.sideToggle.addEventListener('click', () => (root.classList.contains('is-side-open') ? closeSide() : openSide()));
+  els.sideClose.addEventListener('click', closeSide);
+  els.scrim.addEventListener('click', closeSide);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSide(); });
+  els.infoOpen.addEventListener('click', () => {
+    closeSide();
+    if (els.info.showModal) els.info.showModal(); else els.info.setAttribute('open', '');
   });
+  els.infoClose.addEventListener('click', () => els.info.close());
+  els.info.addEventListener('click', e => { if (e.target === els.info) els.info.close(); });   // нажатие мимо окна
   window.addEventListener('popstate', () => {
     const id = new URLSearchParams(location.search).get('t');
     if (id) openThread(id, false); else newThread(false);
   });
   document.addEventListener('visibilitychange', () => { if (!document.hidden) schedulePoll(); });
 
-  // Тема сайта сменилась — графики перерисовать в новых цветах.
-  new MutationObserver(() => state.mounted.forEach(m => { try { m.retheme(); } catch (e) { /* убран */ } }))
-    .observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
-
   /* ---------------- старт ---------------- */
 
+  syncComposer();
   loadThreads().then(() => {
     const id = new URLSearchParams(location.search).get('t');
     if (id) openThread(id, false); else newThread(false);
