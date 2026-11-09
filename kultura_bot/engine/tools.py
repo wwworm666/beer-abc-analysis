@@ -12,7 +12,10 @@
 - **common_chart_send** — график картинкой с кнопкой «Открыть интерактивно» (рисует и
   отправляет сайт); chat_id подставляет бот — чат разговора, что бы ни прислала модель.
 - **common_report_send** — отчёт: страница с разделами на сайте и выжимка в чат с кнопкой
-  «Открыть отчёт»; chat_id — так же, только чат разговора. В режиме отчёта (ToolContext.report_mode)
+  «Открыть отчёт»; chat_id — так же, только чат разговора.
+- Вопрос со страницы сайта (ToolContext.web_question, 2026-11-09): график и отчёт уходят не в
+  Telegram, а в вопрос на сайте (POST /api/bot/web/<id>/card, kultura_bot/web.add_card) — та же
+  проверка описания, страница рисует их сама. В режиме отчёта (ToolContext.report_mode)
   отдельные графики в чат не уходят — они внутри отчёта; предел исчерпан (report_only) — можно
   только отправить отчёт.
 - **ask_agent** (только у бота) — поручить задачу агенту раздела (kultura_bot/agents/*.md):
@@ -174,7 +177,8 @@ class ToolContext:
     report_unknown: bool = False                             # отправка отчёта «статус неизвестен»: могла дойти
     progress: Any = None                                     # engine/progress.Tracker: что идёт сейчас (прогресс в чате)
     stop: Any = None                                         # threading.Event: нажали «Остановить» (agent.check_stop)
-    user: str = ''                                           # tg_user_id того, кто спросил: предел на человека
+    user: str = ''                                           # кто спросил (service.person_key): предел на человека
+    web_question: str = ''                                   # вопрос со страницы сайта: графики и отчёт — туда
     calls: List[Dict[str, Any]] = field(default_factory=list)    # журнал: вызовы инструментов (общий с агентами)
     cards: List[Dict[str, Any]] = field(default_factory=list)    # журнал: ушедшие графики и отчёты
     delivered: Dict[str, Any] = field(default_factory=dict)      # журнал: каким видом и какими сообщениями ушёл ответ
@@ -256,10 +260,13 @@ def _execute(block: Dict[str, Any], ctx: ToolContext) -> Dict[str, Any]:
     if name not in ctx.allowed:
         return tool_result(tool_use_id, f'Нет инструмента {name}. Найди нужный поиском tool_search_tool_regex.',
                            is_error=True)
-    if name in SENDING_TOOLS:
-        args = dict(args, chat_id=str(ctx.chat_id))     # график и отчёт — только в чат разговора
     try:
-        result = ctx.site.call_tool(name, args)
+        if name in SENDING_TOOLS and ctx.web_question:
+            result = ctx.site.web_card(ctx.web_question, name, args)     # вопрос с сайта — карточка на сайт
+        else:
+            if name in SENDING_TOOLS:
+                args = dict(args, chat_id=str(ctx.chat_id))   # график и отчёт — только в чат разговора
+            result = ctx.site.call_tool(name, args)
     except SiteError as exc:
         return tool_result(tool_use_id, f'Сайт не выполнил вызов: {exc.text}', is_error=True)
     is_error = bool(result.get('isError'))

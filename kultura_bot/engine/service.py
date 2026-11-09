@@ -102,7 +102,7 @@ from typing import Any, Dict, List, Optional
 from kultura_bot import links, rich_demo, settings
 from kultura_bot.engine import agent, claude, config, formatting, journal, progress, report_text, rich, tools
 from kultura_bot.engine.site import SiteError
-from kultura_bot.engine.store import msk_day, msk_now
+from kultura_bot.engine.store import is_telegram_chat, msk_day, msk_now
 from kultura_bot.engine import telegram_io
 from kultura_bot.engine.telegram_io import TelegramIO
 
@@ -204,6 +204,12 @@ RICH_ON_DONE = ('Готово: ответы в этом чате — в ново
                 'текст одним сообщением). Вернуть прежний — /rich.')
 RICH_OFF_DONE = 'Оставил прежний вид ответов в этом чате. Посмотреть новый ещё раз — /rich.'
 SITE_DOWN_TEXT = 'Сайт сейчас не отвечает, без него я не вижу данных. Повторите вопрос через пару минут.'
+NO_ACCESS_TEXT = 'Нет доступа: бот отвечает только администраторам сайта.'
+# Вопросы со страницы сайта (2026-11-09, kultura_bot/web.py): беседа — чат «web:<id>», вопрос — q<id>.
+WEB_CHAT_RE = re.compile(r'web:t[A-Za-z0-9_-]{16}')
+WEB_QUESTION_RE = re.compile(r'q[A-Za-z0-9_-]{16}')
+WEB_HISTORY_MAX = 60000                 # знаков прошлых ответов беседы, если диалог начат заново
+WEB_RETRY_S = 30                        # сайт не ответил на «есть вопрос?» — следующая попытка через столько
 # Пометки над ответом, когда бот начал разговор заново посреди переписки (2026-10-29: говорят, что
 # это значит для человека и как продолжить; пауза дольше DIALOG_IDLE_MINUTES — без пометки).
 FINGERPRINT_NOTICE = ('Бот обновился и не помнит переписку до этого вопроса. Продолжить прошлую работу — '
@@ -270,6 +276,128 @@ def menu_markup(section: Dict[str, Any]) -> Dict[str, Any]:
     return {'inline_keyboard': [[{'text': q, 'callback_data': formatting.menu_data(q)}]
                                 for q in section.get('questions') or ()]}
 
+def person_key(actor: Optional[Dict[str, Any]]) -> str:
+    """Кто спросил — для дневного предела на человека (USER_DAILY_BUDGET_USD): администратор сайта
+    (user:<id>), чем бы он ни спрашивал — Telegram или страница сайта (2026-11-09: иначе два пути дали бы
+    вдвое больший предел). Нет id администратора — id Telegram."""
+    actor = actor or {}
+    if actor.get('user_id') not in (None, ''):
+        return f'user:{actor["user_id"]}'
+    return str(actor.get('tg_user_id') or '')
+
+
+def web_history_block(history: Any) -> str:
+    """Прошлые вопросы и ответы беседы на сайте (kultura_bot/web._history) -> блок перед вопросом — тот же
+    вид, что ответ на сообщение бота в Telegram (prompts/bot.md, «Продолжение работы»)."""
+    if not isinstance(history, list) or not history:
+        return ''
+    parts: List[str] = []
+    for item in history:
+        if not isinstance(item, dict):
+            continue
+        mode = ' (Research — отчёт страницей)' if item.get('mode') == 'report' else ''
+        lines = [f'Вопрос{mode}: {str(item.get("question") or "").strip()}']
+        if item.get('answer'):
+            lines.append(f'Ответ:\n{str(item["answer"]).strip()}')
+        for chart in item.get('charts') or []:
+            lines.append(f'График «{chart.get("title") or ""}»: {str(chart.get("caption") or "").strip()}')
+        if item.get('report_text'):
+            lines.append(f'Отчёт целиком:\n{item["report_text"]}')
+        else:
+            for report in item.get('reports') or []:
+                lines.append(f'Отчёт «{report.get("title") or ""}»: {str(report.get("summary") or "").strip()}')
+        parts.append('\n'.join(lines))
+    text = '\n\n'.join(parts)
+    if len(text) > WEB_HISTORY_MAX:
+        text = '…\n' + text[-WEB_HISTORY_MAX:]
+    return (f'[Ответ на сообщение бота — продолжение беседы на странице сайта: прошлые вопросы и ответы этой '
+            f'беседы между строками <<< и >>>.]\n<<<\n{text}\n>>>\n')
+
+
+class TelegramOut:
+    """Куда уходит ответ: чат Telegram — как было до страницы сайта."""
+    web_question = ''
+
+    def __init__(self, svc: 'Service', chat_id: str, job: Dict[str, Any]):
+        self.svc = svc
+        self.chat_id = chat_id
+        self.job = job
+        message = job.get('message') or {}
+        self.reply_to = job.get('reply_to') or (message.get('message_id') if job.get('chat_type') != 'private'
+                                                else None)
+
+    def say(self, text: str) -> None:
+        """Ошибка или пометка человеку."""
+        self.svc.tg.send_plain(self.chat_id, text, reply_to=self.reply_to)
+
+    def stopped(self, stop_notice: Dict[str, Any]) -> None:
+        notice_id = stop_notice.get('notice')
+        if not (notice_id and self.svc.tg.edit_plain(self.chat_id, notice_id, STOPPED_TEXT)):
+            self.svc.tg.send_plain(self.chat_id, STOPPED_TEXT, reply_to=self.reply_to)
+
+    def reporter(self, tracker: 'progress.Tracker', *, mode: str, job_id: int, rich_view: bool,
+                 stop: threading.Event):
+        draft = rich_view and self.job.get('chat_type') == 'private'   # черновики Telegram — только в личке
+        return progress.Reporter(self.svc.tg, self.chat_id, tracker, after_s=settings.PROGRESS_AFTER_S.get(mode, 10),
+                                 every_s=settings.PROGRESS_EDIT_EVERY_S, reply_to=self.reply_to,
+                                 enabled=settings.PROGRESS, draft_id=job_id if draft else None,
+                                 draft_every_s=settings.RICH_DRAFT_EVERY_S, make_draft=rich.draft,
+                                 stopped=stop.is_set).start()
+
+    def deliver(self, answer: str, *, ctx: tools.ToolContext, spend: agent.Spend, notice: str = '',
+                rich_view: bool = False) -> None:
+        self.svc.deliver(self.chat_id, answer, ctx=ctx, spend=spend, notice=notice, reply_to=self.reply_to,
+                         rich_view=rich_view)
+
+    def done(self, status: str, error: str, shown: str, spend: Optional[agent.Spend] = None) -> None:
+        """Ответ уже в чате — больше ничего."""
+
+
+class WebOut:
+    """Куда уходит ответ: вопрос со страницы сайта (2026-11-09, kultura_bot/web.py). Telegram не трогается:
+    ход работы — на страницу (progress.WebReporter), графики и отчёт — в вопрос (tools: web_question), итог —
+    одним вызовом в конце (done): ответ, «Как считается», кнопки следующего шага, расход или текст ошибки."""
+
+    def __init__(self, svc: 'Service', job: Dict[str, Any]):
+        self.svc = svc
+        self.web_question = job['web_id']
+        self.payload: Dict[str, Any] = {}
+        self.said: List[str] = []
+
+    def say(self, text: str) -> None:
+        self.said.append(text)
+
+    def stopped(self, stop_notice: Dict[str, Any]) -> None:
+        self.said.append(STOPPED_TEXT)
+
+    def reporter(self, tracker: 'progress.Tracker', *, stop: threading.Event, **_kwargs):
+        return progress.WebReporter(self.svc.site, self.web_question, tracker, halt=stop,
+                                    every_s=settings.WEB_BEAT_EVERY_S).start()
+
+    def deliver(self, answer: str, *, ctx: tools.ToolContext, spend: agent.Spend, notice: str = '',
+                rich_view: bool = False) -> None:
+        """Как Telegram-ответ (Service.deliver), но целиком: «Как считается» — отдельным полем (на странице —
+        свёрнуто), кнопки «[[…]]» — списком, строку цены страница пишет сама."""
+        visible, how = formatting.split_how(answer or '')
+        if ctx.report_mode and ctx.reports_sent:
+            # Режим отчёта: ответ — страница; текст модели после неё («Отчёт отправлен») не нужен.
+            visible, how = '', ''
+        visible, ask = formatting.split_buttons(visible)
+        if not visible.strip() and not how and not (ctx.charts_sent or ctx.reports_sent):
+            visible = 'Готово.'
+        ctx.delivered = {'format': 'web', 'message_ids': []}
+        self.payload = {'answer': visible, 'how': how, 'notice': notice, 'ask': ask}
+
+    def done(self, status: str, error: str, shown: str, spend: Optional[agent.Spend] = None) -> None:
+        body = dict(self.payload, status=status, error=error,
+                    shown=shown or ('\n'.join(self.said) if status != 'done' else ''),
+                    cost_usd=round(float(getattr(spend, 'usd', 0.0) or 0.0), 6),
+                    steps=int(getattr(spend, 'steps', 0) or 0), fast_steps=int(getattr(spend, 'fast_steps', 0) or 0))
+        if status == 'done' and self.said:
+            body['notice'] = ' '.join([body.get('notice') or ''] + self.said).strip()
+        self.svc.web_finish(self.web_question, body)
+
+
 class Service:
     def __init__(self, site, store, io_factory=TelegramIO, client_factory=None, check_key=None):
         self.site = site
@@ -309,6 +437,7 @@ class Service:
         self.journal_retry_at = 0.0                      # журнал: сайт не принял — ждём до этой секунды
         self.refused_at: Dict[str, float] = {}
         self._interrupted_checked = False
+        self.web_thread: Optional[threading.Thread] = None   # вопросы со страницы сайта (web_loop)
 
     # ---------------------------------------------------------------- состояние и отчёт
 
@@ -424,7 +553,8 @@ class Service:
             self._interrupted_checked = True
             chats = {job['chat_id'] for job in self.store.take_interrupted_jobs(INTERRUPTED_MAX_AGE_S)}
             for chat_id in sorted(chats):
-                self.tg.send_plain(chat_id, INTERRUPTED_TEXT)
+                if is_telegram_chat(chat_id):      # прерванный вопрос с сайта закрывает сам сайт (web.STALE_S)
+                    self.tg.send_plain(chat_id, INTERRUPTED_TEXT)
         return True
 
     # ---------------------------------------------------------------- профиль в Telegram
@@ -564,6 +694,9 @@ class Service:
 
     def run_forever(self) -> None:
         self.set_status('starting', 'сервер бота запускается')
+        if settings.WEB_QUESTIONS and self.web_thread is None:
+            self.web_thread = threading.Thread(target=self.web_loop, name='kultura-bot-web', daemon=True)
+            self.web_thread.start()
         while not self.stopping.is_set():
             try:
                 if self.ready():
@@ -581,6 +714,79 @@ class Service:
 
     def stop(self) -> None:
         self.stopping.set()
+
+    # ---------------------------------------------------------------- вопросы со страницы сайта
+
+    def web_ready(self) -> bool:
+        """Можно брать вопросы с сайта: настройки получены, ключ Claude есть, бот не на паузе."""
+        return bool(self.config is not None and self.key and not self.config.get('paused'))
+
+    def web_loop(self) -> None:
+        """Вопросы со страницы сайта /research (2026-11-09, kultura_bot/web.py): раз в WEB_POLL_S спросить
+        сайт, есть ли новый, — когда есть свободное место (MAX_PARALLEL_DIALOGS, общее с Telegram). Взятый
+        вопрос встаёт в очередь своей беседы и идёт тем же путём, что сообщение Telegram (answer)."""
+        while not self.stopping.is_set():
+            took = False
+            try:
+                if self.web_ready():
+                    took = self.take_web_job()
+            except SiteError as exc:
+                log.warning('[BOT] вопросы с сайта: %s', exc.text)
+                self.stopping.wait(WEB_RETRY_S)        # сайт не ответил — не стучаться каждые 3 секунды
+            except Exception:  # noqa: BLE001 — цикл не должен умирать
+                log.exception('[BOT] вопросы с сайта: сбой')
+                self.stopping.wait(WEB_RETRY_S)
+            if not took:
+                self.stopping.wait(settings.WEB_POLL_S)
+
+    def take_web_job(self) -> bool:
+        """Взять один вопрос с сайта, если есть место. True — взяли (сразу проверить ещё)."""
+        with self.lock:
+            if len(self.busy) >= max(1, settings.MAX_PARALLEL_DIALOGS):
+                return False
+        found = self.site.web_next()
+        if not found:
+            return False
+        job = self.web_job(found)
+        if job is None:
+            log.warning('[BOT] вопрос с сайта не разобран: %s', str(found)[:200])
+            if isinstance(found.get('id'), str) and WEB_QUESTION_RE.fullmatch(found['id']):
+                self.web_finish(found['id'], {'status': 'error', 'error': 'bad job', 'shown': 'Вопрос не разобран.'})
+            return True
+        self.enqueue(job['chat_id'], job)
+        return True
+
+    @staticmethod
+    def web_job(found: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Вопрос с сайта -> задание очереди, как сообщение Telegram (kind='web')."""
+        qid, chat_id = found.get('id'), found.get('chat_id')
+        actor = found.get('actor') if isinstance(found.get('actor'), dict) else None
+        if not (isinstance(qid, str) and WEB_QUESTION_RE.fullmatch(qid) and isinstance(chat_id, str)
+                and WEB_CHAT_RE.fullmatch(chat_id) and actor and actor.get('user_id') not in (None, '')
+                and isinstance(found.get('question'), str)):
+            return None
+        return {
+            'kind': 'web', 'web_id': qid, 'chat_id': chat_id, 'message': {}, 'chat_type': 'web', 'source': 'web',
+            'text': found['question'], 'mode': 'report' if found.get('mode') == 'report' else 'answer',
+            'fast': bool(found.get('fast')), 'history': found.get('history') or [],
+            'asked_ts': float(found.get('asked_ts') or time.time()),
+            'actor': {'tg_user_id': '', 'user_id': actor['user_id'], 'login': str(actor.get('login') or ''),
+                      'display_name': str(actor.get('display_name') or actor.get('login') or '')},
+        }
+
+    def web_finish(self, qid: str, body: Dict[str, Any]) -> bool:
+        """Итог вопроса — на сайт; сайт не ответил — ещё попытки (ответ уже стоил денег)."""
+        for delay in (0, 2, 5, 15):
+            if delay:
+                time.sleep(delay)
+            try:
+                self.site.web_finish(qid, body)
+                return True
+            except SiteError as exc:
+                log.warning('[BOT] итог вопроса с сайта %s не принят: %s', qid, exc.text)
+                if exc.kind == 'http' and ' 400 ' in f' {exc.text} ':
+                    return False                       # сайт отверг итог — повтор не поможет
+        return False
 
     def poll_once(self) -> None:
         data = self.tg.get_updates(self.offset)
@@ -855,7 +1061,10 @@ class Service:
             for item in dropped:
                 if item.get('job_id'):
                     self.store.finish_job(item['job_id'], 'error', 'restarting')
-            self.tg.send_plain(chat_id, RESTARTING_TEXT)
+                if item.get('kind') == 'web':
+                    self.web_finish(item['web_id'], {'status': 'error', 'error': 'restarting', 'shown': RESTARTING_TEXT})
+            if is_telegram_chat(chat_id):
+                self.tg.send_plain(chat_id, RESTARTING_TEXT)
 
     def _drain(self, chat_id: str) -> None:
         while True:
@@ -1128,13 +1337,16 @@ class Service:
         return blocks
 
     @staticmethod
-    def header(actor: Dict[str, Any], mode: str = 'answer', limit: Optional[float] = None, rich_view: bool = False) -> str:
+    def header(actor: Dict[str, Any], mode: str = 'answer', limit: Optional[float] = None, rich_view: bool = False,
+               web: bool = False) -> str:
         now = msk_now()
         limit = settings.REPORT_BUDGET_USD if limit is None else limit
         report = f' · режим: отчёт — страница common_report_send, предел ${limit:.2f}' if mode == 'report' else ''
         view = ' · оформление: богатое сообщение' if rich_view else ''
-        return (f'[{WEEKDAYS[now.weekday()]} {now.strftime("%d.%m.%Y %H:%M")} МСК · {calendar_text(now)}{report}{view} · '
-                f'пишет {actor["display_name"]} ({actor["login"]})]')
+        # Вопрос со страницы сайта (2026-11-09): ответ, графики и отчёт показывает страница, а не Telegram.
+        where = ' · спрашивают со страницы сайта kultura.research: графики и отчёт — на ней' if web else ''
+        return (f'[{WEEKDAYS[now.weekday()]} {now.strftime("%d.%m.%Y %H:%M")} МСК · {calendar_text(now)}{report}{view}'
+                f'{where} · пишет {actor["display_name"]} ({actor["login"]})]')
 
     def how_link(self, chat_id: str, visible: str, how: str):
         """«Как считается» -> записка на сайте и ссылка или кнопка. Вернуть (текст, reply_markup).
@@ -1307,70 +1519,74 @@ class Service:
         return True
 
     def answer(self, chat_id: str, job: Dict[str, Any]) -> None:
-        message = job['message']
-        reply_to = job.get('reply_to') or (message.get('message_id') if job['chat_type'] != 'private' else None)
-        job_id = job.get('job_id') or self.store.start_job(chat_id, job['actor']['tg_user_id'])
+        """Вопрос -> ответ. Куда — решает out: чат Telegram (TelegramOut) или вопрос со страницы сайта
+        (WebOut, 2026-11-09): разговор, инструменты, агенты, пределы и журнал — одни и те же."""
+        web = job.get('kind') == 'web'
+        out = WebOut(self, job) if web else TelegramOut(self, chat_id, job)
+        message = job.get('message') or {}
+        job_id = job.get('job_id') or self.store.start_job(chat_id, job['actor'].get('tg_user_id') or '')
         self.store.run_job(job_id)
         entry = journal.start(job, chat_id, job_id)
         started_ts = time.time()
         try:
-            # Права — ещё раз: пока вопрос ждал очереди, привязку могли снять, а админство — отозвать.
-            actor = self.actor(job['actor']['tg_user_id'], fresh=True)
+            # Права — ещё раз: пока вопрос ждал очереди, привязку могли снять, а админство — отозвать
+            # (вопрос с сайта сайт проверил, когда отдавал его серверу).
+            actor = job['actor'] if web else self.actor(job['actor']['tg_user_id'], fresh=True)
             catalog = self.get_catalog()
         except SiteError as exc:
             log.warning('[BOT] сайт не ответил перед ответом: %s', exc.text)
-            self.tg.send_plain(chat_id, SITE_DOWN_TEXT, reply_to=reply_to)
+            out.say(SITE_DOWN_TEXT)
             self.store.finish_job(job_id, 'error', f'site: {exc.text}')
+            out.done('error', f'site: {exc.text}', SITE_DOWN_TEXT)
             self._journal(entry, status='error', error=f'site: {exc.text}', shown=SITE_DOWN_TEXT,
                           started_ts=started_ts)
             return
         if actor is None:
             self.store.finish_job(job_id, 'error', 'no access')
+            out.done('error', 'no access', NO_ACCESS_TEXT)
             self._journal(entry, status='error', error='no access', started_ts=started_ts)
             return
         entry.update(login=str(actor.get('login') or ''), name=str(actor.get('display_name') or ''))
         status, error, shown, result = 'done', '', '', None
         report_mode = job.get('mode') == 'report'
         mode = 'report' if report_mode else 'answer'
-        asker = str(actor.get('tg_user_id') or job['actor'].get('tg_user_id') or '')
+        asker = person_key(actor) or person_key(job['actor'])
         limit = self.question_limit(report_mode, asker)
         spend = agent.Spend(limit=limit)
-        rich_view = self.chat_rich(chat_id)
-        stop = threading.Event()                   # «Остановить» у черновика (handle_stop)
+        rich_view = False if web else self.chat_rich(chat_id)
+        stop = threading.Event()                   # «Остановить»: у черновика Telegram или на странице сайта
         fast = bool(job.get('fast')) and settings.FAST_MODE      # «/fast …» — этот вопрос и его агенты
         ctx = tools.ToolContext(site=self.site, chat_id=chat_id, allowed=catalog.bot.toolset.names, spend=spend,
-                                report_mode=report_mode, stop=stop, user=asker, fast=fast)
+                                report_mode=report_mode, stop=stop, user=asker, fast=fast,
+                                web_question=out.web_question)
         stop_notice: Dict[str, Any] = {}
         with self.lock:
             self.running[chat_id] = (job_id, stop, stop_notice)
-        # Прогресс в чате (engine/progress.py): «печатает…», а дольше PROGRESS_AFTER_S — сообщение
-        # «что делаю, сколько осталось»; убирается, когда ушёл ответ (finally).
+        # Прогресс (engine/progress.py): в Telegram — «печатает…», а дольше PROGRESS_AFTER_S — сообщение
+        # «что делаю, сколько осталось», убирается, когда ушёл ответ; на сайте — те же строки на странице.
         tracker = progress.Tracker(mode, spend, limit=limit, durations=self.store.recent_durations(mode),
                                    tool_typical=self._tool_typical(), titles=catalog.titles,
                                    is_finishing=lambda: ctx.report_only)
         ctx.progress = tracker
-        draft = rich_view and job['chat_type'] == 'private'   # черновики Telegram — только в личке
-        reporter = progress.Reporter(self.tg, chat_id, tracker, after_s=settings.PROGRESS_AFTER_S.get(mode, 10),
-                                     every_s=settings.PROGRESS_EDIT_EVERY_S, reply_to=reply_to,
-                                     enabled=settings.PROGRESS, draft_id=job_id if draft else None,
-                                     draft_every_s=settings.RICH_DRAFT_EVERY_S, make_draft=rich.draft,
-                                     stopped=stop.is_set).start()
+        reporter = out.reporter(tracker, mode=mode, job_id=job_id, rich_view=rich_view, stop=stop)
         try:
-            header = self.header(actor, mode, limit, rich_view=rich_view)
-            reply = self.reply_block(chat_id, message)
+            header = self.header(actor, mode, limit, rich_view=rich_view, web=web)
+            reply = '' if web else self.reply_block(chat_id, message)
             user_content = [{'type': 'text', 'text': f'{header}\n{reply}{job["text"] or "(без текста)"}'}]
-            files = self._files(message)
-            document = message.get('document') or {}
-            if document and document.get('mime_type') not in DOCUMENT_MIMES:
-                self.tg.send_plain(chat_id, UNSUPPORTED_FILE_TEXT, reply_to=reply_to)
-            elif (message.get('photo') or document) and not files:
-                self.tg.send_plain(chat_id, f'Файл не скачался или слишком большой (картинка — до '
-                                            f'{self._limit("image") / 1e6:.1f} МБ, PDF — до '
-                                            f'{self._limit("document") / 1e6:.0f} МБ) — отвечаю без него.',
-                                   reply_to=reply_to)
-            user_content += files
+            if not web:
+                files = self._files(message)
+                document = message.get('document') or {}
+                if document and document.get('mime_type') not in DOCUMENT_MIMES:
+                    out.say(UNSUPPORTED_FILE_TEXT)
+                elif (message.get('photo') or document) and not files:
+                    out.say(f'Файл не скачался или слишком большой (картинка — до '
+                            f'{self._limit("image") / 1e6:.1f} МБ, PDF — до '
+                            f'{self._limit("document") / 1e6:.0f} МБ) — отвечаю без него.')
+                user_content += files
 
             persona = catalog.bot
+            if web:
+                self.store.prune_dialogs('web:', settings.DIALOG_IDLE_MINUTES * 60)
             dialog = self.store.get_dialog(chat_id)
             notice = ''
             if dialog is not None:
@@ -1381,6 +1597,11 @@ class Service:
                     notice, dialog = FINGERPRINT_NOTICE, None
                 elif len(str(dialog['messages'])) > settings.DIALOG_MAX_CHARS:
                     notice, dialog = LONG_DIALOG_NOTICE, None
+            if web and dialog is None and job.get('history'):
+                # Беседа на сайте продолжается, а диалог начат заново (простой, новые инструкции): прошлые
+                # вопросы и ответы беседы — блоком перед вопросом, как ответ на сообщение бота в Telegram.
+                reply = web_history_block(job['history'])
+                user_content[0]['text'] = f'{header}\n{reply}{job["text"] or "(без текста)"}'
             if reply:
                 notice = ''                            # ответ на сообщение бота — та работа и так перед вопросом
             if job.get('fast') and not fast:
@@ -1411,19 +1632,16 @@ class Service:
                     notice = f'{notice} ' if notice else ''
                     notice += f'Страницу отчёта собрать не удалось ({path}) — ответ ниже сообщением.'
             self.store.save_dialog(chat_id, persona.fingerprint, started_at, result.messages, turns + 1)
-            self.deliver(chat_id, result.text, ctx=ctx, spend=spend, notice=notice, reply_to=reply_to,
-                         rich_view=rich_view)
+            out.deliver(result.text, ctx=ctx, spend=spend, notice=notice, rich_view=rich_view)
             if self.status['claude_error']:             # Claude снова отвечает — ошибку со страницы убрать
                 self.set_status(self.status['state'], self.status['detail'], claude_error='')
         except agent.BudgetExceeded as exc:
             status, error, shown = 'error', 'budget', str(exc)
-            self.tg.send_plain(chat_id, str(exc), reply_to=reply_to)
+            out.say(str(exc))
         except agent.Stopped:
             # «Остановить»: диалог не пишется — следующий вопрос продолжает разговор до этого.
             status, error, shown = 'error', 'stopped', STOPPED_TEXT
-            notice_id = stop_notice.get('notice')
-            if not (notice_id and self.tg.edit_plain(chat_id, notice_id, STOPPED_TEXT)):
-                self.tg.send_plain(chat_id, STOPPED_TEXT, reply_to=reply_to)
+            out.stopped(stop_notice)
         except Exception as exc:  # noqa: BLE001 — любая беда -> понятный ответ в чат
             kind, text = claude.describe_error(exc, secrets=self._secrets())
             status, error = 'error', f'{kind}: {text}'
@@ -1435,7 +1653,7 @@ class Service:
                 log.exception('[BOT] сбой ответа')
                 text = f'Не получилось ответить: {text}'
             shown = text
-            self.tg.send_plain(chat_id, text, reply_to=reply_to)
+            out.say(text)
             if kind in ('auth', 'denied', 'billing', 'offline'):
                 # Опрос Telegram идёт и пишет «работает» — ошибка Claude держится отдельным полем,
                 # пока следующий ответ не получится.
@@ -1449,6 +1667,7 @@ class Service:
                 self._save_stats(job_id, tracker)
             self.store.finish_job(job_id, status, error)
             outcome = {'budget': 'budget', 'stopped': 'stopped'}.get(error, status)
+            out.done(outcome, '' if outcome in ('budget', 'stopped') else error, shown, spend=spend)
             self._journal(entry, status=outcome, error='' if outcome in ('budget', 'stopped') else error,
                           shown=shown, ctx=ctx, tracker=tracker, spend=spend, result=result,
                           started_ts=started_ts)

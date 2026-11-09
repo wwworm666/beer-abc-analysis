@@ -295,6 +295,10 @@ Claude, не ставится (`.claude/CLAUDE.md`).
 
 ## Changelog
 
+- **2026-11-09** — сервер kultura.research отвечает и на вопросы со страницы сайта /research
+  ([research-page.md](research-page.md)): сайт кладёт вопрос в очередь, ответ — на странице, в Telegram
+  ничего не уходит.
+
 - **2026-11-08 (2)** — у kultura.research команда отчёта — `/research` (была `/report`, работает по
   привычке, в меню её нет).
 

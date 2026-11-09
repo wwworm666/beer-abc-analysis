@@ -140,6 +140,26 @@ class Site:
         картинки рисует он. Вернуть {message_id} или ошибку сайта (SiteError)."""
         return self._request('POST', '/api/bot/rich-demo', body={'chat_id': str(chat_id)}, timeout=TOOL_TIMEOUT_S)
 
+    # ---------------------------------------------------------------- вопросы со страницы сайта
+
+    def web_next(self) -> Optional[Dict[str, Any]]:
+        """Следующий вопрос со страницы /research (kultura_bot/web.py) или None."""
+        job = self._request('GET', '/api/bot/web/next').get('job')
+        return job if isinstance(job, dict) and job.get('id') else None
+
+    def web_beat(self, qid: str, progress: str) -> Dict[str, Any]:
+        """Ход работы над вопросом -> страница. Ответ: {stop} — нажали «Остановить» (или вопрос закрыт)."""
+        return self._request('POST', f'/api/bot/web/{qid}/beat', body={'progress': progress})
+
+    def web_card(self, qid: str, tool: str, args: Dict[str, Any]) -> Dict[str, Any]:
+        """График или отчёт вопроса с сайта — в вопрос, а не в Telegram: ответ как у tools/call."""
+        return self._request('POST', f'/api/bot/web/{qid}/card', body={'tool': tool, 'args': args},
+                             timeout=TOOL_TIMEOUT_S)
+
+    def web_finish(self, qid: str, body: Dict[str, Any]) -> Dict[str, Any]:
+        """Итог вопроса с сайта: ответ, «Как считается», кнопки, расход или текст ошибки."""
+        return self._request('POST', f'/api/bot/web/{qid}/finish', body=body)
+
     # ---------------------------------------------------------------- MCP
 
     def mcp(self, method: str, params: Optional[Dict[str, Any]] = None, connector: str = '/mcp',

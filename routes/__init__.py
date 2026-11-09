@@ -27,6 +27,7 @@ from .mcp_oauth import mcp_oauth_bp
 from .tg_miniapp import tg_miniapp_bp
 from .bot_api import bot_api_bp
 from .bot_journal import bot_journal_bp
+from .research import research_bp
 
 # Редактор меню (/menu) перенесён из локального menu_tool/ в основное приложение:
 # данные на постоянном диске (/kultura), Chromium для PDF есть в прод-образе
@@ -72,3 +73,4 @@ def register_blueprints(app):
     # ключу (/api/bot/*), см. docs/kultura-bot.md.
     app.register_blueprint(bot_api_bp)
     app.register_blueprint(bot_journal_bp)
+    app.register_blueprint(research_bp)

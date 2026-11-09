@@ -458,7 +458,7 @@ def run_agent(client: Any, persona: tools.Persona, task: str, *, parent: tools.T
                             is_agent=True, charts_sent=parent.charts_sent, reports_sent=parent.reports_sent,
                             spend=parent.spend, report_mode=parent.report_mode, progress=parent.progress,
                             stop=parent.stop, calls=parent.calls, cards=parent.cards, user=parent.user,
-                            fast=parent.fast)
+                            fast=parent.fast, web_question=parent.web_question)
     text = (header + '\n' if header else '') + task
     result = run_turn(client, system_text=persona.system, tool_list=persona.toolset.defs, history=[],
                       user_content=[{'type': 'text', 'text': text}], ctx=ctx, store=store,

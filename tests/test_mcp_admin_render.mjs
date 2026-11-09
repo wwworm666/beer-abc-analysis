@@ -152,11 +152,15 @@ test('каркас страницы: меню, кэш-бастинг, скрыт
 });
 
 test('ссылка «Доступ агентов» в меню — только администратору, рядом с «Аккаунты»', () => {
-    const block = nav.match(/\{% if current_user and current_user\.is_admin %\}([\s\S]*?)\{% endif %\}/);
-    assert.ok(block, 'нет админ-блока в меню');
-    assert.match(block[1], /href="\/admin\/users"/);
-    assert.match(block[1], /href="\/admin\/mcp"[\s\S]*Доступ агентов/);
+    const blocks = [...nav.matchAll(/\{% if current_user and current_user\.is_admin %\}([\s\S]*?)\{% endif %\}/g)]
+        .map(m => m[1]);
+    const block = blocks.find(b => /href="\/admin\/users"/.test(b));
+    assert.ok(block, 'нет админ-блока с «Аккаунты» в меню');
+    assert.match(block, /href="\/admin\/mcp"[\s\S]*Доступ агентов/);
     assert.equal((nav.match(/\/admin\/mcp/g) || []).length, 1, 'ссылка ровно одна');
+    // Страница kultura.research (2026-11-09) — тоже только администратору, как и сам бот.
+    assert.ok(blocks.some(b => /href="\/research"[\s\S]*kultura\.research/.test(b)), 'kultura.research — в админ-блоке');
+    assert.equal((nav.match(/href="\/research"/g) || []).length, 1, 'ссылка на kultura.research ровно одна');
 });
 
 // ------------------------------------------------------------------ исполнение в vm

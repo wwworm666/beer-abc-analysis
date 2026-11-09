@@ -1,0 +1,279 @@
+/* Страница kultura.research (/research, templates/research.html, static/js/research.js).
+   Цвета — переменные темы сайта (static/dashboard/styles/variables.css) через токены .mcp-page
+   (static/admin_mcp.css); графики и отчёты — свои токены tg_chart.css, они же следуют data-theme. */
+
+.rs-page { --rs-gap: 16px; }
+
+.rs-wrap {
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 16px;
+    display: grid;
+    grid-template-columns: 260px minmax(0, 1fr);
+    gap: 20px;
+    align-items: start;
+}
+
+/* ---------------- беседы ---------------- */
+
+.rs-side {
+    position: sticky;
+    top: 16px;
+    display: grid;
+    gap: 10px;
+    max-height: calc(100vh - 32px);
+    min-width: 0;
+}
+.rs-new { width: 100%; }
+.rs-side-toggle { display: none; }
+.rs-threads {
+    display: grid;
+    gap: 2px;
+    overflow-y: auto;
+    min-height: 0;
+    padding-right: 2px;
+}
+.rs-thread {
+    display: grid;
+    gap: 3px;
+    width: 100%;
+    padding: 9px 10px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--mcp-text);
+    text-align: left;
+    cursor: pointer;
+    font-family: inherit;
+}
+.rs-thread:hover { background: var(--mcp-surface); }
+.rs-thread[aria-current="true"] { background: var(--mcp-surface); border-color: var(--mcp-border); }
+.rs-thread-title {
+    font-size: 13px;
+    line-height: 1.35;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+}
+.rs-thread-meta { font-size: 11px; color: var(--mcp-muted); display: flex; gap: 8px; flex-wrap: wrap; }
+.rs-live { color: var(--mcp-accent); font-weight: 600; }
+
+/* ---------------- беседа ---------------- */
+
+.rs-main { min-width: 0; display: grid; gap: var(--rs-gap); }
+.rs-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.rs-head[hidden] { display: none; }
+.rs-title {
+    margin: 0;
+    font-size: 16px;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+.rs-head-actions { display: flex; gap: 8px; align-items: center; flex: none; flex-wrap: wrap; justify-content: flex-end; }
+
+.rs-start {
+    background: var(--mcp-surface);
+    border: 1px solid var(--mcp-border);
+    border-radius: var(--mcp-radius);
+    padding: 20px;
+}
+.rs-start[hidden] { display: none; }
+.rs-start h2 { margin: 0 0 8px; font-size: 18px; }
+.rs-suggest { display: grid; gap: 12px; margin-top: 4px; }
+.rs-suggest-group { display: grid; gap: 6px; }
+.rs-suggest-title { font-size: 12px; color: var(--mcp-muted); }
+.rs-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.rs-chip {
+    padding: 6px 11px;
+    border: 1px solid var(--mcp-border);
+    border-radius: 999px;
+    background: var(--mcp-bg);
+    color: var(--mcp-text);
+    font-family: inherit;
+    font-size: 13px;
+    cursor: pointer;
+    text-align: left;
+}
+.rs-chip:hover { border-color: var(--mcp-accent); }
+.rs-chip:disabled { opacity: 0.55; cursor: default; }
+
+.rs-feed { display: grid; gap: 22px; min-width: 0; }
+.rs-feed:empty { display: none; }
+
+.rs-q { display: grid; gap: 10px; min-width: 0; }
+.rs-ask {
+    justify-self: end;
+    max-width: min(640px, 92%);
+    background: var(--mcp-surface);
+    border: 1px solid var(--mcp-border);
+    border-radius: 12px 12px 4px 12px;
+    padding: 10px 13px;
+}
+.rs-ask-meta { font-size: 11px; color: var(--mcp-muted); margin-bottom: 4px; display: flex; gap: 8px; flex-wrap: wrap; }
+.rs-ask-text { font-size: 14px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.rs-badge {
+    display: inline-block;
+    padding: 0 7px;
+    border-radius: 999px;
+    border: 1px solid var(--mcp-border);
+    font-size: 11px;
+    line-height: 17px;
+}
+.rs-badge-report { border-color: var(--mcp-accent); color: var(--mcp-accent); }
+
+.rs-answer { display: grid; gap: 12px; min-width: 0; }
+.rs-wait {
+    display: grid;
+    gap: 8px;
+    padding: 12px 14px;
+    border: 1px dashed var(--mcp-border);
+    border-radius: 12px;
+    font-size: 13px;
+}
+.rs-progress {
+    margin: 0;
+    white-space: pre-wrap;
+    font-family: inherit;
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--mcp-text);
+    overflow-wrap: anywhere;
+}
+.rs-wait-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.rs-muted { color: var(--mcp-muted); font-size: 12px; }
+
+.rs-notice { font-style: italic; font-size: 13px; color: var(--mcp-muted); }
+.rs-text { font-size: 14px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+.rs-text a { color: var(--mcp-accent); }
+.rs-text blockquote {
+    margin: 6px 0;
+    padding: 6px 12px;
+    border-left: 3px solid var(--mcp-border);
+    background: var(--mcp-surface);
+    border-radius: 0 8px 8px 0;
+}
+.rs-text pre, .rs-text code { font-family: inherit; font-size: 13px; }
+.rs-text pre { overflow-x: auto; padding: 8px 10px; background: var(--mcp-code-bg); border-radius: 8px; }
+
+.rs-fail {
+    padding: 12px 14px;
+    border: 1px solid var(--mcp-border);
+    border-radius: 12px;
+    font-size: 14px;
+    line-height: 1.5;
+}
+.rs-fail-error { border-color: var(--mcp-danger); color: var(--mcp-danger); background: var(--mcp-danger-bg); }
+
+.rs-fold summary { cursor: pointer; font-size: 13px; color: var(--mcp-muted); width: max-content; max-width: 100%; }
+.rs-fold[open] summary { margin-bottom: 8px; }
+.rs-fold-body p { margin: 0 0 8px; }
+.rs-fold-body p:last-child { margin-bottom: 0; }
+.rs-fold .rs-text { font-size: 13px; color: var(--mcp-muted); }
+
+/* карточки: график и отчёт — те же, что в мини-приложении бота */
+.rs-card { display: grid; gap: 8px; min-width: 0; }
+.rs-card .card { margin: 0; }
+.rs-card-caption { font-size: 14px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+.rs-report {
+    border: 1px solid var(--mcp-border);
+    border-radius: var(--mcp-radius);
+    padding: 16px;
+    background: var(--mcp-bg);
+    min-width: 0;
+}
+.rs-report .rep { max-width: 760px; }
+.rs-report-actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 10px; font-size: 13px; }
+.rs-report-actions a { color: var(--mcp-accent); }
+
+.rs-cost { font-size: 12px; color: var(--mcp-muted); font-style: italic; }
+
+/* ---------------- поле вопроса ---------------- */
+
+/* Не «прилипает» к низу экрана: ответы — длинные отчёты, полоса поля закрывала бы их при чтении. */
+.rs-composer {
+    display: grid;
+    gap: 10px;
+    padding: 14px 16px;
+    background: var(--mcp-surface);
+    border: 1px solid var(--mcp-border);
+    border-radius: var(--mcp-radius);
+}
+.rs-engine {
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--mcp-warning);
+    background: var(--mcp-warning-bg);
+    color: var(--mcp-text);
+    font-size: 13px;
+}
+.rs-engine[hidden] { display: none; }
+.rs-input { resize: vertical; min-height: 72px; max-height: 40vh; line-height: 1.5; }
+.rs-controls { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.rs-seg {
+    display: inline-flex;
+    border: 1px solid var(--mcp-border);
+    border-radius: 8px;
+    overflow: hidden;
+}
+.rs-seg button {
+    padding: 7px 14px;
+    border: 0;
+    background: transparent;
+    color: var(--mcp-text);
+    font-family: inherit;
+    font-size: 13px;
+    cursor: pointer;
+}
+.rs-seg button + button { border-left: 1px solid var(--mcp-border); }
+.rs-seg button[aria-checked="true"] { background: var(--mcp-accent); color: var(--mcp-on-accent); font-weight: 600; }
+.rs-fast { font-size: 13px; }
+.rs-keys { font-size: 12px; color: var(--mcp-muted); margin-left: auto; }
+.rs-send { min-width: 120px; }
+.rs-error { margin: 0; }
+.rs-error[hidden] { display: none; }
+.rs-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.rs-toast {
+    position: fixed;
+    left: 50%;
+    bottom: 24px;
+    transform: translateX(-50%);
+    padding: 9px 14px;
+    border-radius: 8px;
+    background: var(--text-primary);
+    color: var(--bg-primary);
+    font-size: 13px;
+    z-index: 50;
+}
+.rs-toast[hidden] { display: none; }
+
+/* ---------------- телефон ---------------- */
+
+@media (max-width: 900px) {
+    .rs-wrap { grid-template-columns: minmax(0, 1fr); padding: 12px; gap: 14px; }
+    .rs-side { position: static; max-height: none; grid-template-columns: 1fr auto; }
+    .rs-side-toggle {
+        display: inline-block;
+        padding: 9px 12px;
+        border: 1px solid var(--mcp-border);
+        border-radius: 8px;
+        background: transparent;
+        color: var(--mcp-text);
+        font-family: inherit;
+        font-size: 13px;
+        cursor: pointer;
+    }
+    .rs-threads { grid-column: 1 / -1; max-height: 45vh; display: none; }
+    .rs-side[data-open="true"] .rs-threads { display: grid; }
+    .rs-side #rsThreadsEmpty { grid-column: 1 / -1; }
+    .rs-keys { display: none; }
+    .rs-send { margin-left: auto; }
+    .rs-ask { max-width: 100%; }
+    .rs-report { padding: 12px; }
+}

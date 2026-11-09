@@ -348,3 +348,54 @@ class Reporter:
         except Exception:  # noqa: BLE001 — прогресс не роняет ответ
             log.warning('[BOT] прогресс: %s не прошёл', getattr(fn, '__name__', fn), exc_info=True)
             return None
+
+
+# ------------------------------------------------------------------ вопрос со страницы сайта
+
+def plain_text(rendered: str) -> str:
+    """Текст сообщения о прогрессе (HTML Telegram: <b> и экранирование) -> обычный текст для страницы."""
+    return html.unescape(rendered.replace('<b>', '').replace('</b>', ''))
+
+
+class WebReporter:
+    """Ход работы над вопросом со страницы сайта (2026-11-09): сразу и потом раз в every_s те же строки,
+    что в Telegram («Отвечаю · 0:40», шкала, «Сейчас: …», «Сделано: …»), уходят на сайт
+    (POST /api/bot/web/<id>/beat). Сайт отвечает, не нажали ли «Остановить» (или вопрос уже закрыт), —
+    тогда halt.set(): работа останавливается на следующем шаге, как от кнопки у черновика Telegram.
+    Сайт не ответил — ответ идёт дальше: прогресс — подсказка, а не часть ответа."""
+
+    def __init__(self, site: Any, qid: str, tracker: Tracker, *, halt: threading.Event, every_s: float):
+        self.site = site
+        self.qid = qid
+        self.tracker = tracker
+        self.halt = halt
+        self.every_s = every_s
+        self._stop = threading.Event()
+        self._thread: Optional[threading.Thread] = None
+
+    def tick(self) -> None:
+        try:
+            answer = self.site.web_beat(self.qid, plain_text(self.tracker.render()))
+        except Exception:  # noqa: BLE001 — прогресс не роняет ответ
+            log.warning('[BOT] ход работы вопроса %s не ушёл на сайт', self.qid, exc_info=True)
+            return
+        if self.tracker.shown_at is None:
+            self.tracker.mark_shown()
+        if isinstance(answer, dict) and answer.get('stop') and not self.halt.is_set():
+            log.info('[BOT] вопрос с сайта %s: «Остановить»', self.qid)
+            self.halt.set()
+
+    def _run(self) -> None:
+        while not self._stop.wait(self.every_s):
+            self.tick()
+
+    def start(self) -> 'WebReporter':
+        self.tick()
+        self._thread = threading.Thread(target=self._run, daemon=True)
+        self._thread.start()
+        return self
+
+    def stop(self) -> None:
+        self._stop.set()
+        if self._thread is not None:
+            self._thread.join(timeout=5)

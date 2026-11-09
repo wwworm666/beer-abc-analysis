@@ -74,6 +74,10 @@ PUBLIC_ENDPOINTS = {
     'bot_api.rich_demo',               # пример графика богатым сообщением для /rich
     'bot_api.journal_save',            # журнал вопросов и ответов: записи от сервера бота
     'bot_api.journal_feedback',        # журнал: реакция человека на сообщение бота
+    'bot_api.web_next',                # вопросы со страницы /research: сервер бота берёт следующий (2026-11-09)
+    'bot_api.web_beat',                # … ход работы и «Остановить»
+    'bot_api.web_card',                # … график или отчёт вопроса — в вопрос, а не в Telegram
+    'bot_api.web_finish',              # … итог вопроса
 }
 
 

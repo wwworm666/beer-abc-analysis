@@ -95,13 +95,20 @@ def test_access_management_is_not_exposed():
     bot_pairs = [pair for pair in report.required if pair[1].startswith('/api/bot/')]
     # с 2026-10-29 — GET /api/bot/replied (продолжение работы); с 2026-11-06 — вид ответов в чате
     # (GET и POST /api/bot/chat-format) и пример графика для /rich (POST /api/bot/rich-demo); с 2026-11-06 (2)
-    # — журнал вопросов и ответов (POST /api/bot/journal и /api/bot/journal/feedback)
-    assert len(bot_pairs) == 11, bot_pairs
+    # — журнал вопросов и ответов (POST /api/bot/journal и /api/bot/journal/feedback); с 2026-11-09 — вопросы со
+    # страницы сайта /research (GET /api/bot/web/next, POST …/beat, …/card, …/finish)
+    assert len(bot_pairs) == 15, bot_pairs
     for pair in bot_pairs:
         assert pair in exclusions and 'сервера бота' in exclusions[pair], pair
+    # Страница kultura.research (2026-11-09): спросить бота из агента — двойной расход Claude
+    research_pairs = [pair for pair in report.required if pair[1].startswith('/api/research/')]
+    assert len(research_pairs) == 6, research_pairs
+    for pair in research_pairs:
+        assert pair in exclusions and 'двойной расход Claude' in exclusions[pair], pair
     tool_paths = {t.path for t in registry.all_tools() if t.route_backed}
-    assert not any(p.startswith(('/api/admin/mcp', '/api/bot/', '/mcp', '/oauth')) for p in tool_paths), \
-        'инструмент ведёт на управление доступом, на API сервера бота или на сам MCP'
+    assert not any(p.startswith(('/api/admin/mcp', '/api/bot/', '/api/research/', '/mcp', '/oauth'))
+                   for p in tool_paths), 'инструмент ведёт на управление доступом, на API сервера бота, на вопросы ' \
+                                         'боту или на сам MCP'
 
 
 def test_public_endpoints_for_mcp():

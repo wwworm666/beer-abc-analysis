@@ -108,6 +108,10 @@ _BOT_REASON = 'инфраструктура Telegram-бота (вебхук), н
 _ENGINE_REASON = ('служебный API сервера бота @MCPkulturabot (Амстердам): вход только по ключу сервера бота, '
                   'отдаёт его настройки с секретами и принимает отчёт — агенту закрыт')
 
+_RESEARCH_REASON = ('страница kultura.research (2026-11-09): человек спрашивает бота из браузера — ответ пишет тот '
+                    'же бот на Claude; агенту спрашивать бота незачем (двойной расход Claude), у него те же '
+                    'инструменты сайта напрямую')
+
 EXCLUDED = {
     ('GET', '/api/test'): 'отладочный маршрут без данных (эхо «Test successful»)',
     ('POST', '/api/test'): 'отладочный маршрут без данных (эхо «Test successful»)',
@@ -160,12 +164,23 @@ EXCLUDED = {
     ('POST', '/api/bot/journal'): _ENGINE_REASON + ' (записи журнала вопросов и ответов от сервера бота)',
     ('POST', '/api/bot/journal/feedback'): _ENGINE_REASON + ' (реакция человека под сообщением бота — оценка записи '
                                                            'журнала)',
+    ('GET', '/api/bot/web/next'): _ENGINE_REASON + ' (вопросы со страницы /research: сервер бота берёт следующий)',
+    ('POST', '/api/bot/web/<qid>/beat'): _ENGINE_REASON + ' (ход работы над вопросом со страницы /research)',
+    ('POST', '/api/bot/web/<qid>/card'): _ENGINE_REASON + ' (график или отчёт вопроса со страницы /research; агенту — '
+                                                         'common_chart_send и common_report_send)',
+    ('POST', '/api/bot/web/<qid>/finish'): _ENGINE_REASON + ' (итог вопроса со страницы /research)',
     ('GET', '/api/admin/bot/journal'): 'журнал вопросов бота для страницы администратора; агенту та же выборка — '
                                        'инструмент common_bot_journal (только полный коннектор /mcp)',
     ('GET', '/api/admin/bot/journal.csv'): 'выгрузка журнала вопросов бота файлом для человека; агенту — '
                                            'common_bot_journal',
     ('DELETE', '/api/admin/bot/journal/<uid>'): 'удаление записи журнала вопросов бота — только человеком на '
                                                 'странице: агент не стирает следы своей работы',
+    ('GET', '/api/research/threads'): _RESEARCH_REASON,
+    ('GET', '/api/research/threads/<thread_id>'): _RESEARCH_REASON,
+    ('DELETE', '/api/research/threads/<thread_id>'): _RESEARCH_REASON,
+    ('POST', '/api/research/ask'): _RESEARCH_REASON,
+    ('GET', '/api/research/questions/<qid>'): _RESEARCH_REASON,
+    ('POST', '/api/research/questions/<qid>/stop'): _RESEARCH_REASON,
 }
 
 _NO_ARGS = {'type': 'object', 'properties': {}, 'additionalProperties': False}
@@ -385,6 +400,7 @@ DOCS_ALLOWLIST = (
     'docs/mcp.md',
     'docs/tg-miniapp.md',
     'docs/kultura-bot.md',
+    'docs/research-page.md',
     'docs/overview.md',
     'docs/lessons.md',
     'docs/guides/mcp-connect.md',
