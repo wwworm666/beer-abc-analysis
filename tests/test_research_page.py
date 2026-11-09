@@ -222,6 +222,9 @@ def test_page_and_api_are_for_admins_and_json_only(web_app):
     body = page.get_data(as_text=True)
     assert 'kultura.research' in body and 'id="rsInput"' in body and '/static/js/research.js?v=test' in body
     assert 'Быстро · цена ×2' in body and '$2.00 на вопрос' in body and '$5.00' in body, 'числа — из настроек бота'
+    assert 'sidebar-link' not in body and 'dashboard/styles' not in body and 'admin_mcp.css' not in body, \
+        'свой дизайн (2026-11-09): без меню, шапки и стилей сайта'
+    assert 'data-theme="dark"' in body and 'rs-chip' not in body and 'rsSuggest' not in body, 'без кнопок-подсказок'
     r = c.post('/api/research/ask', data={'question': 'форма'})
     assert r.status_code == 400 and 'JSON' in r.get_json()['error'], 'форма с чужого сайта не пройдёт'
     asked = c.post('/api/research/ask', json={'question': 'Выручка вчера', 'mode': 'answer', 'fast': True}).get_json()
@@ -424,25 +427,32 @@ def test_page_in_browser(web_app, monkeypatch):
     try:
         with sync_playwright() as p:
             browser = p.chromium.launch(executable_path=CHROMIUM, headless=True)
-            page = browser.new_page(viewport={'width': 1280, 'height': 900}, device_scale_factor=2 if SHOTS else 1)
+            page = browser.new_page(viewport={'width': 1280, 'height': 860}, device_scale_factor=2 if SHOTS else 1)
             errors = []
             page.on('pageerror', lambda exc: errors.append(str(exc)))
             page.goto(base + '/research')
-            page.wait_for_selector('.rs-chip')
-            assert page.is_visible('#rsStart') and 'Выручка вчера по барам' in page.inner_text('#rsSuggest')
+            page.wait_for_selector('.rx-main.is-empty #rsInput')
+            assert page.is_visible('#rsStart') and 'Что посчитать?' in page.inner_text('#rsStart')
+            assert page.locator('.rs-chip, .rx-chip, .sidebar').count() == 0, 'без подсказок и меню сайта'
+            assert page.is_disabled('#rsSend'), 'пустой вопрос не отправить'
+            if SHOTS:
+                page.screenshot(path=os.path.join(SHOTS, 'research-empty.png'))
             page.click('#rsMode button[data-mode="report"]')
             page.fill('#rsInput', 'Как бельгийское пиво в сентябре против августа?')
-            page.keyboard.press('Control+Enter')
-            page.wait_for_selector('.rs-q .rs-wait')
-            assert 'В очереди' in page.inner_text('.rs-q') and 'Research' in page.inner_text('.rs-ask-meta')
-            assert page.is_disabled('#rsSend'), 'в беседе — по одному вопросу'
+            page.keyboard.press('Enter')
+            page.wait_for_selector('.rx-turn .rx-run')
+            assert 'В очереди' in page.inner_text('.rx-turn') and 'RESEARCH' in page.inner_text('.rx-q-meta')
+            assert page.get_attribute('#rsSend', 'aria-label') == 'Остановить', 'пока бот отвечает — «Остановить»'
+            assert not page.locator('.rx-main.is-empty').count()
             job = engine.get('/api/bot/web/next', headers=ENGINE).get_json()['job']
             assert job['mode'] == 'report'
             engine.post(f'/api/bot/web/{job["id"]}/beat', headers=ENGINE,
                         json={'progress': 'Собираю отчёт · 0:42\n▰▰▰▱▱▱▱▱▱▱ ≈ 2 мин осталось\nСейчас: «Сравнение '
                                           'периодов» — 12 с\nСделано: 4 шага, 2 запроса данных · $0.61 из $5.00'})
-            page.wait_for_function("document.querySelector('.rs-progress') && "
-                                   "document.querySelector('.rs-progress').textContent.includes('Сравнение периодов')")
+            page.wait_for_function("[...document.querySelectorAll('.rx-run-line')]"
+                                   ".some(e => e.textContent.includes('Сравнение периодов'))")
+            assert page.inner_text('.rx-run .rx-shimmer') == 'Собираю отчёт' and page.inner_text('.rx-clock') == '0:42'
+            assert page.evaluate("document.querySelector('.rx-meter span').style.width") == '30%'
             if SHOTS:
                 page.screenshot(path=os.path.join(SHOTS, 'research-progress.png'))
             engine.post(f'/api/bot/web/{job["id"]}/card', headers=ENGINE,
@@ -453,39 +463,55 @@ def test_page_in_browser(web_app, monkeypatch):
             engine.post(f'/api/bot/web/{job["id"]}/finish', headers=ENGINE,
                         json={'status': 'done', 'answer': '', 'how': '', 'ask': ['Разбей по барам'],
                               'cost_usd': 1.84, 'steps': 14, 'fast_steps': 0})
-            page.wait_for_selector('.rs-report .rep h1')
-            page.wait_for_selector('.rs-card .card canvas, .rs-card .card svg')
-            answer = page.inner_text('.rs-q .rs-answer')
-            assert REPORT['title'] in answer and 'Ответ обошёлся в $1.84 (запросов к модели: 14).' in answer
-            assert page.locator('.rs-q .rs-answer details[open]').count() == 0, '«Как считается» — свёрнуто'
-            assert page.get_attribute('.rs-report-actions a', 'href').startswith('/tg/report/')
-            assert not page.is_disabled('#rsSend')
-            assert 'Как бельгийское пиво' in page.inner_text('#rsThreads')
+            page.wait_for_selector('.rx-report .rep h1')
+            page.wait_for_selector('.rx-card .card canvas, .rx-card .card svg')
+            answer = page.inner_text('.rx-turn .rx-a')
+            assert REPORT['title'] in answer and '$1.84 · 14 запросов к модели' in answer
+            assert 'Разбей по барам' not in answer, 'кнопок следующего шага нет (решение владельца)'
+            assert page.locator('.rx-turn .rx-a details[open]').count() == 0, '«Как считается» — свёрнуто'
+            assert page.get_attribute('.rx-report-foot a', 'href').startswith('/tg/report/')
+            assert page.get_attribute('#rsSend', 'aria-label') == 'Спросить'
+            listed = page.inner_text('#rsThreads')
+            assert 'Как бельгийское пиво' in listed and 'сегодня' in listed.lower(), 'беседы — по дням'
             if SHOTS:
-                page.screenshot(path=os.path.join(SHOTS, 'research-desktop.png'), full_page=True)
-            page.click('.rs-chip:has-text("Разбей по барам")')
-            page.wait_for_function("document.querySelectorAll('.rs-q').length === 2")
+                page.evaluate("document.querySelector('.rx-turn').scrollIntoView({block: 'start'})")
+                page.screenshot(path=os.path.join(SHOTS, 'research-desktop.png'))
+                page.evaluate("document.querySelector('.rx-report').scrollIntoView({block: 'start'})")
+                page.screenshot(path=os.path.join(SHOTS, 'research-report.png'))
+            page.fill('#rsInput', 'Разбей по барам')
+            page.keyboard.press('Enter')
+            page.wait_for_function("document.querySelectorAll('.rx-turn').length === 2")
             follow = engine.get('/api/bot/web/next', headers=ENGINE).get_json()['job']
-            assert follow['thread_id'] == job['thread_id'] and follow['history'], 'кнопка — вопрос в той же беседе'
-            assert follow['question'] == 'Разбей по барам'
-            page.click('.rs-q:last-child button:has-text("Остановить")')
-            page.wait_for_selector('.rs-q:last-child .rs-muted')
+            assert follow['thread_id'] == job['thread_id'] and follow['history'], 'вопрос — продолжение беседы'
+            assert follow['mode'] == 'report', 'вид ответа остаётся выбранным'
+            page.click('#rsSend')                                  # «Остановить»
+            page.wait_for_function("[...document.querySelectorAll('.rx-run-line')]"
+                                   ".some(e => e.textContent.includes('Останавливаю'))")
             engine.post(f'/api/bot/web/{follow["id"]}/finish', headers=ENGINE,
                         json={'status': 'stopped', 'shown': 'Остановил. Уточните вопрос — отвечу заново.'})
-            page.wait_for_selector('.rs-q:last-child .rs-fail')
+            page.wait_for_selector('.rx-turn:last-child .rx-fail')
             url = page.url
             assert '?t=' + job['thread_id'] in url, 'беседа — в адресе'
 
-            phone = browser.new_page(viewport={'width': 390, 'height': 860}, device_scale_factor=2 if SHOTS else 1)
+            phone = browser.new_page(viewport={'width': 390, 'height': 844}, device_scale_factor=2 if SHOTS else 1)
             phone.on('pageerror', lambda exc: errors.append(str(exc)))
             phone.goto(url)
-            phone.wait_for_selector('.rs-report .rep h1')
+            phone.wait_for_selector('.rx-report .rep h1')
             assert phone.evaluate('document.documentElement.scrollWidth') <= 390 + 1, 'страница не шире телефона'
+            assert not phone.is_visible('.rx-side .rx-new') or phone.evaluate(
+                "document.querySelector('.rx-side').getBoundingClientRect().right <= 0"), 'беседы — за краем'
             if SHOTS:
-                phone.screenshot(path=os.path.join(SHOTS, 'research-phone.png'), full_page=True)
+                phone.screenshot(path=os.path.join(SHOTS, 'research-phone.png'))
+            phone.click('#rsSideToggle')
+            phone.wait_for_selector('.rx-app.is-side-open')
+            phone.wait_for_timeout(350)
+            if SHOTS:
+                phone.screenshot(path=os.path.join(SHOTS, 'research-phone-threads.png'))
+            phone.click('#rsScrim', position={'x': 370, 'y': 400})
+            phone.wait_for_selector('.rx-app:not(.is-side-open)')
             page.click('#rsDelete')
-            page.click('#rsHeadActions button:has-text("Удалить")')
-            page.wait_for_selector('#rsStart:not([hidden])')
+            page.click('#rsHeadActions .rx-pill-danger')
+            page.wait_for_selector('.rx-main.is-empty')
             assert errors == []
             browser.close()
     finally:
