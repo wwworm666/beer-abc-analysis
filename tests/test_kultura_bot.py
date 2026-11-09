@@ -32,6 +32,7 @@ import copy
 import json
 import statistics
 import os
+import re
 import subprocess
 import sys
 import time
@@ -2145,6 +2146,45 @@ def test_user_usage_is_counted_per_person_and_day(env):
     assert env.store.spent_by('555', day='2026-11-07') == 0.0
     env.store.add_user_usage('555', 1.0, day='2027-03-01')
     assert env.store.spent_by('555', day='2026-11-06') == 0.0, 'старше STATS_KEEP_DAYS — удалено'
+
+
+def test_budget_reset_clears_today_once(bot):
+    """settings.USER_BUDGET_RESET_AT (2026-11-09, «сбрось на сегодня всем лимиты на запросы»): при запуске
+    сервер бота обнуляет расход всех людей за сутки этого момента — один раз на значение; вчерашний расход и
+    расход после сброса не трогает; сброс за прошлые сутки сегодня ничего не делает; общий расход — как был."""
+    from datetime import date, timedelta
+    from kultura_bot.engine.store import msk_day
+    today = msk_day()
+    yesterday = (date.fromisoformat(today) - timedelta(days=1)).isoformat()
+    store, mp = bot.env.store, bot.env.monkeypatch
+    mp.setattr(settings, 'DAILY_BUDGET_USD', 0)                # как в настройках: общего предела нет
+    mp.setattr(settings, 'USER_DAILY_BUDGET_USD', 15.0)
+    store.add_user_usage('user:1', 16.0)
+    store.add_user_usage('777', 3.0)
+    store.add_user_usage('user:1', 9.0, day=yesterday)
+    store.add_usage('claude-opus-5-5', {'input_tokens': 10}, 19.0)
+    with pytest.raises(agent.BudgetExceeded):
+        agent.check_budget(store, 'user:1')
+
+    mp.setattr(settings, 'USER_BUDGET_RESET_AT', today + ' 18:30')
+    assert bot.svc.apply_budget_reset() == 2
+    assert store.spent_by('user:1') == 0.0 and store.spent_by('777') == 0.0
+    assert store.spent_by('user:1', day=yesterday) == pytest.approx(9.0), 'вчерашние сутки не трогает'
+    assert store.spent_on() == pytest.approx(19.0), 'общий расход для отчёта сайту — как был'
+    agent.check_budget(store, 'user:1')                        # предел снова свободен
+    store.add_user_usage('user:1', 2.0)
+    assert bot.svc.apply_budget_reset() == 0 and store.spent_by('user:1') == pytest.approx(2.0), \
+        'тот же сброс второй раз (перезапуск) не применяется'
+    mp.setattr(settings, 'USER_BUDGET_RESET_AT', yesterday + ' 23:00')
+    assert bot.svc.apply_budget_reset() == 0 and store.spent_by('user:1') == pytest.approx(2.0), \
+        'сброс за прошлые сутки сегодняшний расход не трогает'
+    mp.setattr(settings, 'USER_BUDGET_RESET_AT', '')
+    assert bot.svc.apply_budget_reset() == 0
+
+
+def test_budget_reset_setting_is_well_formed():
+    value = settings.USER_BUDGET_RESET_AT
+    assert value == '' or re.fullmatch(r'\d{4}-\d{2}-\d{2} \d{2}:\d{2}', value), value
 
 
 def test_person_over_limit_is_stopped_others_are_answered(bot):

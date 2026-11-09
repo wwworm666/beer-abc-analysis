@@ -17,7 +17,9 @@
     meta     служебные пары ключ — значение (2026-11-06): хеш аватарки, которую сервер бота уже
              поставил в Telegram (avatar_sha256:<id бота>) — второй раз тот же файл не грузится
     user_usage расход по дням (МСК) и людям (2026-11-06, предел на человека): day + tg_user_id
-             (PK), requests, cost_usd — вопросы человека, бот и агенты вместе; STATS_KEEP_DAYS дней
+             (PK), requests, cost_usd — вопросы человека, бот и агенты вместе; STATS_KEEP_DAYS дней.
+             Сброс предела (settings.USER_BUDGET_RESET_AT, 2026-11-09) удаляет строки своих суток;
+             что сброс уже сделан, помнит meta (user_budget_reset)
     job_stats  удачные работы для оценки «сколько осталось» (engine/progress.py, 2026-10-29):
              вид (answer | report), сколько шла работа, шагов модели, вызовов инструментов,
              расход; что обещал прогресс при первом показе (shown_eta, shown_at) — для точности;
@@ -341,6 +343,12 @@ class Store:
                                'cost_usd = cost_usd + excluded.cost_usd', (day, str(tg_user_id), float(cost_usd)))
             old = (datetime.fromisoformat(day) - timedelta(days=STATS_KEEP_DAYS)).date().isoformat()
             self._conn.execute('DELETE FROM user_usage WHERE day < ?', (old,))
+
+    def reset_user_usage(self, day: str) -> int:
+        """Обнулить расход людей за сутки day (сброс предела, settings.USER_BUDGET_RESET_AT): сколько строк убрано.
+        Общий расход (usage) не трогает — он идёт в отчёт сайту."""
+        with self._lock:
+            return self._conn.execute('DELETE FROM user_usage WHERE day = ?', (str(day),)).rowcount
 
     def spent_by(self, tg_user_id: str, day: Optional[str] = None) -> float:
         """Расход человека за сутки МСК (бот и агенты по его вопросам)."""
