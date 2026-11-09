@@ -2,8 +2,10 @@
 
 Записи присылает сервер бота (POST /api/bot/journal, routes/bot_api.py); хранит
 kultura_bot/journal.py. Здесь — только чтение и удаление, только администратор сайта
-(@admin_required), и каждому — только свои вопросы (решение владельца 2026-11-09: «история у каждого
+(@admin_required). Каждому — только свои вопросы (решение владельца 2026-11-09: «история у каждого
 своя, между клиентами не передаём»): чужая запись — как будто её нет (404), удалить можно только свою.
+Владелец сайта (первый действующий администратор, core/auth_manager.owner_id) видит вопросы всех: «сделай,
+чтобы я видел журнал всех пользователей» (2026-11-09).
 
     GET    /admin/bot/journal                    страница (templates/admin_bot_journal.html)
     GET    /api/admin/bot/journal                список с итогами: days, login, status, rating, q,
@@ -22,9 +24,12 @@ from core.auth_guard import admin_required, current_user
 bot_journal_bp = Blueprint('bot_journal', __name__)
 
 
-def _own() -> str:
-    """Чьи записи видит вошедший: только свои (логин сайта — тот же, что в записи журнала)."""
-    return str((current_user() or {}).get('login') or '')
+def _own():
+    """Чьи записи видит вошедший: владелец сайта — всех (None), остальные — только свои (логин сайта — тот
+    же, что в записи журнала)."""
+    from kultura_bot import journal
+    user = current_user() or {}
+    return journal.scope_for(user.get('id'), user.get('login'))
 
 
 def _no_store(resp):
@@ -36,7 +41,7 @@ def _no_store(resp):
 @admin_required
 def journal_page():
     from kultura_bot import journal
-    return render_template('admin_bot_journal.html', keep_days=journal.keep_days())
+    return render_template('admin_bot_journal.html', keep_days=journal.keep_days(), sees_all=_own() is None)
 
 
 @bot_journal_bp.route('/api/admin/bot/journal', methods=['GET'])

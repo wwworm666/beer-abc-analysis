@@ -38,6 +38,19 @@ def _fresh_manager():
     return mgr
 
 
+def test_owner_is_the_first_active_admin():
+    """Владелец сайта (core/auth_manager.owner_id) — первый действующий администратор: тот, кто создал сайт
+    при первом входе; его выключили или сняли с админства — следующий по старшинству."""
+    mgr = _fresh_manager()
+    assert mgr.owner_id() is None
+    boss = mgr.create_first_owner('boss', 'Владелец', 'secret-pass-1')
+    staff = mgr.create_user('bartender', 'Бармен', 'secret-pass-2', is_admin=False)
+    anna = mgr.create_user('anna', 'Анна', 'secret-pass-3', is_admin=True)
+    assert mgr.owner_id() == boss and staff != boss
+    mgr.set_active(boss, False)
+    assert mgr.owner_id() == anna
+
+
 def _make_app():
     app = Flask('test_auth', template_folder=TEMPLATES, static_folder=STATIC)
     app.register_blueprint(auth_bp)

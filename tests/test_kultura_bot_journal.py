@@ -292,9 +292,11 @@ def web(site_db, monkeypatch):
     user = {'value': {'id': 1, 'login': 'owner', 'display_name': 'Владелец', 'is_admin': True}}
     monkeypatch.setattr(auth_guard, '_load_user', lambda: user['value'])
     engine = SimpleNamespace(token_id='st_engine')
-    from kultura_bot import site_api
+    from kultura_bot import journal, site_api
     monkeypatch.setattr(site_api, 'verify_engine', lambda raw: engine if raw == 'kmcp_engine' else None)
-    return SimpleNamespace(app=app, client=app.test_client(), user=user)
+    site_owner = {'id': None}                       # id владельца сайта (core/auth_manager.owner_id)
+    monkeypatch.setattr(journal, '_site_owner_id', lambda: site_owner['id'])
+    return SimpleNamespace(app=app, client=app.test_client(), user=user, site_owner=site_owner)
 
 
 def test_engine_api_saves_and_rates(web):
@@ -343,6 +345,42 @@ def test_admin_api_page_and_permissions(web):
     assert web.client.get('/api/admin/bot/journal', headers={'Accept': 'application/json'}).status_code == 401
 
 
+def test_site_owner_sees_everyones_records(web):
+    """«Сделай, чтобы я видел журнал всех пользователей» (2026-11-09): владелец сайта — первый действующий
+    администратор — видит записи всех; остальные администраторы — по-прежнему только свои."""
+    from kultura_bot import journal
+    mine, anna = record(question='Вопрос владельца'), record(login='anna', name='Анна', question='Вопрос Анны',
+                                                              messages=[702])
+    journal.save([mine, anna])
+    web.site_owner['id'] = 1
+    listed = web.client.get('/api/admin/bot/journal?days=7').get_json()
+    assert {i['uid'] for i in listed['items']} == {mine['uid'], anna['uid']}
+    assert {p['login'] for p in listed['people']} == {'owner', 'anna'}, 'в фильтре — все люди'
+    assert [i['uid'] for i in web.client.get('/api/admin/bot/journal?days=7&login=anna').get_json()['items']] == \
+        [anna['uid']], 'фильтр по человеку работает'
+    assert web.client.get(f'/api/admin/bot/journal?uid={anna["uid"]}').get_json()['record']['question'] == 'Вопрос Анны'
+    assert 'Вопрос Анны' in web.client.get('/api/admin/bot/journal.csv?days=7').get_data(as_text=True)
+    assert 'Вы — владелец сайта' in web.client.get('/admin/bot/journal').get_data(as_text=True)
+    web.user['value'] = {'id': 2, 'login': 'anna', 'display_name': 'Анна', 'is_admin': True}
+    listed = web.client.get('/api/admin/bot/journal?days=7').get_json()
+    assert [i['uid'] for i in listed['items']] == [anna['uid']], 'другой администратор — только своё'
+    assert web.client.get(f'/api/admin/bot/journal?uid={mine["uid"]}').status_code == 404
+    assert web.client.delete(f'/api/admin/bot/journal/{mine["uid"]}').status_code == 404
+    assert 'Вопросы всех видит только владелец' in web.client.get('/admin/bot/journal').get_data(as_text=True)
+    web.user['value'] = {'id': 1, 'login': 'owner', 'display_name': 'Владелец', 'is_admin': True}
+    assert web.client.delete(f'/api/admin/bot/journal/{anna["uid"]}').get_json() == {'ok': True}, \
+        'владелец удаляет любую запись'
+
+
+def test_scope_falls_back_to_own_records(monkeypatch):
+    from kultura_bot import journal
+    monkeypatch.setattr(journal, '_site_owner_id', lambda: 1)
+    assert journal.scope_for(1, 'owner') is None and journal.scope_for('1', 'owner') is None
+    assert journal.scope_for(2, 'anna') == 'anna' and journal.scope_for(None, 'x') == 'x'
+    monkeypatch.setattr(journal, '_site_owner_id', lambda: None)
+    assert journal.scope_for(1, 'owner') == 'owner', 'владелец не определился — каждому только своё'
+
+
 def test_endpoints_are_public_for_engine_and_closed_to_agents():
     from core.auth_guard import PUBLIC_ENDPOINTS
     from core.mcp import registry
@@ -365,13 +403,18 @@ def test_mcp_tool_only_on_full_connector(site_db, monkeypatch):
     spec = {t.name: t for t in common.TOOLS}['common_bot_journal']
     assert spec.read_only and spec.domain == 'common'
     monkeypatch.setattr(bridge, 'current_call', lambda: SimpleNamespace(connector=None, mode='read'))
-    owner, anna = SimpleNamespace(login='owner'), SimpleNamespace(login='anna')
+    monkeypatch.setattr(journal, '_site_owner_id', lambda: None)
+    owner, anna = SimpleNamespace(login='owner', user_id=1), SimpleNamespace(login='anna', user_id=2)
     out = common._bot_journal({'days': 7}, owner)
     assert out['items'][0]['uid'] == one['uid']
     assert common._bot_journal({'uid': one['uid']}, owner)['record']['question'] == one['question']
     assert common._bot_journal({'days': 7}, anna)['items'] == [], 'агенту — только записи владельца токена'
     with pytest.raises(ToolError, match='Записи нет'):
         common._bot_journal({'uid': one['uid']}, anna)
+    monkeypatch.setattr(journal, '_site_owner_id', lambda: 2)              # Анна — владелец сайта
+    assert common._bot_journal({'uid': one['uid']}, anna)['record']['question'] == one['question']
+    assert common._bot_journal({'days': 7}, anna)['items'][0]['uid'] == one['uid'], 'владельцу — все записи'
+    monkeypatch.setattr(journal, '_site_owner_id', lambda: None)
     with pytest.raises(ToolError, match='Записи нет'):
         common._bot_journal({'uid': 'b' * 32}, owner)
     with pytest.raises(ToolError, match='status'):

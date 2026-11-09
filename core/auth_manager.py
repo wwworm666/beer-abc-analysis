@@ -198,6 +198,14 @@ class AuthManager:
         with self._get_connection() as conn:
             return conn.execute(sql).fetchone()['n']
 
+    def owner_id(self) -> Optional[int]:
+        """Владелец сайта — первый действующий администратор: аккаунт, созданный при первом запуске
+        (first-run setup на /login или AUTH_BOOTSTRAP_LOGIN, create_first_owner). Его выключили или сняли
+        с админства — владелец следующий по старшинству (меньший id). Нет действующих админов — None."""
+        with self._get_connection() as conn:
+            row = conn.execute("SELECT id FROM users WHERE is_admin=1 AND active=1 ORDER BY id LIMIT 1").fetchone()
+        return int(row['id']) if row else None
+
     def list_users(self) -> List[Dict]:
         with self._get_connection() as conn:
             rows = conn.execute(
