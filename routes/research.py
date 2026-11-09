@@ -5,9 +5,9 @@ Telegram, — сайт к Claude не обращается. Только адм�
 каждый видит только свои беседы.
 
     GET    /research                              страница (templates/research.html)
-    GET    /api/research/threads                  {threads, engine, fast, sections} — беседы, отвечает ли
-                                                  сервер бота, есть ли быстрый режим, готовые вопросы меню
-                                                  с подсказками (те же, что страница рисует под полем)
+    GET    /api/research/threads                  {threads, engine, fast, suggestions} — беседы, отвечает ли
+                                                  сервер бота, есть ли быстрый режим, готовые вопросы с
+                                                  подсказками (те же, что страница рисует под полем)
     GET    /api/research/threads/<thread_id>      {thread: {id, questions}} — беседа целиком
     DELETE /api/research/threads/<thread_id>      удалить беседу
     POST   /api/research/ask                      {question, mode: answer|report, fast, thread_id?} -> {question}
@@ -45,14 +45,15 @@ def _body():
     return data
 
 
-def _menu_sections():
-    """Готовые вопросы пустой беседы — разделы меню бота (kultura_bot/settings.MENU) с короткими именами
-    вкладок и подсказками (WEB_SECTION_LABELS, WEB_QUESTION_HINTS); нет подсказки — вопрос без неё."""
+def _suggestions():
+    """Готовые вопросы пустой беседы (kultura_bot/settings.WEB_SUGGESTIONS): {question, hint}."""
     from kultura_bot import settings
-    return [{'command': item['command'], 'title': item['description'],
-             'label': settings.WEB_SECTION_LABELS.get(item['command'], item['description']),
-             'questions': [{'text': q, 'hint': settings.WEB_QUESTION_HINTS.get(q, '')} for q in item['questions']]}
-            for item in settings.MENU if item.get('questions')]
+    return [{'question': item['question'], 'hint': item.get('hint', '')} for item in settings.WEB_SUGGESTIONS]
+
+
+def _times(value) -> str:
+    """Множитель для текста: 2.0 -> «2», 2.5 -> «2,5»."""
+    return ('%g' % float(value)).replace('.', ',')
 
 
 @research_bp.route('/research', methods=['GET'])
@@ -64,7 +65,9 @@ def research_page():
     return render_template('research.html', question_budget=settings.QUESTION_BUDGET_USD,
                            report_budget=settings.REPORT_BUDGET_USD, user_budget=settings.USER_DAILY_BUDGET_USD,
                            fast_mode=settings.FAST_MODE, idle_minutes=settings.DIALOG_IDLE_MINUTES,
-                           sections=_menu_sections(), has_thread=bool(request.args.get('t')))
+                           fast_speedup=_times(settings.FAST_SPEEDUP_UP_TO),
+                           fast_price=_times(settings.FAST_PRICE_MULTIPLIER),
+                           suggestions=_suggestions(), has_thread=bool(request.args.get('t')))
 
 
 @research_bp.route('/api/research/threads', methods=['GET'])
@@ -73,7 +76,7 @@ def research_threads():
     from kultura_bot import settings, web
     user = current_user()
     return _no_store(jsonify({'threads': web.threads(int(user['id'])), 'engine': web.engine_state(),
-                              'fast': bool(settings.FAST_MODE), 'sections': _menu_sections()}))
+                              'fast': bool(settings.FAST_MODE), 'suggestions': _suggestions()}))
 
 
 @research_bp.route('/api/research/threads/<thread_id>', methods=['GET'])

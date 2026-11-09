@@ -3,7 +3,8 @@
     Решения владельца 2026-11-09: свой минималистичный дизайн — без шапки и меню сайта, без его оранжево-бежевой
     палитры; только светлая тема («никаких тёмных тем никогда»); шрифты — IBM Plex, как у сайта. Правки по
     снимку: панель бесед скрыта (открывается кнопкой), вместо заголовка — логотип kultura.research, который
-    набирается (static/logo.js, вид research), под полем — готовые вопросы меню бота с подсказками.
+    набирается (static/logo.js, вид research); под полем — три сложных готовых вопроса с подсказками; в поле —
+    молния быстрого режима слева и выбор глубины ответа («Ответ» / «Исследование») справа, как у моделей.
     Стили сайта не подключаются; графики и отчёты рисуют скрипты мини-приложения бота
     (static/tg_chart/charts.js, report.js) — их цвета перекрашены токенами в static/research.css. -#}
 <html lang="ru" data-theme="light">
@@ -84,14 +85,41 @@
                 <textarea id="rsInput" rows="1" maxlength="8000" enterkeyhint="send"
                           placeholder="Спросите о выручке, остатках, сменах…"></textarea>
                 <div class="rx-bar">
-                    <div class="rx-seg" id="rsMode" role="radiogroup" aria-label="Вид ответа">
-                        <button type="button" role="radio" aria-checked="true" data-mode="answer">Ответ</button>
-                        <button type="button" role="radio" aria-checked="false" data-mode="report">Research</button>
+                    {%- if fast_mode %}
+                    <span class="rx-fast-wrap">
+                        <button class="rx-fast" type="button" id="rsFast" aria-pressed="false" aria-label="Быстрый режим"
+                                aria-describedby="rsFastTip">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2.5L5 13.2h6l-1 8.3 8-10.7h-6z"/></svg>
+                        </button>
+                        <span class="rx-tip" id="rsFastTip" role="tooltip">Быстро: до {{ fast_speedup }} раза быстрее,
+                            но в {{ fast_price }} раза дороже — только для этого вопроса</span>
+                    </span>
+                    {%- endif %}
+                    {#- глубина ответа — как выбор усилия у моделей: кнопка справа, меню с описаниями -#}
+                    <div class="rx-effort" id="rsEffort">
+                        <button class="rx-effort-btn" type="button" id="rsEffortBtn" aria-haspopup="menu"
+                                aria-expanded="false" aria-controls="rsEffortMenu" data-mode="answer" title="Глубина ответа">
+                            <span class="rx-bars" aria-hidden="true"><i></i><i></i><i></i></span>
+                            <span id="rsEffortLabel">Ответ</span>
+                            <svg class="rx-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5"/></svg>
+                        </button>
+                        <div class="rx-effort-menu" id="rsEffortMenu" role="menu" aria-label="Глубина ответа" hidden>
+                            <button type="button" role="menuitemradio" aria-checked="true" tabindex="-1"
+                                    data-mode="answer" data-label="Ответ">
+                                <span class="rx-bars" data-level="1" aria-hidden="true"><i></i><i></i><i></i></span>
+                                <span class="rx-effort-text"><b>Ответ</b><small>Коротко, по данным сети
+                                    · до ${{ '%g'|format(question_budget) }}</small></span>
+                                <svg class="rx-check" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
+                            </button>
+                            <button type="button" role="menuitemradio" aria-checked="false" tabindex="-1"
+                                    data-mode="report" data-label="Исследование">
+                                <span class="rx-bars" data-level="3" aria-hidden="true"><i></i><i></i><i></i></span>
+                                <span class="rx-effort-text"><b>Исследование</b><small>Полный разбор: выводы, графики,
+                                    таблицы · несколько минут · до ${{ '%g'|format(report_budget) }}</small></span>
+                                <svg class="rx-check" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
+                            </button>
+                        </div>
                     </div>
-                    {% if fast_mode %}
-                    <button class="rx-fast" type="button" id="rsFast" aria-pressed="false"
-                            title="Быстро · цена ×2 — только для этого вопроса">Быстро · ×2</button>
-                    {% endif %}
                     <button class="rx-send" type="submit" id="rsSend" aria-label="Спросить">
                         <svg class="rx-send-go" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg>
                         <svg class="rx-send-stop" viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="2"/></svg>
@@ -100,28 +128,19 @@
             </form>
             <p class="rx-error" id="rsError" role="alert" hidden></p>
 
-            {#- готовые вопросы — те же, что в разделах меню бота (kultura_bot/settings.MENU), с подсказкой,
-                что в ответе (WEB_QUESTION_HINTS); нажатие задаёт вопрос, как кнопка в Telegram -#}
-            {%- if sections %}
-            <section class="rx-suggest" id="rsSuggest" aria-label="Готовые вопросы">
-                <div class="rx-suggest-tabs" role="tablist" aria-label="Разделы">
-                    {%- for s in sections %}
-                    <button type="button" role="tab" id="rsTab-{{ s.command }}" aria-controls="rsPanel-{{ s.command }}"
-                            aria-selected="{{ 'true' if loop.first else 'false' }}" tabindex="{{ 0 if loop.first else -1 }}"
-                            title="{{ s.title }}">{{ s.label }}</button>
-                    {%- endfor %}
-                </div>
-                {%- for s in sections %}
-                <div class="rx-suggest-list" role="tabpanel" id="rsPanel-{{ s.command }}"
-                     aria-labelledby="rsTab-{{ s.command }}"{% if not loop.first %} hidden{% endif %}>
-                    {%- for q in s.questions %}
-                    <button type="button" class="rx-sq" data-question="{{ q.text }}">
-                        <span class="rx-sq-q">{{ q.text }}</span>
-                        <span class="rx-sq-h">{{ q.hint }}</span>
-                        <svg class="rx-sq-go" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-                    </button>
-                    {%- endfor %}
-                </div>
+            {#- готовые вопросы — три сложных среза (kultura_bot/settings.WEB_SUGGESTIONS): вопрос уходит боту
+                слово в слово, подсказка под ним — что покажет ответ; нажатие сразу задаёт вопрос -#}
+            {%- if suggestions %}
+            <section class="rx-suggest" id="rsSuggest" aria-labelledby="rsSuggestHead">
+                <div class="rx-suggest-head" id="rsSuggestHead">Попробуйте спросить</div>
+                {%- for s in suggestions %}
+                <button type="button" class="rx-sq" data-question="{{ s.question }}">
+                    <span class="rx-sq-q">{{ s.question }}</span>
+                    {%- if s.hint %}
+                    <span class="rx-sq-h">{{ s.hint }}</span>
+                    {%- endif %}
+                    <svg class="rx-sq-go" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+                </button>
                 {%- endfor %}
             </section>
             {%- endif %}
@@ -139,11 +158,12 @@
     <div class="rx-info-body">
         <p><b>Ответ</b> — коротко, по данным сайта: те же инструкции, инструменты и агенты, что у бота
            @MCPkulturabot в Telegram. Предел — ${{ '%.2f'|format(question_budget) }} на вопрос.</p>
-        <p><b>Research</b> — полный разбор: выводы, разделы, интерактивные графики и таблицы. Предел —
-           ${{ '%.2f'|format(report_budget) }}, собирается несколько минут.</p>
+        <p><b>Исследование</b> — полный разбор: выводы, разделы, интерактивные графики и таблицы. Предел —
+           ${{ '%.2f'|format(report_budget) }}, собирается несколько минут. Глубина ответа выбирается справа в поле
+           вопроса.</p>
         {% if fast_mode %}
-        <p><b>Быстро · ×2</b> — та же модель отвечает быстрее, но вдвое дороже; включается для одного вопроса
-           (как команда /fast в Telegram).</p>
+        <p><b>Быстро</b> (молния слева в поле) — та же модель отвечает до {{ fast_speedup }} раза быстрее, но в
+           {{ fast_price }} раза дороже; включается для одного вопроса (как команда /fast в Telegram).</p>
         {% endif %}
         <p>Дневной предел — ${{ '%.2f'|format(user_budget) }} на человека, общий с Telegram. Под каждым ответом —
            во что он обошёлся.</p>

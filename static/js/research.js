@@ -2,8 +2,9 @@
  *
  * Свой минималистичный дизайн (решение владельца 2026-11-09, static/research.css): беседы — панелью, которая
  * выезжает слева по кнопке; пустая беседа — логотип, который набирается (static/logo.js, вид research), поле
- * и готовые вопросы меню бота с подсказками (вкладки разделов; нажатие задаёт вопрос, как кнопка в Telegram);
- * в беседе поле прижато книзу. Вопрос уходит в очередь сайта; отвечает сервер бота в Амстердаме тем же кодом,
+ * и три сложных готовых вопроса с подсказками (нажатие задаёт вопрос сразу); в беседе поле прижато книзу.
+ * В поле: молния быстрого режима слева (подсказка — при наведении, на телефоне — сообщением) и глубина ответа
+ * справа — «Ответ» или «Исследование», меню как выбор усилия у моделей. Вопрос уходит в очередь сайта; отвечает сервер бота в Амстердаме тем же кодом,
  * что в Telegram. Пока вопрос в работе, страница раз в POLL_MS спрашивает его состояние: переливающаяся
  * строка, шкала и «что делаю сейчас» (строки хода работы сервера бота), а кнопка «Спросить» становится
  * «Остановить». Готов — ответ, свёрнутое «Как считается», графики (TgChart, как «Открыть интерактивно»),
@@ -24,8 +25,9 @@
     side: $('rsSide'), sideClose: $('rsSideClose'), sideToggle: $('rsSideToggle'), scrim: $('rsScrim'),
     threads: $('rsThreads'), threadsEmpty: $('rsThreadsEmpty'), newBtn: $('rsNew'), newTop: $('rsNewTop'),
     main: $('rsMain'), title: $('rsTitle'), headActions: $('rsHeadActions'), del: $('rsDelete'),
-    feed: $('rsFeed'), form: $('rsForm'), engine: $('rsEngine'), input: $('rsInput'), mode: $('rsMode'),
-    fast: $('rsFast'), send: $('rsSend'), error: $('rsError'), info: $('rsInfo'), infoOpen: $('rsInfoOpen'),
+    feed: $('rsFeed'), form: $('rsForm'), engine: $('rsEngine'), input: $('rsInput'),
+    effortBtn: $('rsEffortBtn'), effortMenu: $('rsEffortMenu'), effortLabel: $('rsEffortLabel'),
+    fast: $('rsFast'), fastTip: $('rsFastTip'), send: $('rsSend'), error: $('rsError'), info: $('rsInfo'), infoOpen: $('rsInfoOpen'),
     infoClose: $('rsInfoClose'), toast: $('rsToast'), suggest: $('rsSuggest'),
     logo: document.querySelector('#rsStart [data-kultura-logo]'),
   };
@@ -247,7 +249,7 @@
     const turn = el('article', 'rx-turn');
     turn.dataset.id = q.id;
     const ask = el('div', 'rx-q');
-    const tags = [q.mode === 'report' ? 'RESEARCH' : '', q.fast ? '×2' : ''].filter(Boolean);
+    const tags = [q.mode === 'report' ? 'ИССЛЕДОВАНИЕ' : '', q.fast ? 'БЫСТРО' : ''].filter(Boolean);
     if (tags.length) ask.append(el('div', 'rx-q-meta', tags.join(' · ')));
     ask.append(el('div', 'rx-q-text', q.question));
     turn.append(ask);
@@ -506,17 +508,57 @@
 
   /* ---------------- поле вопроса ---------------- */
 
-  for (const b of els.mode.querySelectorAll('button[data-mode]')) {
-    b.addEventListener('click', () => {
-      state.mode = b.dataset.mode;
-      for (const o of els.mode.querySelectorAll('button[data-mode]')) {
-        o.setAttribute('aria-checked', o === b ? 'true' : 'false');
+  /* глубина ответа: кнопка справа и меню, как выбор усилия у моделей */
+
+  const effortItems = [...els.effortMenu.querySelectorAll('[data-mode]')];
+  function effortOpen() { return !els.effortMenu.hidden; }
+  function setMode(mode) {
+    state.mode = mode;
+    for (const item of effortItems) item.setAttribute('aria-checked', item.dataset.mode === mode ? 'true' : 'false');
+    const current = effortItems.find(item => item.dataset.mode === mode);
+    if (current) els.effortLabel.textContent = current.dataset.label;
+    els.effortBtn.dataset.mode = mode;
+  }
+  function openEffort() {
+    els.effortMenu.hidden = false;
+    els.effortBtn.setAttribute('aria-expanded', 'true');
+    // Вниз, если там хватает места (пустая беседа), иначе вверх (поле прижато к низу).
+    const r = els.effortBtn.getBoundingClientRect();
+    const h = els.effortMenu.offsetHeight;
+    els.effortMenu.classList.toggle('is-up', window.innerHeight - r.bottom < h + 16 && r.top > h + 16);
+    (effortItems.find(item => item.getAttribute('aria-checked') === 'true') || effortItems[0]).focus();
+  }
+  function closeEffort(back) {
+    if (!effortOpen()) return;
+    els.effortMenu.hidden = true;
+    els.effortBtn.setAttribute('aria-expanded', 'false');
+    if (back) els.effortBtn.focus();
+  }
+  els.effortBtn.addEventListener('click', () => (effortOpen() ? closeEffort() : openEffort()));
+  effortItems.forEach((item, i) => {
+    item.addEventListener('click', () => { setMode(item.dataset.mode); closeEffort(true); });
+    item.addEventListener('keydown', e => {
+      const step = e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0;
+      if (step) {
+        e.preventDefault();
+        effortItems[(i + step + effortItems.length) % effortItems.length].focus();
+      } else if (e.key === 'Tab') {
+        closeEffort();
       }
     });
-  }
+  });
+  document.addEventListener('click', e => {
+    if (effortOpen() && !e.target.closest('#rsEffort')) closeEffort();
+  });
+
+  /* быстрый режим: молния; подсказка — при наведении, на телефоне (наведения нет) — сообщением */
+
+  const noHover = window.matchMedia && window.matchMedia('(hover: none)').matches;
   if (els.fast) {
     els.fast.addEventListener('click', () => {
-      els.fast.setAttribute('aria-pressed', els.fast.getAttribute('aria-pressed') === 'true' ? 'false' : 'true');
+      const on = els.fast.getAttribute('aria-pressed') !== 'true';
+      els.fast.setAttribute('aria-pressed', on ? 'true' : 'false');
+      if (on && noHover && els.fastTip) toast(els.fastTip.textContent.replace(/\s+/g, ' ').trim());
     });
   }
   els.form.addEventListener('submit', e => {
@@ -534,28 +576,7 @@
 
   /* ---------------- готовые вопросы ---------------- */
 
-  // Вкладки разделов (разметку собрал сервер из settings.MENU): нажатие или стрелки влево-вправо.
-  const tabs = els.suggest ? [...els.suggest.querySelectorAll('[role="tab"]')] : [];
-  function selectTab(tab, focus) {
-    for (const t of tabs) {
-      const on = t === tab;
-      t.setAttribute('aria-selected', on ? 'true' : 'false');
-      t.tabIndex = on ? 0 : -1;
-      const panel = $(t.getAttribute('aria-controls'));
-      if (panel) panel.hidden = !on;
-    }
-    if (focus) tab.focus();
-  }
-  tabs.forEach((tab, i) => {
-    tab.addEventListener('click', () => selectTab(tab));
-    tab.addEventListener('keydown', e => {
-      const step = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
-      if (!step) return;
-      e.preventDefault();
-      selectTab(tabs[(i + step + tabs.length) % tabs.length], true);
-    });
-  });
-  // Готовый вопрос задаётся сразу — с выбранным видом ответа («Ответ» или «Research») и «Быстро».
+  // Готовый вопрос задаётся сразу — с выбранной глубиной («Ответ» или «Исследование») и молнией.
   if (els.suggest) {
     for (const b of els.suggest.querySelectorAll('.rx-sq')) b.addEventListener('click', () => ask(b.dataset.question, false));
   }
@@ -564,7 +585,11 @@
   els.sideToggle.addEventListener('click', () => (sideOpen() ? closeSide() : openSide()));
   els.sideClose.addEventListener('click', () => closeSide(true));
   els.scrim.addEventListener('click', () => closeSide());
-  document.addEventListener('keydown', e => { if (e.key === 'Escape' && sideOpen()) closeSide(true); });
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return;
+    if (effortOpen()) closeEffort(true);
+    else if (sideOpen()) closeSide(true);
+  });
   els.infoOpen.addEventListener('click', () => {
     closeSide();
     if (els.info.showModal) els.info.showModal(); else els.info.setAttribute('open', '');
