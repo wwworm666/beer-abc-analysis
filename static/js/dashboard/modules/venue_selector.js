@@ -142,9 +142,8 @@ class VenueSelector {
             // this.venueIcon.textContent = fullVenue.icon || ''; // Удалено: иконки больше нет
             this.venueName.textContent = fullVenue.name || venue.name;
 
-            // Показываем количество кранов (нужно будет добавить в API)
-            // Пока оставляем пустым или дефолтное значение
-            this.venueTaps.textContent = '12'; // TODO: получать из API
+            // Число кранов — из /api/venues (core/venues_config.VENUES[...]['taps'])
+            this.venueTaps.textContent = fullVenue.taps != null ? String(fullVenue.taps) : '';
 
             this.venueInfo.classList.remove('hidden');
         }

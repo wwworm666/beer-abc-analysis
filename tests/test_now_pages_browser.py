@@ -39,8 +39,8 @@ import core.scope as scope  # noqa: E402
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CHROMIUM = os.environ.get('STOCKS_TEST_CHROMIUM') or '/opt/pw-browsers/chromium'
 USER_ID = 7
-TAP_BARS = [{'id': 'bar1', 'name': 'Большой пр. В.О', 'taps': 24}, {'id': 'bar2', 'name': 'Лиговский', 'taps': 12},
-            {'id': 'bar3', 'name': 'Кременчугская', 'taps': 12}, {'id': 'bar4', 'name': 'Варшавская', 'taps': 12}]
+TAP_BARS = [{'id': 'bar1', 'name': 'Большой пр. В.О', 'taps': 24}, {'id': 'bar2', 'name': 'Лиговский', 'taps': 24},
+            {'id': 'bar3', 'name': 'Кременчугская', 'taps': 12}, {'id': 'bar4', 'name': 'Варшавская', 'taps': 24}]
 VENUES = [('bolshoy', 'Большой пр. В.О'), ('ligovskiy', 'Лиговский'), ('kremenchugskaya', 'Кременчугская'),
           ('varshavskaya', 'Варшавская')]
 

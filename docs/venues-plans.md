@@ -126,7 +126,7 @@ VENUES = {
     },
     'ligovskiy': {
         'name': 'Лиговский',
-        'taps': 12,
+        'taps': 24,          # с 2026-11-09; было 12
         'address': 'Лиговский пр., ...'
     },
     'kremenchugskaya': {
@@ -136,7 +136,7 @@ VENUES = {
     },
     'varshavskaya': {
         'name': 'Варшавская',
-        'taps': 12,
+        'taps': 24,          # с 2026-11-09; было 12
         'address': 'Варшавская ул., ...'
     }
 }
@@ -684,6 +684,16 @@ weighted_days = Σ(weight(день) для каждого дня)
 ---
 
 ## Changelog
+
+### 2026-11-09 — Лиговский и Варшавская: 24 крана
+
+**Что сделано:** `VENUES['ligovskiy']['taps']` и `VENUES['varshavskaya']['taps']` — 24
+(было 12); `VENUES['all']['taps']` больше не число руками (было 60), а сумма по
+`PHYSICAL_VENUES` — 84. `/api/venues` отдаёт поле `taps`.
+**Почему:** в барах поставили новые краны (решение владельца).
+**Файлы:** `core/venues_config.py`, `core/venues_manager.py`.
+**Если сломать:** число кранов расходится с `core/taps_manager.BARS_CONFIG` — справка
+MCP `common_bars_reference` пишет о расхождении, тест `tests/test_mcp_protocol.py` падает.
 
 ### 2026-11-03 — План крепкого алкоголя
 
