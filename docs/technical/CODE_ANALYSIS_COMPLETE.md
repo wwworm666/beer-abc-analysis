@@ -1161,7 +1161,7 @@ https://beerkultura.ru  (production — Selectel VPS)
   {
     "bar_id": "bar2",
     "name": "Бар 2",
-    "tap_count": 12,
+    "tap_count": 24,
     "active_taps": 9
   }
 ]

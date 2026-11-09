@@ -20,7 +20,7 @@ VENUES = {
         'full_name': 'Культура - Лиговский',
         'icon': '',
         'address': 'Лиговский пр.',
-        'taps': 12,
+        'taps': 24,  # с 2026-11-09; было 12
         'order': 2
     },
     'kremenchugskaya': {
@@ -38,7 +38,7 @@ VENUES = {
         'full_name': 'Культура - Варшавская',
         'icon': '',
         'address': 'ул. Варшавская',
-        'taps': 12,
+        'taps': 24,  # с 2026-11-09; было 12
         'order': 4
     },
     'all': {
@@ -47,7 +47,7 @@ VENUES = {
         'full_name': 'Все заведения (сводно)',
         'icon': '',
         'address': 'Все бары',
-        'taps': 60,  # Сумма всех кранов
+        'taps': 0,  # сумма кранов баров, считается ниже (24 + 24 + 12 + 24 = 84)
         'order': 0
     }
 }
@@ -57,6 +57,9 @@ VENUE_KEYS_ORDERED = ['all', 'bolshoy', 'ligovskiy', 'kremenchugskaya', 'varshav
 
 # Список физических баров (без "all")
 PHYSICAL_VENUES = ['bolshoy', 'ligovskiy', 'kremenchugskaya', 'varshavskaya']
+
+# Краны всей сети — сумма по барам, а не число руками: поменяли краны бара — итог следует.
+VENUES['all']['taps'] = sum(VENUES[key]['taps'] for key in PHYSICAL_VENUES)
 
 # Маппинг: название в iiko -> ключ в системе
 IIKO_NAME_TO_KEY = {

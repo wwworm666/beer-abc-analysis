@@ -423,7 +423,7 @@ class LazySources(unittest.TestCase):
 
     def test_tap_activity_by_tap_matches_card_formula(self):
         manager = TapsManager(data_file=os.path.join(REPO_ROOT, "tests", "fixtures", "no_such_taps.json"))
-        bar = manager.bars["bar2"]  # 12 кранов
+        bar = manager.bars["bar2"]  # 24 крана (с 2026-11-09)
         bar.taps[1].history = [{"timestamp": "2026-08-20T12:00:00+03:00", "action": "start"}]
         bar.taps[2].history = [{"timestamp": "2026-08-25T12:00:00+03:00", "action": "start"},
                                {"timestamp": "2026-08-27T18:00:00+03:00", "action": "stop"}]
@@ -432,7 +432,7 @@ class LazySources(unittest.TestCase):
         detail = manager.tap_activity_by_tap("bar2", "2026-08-24", "2026-08-30")
         by_tap = {t["tap_number"]: t["active_days"] for t in detail["taps"]}
         self.assertEqual(7, detail["days"])
-        self.assertEqual(12, detail["total_taps"])
+        self.assertEqual(24, detail["total_taps"])
         self.assertEqual(7, by_tap[1])   # подключён до периода, работал всю неделю
         # 25 и 26 августа; 27-го срез на конец дня уже видит stop (18:00) - день пустой
         self.assertEqual(2, by_tap[2])
@@ -440,22 +440,22 @@ class LazySources(unittest.TestCase):
         self.assertEqual(0, by_tap[4])
         self.assertEqual(16, detail["active_tap_days"])
         self.assertEqual(detail["active_tap_days"], sum(t["active_days"] for t in detail["taps"]))
-        self.assertEqual(12, len(detail["taps"]))
-        self.assertEqual(round(16 / (12 * 7) * 100, 2), detail["percent"])
+        self.assertEqual(24, len(detail["taps"]))
+        self.assertEqual(round(16 / (24 * 7) * 100, 2), detail["percent"])
         self.assertEqual(detail["percent"], manager.calculate_tap_activity_for_period("bar2", "2026-08-24", "2026-08-30"))
         self.assertEqual(0.0, manager.calculate_tap_activity_for_period("bar9", "2026-08-24", "2026-08-30"))
-        # Все бары: 60 кранов, те же 16 активных кран-дней
+        # Все бары: 84 крана (24 + 24 + 12 + 24), те же 16 активных кран-дней
         all_bars = manager.tap_activity_by_tap(None, "2026-08-24", "2026-08-30")
-        self.assertEqual(60, all_bars["total_taps"])
-        self.assertEqual(60, len(all_bars["taps"]))
+        self.assertEqual(84, all_bars["total_taps"])
+        self.assertEqual(84, len(all_bars["taps"]))
         self.assertEqual(all_bars["active_tap_days"], sum(t["active_days"] for t in all_bars["taps"]))
-        self.assertEqual(round(16 / (60 * 7) * 100, 2), all_bars["percent"])
+        self.assertEqual(round(16 / (84 * 7) * 100, 2), all_bars["percent"])
 
         sec = section_taps(detail, bar_names={"bar2": "Лиговский"}, link_href="/taps/bar2")
         self.assertEqual("Кран 4 · Лиговский", sec["rows"][0]["name"])  # простой - первым
         self.assertEqual(0.0, sec["rows"][0]["value"])
         self.assertEqual("0 из 7 дн.", sec["rows"][0]["sub"])
-        self.assertIn("Простаивали весь период: 9 из 12", sec["note"])
+        self.assertIn("Простаивали весь период: 21 из 24", sec["note"])
         self.assertEqual(round(detail["percent"], 1), sec["total"]["value"])
         self.assertEqual("/taps/bar2", sec["link"]["href"])
 
@@ -621,9 +621,9 @@ class DetailsEndpoint(unittest.TestCase):
         client = make_client()
         with patch("routes.dashboard.taps_manager") as manager:
             manager.tap_activity_by_tap.return_value = {
-                "days": 7, "total_taps": 12, "active_tap_days": 14, "percent": 16.67,
+                "days": 7, "total_taps": 24, "active_tap_days": 14, "percent": 8.33,
                 "taps": [{"bar_id": "bar2", "bar_name": "Бар 2", "tap_number": n, "active_days": 7 if n < 3 else 0,
-                          "current_beer": None} for n in range(1, 13)],
+                          "current_beer": None} for n in range(1, 25)],
             }
             response = client.post("/api/dashboard-card-details",
                                    json={"venue_key": "ligovskiy", "metric": "tapActivity", "section": "taps", **PERIOD})
@@ -631,7 +631,7 @@ class DetailsEndpoint(unittest.TestCase):
         sec = response.get_json()["section"]
         manager.tap_activity_by_tap.assert_called_once_with("bar2", PERIOD["date_from"], PERIOD["date_to"])
         self.assertEqual("/taps/bar2", sec["link"]["href"])
-        self.assertEqual(16.7, sec["total"]["value"])  # проценты в секции - до 0,1, как на карточке
+        self.assertEqual(8.3, sec["total"]["value"])  # проценты в секции - до 0,1, как на карточке
         self.assertTrue(sec["rows"][0]["name"].endswith("Лиговский"))
 
 

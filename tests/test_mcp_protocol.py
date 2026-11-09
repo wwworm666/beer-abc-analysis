@@ -952,8 +952,10 @@ def test_common_bars_reference_from_code():
             assert bar['iiko_name'] == venues_config.KEY_TO_IIKO_NAME[key]
             assert BAR_NAMES[bar['bar_id']] == bar['iiko_name'], 'bar1..bar4 сведены через имя iiko'
             assert bar['taps'] == venues_config.VENUES[key]['taps']
+            assert bar['taps'] == bar['taps_in_monitor'], 'краны venues_config = TapsManager.BARS_CONFIG'
         assert bars['bolshoy']['bar_id'] == 'bar1' and bars['varshavskaya']['bar_id'] == 'bar4'
         assert ref['all_venues']['venue_key'] == 'all'
+        assert ref['all_venues']['taps_total'] == sum(b['taps'] for b in bars.values()) == 84
         assert any('Варш' in n and 'Вар' in n for n in ref['notes']), 'расхождение коротких подписей названо'
         assert any('schedule_location_id' in n for n in ref['notes'])
 

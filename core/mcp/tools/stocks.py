@@ -20,8 +20,8 @@ routes/stocks.py, routes/orders.py, routes/suppliers.py, routes/receiving.py
                               позиций черновика и заказа (только конкретный бар);
                               источник: extensions.BARS, routes/stocks._BAR_ID_MAP
     bar1..bar4                краны, таплист, фиды Яндекса, ?bars= доски сроков;
-                              bar1 = Большой пр. В.О (24 крана), bar2 = Лиговский,
-                              bar3 = Кременчугская, bar4 = Варшавская (по 12 кранов);
+                              bar1 = Большой пр. В.О, bar2 = Лиговский, bar4 = Варшавская
+                              (по 24 крана), bar3 = Кременчугская (12 кранов);
                               источник: core/taplist.BAR_NAMES, TapsManager.BARS_CONFIG
     подписи менеджера кранов  name / bar_name в /api/taps/* и CSV таплиста: до 2026-09-27
                               «Бар 1»..«Бар 4», в правке владельца от 2026-09-27 — русские
@@ -84,7 +84,7 @@ NETWORK_BAR = 'Общая'           # routes/stocks: вся сеть, расх�
 BAR_IDS = ('bar1', 'bar2', 'bar3', 'bar4')
 BAR_ID_TO_NAME = dict(zip(BAR_IDS, IIKO_BAR_NAMES))
 BAR_NAME_TO_ID = {name: bar_id for bar_id, name in BAR_ID_TO_NAME.items()}
-TAP_COUNTS = {'bar1': 24, 'bar2': 12, 'bar3': 12, 'bar4': 12}   # core/taps_manager.BARS_CONFIG
+TAP_COUNTS = {'bar1': 24, 'bar2': 24, 'bar3': 12, 'bar4': 24}   # core/taps_manager.BARS_CONFIG
 
 # ------------------------------------------------------------------ константы маршрутов
 # Дублируются только для enum/границ схем; сверяются тестом с кодом.
@@ -187,8 +187,8 @@ def _bar_ru(allow_network: bool = True) -> dict:
 
 def _bar_id(description: str = 'Бар.') -> dict:
     """Идентификатор bar1..bar4 (краны, таплист, фиды, доска сроков)."""
-    text = ('bar1 = Большой пр. В.О (24 крана), bar2 = Лиговский, bar3 = Кременчугская, '
-            'bar4 = Варшавская (по 12 кранов); справка: common_bars_reference.')
+    text = ('bar1 = Большой пр. В.О, bar2 = Лиговский, bar4 = Варшавская (по 24 крана), '
+            'bar3 = Кременчугская (12 кранов); справка: common_bars_reference.')
     return _str(description + ' ' + text, enum=list(BAR_IDS))
 
 
@@ -873,7 +873,7 @@ TOOLS: List[ToolSpec] = [
         'stocks_taps_bars', 'Бары и краны',
         'Список баров менеджера кранов: bar_id (bar1..bar4), name — название бара (в версиях до '
         '2026-09-27 подпись «Бар 1»…«Бар 4»; соответствие — common_bars_reference), tap_count '
-        '(24/12/12/12), active_taps. Как карточки на /taps.',
+        '(bar1/bar2/bar3/bar4 = 24/24/12/24), active_taps. Как карточки на /taps.',
         path='/api/taps/bars', also_in=ALSO_CONTENT, examples=[{}],
     ),
     _tool(
@@ -897,7 +897,7 @@ TOOLS: List[ToolSpec] = [
         'трогается (409). Меняет операционный таплист (таплист V2, фиды Яндекса после пересъёмки, '
         'активность кранов); отменить можно только снятием или заменой. В iiko ничего не пишет.',
         _obj({'bar_id': _bar_id(),
-              'tap_number': _int('Номер крана: 1..24 для bar1, 1..12 для остальных.', minimum=1, maximum=24),
+              'tap_number': _int('Номер крана: 1..12 для bar3, 1..24 для остальных.', minimum=1, maximum=24),
               'beer_name': _str('Название кеги как в iiko (поле name из stocks_beers_draft).'),
               'keg_id': _str('Артикул (num из stocks_beers_draft); пусто — AUTO-<время в мс>.'),
               'iiko_product_id': _str('GUID кеги (id из stocks_beers_draft) — нужен для связи с Untappd '
@@ -915,7 +915,7 @@ TOOLS: List[ToolSpec] = [
         'после пересъёмки — из фида Яндекса. Пустой кран — 400; с expected изменившийся кран — 409. '
         'Вернуть прежнее время подключения нельзя.',
         _obj({'bar_id': _bar_id(),
-              'tap_number': _int('Номер крана: 1..24 для bar1, 1..12 для остальных.', minimum=1, maximum=24),
+              'tap_number': _int('Номер крана: 1..12 для bar3, 1..24 для остальных.', minimum=1, maximum=24),
               'expected': _TAP_EXPECTED},
              required=['bar_id', 'tap_number']),
         method='POST', path='/api/taps/<bar_id>/stop', path_params=['bar_id'], body='json',
@@ -928,7 +928,7 @@ TOOLS: List[ToolSpec] = [
         'Меняет операционный таплист, таплист V2 и после пересъёмки — фид Яндекса; прежнее время '
         'подключения не вернуть.',
         _obj({'bar_id': _bar_id(),
-              'tap_number': _int('Номер крана: 1..24 для bar1, 1..12 для остальных.', minimum=1, maximum=24),
+              'tap_number': _int('Номер крана: 1..12 для bar3, 1..24 для остальных.', minimum=1, maximum=24),
               'beer_name': _str('Название новой кеги как в iiko (name из stocks_beers_draft).'),
               'keg_id': _str('Артикул (num из stocks_beers_draft); пусто — AUTO-<время в мс>.'),
               'iiko_product_id': _str('GUID новой кеги (id из stocks_beers_draft); beer_name тогда должен '
@@ -1365,8 +1365,8 @@ INSTRUCTIONS = """\
 Бары — три системы идентификаторов (справка: common_bars_reference):
 - русское имя склада iiko: «Большой пр. В.О», «Лиговский», «Кременчугская», «Варшавская»
   (+ «Общая» = вся сеть) — остатки /api/stocks/* (bar) и позиции черновика и заказа (bar);
-- bar1..bar4 — краны, таплист, фиды Яндекса, доска сроков (bars): bar1 = Большой пр. В.О
-  (24 крана), bar2 = Лиговский, bar3 = Кременчугская, bar4 = Варшавская (по 12);
+- bar1..bar4 — краны, таплист, фиды Яндекса, доска сроков (bars): bar1 = Большой пр. В.О,
+  bar2 = Лиговский, bar4 = Варшавская (по 24 крана), bar3 = Кременчугская (12);
 - ключи заведений bolshoy/ligovskiy/kremenchugskaya/varshavskaya — у аналитики, не здесь.
 Подписи баров в ответах кранов (name, bar_name) — названия тех же bar1..bar4 (раньше «Бар N»).
 

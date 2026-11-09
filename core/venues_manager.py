@@ -114,7 +114,8 @@ class VenuesManager:
             'key': venue['key'],
             'label': f"{label_prefix}{venue['full_name']}",
             'name': venue['name'],
-            'icon': venue['icon']
+            'icon': venue['icon'],
+            'taps': venue['taps'],  # число кранов (core/venues_config); у 'all' — сумма сети
         }
 
     def get_all_for_dropdown(self) -> List[Dict]:

@@ -152,7 +152,7 @@ beer-abc-analysis/
 ### Краны и остатки (3)
 | Файл | Что делает |
 |---|---|
-| `taps_manager.py` | CRUD 60 кранов, atomic-write через tmp+fsync+replace |
+| `taps_manager.py` | CRUD 84 кранов (24 + 24 + 12 + 24), atomic-write через tmp+fsync+replace |
 | `untappd_live.py` | Связи кег с Untappd без деплоя (с 2026-10-04): очередь «Нужна связь», предложения ИИ-агента, «Верно» / «Не то» / отмена администратором, наложение на реестр (`untappd_links.json` на /kultura) — [untappd-links.md](untappd-links.md) |
 | `expiry_recommend.py` | `classify_tier()` + `recommend()` для Shelf-Life Cockpit |
 
@@ -368,7 +368,7 @@ data/
 ├── plansdashboard.json     # Месячные планы (16 метрик × venue × period_key)
 ├── daily_plans.json        # Ежедневные планы (авто, Пт/Сб = weight 2x)
 ├── kpi_targets.json        # KPI цели
-├── taps_data.json          # 60 кранов + история (atomic-write)
+├── taps_data.json          # 84 крана + история (atomic-write)
 ├── untappd_links.json      # Связи кег с Untappd, подтверждённые на сайте, и предложения агента (на проде /kultura, в git нет)
 ├── meeting_notes.json      # Заметки совещаний
 ├── orders.json             # Заказы поставщикам: черновик + история (на проде /kultura, в git нет)
