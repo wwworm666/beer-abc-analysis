@@ -3,8 +3,10 @@
  * Свой минималистичный дизайн (решение владельца 2026-11-09, static/research.css): беседы — панелью, которая
  * выезжает слева по кнопке; пустая беседа — логотип, который набирается (static/logo.js, вид research), поле
  * и три сложных готовых вопроса с подсказками (нажатие задаёт вопрос сразу); в беседе поле прижато книзу.
- * В поле: молния быстрого режима слева (подсказка — при наведении, на телефоне — сообщением) и глубина ответа
- * справа — «Ответ» или «Исследование», меню как выбор усилия у моделей. Вопрос уходит в очередь сайта; отвечает сервер бота в Амстердаме тем же кодом,
+ * В поле: скрепка (файлы: картинки, PDF, Excel, CSV, текст — ещё перетаскиванием на поле и вставкой картинки)
+ * и молния быстрого режима слева (подсказка — при наведении, на телефоне — сообщением), глубина ответа справа —
+ * «Ответ» или «Исследование», меню как выбор усилия у моделей. Файлы уходят вместе с вопросом (base64 в JSON),
+ * их хранит сайт и показывает только тому, кто их приложил. Вопрос уходит в очередь сайта; отвечает сервер бота в Амстердаме тем же кодом,
  * что в Telegram. Пока вопрос в работе, страница раз в POLL_MS спрашивает его состояние: переливающаяся
  * строка, шкала и «что делаю сейчас» (строки хода работы сервера бота), а кнопка «Спросить» становится
  * «Остановить». Готов — ответ, свёрнутое «Как считается», графики (TgChart, как «Открыть интерактивно»),
@@ -29,10 +31,11 @@
     effortBtn: $('rsEffortBtn'), effortMenu: $('rsEffortMenu'), effortLabel: $('rsEffortLabel'),
     fast: $('rsFast'), fastTip: $('rsFastTip'), send: $('rsSend'), error: $('rsError'), info: $('rsInfo'), infoOpen: $('rsInfoOpen'),
     infoClose: $('rsInfoClose'), toast: $('rsToast'), suggest: $('rsSuggest'),
+    files: $('rsFiles'), attach: $('rsAttach'), fileInput: $('rsFileInput'),
     logo: document.querySelector('#rsStart [data-kultura-logo]'),
   };
   const state = {
-    threads: [], current: null, questions: [], mode: 'answer', sending: false, pollTimer: 0, listAt: 0,
+    threads: [], current: null, questions: [], mode: 'answer', sending: false, pollTimer: 0, listAt: 0, files: [],
     mounted: [], fonts: null,
   };
 
@@ -245,6 +248,31 @@
     if (last) fontsReady().then(() => requestAnimationFrame(() => last.scrollIntoView({ block: 'start' })));
   }
 
+  // Файлы вопроса в ленте: картинка — миниатюрой, остальное — значком с именем; открываются в новой вкладке
+  // (сайт отдаёт файл только тому, кто его приложил).
+  function questionFiles(files) {
+    const box = el('div', 'rx-q-files');
+    for (const f of files) {
+      const a = el('a', 'rx-q-file' + (f.kind === 'image' ? ' is-image' : ''));
+      a.href = f.url;
+      a.target = '_blank';
+      a.rel = 'noopener';
+      a.title = f.name;
+      if (f.kind === 'image') {
+        const img = el('img');
+        img.src = f.url;
+        img.alt = f.name;
+        img.loading = 'lazy';
+        a.append(img);
+      } else {
+        a.append(el('span', 'rx-file-badge', badge(f.name)), el('span', 'rx-file-name', f.name),
+          el('span', 'rx-file-size', bytes(f.size)));
+      }
+      box.append(a);
+    }
+    return box;
+  }
+
   function renderTurn(q) {
     const turn = el('article', 'rx-turn');
     turn.dataset.id = q.id;
@@ -252,6 +280,7 @@
     const tags = [q.mode === 'report' ? 'ИССЛЕДОВАНИЕ' : '', q.fast ? 'БЫСТРО' : ''].filter(Boolean);
     if (tags.length) ask.append(el('div', 'rx-q-meta', tags.join(' · ')));
     ask.append(el('div', 'rx-q-text', q.question));
+    if (q.files && q.files.length) ask.append(questionFiles(q.files));
     turn.append(ask);
     const answer = el('div', 'rx-a');
     turn.append(answer);
@@ -435,7 +464,7 @@
   }
 
   // typed — вопрос из поля: после отправки поле очищается; готовый вопрос набранный текст не трогает.
-  function ask(text, typed) {
+  async function ask(text, typed) {
     const question = (text || '').trim();
     if (!question || state.sending || active()) return;
     showError('');
@@ -443,7 +472,16 @@
     syncComposer();
     const body = { question, mode: state.mode, fast: !!(els.fast && els.fast.getAttribute('aria-pressed') === 'true') };
     if (state.current) body.thread_id = state.current;
-    API.ask(body).then(data => {
+    const attached = typed ? state.files.slice() : [];         // готовый вопрос — без файлов: он о данных сети
+    try {
+      if (attached.length) body.files = await Promise.all(attached.map(async f => ({ name: f.name, data: await base64Of(f.file) })));
+    } catch (err) {
+      showError(err.message);
+      state.sending = false;
+      syncComposer();
+      return;
+    }
+    return API.ask(body).then(data => {
       const q = data.question;
       if (q.thread_id !== state.current) {
         state.current = q.thread_id;
@@ -460,6 +498,7 @@
       if (typed) {
         els.input.value = '';
         grow();
+        clearFiles(attached);                                   // ушедшие с вопросом; добавленные за это время — остаются
       }
       if (els.fast) els.fast.setAttribute('aria-pressed', 'false');     // быстрый режим — только для этого вопроса
       loadThreads();
@@ -572,6 +611,127 @@
       e.preventDefault();
       if (!active()) ask(els.input.value, true);
     }
+  });
+
+  /* ---------------- файлы к вопросу ---------------- */
+
+  // Пределы — с сервера (kultura_bot/settings.py, WEB_FILES_*); тип сайт ещё раз проверит по содержимому.
+  const LIMITS = { count: +root.dataset.filesMax || 5, file: +root.dataset.fileMax || 10485760,
+    total: +root.dataset.filesTotal || 20971520 };
+  const EXT_KIND = { jpg: 'image', jpeg: 'image', png: 'image', webp: 'image', gif: 'image', pdf: 'pdf',
+    xlsx: 'table', csv: 'table', tsv: 'table', txt: 'text', md: 'text', json: 'text' };
+  const ACCEPTED = 'Понимаю картинки (JPEG, PNG, WebP, GIF), PDF, Excel (.xlsx), CSV и текст.';
+  const PLACEHOLDER = els.input.placeholder;
+  let fileSeq = 0;
+
+  function extOf(name) { const m = /\.([A-Za-z0-9]{1,5})$/.exec(name || ''); return m ? m[1].toLowerCase() : ''; }
+  function badge(name) { return (extOf(name) || 'файл').toUpperCase().slice(0, 4); }
+  function bytes(n) {
+    if (n >= 1048576) return (n / 1048576).toFixed(1).replace('.', ',') + ' МБ';
+    return Math.max(1, Math.round(n / 1024)) + ' КБ';
+  }
+  function kindOf(file) {
+    const kind = EXT_KIND[extOf(file.name)];
+    if (kind) return kind;
+    if (/^image\/(jpeg|png|webp|gif)$/.test(file.type)) return 'image';
+    return file.type === 'application/pdf' ? 'pdf' : '';
+  }
+  function base64Of(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || '').split(',', 2)[1] || '');
+      reader.onerror = () => reject(new Error('Файл «' + file.name + '» не прочитался — приложите его ещё раз'));
+      reader.readAsDataURL(file);
+    });
+  }
+  function addFiles(list) {
+    showError('');
+    const problems = [];
+    for (const file of list) {
+      const name = file.name || 'картинка.png';
+      if (state.files.length >= LIMITS.count) { problems.push('Не больше ' + LIMITS.count + ' файлов к вопросу.'); break; }
+      const kind = kindOf(file);
+      if (!kind) { problems.push('Файл «' + name + '» я не читаю. ' + ACCEPTED); continue; }
+      if (file.size > LIMITS.file) { problems.push('Файл «' + name + '» больше ' + bytes(LIMITS.file) + '.'); continue; }
+      const total = state.files.reduce((sum, f) => sum + f.size, 0) + file.size;
+      if (total > LIMITS.total) { problems.push('Все файлы вопроса вместе — не больше ' + bytes(LIMITS.total) + '.'); continue; }
+      state.files.push({ id: ++fileSeq, file, name, size: file.size, kind,
+        preview: kind === 'image' ? URL.createObjectURL(file) : '' });
+    }
+    if (problems.length) showError(problems.join(' '));
+    renderFiles();
+    syncComposer();
+  }
+  function removeFile(id) {
+    const gone = state.files.find(f => f.id === id);
+    if (gone && gone.preview) URL.revokeObjectURL(gone.preview);
+    state.files = state.files.filter(f => f.id !== id);
+    renderFiles();
+    els.input.focus();
+  }
+  function clearFiles(sent) {
+    const gone = sent || state.files;
+    for (const f of gone) if (f.preview) URL.revokeObjectURL(f.preview);
+    state.files = state.files.filter(f => !gone.includes(f));
+    renderFiles();
+  }
+  function renderFiles() {
+    els.files.textContent = '';
+    els.files.hidden = !state.files.length;
+    for (const f of state.files) {
+      const chip = el('div', 'rx-file');
+      chip.title = f.name;
+      if (f.preview) {
+        const img = el('img', 'rx-file-thumb');
+        img.src = f.preview;
+        img.alt = '';
+        chip.append(img);
+      } else {
+        chip.append(el('span', 'rx-file-badge', badge(f.name)));
+      }
+      const meta = el('span', 'rx-file-meta');
+      meta.append(el('span', 'rx-file-name', f.name), el('span', 'rx-file-size', bytes(f.size)));
+      const x = el('button', 'rx-file-x');
+      x.type = 'button';
+      x.setAttribute('aria-label', 'Убрать файл ' + f.name);
+      x.append(svg('M7 7l10 10M17 7L7 17'));
+      x.addEventListener('click', () => removeFile(f.id));
+      chip.append(meta, x);
+      els.files.append(chip);
+    }
+    els.input.placeholder = state.files.length ? 'Что сделать с файлами? Например: сверь накладную с заказом' : PLACEHOLDER;
+  }
+  function hasFiles(e) { return !!(e.dataTransfer && [...(e.dataTransfer.types || [])].includes('Files')); }
+
+  els.attach.addEventListener('click', () => els.fileInput.click());
+  els.fileInput.addEventListener('change', () => {
+    addFiles([...els.fileInput.files]);
+    els.fileInput.value = '';                                  // тот же файл можно выбрать снова
+    els.input.focus();
+  });
+  // Картинка из буфера (снимок экрана) — файлом; текст из Excel вставляется текстом, как обычно.
+  els.input.addEventListener('paste', e => {
+    const data = e.clipboardData;
+    const files = data ? [...(data.files || [])] : [];
+    if (files.length && !data.getData('text/plain')) {
+      e.preventDefault();
+      addFiles(files);
+    }
+  });
+  // Перетаскивание: на поле — подсветка; файл, брошенный мимо поля, тоже ложится в вопрос (а не открывается).
+  for (const type of ['dragenter', 'dragover']) {
+    document.addEventListener(type, e => {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      els.form.classList.add('is-drop');
+    });
+  }
+  document.addEventListener('dragleave', e => { if (!e.relatedTarget) els.form.classList.remove('is-drop'); });
+  document.addEventListener('drop', e => {
+    els.form.classList.remove('is-drop');
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    addFiles([...e.dataTransfer.files]);
   });
 
   /* ---------------- готовые вопросы ---------------- */

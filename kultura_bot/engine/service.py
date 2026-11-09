@@ -286,6 +286,18 @@ def person_key(actor: Optional[Dict[str, Any]]) -> str:
     return str(actor.get('tg_user_id') or '')
 
 
+WEB_FILE_KINDS = ('image', 'pdf', 'table', 'text')
+WEB_IMAGE_MIMES = ('image/jpeg', 'image/png', 'image/webp', 'image/gif')
+
+
+def web_files_line(files: Any) -> str:
+    """«[Приложены файлы: Накладная.pdf (PDF), фото.jpg (картинка)]» — к тексту вопроса с сайта: у картинки
+    и PDF в запросе нет имени, а человек называет файлы по имени."""
+    titles = {'image': 'картинка', 'pdf': 'PDF', 'table': 'таблица', 'text': 'текст'}
+    names = [f'{f.get("name")} ({titles.get(f.get("kind"), "файл")})' for f in files or [] if isinstance(f, dict)]
+    return f'\n\n[Приложены файлы: {", ".join(names)}]' if names else ''
+
+
 def web_history_block(history: Any) -> str:
     """Прошлые вопросы и ответы беседы на сайте (kultura_bot/web._history) -> блок перед вопросом — тот же
     вид, что ответ на сообщение бота в Telegram (prompts/bot.md, «Продолжение работы»)."""
@@ -297,6 +309,8 @@ def web_history_block(history: Any) -> str:
             continue
         mode = ' (Research — отчёт страницей)' if item.get('mode') == 'report' else ''
         lines = [f'Вопрос{mode}: {str(item.get("question") or "").strip()}']
+        if item.get('files'):
+            lines.append(f'К вопросу были приложены файлы: {item["files"]}')
         if item.get('answer'):
             lines.append(f'Ответ:\n{str(item["answer"]).strip()}')
         for chart in item.get('charts') or []:
@@ -765,10 +779,14 @@ class Service:
                 and WEB_CHAT_RE.fullmatch(chat_id) and actor and actor.get('user_id') not in (None, '')
                 and isinstance(found.get('question'), str)):
             return None
+        files = [{'n': int(f['n']), 'name': str(f.get('name') or 'файл')[:120], 'kind': f.get('kind'),
+                  'mime': str(f.get('mime') or ''), 'size': int(f.get('size') or 0)}
+                 for f in found.get('files') or []
+                 if isinstance(f, dict) and isinstance(f.get('n'), int) and f.get('kind') in WEB_FILE_KINDS]
         return {
             'kind': 'web', 'web_id': qid, 'chat_id': chat_id, 'message': {}, 'chat_type': 'web', 'source': 'web',
             'text': found['question'], 'mode': 'report' if found.get('mode') == 'report' else 'answer',
-            'fast': bool(found.get('fast')), 'history': found.get('history') or [],
+            'fast': bool(found.get('fast')), 'history': found.get('history') or [], 'files': files,
             'asked_ts': float(found.get('asked_ts') or time.time()),
             'actor': {'tg_user_id': '', 'user_id': actor['user_id'], 'login': str(actor.get('login') or ''),
                       'display_name': str(actor.get('display_name') or actor.get('login') or '')},
@@ -1318,6 +1336,29 @@ class Service:
         limit = settings.INPUT_FILE_MAX_BYTES
         return min(limit, IMAGE_MAX_BYTES) if kind == 'image' else limit
 
+    def _web_files(self, job: Dict[str, Any], out: Any) -> List[Dict[str, Any]]:
+        """Файлы вопроса с сайта -> блоки для Claude, как фото и PDF из Telegram: картинка — image, PDF —
+        document, таблица и текст — text (сайт уже перевёл их в текст). Не скачался — пометка человеку."""
+        blocks: List[Dict[str, Any]] = []
+        for item in job.get('files') or []:
+            kind = item.get('kind')
+            limit = self._limit('image') if kind == 'image' else settings.WEB_FILE_MAX_BYTES
+            try:
+                data = self.site.web_file(job['web_id'], item['n'], limit)
+            except SiteError as exc:
+                log.warning('[BOT] файл %s вопроса %s не скачался: %s', item['n'], job['web_id'], exc.text)
+                out.say(f'Файл «{item["name"]}» не скачался — отвечаю без него.')
+                continue
+            if kind == 'image' and item.get('mime') in WEB_IMAGE_MIMES:
+                blocks.append({'type': 'image', 'source': {'type': 'base64', 'media_type': item['mime'],
+                                                           'data': base64.b64encode(data).decode('ascii')}})
+            elif kind == 'pdf':
+                blocks.append({'type': 'document', 'source': {'type': 'base64', 'media_type': 'application/pdf',
+                                                              'data': base64.b64encode(data).decode('ascii')}})
+            elif kind in ('table', 'text'):
+                blocks.append({'type': 'text', 'text': data.decode('utf-8', errors='replace')})
+        return blocks
+
     def _files(self, message: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Фото и PDF из сообщения -> блоки image/document для Claude (base64)."""
         found = []
@@ -1572,8 +1613,11 @@ class Service:
         try:
             header = self.header(actor, mode, limit, rich_view=rich_view, web=web)
             reply = '' if web else self.reply_block(chat_id, message)
-            user_content = [{'type': 'text', 'text': f'{header}\n{reply}{job["text"] or "(без текста)"}'}]
-            if not web:
+            user_content = [{'type': 'text', 'text': f'{header}\n{reply}{job["text"] or "(без текста)"}'
+                                                     f'{web_files_line(job.get("files")) if web else ""}'}]
+            if web:
+                user_content += self._web_files(job, out)
+            else:
                 files = self._files(message)
                 document = message.get('document') or {}
                 if document and document.get('mime_type') not in DOCUMENT_MIMES:

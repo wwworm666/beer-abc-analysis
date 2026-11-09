@@ -299,8 +299,11 @@ def set_feedback(chat_id: str, message_id: int, tg_user_id: str, reactions: Any,
 
 # ------------------------------------------------------------------ выборка для страницы и агента
 
-def _filters(args: Dict[str, Any], now: Optional[float] = None) -> Tuple[str, List[Any], Dict[str, Any]]:
-    """Фильтры страницы и агента -> (WHERE, параметры, что применено). Неверное — JournalError."""
+def _filters(args: Dict[str, Any], now: Optional[float] = None,
+             only_login: Optional[str] = None) -> Tuple[str, List[Any], Dict[str, Any]]:
+    """Фильтры страницы и агента -> (WHERE, параметры, что применено). Неверное — JournalError.
+    only_login — чьи записи вообще можно видеть (свои: решение владельца 2026-11-09 «история у каждого
+    своя»); фильтр login его не расширяет."""
     now = time.time() if now is None else now
     try:
         days = int(args.get('days') or 30)
@@ -310,7 +313,11 @@ def _filters(args: Dict[str, Any], now: Optional[float] = None) -> Tuple[str, Li
     where, params = ['asked_ts >= ?'], [int(now) - days * 86400]
     applied: Dict[str, Any] = {'days': days}
     login = str(args.get('login') or '').strip()
-    if login:
+    if only_login is not None:
+        where.append("login = ? AND login != ''")          # без логина — ничего: записи без логина ничьи
+        params.append(str(only_login)[:64])
+        applied['login'] = str(only_login)[:64]
+    elif login:
         where.append('login = ?')
         params.append(login[:64])
         applied['login'] = login[:64]
@@ -364,10 +371,12 @@ def _summary(row: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def query(args: Optional[Dict[str, Any]] = None, now: Optional[float] = None) -> Dict[str, Any]:
-    """Список записей (новые сверху) с итогами за выбранное и списком людей для фильтра."""
+def query(args: Optional[Dict[str, Any]] = None, now: Optional[float] = None,
+          only_login: Optional[str] = None) -> Dict[str, Any]:
+    """Список записей (новые сверху) с итогами за выбранное и списком людей для фильтра.
+    only_login — только записи этого человека (и в списке людей — только он)."""
     args = args or {}
-    where, params, applied = _filters(args, now)
+    where, params, applied = _filters(args, now, only_login)
     try:
         limit = min(max(int(args.get('limit') or 50), 1), LIST_MAX)
         offset = max(int(args.get('offset') or 0), 0)
@@ -383,9 +392,10 @@ def query(args: Optional[Dict[str, Any]] = None, now: Optional[float] = None) ->
             f"SUM(status = 'done') AS done, SUM(status = 'error') AS errors, SUM(status = 'stopped') AS stopped, "
             f"SUM(status = 'budget') AS budget, SUM(rating = 'bad') AS bad, SUM(rating = 'good') AS good "
             f"FROM bot_journal WHERE {where}", params).fetchone())
+        own = '' if only_login is None else ' AND login = ?'
         people = [dict(r) for r in conn.execute(
-            'SELECT login, MAX(name) AS name, COUNT(*) AS n FROM bot_journal WHERE asked_ts >= ? AND login != \'\' '
-            'GROUP BY login ORDER BY n DESC', (params[0],))]
+            'SELECT login, MAX(name) AS name, COUNT(*) AS n FROM bot_journal WHERE asked_ts >= ? AND login != \'\''
+            f'{own} GROUP BY login ORDER BY n DESC', (params[0],) + (() if only_login is None else (str(only_login),)))]
     stats = {
         'count': int(totals['n'] or 0), 'done': int(totals['done'] or 0), 'errors': int(totals['errors'] or 0),
         'stopped': int(totals['stopped'] or 0), 'budget': int(totals['budget'] or 0),
@@ -396,14 +406,15 @@ def query(args: Optional[Dict[str, Any]] = None, now: Optional[float] = None) ->
             'limit': limit, 'offset': offset, 'items': [_summary(r) for r in rows]}
 
 
-def get(uid: str) -> Optional[Dict[str, Any]]:
-    """Запись целиком: всё, что прислал сервер бота, и оценки людей."""
+def get(uid: str, only_login: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    """Запись целиком: всё, что прислал сервер бота, и оценки людей. only_login — только своя
+    (чужая — как будто её нет)."""
     if not UID_RE.fullmatch(str(uid or '')):
         return None
     _ensure()
     with db.read() as conn:
         row = conn.execute('SELECT * FROM bot_journal WHERE uid = ?', (uid,)).fetchone()
-    if row is None:
+    if row is None or (only_login is not None and row['login'] != str(only_login)):
         return None
     row = dict(row)
     try:
@@ -421,11 +432,15 @@ def get(uid: str) -> Optional[Dict[str, Any]]:
     return record
 
 
-def delete(uid: str) -> bool:
+def delete(uid: str, only_login: Optional[str] = None) -> bool:
     if not UID_RE.fullmatch(str(uid or '')):
         return False
     _ensure()
     with db.write() as conn:
+        if only_login is not None:
+            row = conn.execute('SELECT login FROM bot_journal WHERE uid = ?', (uid,)).fetchone()
+            if row is None or row['login'] != str(only_login):
+                return False
         conn.execute('DELETE FROM bot_journal_messages WHERE uid = ?', (uid,))
         return conn.execute('DELETE FROM bot_journal WHERE uid = ?', (uid,)).rowcount > 0
 
@@ -436,9 +451,10 @@ CSV_COLUMNS = (('asked_at', 'Когда'), ('login', 'Логин'), ('name', 'К
                ('format', 'Оформление'), ('rating', 'Оценка'))
 
 
-def csv_text(args: Optional[Dict[str, Any]] = None, now: Optional[float] = None) -> str:
+def csv_text(args: Optional[Dict[str, Any]] = None, now: Optional[float] = None,
+             only_login: Optional[str] = None) -> str:
     """Выгрузка выбранного (до CSV_MAX строк) для таблицы: точка с запятой, UTF-8 с BOM — Excel откроет."""
-    where, params, _ = _filters(args or {}, now)
+    where, params, _ = _filters(args or {}, now, only_login)
     _ensure()
     with db.read() as conn:
         rows = [dict(r) for r in conn.execute(

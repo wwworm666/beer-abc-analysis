@@ -57,13 +57,47 @@ REPORT = {'title': 'Бельгия: +58% к августу', 'summary': '**Ит�
 def site_db(tmp_path, monkeypatch):
     from core.mcp import db
     from kultura_bot import web
+    from kultura_bot import web_files
     db.set_db_path(str(tmp_path / 'mcp.db'))
+    files_dir = str(tmp_path / 'research_files')
+    monkeypatch.setattr(web_files, '_DIR_OVERRIDE', files_dir)
     users = {1: dict(ADMIN), 2: dict(ANNA)}
     monkeypatch.setattr(web, '_is_admin', lambda uid: users.get(int(uid)) if users.get(int(uid), {}).get('is_admin')
                         else None)
     monkeypatch.setattr(web, '_expired_at', 0.0)
-    yield SimpleNamespace(users=users)
+    yield SimpleNamespace(users=users, files_dir=files_dir)
     db.set_db_path(None)
+
+
+# ------------------------------------------------------------------ файлы для проверок
+
+def _b64(data: bytes) -> str:
+    import base64
+    return base64.b64encode(data).decode('ascii')
+
+
+def png_bytes(size=(40, 30)) -> bytes:
+    import io
+    from PIL import Image
+    out = io.BytesIO()
+    Image.new('RGB', size, (250, 120, 30)).save(out, 'PNG')
+    return out.getvalue()
+
+
+def xlsx_bytes() -> bytes:
+    import io
+    from openpyxl import Workbook
+    book = Workbook()
+    sheet = book.active
+    sheet.title = 'Остатки'
+    for row in (['Позиция', 'Остаток', 'Цена'], ['IPA', 12.5, 230], ['Стаут', None, 310]):
+        sheet.append(row)
+    out = io.BytesIO()
+    book.save(out)
+    return out.getvalue()
+
+
+PDF = b'%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n'
 
 
 # ------------------------------------------------------------------ очередь на сайте
@@ -241,9 +275,11 @@ def test_page_and_api_are_for_admins_and_json_only(web_app):
     assert 'data-kultura-logo="research"' in body and '/static/logo.js?v=test' in body
     assert body.index('data-kultura-logo="research"') < body.index('/static/logo.js'), 'скрипт — сразу за логотипом'
     assert 'class="rx-main is-empty"' in body
-    for item in bot_settings.WEB_SUGGESTIONS:
-        assert f'data-question="{item["question"]}"' in body and item['hint'] in body
+    shown = [item for item in bot_settings.WEB_SUGGESTIONS if f'data-question="{item["question"]}"' in body]
+    assert len(shown) == 3 and all(item['hint'] in body for item in shown), 'три случайных из списка'
     assert body.count('class="rx-sq"') == 3 and 'role="tab"' not in body
+    assert 'id="rsAttach"' in body and 'type="file"' in body and 'data-files-max="5"' in body, 'файлы — скрепкой'
+    assert 'Ваша история — только ваша' in body
     assert 'title="Новая беседа" hidden>' in body, '«+» в пустой беседе не мелькает до скрипта'
     opened = c.get('/research?t=t' + 'A' * 16).get_data(as_text=True)
     assert 'class="rx-main"' in opened and 'title="Новая беседа">' in opened, \
@@ -277,17 +313,119 @@ def test_page_and_api_are_for_admins_and_json_only(web_app):
     assert c.post('/api/research/ask', json={'question': 'x'}).status_code == 403
 
 
-def test_ready_questions_are_three_deep_slices():
-    """Снимок владельца (2026-11-09, второй): «оставляем три вопроса, но реально сложных, неочевидных — не
-    базовые метрики, как цифры из дашборда». Вопрос уходит боту целиком, подсказка — одна строка под ним."""
+def test_ready_questions_are_deep_slices_three_at_random():
+    """Снимки владельца (2026-11-09): «оставляем три вопроса, но реально сложных, неочевидных — не базовые
+    метрики, как цифры из дашборда»; «придумай ещё 10 в таком же стиле и чередуй их случайным образом при
+    открытии страницы». Вопрос уходит боту целиком, подсказка — одна строка под ним."""
+    import random
+    from routes import research as research_routes
     items = bot_settings.WEB_SUGGESTIONS
-    assert len(items) == 3 and len({x['question'] for x in items}) == 3
+    assert len(items) == 13 and len({x['question'] for x in items}) == 13 and bot_settings.WEB_SUGGESTIONS_SHOWN == 3
+    picks = {tuple(x['question'] for x in research_routes._pick_suggestions(random.Random(seed))) for seed in range(12)}
+    assert all(len(pick) == 3 and len(set(pick)) == 3 for pick in picks)
+    assert len(picks) > 3, 'при каждом открытии — другие три'
+    assert {q for pick in picks for q in pick} <= {x['question'] for x in items}
     menu = {q for item in bot_settings.MENU for q in item.get('questions', ())}
     for item in items:
         assert item['question'] not in menu, 'не вопрос из меню разделов: там — базовые срезы'
         assert 60 <= len(item['question']) <= 180, 'разбор с периодом и разрезом, но читается в 2–3 строки'
         assert 3 <= len(item['hint']) <= 60
     assert bot_settings.FAST_SPEEDUP_UP_TO == 2.5 and bot_settings.FAST_PRICE_MULTIPLIER == 2.0
+
+
+def test_files_are_checked_by_content_and_prepared_for_the_bot(site_db, monkeypatch):
+    """Файлы к вопросу (2026-11-09, «кнопка добавить картинку, PDF и т. д.»): тип — по содержимому; боту —
+    картинка (большая — уменьшенной копией), PDF, текст таблицы; неизвестное — отказ с тем, что принимается."""
+    import zipfile, io
+    from kultura_bot import web_files
+    ready = web_files.prepare([{'name': 'фото.png', 'data': _b64(png_bytes())},
+                               {'name': 'панорама.png', 'data': _b64(png_bytes((3000, 600)))},
+                               {'name': 'C:\\Users\\x\\Накладная.pdf', 'data': _b64(PDF)},
+                               {'name': 'Остатки.xlsx', 'data': _b64(xlsx_bytes())},
+                               {'name': 'выгрузка.csv', 'data': _b64('Позиция;Остаток\nIPA;12\n'.encode('cp1251'))}])
+    assert [(f['name'], f['kind'], f['ext']) for f in ready] == [
+        ('фото.png', 'image', 'png'), ('панорама.png', 'image', 'png'), ('Накладная.pdf', 'pdf', 'pdf'),
+        ('Остатки.xlsx', 'table', 'xlsx'), ('выгрузка.csv', 'table', 'csv')]
+    assert ready[0]['bot_data'] is None, 'маленькая картинка — боту как есть'
+    from PIL import Image
+    small = Image.open(io.BytesIO(ready[1]['bot_data']))
+    assert ready[1]['bot_ext'] == 'jpg' and max(small.size) == bot_settings.WEB_IMAGE_MAX_SIDE, 'большая — уменьшена'
+    sheet = ready[3]['bot_data'].decode('utf-8')
+    assert 'Файл «Остатки.xlsx» (Excel)' in sheet and 'Лист «Остатки»' in sheet and 'IPA;12.5;230' in sheet
+    assert 'Позиция;Остаток' in ready[4]['bot_data'].decode('utf-8'), 'CSV из Excel в cp1251 — читается'
+    docx = io.BytesIO()
+    with zipfile.ZipFile(docx, 'w') as archive:
+        archive.writestr('word/document.xml', '<w/>')
+    for raw, error in ((b'\x00\x00\x00\x18ftypheic' + b'\x00' * 16, 'HEIC'), (docx.getvalue(), 'Word'),
+                       (b'MZ\x90\x00binary', 'не читаю'), (b'', 'пустой')):
+        with pytest.raises(web_files.FileError, match=error):
+            web_files.prepare([{'name': 'x.bin', 'data': _b64(raw)}])
+    with pytest.raises(web_files.FileError, match='повреждённым'):
+        web_files.prepare([{'name': 'x.pdf', 'data': 'не base64!'}])
+    with pytest.raises(web_files.FileError, match='Не больше 5'):
+        web_files.prepare([{'name': f'{i}.pdf', 'data': _b64(PDF)} for i in range(6)])
+    monkeypatch.setattr(bot_settings, 'WEB_FILES_TOTAL_MAX_BYTES', len(PDF) + 10)
+    with pytest.raises(web_files.FileError, match='вместе'):
+        web_files.prepare([{'name': 'a.pdf', 'data': _b64(PDF)}, {'name': 'b.pdf', 'data': _b64(PDF)}])
+    monkeypatch.setattr(bot_settings, 'WEB_FILE_MAX_BYTES', 10)
+    with pytest.raises(web_files.FileError, match='больше'):
+        web_files.prepare([{'name': 'a.pdf', 'data': _b64(PDF)}])
+
+
+def test_files_go_with_the_question_and_stay_with_its_owner(site_db):
+    """Файлы лежат у нас (диск сайта), видит их только тот, кто приложил; серверу бота — пока вопрос в работе;
+    в истории беседы — имена; удаляются вместе с беседой; несостоявшийся вопрос файлов не оставляет."""
+    from kultura_bot import web
+    files = [{'name': 'Накладная.pdf', 'data': _b64(PDF)}, {'name': 'фото.png', 'data': _b64(png_bytes())},
+             {'name': 'Остатки.xlsx', 'data': _b64(xlsx_bytes())}]
+    q = web.ask(ADMIN, 'Сверь накладную с остатками', files=files)
+    assert [(f['name'], f['kind'], f['url']) for f in q['files']] == [
+        ('Накладная.pdf', 'pdf', f'/api/research/files/{q["id"]}/0'), ('фото.png', 'image', f'/api/research/files/{q["id"]}/1'),
+        ('Остатки.xlsx', 'table', f'/api/research/files/{q["id"]}/2')]
+    assert sorted(os.listdir(os.path.join(site_db.files_dir, q['id']))) == ['0.pdf', '1.png', '2.bot.txt', '2.xlsx']
+    assert web.user_file(1, q['id'], 0)['data'] == PDF and web.user_file(2, q['id'], 0) is None, 'чужому — нет'
+    assert web.engine_file(q['id'], 0) is None, 'пока вопрос в очереди, сервер бота файл не берёт'
+    job = web.claim()
+    assert [(f['name'], f['kind'], f['mime']) for f in job['files']] == [
+        ('Накладная.pdf', 'pdf', 'application/pdf'), ('фото.png', 'image', 'image/png'),
+        ('Остатки.xlsx', 'table', 'text/plain; charset=utf-8')]
+    assert 'IPA;12.5' in web.engine_file(q['id'], 2)['data'].decode('utf-8'), 'боту — текст таблицы'
+    assert web.engine_file(q['id'], 7) is None
+    web.finish(q['id'], {'status': 'done', 'answer': 'Расхождений нет.', 'steps': 2, 'cost_usd': 0.3})
+    follow = web.ask(ADMIN, 'А по второй накладной?', thread_id=q['thread_id'])
+    job = web.claim()
+    assert job['id'] == follow['id'] and job['files'] == []
+    assert job['history'][0]['files'] == 'Накладная.pdf (PDF), фото.png (картинка), Остатки.xlsx (таблица)'
+    before = set(os.listdir(site_db.files_dir))
+    with pytest.raises(web.WebError, match='ещё отвечает'):
+        web.ask(ADMIN, 'Третий', thread_id=q['thread_id'], files=files[:1])
+    assert set(os.listdir(site_db.files_dir)) == before, 'вопрос не записан — файлов нет'
+    assert web.delete_thread(1, q['thread_id']) is True
+    assert not os.path.exists(os.path.join(site_db.files_dir, q['id'])) and web.user_file(1, q['id'], 0) is None
+
+
+def test_old_table_gets_the_files_column(tmp_path, monkeypatch):
+    """Таблица вопросов, созданная до файлов (2026-11-09), получает колонку files сама — старые вопросы
+    открываются как были."""
+    import sqlite3
+    from core.mcp import db
+    from kultura_bot import web
+    path = str(tmp_path / 'old.db')
+    old = [line for line in web.SCHEMA[0].splitlines() if 'files' not in line]
+    old[-2] = old[-2].rstrip(',')
+    conn = sqlite3.connect(path)
+    conn.execute('\n'.join(old))
+    conn.execute("INSERT INTO bot_web_questions (id, thread_id, user_id, login, name, question, mode, status, "
+                 "asked_ts) VALUES ('q" + 'C' * 16 + "', 't" + 'C' * 16 + "', 1, 'owner', 'В', 'Старый', 'answer', "
+                 "'done', 1)")
+    conn.commit()
+    conn.close()
+    db.set_db_path(path)
+    monkeypatch.setattr(web, '_expired_at', 0.0)
+    try:
+        assert web.get(1, 'q' + 'C' * 16)['files'] == [] and web.thread(1, 't' + 'C' * 16)['questions']
+    finally:
+        db.set_db_path(None)
 
 
 def test_engine_api_needs_the_engine_key(web_app):
@@ -310,6 +448,48 @@ def test_engine_api_needs_the_engine_key(web_app):
                   headers=ENGINE).get_json() == {'ok': True, 'status': 'done'}
     page = c.get(f'/api/research/questions/{q["id"]}').get_json()['question']
     assert page['answer_html'] == 'Ок' and page['cards'][0]['spec']['title'] == BELGIUM['title']
+
+
+def test_file_routes_are_for_the_owner_and_the_engine(web_app):
+    c = web_app.client
+    asked = c.post('/api/research/ask', json={'question': 'Что в накладной?', 'files': [
+        {'name': 'Накладная.pdf', 'data': _b64(PDF)}, {'name': 'Остатки.xlsx', 'data': _b64(xlsx_bytes())}]})
+    assert asked.status_code == 200, asked.get_json()
+    q = asked.get_json()['question']
+    r = c.get(f'/api/research/files/{q["id"]}/0')
+    assert r.status_code == 200 and r.data == PDF and r.mimetype == 'application/pdf'
+    assert r.headers['Content-Disposition'].startswith('inline;') and r.headers['X-Content-Type-Options'] == 'nosniff'
+    assert "filename*=UTF-8''" in r.headers['Content-Disposition'] and 'private' in r.headers['Cache-Control']
+    assert c.get(f'/api/research/files/{q["id"]}/1').headers['Content-Disposition'].startswith('attachment;')
+    assert c.get(f'/api/research/files/{q["id"]}/5').status_code == 404
+    assert c.get(f'/api/bot/web/{q["id"]}/files/0').status_code == 401, 'серверу бота — только с ключом'
+    assert c.get(f'/api/bot/web/{q["id"]}/files/0', headers=ENGINE).status_code == 404, 'вопрос ещё в очереди'
+    assert c.get('/api/bot/web/next', headers=ENGINE).get_json()['job']['files'][1]['kind'] == 'table'
+    r = c.get(f'/api/bot/web/{q["id"]}/files/1', headers=ENGINE)
+    assert r.status_code == 200 and 'Лист «Остатки»' in r.get_data(as_text=True) and r.headers['Cache-Control'] == 'no-store'
+    bad = c.post('/api/research/ask', json={'question': 'x', 'files': [{'name': 'a.exe', 'data': _b64(b'MZ\x90')}]})
+    assert bad.status_code == 400 and 'не читаю' in bad.get_json()['error']
+    web_app.user['value'] = dict(ANNA)
+    assert c.get(f'/api/research/files/{q["id"]}/0').status_code == 404, 'чужому — как будто файла нет'
+
+
+def test_web_report_page_is_only_for_the_thread_owner(web_app):
+    """«История у каждого своя» (2026-11-09): отчёт из беседы сайта открывает только её хозяин — даже другой
+    администратор, знающий адрес, получает 404; ссылку для браузера делает тоже только хозяин."""
+    c = web_app.client
+    q = c.post('/api/research/ask', json={'question': 'Бельгия', 'mode': 'report'}).get_json()['question']
+    job = c.get('/api/bot/web/next', headers=ENGINE).get_json()['job']
+    card = c.post(f'/api/bot/web/{job["id"]}/card', headers=ENGINE,
+                  json={'tool': tools.REPORT_TOOL, 'args': {'report': copy.deepcopy(REPORT)}}).get_json()
+    report_id = json.loads(card['content'][0]['text'])['report_id']
+    assert c.get(f'/tg/report/{report_id}').status_code == 200
+    assert c.post(f'/api/tg/reports/{report_id}/link').status_code == 200
+    web_app.user['value'] = dict(ANNA)
+    assert c.get(f'/tg/report/{report_id}').status_code == 404
+    assert c.post(f'/api/tg/reports/{report_id}/link').status_code == 404
+    web_app.user['value'] = dict(ADMIN)
+    assert c.delete(f'/api/research/threads/{q["thread_id"]}').get_json() == {'ok': True}
+    assert c.get(f'/tg/report/{report_id}').status_code == 404, 'беседу удалили — отчёт ничей'
 
 
 def test_engine_client_talks_to_real_routes(web_app):
@@ -377,6 +557,34 @@ def test_web_question_goes_the_same_way_but_to_the_site(bot):
     assert bot.env.store.spent_by('user:1') == pytest.approx(record['cost_usd'], abs=1e-4), \
         'предел на человека — общий с Telegram'
     assert 'web:' + TID not in bot.env.store.known_chats(), 'беседы сайта — не чаты Telegram (меню не чистим)'
+
+
+def test_web_question_files_reach_the_model(bot):
+    """Файлы вопроса с сайта — модели, как фото и PDF из Telegram: PDF — документом, картинка — картинкой,
+    таблица — текстом; имена — строкой к вопросу; не скачался — пометка под ответом."""
+    import base64
+    site = bot.env.site
+    site.web_files[(QID, 0)] = PDF
+    site.web_files[(QID, 1)] = png_bytes()
+    site.web_files[(QID, 2)] = 'Файл «Остатки.xlsx» (Excel):\nЛист «Остатки»:\nIPA;12.5'.encode('utf-8')
+    site.web_queue.append(web_job(files=[
+        {'n': 0, 'name': 'Накладная.pdf', 'kind': 'pdf', 'mime': 'application/pdf', 'size': len(PDF)},
+        {'n': 1, 'name': 'фото.png', 'kind': 'image', 'mime': 'image/png', 'size': 100},
+        {'n': 2, 'name': 'Остатки.xlsx', 'kind': 'table', 'mime': 'text/plain; charset=utf-8', 'size': 40},
+        {'n': 3, 'name': 'нет.pdf', 'kind': 'pdf', 'mime': 'application/pdf', 'size': 10},
+        {'n': 'x', 'name': 'плохой', 'kind': 'pdf'}]))
+    bot.client.script += [resp(text('Расхождений нет.'))]
+    assert bot.svc.take_web_job() is True
+    content = bot.client.calls[0]['messages'][-1]['content']
+    assert content[0]['text'].endswith('[Приложены файлы: Накладная.pdf (PDF), фото.png (картинка), '
+                                       'Остатки.xlsx (таблица), нет.pdf (PDF)]')
+    assert [b['type'] for b in content[1:]] == ['document', 'image', 'text']
+    assert base64.b64decode(content[1]['source']['data']) == PDF and content[2]['source']['media_type'] == 'image/png'
+    assert 'IPA;12.5' in content[3]['text']
+    qid, body = site.web_finished[-1]
+    assert body['status'] == 'done' and 'Файл «нет.pdf» не скачался' in body['notice']
+    block = service.web_history_block([{'question': 'Сверь', 'files': 'Накладная.pdf (PDF)', 'answer': 'Да.'}])
+    assert 'К вопросу были приложены файлы: Накладная.pdf (PDF)' in block
 
 
 def test_web_report_stop_and_history(bot):
@@ -485,7 +693,9 @@ def test_page_in_browser(web_app, monkeypatch):
             assert not page.is_visible('#rsNew'), 'беседы — за краем, пока не открыть (решение владельца)'
             assert page.is_visible('#rsSideToggle') and not page.is_visible('#rsNewTop')
             assert page.locator('.rx-sq:visible').count() == 3, 'три готовых вопроса'
-            assert bot_settings.WEB_SUGGESTIONS[0]['hint'] in page.inner_text('#rsSuggest')
+            pool = {x['question']: x['hint'] for x in bot_settings.WEB_SUGGESTIONS}
+            first = page.get_attribute('.rx-sq >> nth=0', 'data-question')
+            assert first in pool and pool[first] in page.inner_text('#rsSuggest'), 'случайные — из списка'
             assert page.is_disabled('#rsSend'), 'пустой вопрос не отправить'
             # Молния: подсказка при наведении, включение — свечение (aria-pressed).
             assert not page.is_visible('#rsFastTip')
@@ -518,14 +728,32 @@ def test_page_in_browser(web_app, monkeypatch):
             page.click('#rsEffortBtn')
             page.click('#rsEffortMenu [data-mode="report"]')
             assert page.inner_text('#rsEffortBtn').strip() == 'Исследование' and not page.is_visible('#rsEffortMenu')
+            # Файлы: скрепкой — карточки над текстом; лишний — крестиком; неизвестный тип — отказ сразу.
+            page.set_input_files('#rsFileInput', files=[
+                {'name': 'Накладная.pdf', 'mimeType': 'application/pdf', 'buffer': PDF},
+                {'name': 'фото.png', 'mimeType': 'image/png', 'buffer': png_bytes()}])
+            page.wait_for_function("document.querySelectorAll('#rsFiles .rx-file').length === 2")
+            assert 'Что сделать с файлами' in page.get_attribute('#rsInput', 'placeholder')
+            assert page.locator('#rsFiles .rx-file-thumb').count() == 1, 'у картинки — миниатюра'
+            page.click('#rsFiles .rx-file:has-text("фото.png") .rx-file-x')
+            assert page.locator('#rsFiles .rx-file').count() == 1
+            page.set_input_files('#rsFileInput', files=[{'name': 'a.exe', 'mimeType': 'application/octet-stream',
+                                                         'buffer': b'MZ'}])
+            assert 'не читаю' in page.inner_text('#rsError') and page.locator('#rsFiles .rx-file').count() == 1
+            if SHOTS:
+                page.fill('#rsInput', 'Сверь накладную с остатками')
+                page.locator('.rx-composer').screenshot(path=os.path.join(SHOTS, 'research-files.png'))
             page.fill('#rsInput', 'Как бельгийское пиво в сентябре против августа?')
             page.keyboard.press('Enter')
             page.wait_for_selector('.rx-turn .rx-run')
+            assert page.locator('#rsFiles .rx-file').count() == 0 and page.is_hidden('#rsFiles'), 'ушли с вопросом'
+            assert page.inner_text('.rx-q-files') .strip().startswith('PDF')
+            assert page.get_attribute('.rx-q-files a', 'href').startswith('/api/research/files/q')
             assert 'В очереди' in page.text_content('.rx-turn') and 'ИССЛЕДОВАНИЕ' in page.inner_text('.rx-q-meta')
             assert page.get_attribute('#rsSend', 'aria-label') == 'Остановить', 'пока бот отвечает — «Остановить»'
             assert not page.locator('.rx-main.is-empty').count()
             job = engine.get('/api/bot/web/next', headers=ENGINE).get_json()['job']
-            assert job['mode'] == 'report'
+            assert job['mode'] == 'report' and [f['name'] for f in job['files']] == ['Накладная.pdf']
             engine.post(f'/api/bot/web/{job["id"]}/beat', headers=ENGINE,
                         json={'progress': 'Собираю отчёт · 0:42\n▰▰▰▱▱▱▱▱▱▱ ≈ 2 мин осталось\nСейчас: «Сравнение '
                                           'периодов» — 12 с\nСделано: 4 шага, 2 запроса данных · $0.61 из $5.00'})
@@ -607,7 +835,7 @@ def test_page_in_browser(web_app, monkeypatch):
             page.click('#rsEffortMenu [data-mode="answer"]')
             page.click('#rsFast')
             page.fill('#rsInput', 'черновик')
-            deep = bot_settings.WEB_SUGGESTIONS[2]['question']
+            deep = page.get_attribute('.rx-sq >> nth=2', 'data-question')
             page.locator('.rx-sq').nth(2).click()
             page.wait_for_selector('.rx-turn .rx-run')
             assert page.inner_text('.rx-q-text') == deep and page.input_value('#rsInput') == 'черновик'

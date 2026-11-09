@@ -97,12 +97,12 @@ def test_access_management_is_not_exposed():
     # (GET и POST /api/bot/chat-format) и пример графика для /rich (POST /api/bot/rich-demo); с 2026-11-06 (2)
     # — журнал вопросов и ответов (POST /api/bot/journal и /api/bot/journal/feedback); с 2026-11-09 — вопросы со
     # страницы сайта /research (GET /api/bot/web/next, POST …/beat, …/card, …/finish)
-    assert len(bot_pairs) == 15, bot_pairs
+    assert len(bot_pairs) == 16, bot_pairs
     for pair in bot_pairs:
         assert pair in exclusions and 'сервера бота' in exclusions[pair], pair
     # Страница kultura.research (2026-11-09): спросить бота из агента — двойной расход Claude
     research_pairs = [pair for pair in report.required if pair[1].startswith('/api/research/')]
-    assert len(research_pairs) == 6, research_pairs
+    assert len(research_pairs) == 7, research_pairs
     for pair in research_pairs:
         assert pair in exclusions and 'двойной расход Claude' in exclusions[pair], pair
     tool_paths = {t.path for t in registry.all_tools() if t.route_backed}

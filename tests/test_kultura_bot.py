@@ -86,8 +86,8 @@ def site_tool(name, description='инструмент'):
 
 
 DOMAIN_TOOLS = {
-    'common': ['common_bars_reference', 'common_chart_send', 'common_docs_read', 'common_instructions',
-               'common_notify_owner', 'common_report_send', 'common_whoami'],
+    'common': ['common_audit_recent', 'common_bars_reference', 'common_bot_journal', 'common_chart_send',
+               'common_docs_read', 'common_instructions', 'common_notify_owner', 'common_report_send', 'common_whoami'],
     'content': ['content_plan_get', 'content_reviews_list'],
     'stocks': ['stocks_orders_board', 'stocks_taps_list'],
     'analytics': ['analytics_dashboard', 'analytics_sales'],
@@ -129,6 +129,7 @@ class FakeSite:
         self.web_cards = []                 # (qid, инструмент, аргументы) — графики и отчёты вопроса с сайта
         self.web_finished = []              # (qid, итог)
         self.web_stop = set()               # qid, где на странице нажали «Остановить»
+        self.web_files = {}                 # (qid, n) -> байты файла, приложенного к вопросу с сайта
 
     def _check(self):
         if self.down:
@@ -226,6 +227,15 @@ class FakeSite:
         self._check()
         self.web_finished.append((qid, copy.deepcopy(body)))
         return {'ok': True, 'status': body.get('status')}
+
+    def web_file(self, qid, n, limit):
+        self._check()
+        if (qid, n) not in self.web_files:
+            raise SiteError('http', f'Сайт ответил 404 на /api/bot/web/{qid}/files/{n}')
+        data = self.web_files[(qid, n)]
+        if len(data) > limit:
+            raise SiteError('http', 'файл больше предела')
+        return data
 
     def instructions(self, connector='/mcp'):
         self._check()
@@ -534,6 +544,11 @@ def test_catalog_from_site_tools_and_rules(env):
     deferred = [t['name'] for t in bot.toolset.defs if t.get('defer_loading')]
     assert deferred == sorted(deferred) and 'staff_salary_month' in deferred
     assert 'common_notify_owner' not in names and 'common_notify_owner' not in bot.toolset.names, 'скрытый'
+    # «История у каждого своя» (2026-11-09): бот работает с правами сайта владельца — журнал вопросов и
+    # журнал вызовов открыли бы любому спросившему чужие вопросы.
+    for hidden in ('common_bot_journal', 'common_audit_recent'):
+        assert hidden in settings.HIDDEN_TOOLS and hidden not in bot.toolset.names, hidden
+        assert all(hidden not in agent.toolset.names for agent in catalog.agents.values()), hidden
     assert all(__import__('re').match(TOOL_NAME_RE, n) for n in names)
     assert bot.system.endswith('Правила коннектора /mcp.')
 

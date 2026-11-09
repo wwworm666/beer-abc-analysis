@@ -3,8 +3,9 @@
     Решения владельца 2026-11-09: свой минималистичный дизайн — без шапки и меню сайта, без его оранжево-бежевой
     палитры; только светлая тема («никаких тёмных тем никогда»); шрифты — IBM Plex, как у сайта. Правки по
     снимку: панель бесед скрыта (открывается кнопкой), вместо заголовка — логотип kultura.research, который
-    набирается (static/logo.js, вид research); под полем — три сложных готовых вопроса с подсказками; в поле —
-    молния быстрого режима слева и выбор глубины ответа («Ответ» / «Исследование») справа, как у моделей.
+    набирается (static/logo.js, вид research); под полем — три сложных готовых вопроса (случайные из
+    settings.WEB_SUGGESTIONS); в поле — скрепка (файлы: картинки, PDF, Excel, CSV, текст) и молния быстрого
+    режима слева, выбор глубины ответа («Ответ» / «Исследование») справа, как у моделей.
     Стили сайта не подключаются; графики и отчёты рисуют скрипты мини-приложения бота
     (static/tg_chart/charts.js, report.js) — их цвета перекрашены токенами в static/research.css. -#}
 <html lang="ru" data-theme="light">
@@ -24,7 +25,8 @@
     <link rel="stylesheet" href="/static/research.css?v={{ app_version }}">
 </head>
 <body class="rx">
-<div class="rx-app" id="rsRoot" data-fast="{{ 1 if fast_mode else 0 }}">
+<div class="rx-app" id="rsRoot" data-fast="{{ 1 if fast_mode else 0 }}" data-files-max="{{ files_max }}"
+     data-file-max="{{ file_max_bytes }}" data-files-total="{{ files_total_bytes }}">
     <aside class="rx-side" id="rsSide" aria-label="Беседы">
         <div class="rx-side-head">
             <a class="rx-brand" href="/research" aria-label="kultura.research — новая беседа"><img class="rx-mark"
@@ -81,10 +83,18 @@
         <div class="rx-dock" id="rsDock">
             <div class="rx-engine" id="rsEngine" role="status" hidden></div>
             <form class="rx-composer" id="rsForm" novalidate>
+                <div class="rx-files" id="rsFiles" aria-label="Приложенные файлы" hidden></div>
                 <label class="rx-sr" for="rsInput">Вопрос</label>
                 <textarea id="rsInput" rows="1" maxlength="8000" enterkeyhint="send"
                           placeholder="Спросите о выручке, остатках, сменах…"></textarea>
                 <div class="rx-bar">
+                    {#- файлы: кнопка, выбор, перетаскивание на поле и вставка картинки из буфера (research.js) -#}
+                    <button class="rx-attach" type="button" id="rsAttach" aria-label="Приложить файл"
+                            title="Приложить файл: картинку, PDF, Excel, CSV или текст">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.2 11.6l-7.9 7.9a5 5 0 0 1-7.1-7.1l8.4-8.4a3.3 3.3 0 0 1 4.7 4.7l-8.4 8.4a1.7 1.7 0 0 1-2.4-2.4l7.7-7.7"/></svg>
+                    </button>
+                    <input class="rx-sr" type="file" id="rsFileInput" multiple tabindex="-1" aria-hidden="true"
+                           accept="image/jpeg,image/png,image/webp,image/gif,application/pdf,.pdf,.xlsx,.csv,.tsv,.txt,.md,.json">
                     {%- if fast_mode %}
                     <span class="rx-fast-wrap">
                         <button class="rx-fast" type="button" id="rsFast" aria-pressed="false" aria-label="Быстрый режим"
@@ -165,11 +175,16 @@
         <p><b>Быстро</b> (молния слева в поле) — та же модель отвечает до {{ fast_speedup }} раза быстрее, но в
            {{ fast_price }} раза дороже; включается для одного вопроса (как команда /fast в Telegram).</p>
         {% endif %}
+        <p><b>Файлы</b> (скрепка слева в поле, перетаскивание или вставка картинки) — картинки, PDF, Excel (.xlsx),
+           CSV и текст: до {{ files_max }} к вопросу, каждый до {{ file_max_mb }} МБ, все вместе до
+           {{ files_total_mb }} МБ. Бот читает их вместе с вопросом; большой PDF расходует предел быстрее.</p>
         <p>Дневной предел — ${{ '%.2f'|format(user_budget) }} на человека, общий с Telegram. Под каждым ответом —
            во что он обошёлся.</p>
         <p>Отвечает сервер бота в Амстердаме: сайт только принимает вопрос и хранит ответ. Беседа помнит прошлые
-           вопросы; после перерыва дольше {{ idle_minutes }} минут бот перечитывает беседу кратко. Беседы хранятся
-           без срока, каждый видит только свои.</p>
+           вопросы; после перерыва дольше {{ idle_minutes }} минут бот перечитывает беседу кратко.</p>
+        <p><b>Ваша история — только ваша.</b> Беседы, ответы, отчёты и файлы хранятся у нас на сайте без срока и
+           видны только вам: другие люди их не видят — ни здесь, ни в журнале бота, ни через самого бота. Удалить
+           беседу со всем, что в ней, — кнопкой в её верхней строке.</p>
     </div>
 </dialog>
 <div class="rx-toast" id="rsToast" role="status" hidden></div>
