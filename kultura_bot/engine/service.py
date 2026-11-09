@@ -194,6 +194,7 @@ PROFILE_LABELS = {'name': 'имя', 'short_description': 'описание в п
 MENU_LANGS = ('', 'ru', 'en')
 MENU_SCOPES = ('all_private_chats', 'all_group_chats', 'all_chat_administrators')
 PROFILE_RETRY_S = 3600           # профиль не встал (нет связи, отказ) — ещё попытка через час, не ждать перезапуска
+BUDGET_RESET_META = 'user_budget_reset'   # meta: какое значение settings.USER_BUDGET_RESET_AT уже применено
 UNSUPPORTED_FILE_TEXT = ('Этот файл я не читаю: понимаю фото, картинки (JPEG, PNG, WebP, GIF) и PDF. '
                          'Отвечаю по тексту сообщения.')
 NEW_DIALOG_TEXT = 'Начинаю новый диалог.'
@@ -715,8 +716,24 @@ class Service:
 
     # ---------------------------------------------------------------- цикл опроса
 
+    def apply_budget_reset(self) -> int:
+        """Сброс дневного предела на человека (settings.USER_BUDGET_RESET_AT, 2026-11-09): расход всех людей за
+        сутки этого момента — в ноль, один раз на значение (store.meta). Сутки уже прошли — ничего не трогает.
+        Вернуть, сколько записей расхода обнулено."""
+        marker = str(getattr(settings, 'USER_BUDGET_RESET_AT', '') or '').strip()
+        if not marker or self.store.get_meta(BUDGET_RESET_META) == marker:
+            return 0
+        removed = self.store.reset_user_usage(marker[:10]) if marker[:10] == msk_day() else 0
+        self.store.set_meta(BUDGET_RESET_META, marker)
+        log.info('[BOT] сброс дневного предела на человека (%s): обнулено записей — %d', marker, removed)
+        return removed
+
     def run_forever(self) -> None:
         self.set_status('starting', 'сервер бота запускается')
+        try:
+            self.apply_budget_reset()
+        except Exception:  # noqa: BLE001 — сброс предела не должен мешать запуску
+            log.exception('[BOT] сброс дневного предела не удался')
         if settings.WEB_QUESTIONS and self.web_thread is None:
             self.web_thread = threading.Thread(target=self.web_loop, name='kultura-bot-web', daemon=True)
             self.web_thread.start()
