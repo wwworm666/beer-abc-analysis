@@ -60,6 +60,8 @@ Anthropic («Echoing fallback turns back»): до последнего блок�
   перед каждым шагом сверяется со своей базой
   сервера бота (store.usage); исчерпан — BudgetExceeded (бот отвечает «лимит на сегодня»);
   расход каждого шага пишется туда же и уходит сайту в отчёте (on_usage);
+- успешно доставленная карточка завершает вопрос при исчерпанном бюджете вопроса/суток:
+  парные результаты инструментов сохраняются, платное подтверждение не требуется;
 - расход вопроса settings.QUESTION_BUDGET_USD (отчёта — REPORT_BUDGET_USD, Spend.limit) — бот
   и его агенты вместе (Spend в ToolContext): дошёл — к результатам инструментов добавляется
   QUESTION_BUDGET_NOTE, и следующий запрос идёт без инструментов (модель отвечает тем, что
@@ -74,7 +76,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional
 
 from kultura_bot import settings
-from kultura_bot.engine import claude, tools
+from kultura_bot.engine import claude, providers, tools
 
 log = logging.getLogger('kultura-bot')
 
@@ -223,6 +225,15 @@ def fast_failure(exc: BaseException) -> bool:
 
 def send(client: Any, params: Dict[str, Any]):
     """Один запрос потоком; вернуть итоговое сообщение (как у messages.create)."""
+    # Возврат на Anthropic не отправляет ему opaque output другого провайдера.
+    if any(b.get('type') == 'provider_state' for m in params['messages'] for b in m.get('content', [])
+           if isinstance(b, dict)):
+        messages = []
+        for message in params['messages']:
+            blocks = [b for b in message.get('content', []) if b.get('type') != 'provider_state']
+            if blocks:
+                messages.append(dict(message, content=blocks))
+        params = dict(params, messages=messages)
     with client.beta.messages.stream(**params) as stream:
         return stream.get_final_message()
 
@@ -230,6 +241,9 @@ def send(client: Any, params: Dict[str, Any]):
 def create_message(client: Any, build: Callable[[], Dict[str, Any]]):
     """Запрос к Claude. Отвергнутую необязательную возможность — выключить и повторить;
     быстрый режим не ответил — тот же запрос на обычной скорости (pause_fast_mode)."""
+    if getattr(client, 'provider', '') == 'openai':
+        from kultura_bot.engine import astra
+        return astra.create_message(client, build)
     while True:
         params = build()
         fast = params.get('speed') == 'fast'
@@ -293,7 +307,7 @@ def check_budget(store, user: str = '') -> None:
     if limit:
         spent = store.spent_on()
         if spent >= limit:
-            raise BudgetExceeded(f'Общий дневной предел расхода на Claude исчерпан: {spent:.2f} $ из {limit:.2f} $ '
+            raise BudgetExceeded(f'Общий дневной предел расхода на ИИ исчерпан: {spent:.2f} $ из {limit:.2f} $ '
                                  f'(DAILY_BUDGET_USD в kultura_bot/settings.py). Бот снова ответит после полуночи МСК.')
     personal = settings.USER_DAILY_BUDGET_USD
     if personal and user:
@@ -322,8 +336,8 @@ def run_turn(client: Any, *, system_text: str, tool_list: List[Dict[str, Any]], 
 
     store — своя база сервера бота (engine/store.py): дневной предел и расход; on_usage —
     расход шага для отчёта сайту."""
-    model = model or settings.MODEL
-    effort = effort or settings.EFFORT
+    model = model or getattr(client, 'model', None) or settings.MODEL
+    effort = effort or getattr(client, 'effort', None) or settings.EFFORT
     max_rounds = settings.MAX_TOOL_ROUNDS if max_rounds is None else max_rounds
     spend = ctx.spend if ctx.spend is not None else Spend()
     messages = list(history) + [{'role': 'user', 'content': user_content}]
@@ -343,7 +357,7 @@ def run_turn(client: Any, *, system_text: str, tool_list: List[Dict[str, Any]], 
         usage = _usage_dict(response.usage)
         served_by = getattr(response, 'model', None) or model
         speed = getattr(response.usage, 'speed', None)
-        cost = claude.cost_usd(served_by, usage, speed=speed)
+        cost = providers.cost_usd(client, served_by, usage, speed)
         result.cost_usd += cost
         spend.usd += cost
         spend.steps += 1
@@ -423,11 +437,26 @@ def run_turn(client: Any, *, system_text: str, tool_list: List[Dict[str, Any]], 
         sent_before = len(ctx.charts_sent) + len(ctx.reports_sent)
         check_stop(ctx)
         results = [tools.execute(b, ctx) for b in tool_uses]
-        if not ctx.is_agent and len(ctx.charts_sent) + len(ctx.reports_sent) > sent_before:
+        delivered = not ctx.is_agent and len(ctx.charts_sent) + len(ctx.reports_sent) > sent_before
+        if delivered:
             # Карточка (график с подписью-ответом или отчёт) ушла — она и есть ответ: текст до неё
             # («Посмотрю выручку…») вторым сообщением не отправляется. Текст после неё — да.
             final_texts = []
         limit = spend.budget()
+        if delivered:
+            # Успешная карточка уже отвечает на вопрос. Если денег на завершающую
+            # реплику нет, сохраняем парные результаты инструментов и завершаем успешно.
+            exhausted = 'question_budget' if limit and spend.usd >= limit else ''
+            if not exhausted:
+                try:
+                    check_budget(store, ctx.user)
+                except BudgetExceeded:
+                    exhausted = 'daily_budget'
+            if exhausted:
+                if exhausted not in result.notes:
+                    result.notes.append(exhausted)
+                messages.append({'role': 'user', 'content': results})
+                break
         if limit and spend.usd >= limit and not final and finish_left < 0:
             result.notes.append('question_budget')
             if _finishing_report(ctx):
@@ -445,7 +474,7 @@ def run_turn(client: Any, *, system_text: str, tool_list: List[Dict[str, Any]], 
 
     result.text = '\n\n'.join(final_texts).strip()
     if 'refusal' in result.notes and not result.text:
-        result.text = 'Модель отказалась отвечать на этот вопрос (правила безопасности Anthropic). Переформулируйте его.'
+        result.text = 'Модель отказалась отвечать на этот вопрос. Переформулируйте его.'
     if 'max_tokens' in result.notes:
         result.text = (result.text + '\n\n(ответ обрезан: модель упёрлась в предел длины)').strip()
     return result
@@ -462,6 +491,7 @@ def run_agent(client: Any, persona: tools.Persona, task: str, *, parent: tools.T
     text = (header + '\n' if header else '') + task
     result = run_turn(client, system_text=persona.system, tool_list=persona.toolset.defs, history=[],
                       user_content=[{'type': 'text', 'text': text}], ctx=ctx, store=store,
-                      effort=settings.AGENT_EFFORT, max_rounds=settings.AGENT_MAX_TOOL_ROUNDS, on_usage=on_usage,
+                      effort=getattr(client, 'agent_effort', None) or settings.AGENT_EFFORT,
+                      max_rounds=settings.AGENT_MAX_TOOL_ROUNDS, on_usage=on_usage,
                       fast=parent.fast)
     return result.text

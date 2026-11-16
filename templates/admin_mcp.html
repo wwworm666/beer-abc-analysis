@@ -51,6 +51,30 @@
                         <span class="mcp-hint" id="mcpBotTokenHint"></span>
                     </div>
                     <div class="mcp-field mcp-full">
+                        <label for="mcpBotProvider">Модель для Research и Telegram</label>
+                        <select id="mcpBotProvider" class="mcp-input">
+                            <option value="anthropic">Claude Opus 5.5 · Anthropic</option>
+                            <option value="openai">GPT-6 Astra · OpenAI</option>
+                        </select>
+                        <span class="mcp-hint">Смена применяется к новым вопросам. История и отчёты сохраняются.</span>
+                    </div>
+                    <div class="mcp-field mcp-full">
+                        <label for="mcpBotEffort">Усилие рассуждения</label>
+                        <select id="mcpBotEffort" class="mcp-input">
+                            <option value="low">Низкое</option>
+                            <option value="medium">Среднее</option>
+                            <option value="high">Высокое</option>
+                            <option value="xhigh">Очень высокое</option>
+                            <option value="max">Максимальное</option>
+                        </select>
+                    </div>
+                    <div class="mcp-field mcp-full">
+                        <label for="mcpBotOpenAIKey">Ключ OpenAI API</label>
+                        <input id="mcpBotOpenAIKey" class="mcp-input" type="password" autocomplete="off"
+                               spellcheck="false" placeholder="sk-…">
+                        <span class="mcp-hint" id="mcpBotOpenAIKeyHint"></span>
+                    </div>
+                    <div class="mcp-field mcp-full">
                         <label for="mcpBotKey">Ключ Claude API (Anthropic)</label>
                         <input id="mcpBotKey" class="mcp-input" type="password" autocomplete="off"
                                spellcheck="false" placeholder="sk-ant-…">
@@ -68,8 +92,7 @@
                 </div>
 
                 <h2 class="mcp-subhead">Сервер бота в Амстердаме</h2>
-                <p class="mcp-note">Бот работает на сервере в Амстердаме: этот сайт стоит в России, где API Anthropic
-                   недоступен. Установка — один раз: команду ниже выполнить на том сервере под root. Дальше бот
+                <p class="mcp-note">Бот работает на сервере в Амстердаме и обращается к выбранному API — OpenAI или Anthropic. Установка — один раз: команду ниже выполнить на том сервере под root. Дальше бот
                    обновляется из GitHub сам, а токен, ключ и паузу берёт с этой страницы.</p>
                 <p class="mcp-note" id="mcpBotEngine"></p>
                 <div class="mcp-actions">
@@ -108,8 +131,8 @@
                 <details class="mcp-fold">
                     <summary>Как устроен бот</summary>
                     <div class="mcp-note mcp-fold-body">
-                        <p>Бот работает на сервере в Амстердаме и отвечает через Claude API по вашему ключу: сайт
-                           стоит в России, где API Anthropic недоступен, и сам к нему не обращается. Данные бот берёт
+                        <p>Бот работает на сервере в Амстердаме и отвечает через выбранную модель OpenAI или Anthropic
+                           по вашему ключу. Сайт сам к API модели не обращается. Данные бот берёт
                            у сайта по MCP, как остальные агенты: каждый инструмент вызывает расчёт страницы сайта,
                            все вызовы — в журнале ниже (клиент «Бот @MCPkulturabot — сервер в Амстердаме»).</p>
                         <p>Всё, кроме секретов, лежит в репозитории, в папке <span class="mcp-code">kultura_bot/</span>:

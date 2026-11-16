@@ -101,7 +101,7 @@
                                 aria-describedby="rsFastTip">
                             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2.5L5 13.2h6l-1 8.3 8-10.7h-6z"/></svg>
                         </button>
-                        <span class="rx-tip" id="rsFastTip" role="tooltip">Быстро: до {{ fast_speedup }} раза быстрее,
+                        <span class="rx-tip" id="rsFastTip" role="tooltip">{% if openai_mode %}Быстрый режим{% else %}Быстро: до {{ fast_speedup }} раза быстрее{% endif %},
                             но в {{ fast_price }} раза дороже — только для этого вопроса</span>
                     </span>
                     {%- endif %}
@@ -172,7 +172,7 @@
            ${{ '%.2f'|format(report_budget) }}, собирается несколько минут. Глубина ответа выбирается справа в поле
            вопроса.</p>
         {% if fast_mode %}
-        <p><b>Быстро</b> (молния слева в поле) — та же модель отвечает до {{ fast_speedup }} раза быстрее, но в
+        <p><b>Быстро</b> (молния слева в поле) — {% if openai_mode %}ускоренный режим той же модели{% else %}та же модель отвечает до {{ fast_speedup }} раза быстрее{% endif %}, но в
            {{ fast_price }} раза дороже; включается для одного вопроса (как команда /fast в Telegram).</p>
         {% endif %}
         <p><b>Файлы</b> (скрепка слева в поле, перетаскивание или вставка картинки) — картинки, PDF, Excel (.xlsx),

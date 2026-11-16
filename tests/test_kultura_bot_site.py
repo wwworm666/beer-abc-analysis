@@ -73,7 +73,7 @@ def engine_key(command):
 @pytest.fixture
 def store(tmp_path, monkeypatch):
     db.set_db_path(str(tmp_path / 'mcp.db'))
-    for name in (cs.BOT_TOKEN_ENV, cs.ANTHROPIC_ENV):
+    for name in (cs.BOT_TOKEN_ENV, cs.ANTHROPIC_ENV, cs.OPENAI_ENV):
         monkeypatch.delenv(name, raising=False)
     yield monkeypatch
     db.set_db_path(None)
@@ -115,7 +115,8 @@ def test_anthropic_key_checked_by_format_and_given_only_to_engine(store):
     assert view['anthropic'] == {'configured': True, 'source': 'settings', 'key_hint': 'sk-a…kkk'}
     assert KEY not in repr(view) and KEY not in repr(cs.public_view())
     cs.save(token=GOOD, getme=getme_ok())
-    assert cs.engine_view() == {'telegram': {'token': GOOD, 'username': 'MCPkulturabot'}, 'anthropic_key': KEY,
+    assert cs.engine_view() == {**cs.model_config(), 'openai_key': '',
+                                'telegram': {'token': GOOD, 'username': 'MCPkulturabot'}, 'anthropic_key': KEY,
                                 'paused': False}, 'серверу бота — целиком'
 
 
@@ -137,6 +138,87 @@ def test_pause(store):
     assert cs.paused() is True and cs.public_view()['paused'] is True and cs.engine_view()['paused'] is True
     with pytest.raises(ValueError, match='Пауза'):
         cs.save(paused_value='да')
+
+
+def test_openai_key_is_masked_and_works_without_anthropic(store):
+    from kultura_bot import web
+    gpt = 'sk-proj-' + 'x' * 80
+    view = cs.save(openai_key_value=gpt, provider_value='openai', effort_value='high')
+    assert cs.active_key() == gpt and cs.anthropic_key() == ''
+    assert view['openai']['configured'] and gpt not in repr(view)
+    assert view['model'] == 'gpt-6-astra' and view['effort'] == 'high'
+    engine = cs.engine_view()
+    assert engine['openai_key'] == gpt and engine['anthropic_key'] == ''
+    assert engine['agent_effort'] == 'high'
+    assert 'ключа' not in web.engine_state()['text']
+    with pytest.raises(ValueError):
+        cs.save(openai_key_value=KEY, provider_value='anthropic')
+    assert cs.provider() == 'openai', 'ошибка ключа не меняет провайдера'
+    cs.save(clear_openai_key=True)
+    assert 'OpenAI' in web.engine_state()['text']
+
+
+def test_openai_admin_api_saves_only_allowed_fields(store):
+    import test_mcp_tokens as tt
+    gpt = 'sk-proj-' + 'g' * 80
+    with tt.Env():
+        client = tt._admin_app().test_client()
+        tt._login(client, 'owner', 'ownerpass')
+        result = client.put('/api/admin/mcp/bot', json={'provider': 'openai', 'openai_key': gpt, 'effort': 'max'})
+        assert result.status_code == 200
+        assert gpt not in result.get_data(as_text=True)
+        assert result.get_json()['provider'] == 'openai'
+        assert result.get_json()['model'] == 'gpt-6-astra'
+        for body in ({'provider': 'other'}, {'provider': []}, {'effort': 'turbo'}, {'openai_key': 1}):
+            assert client.put('/api/admin/mcp/bot', json=body).status_code == 400
+        assert cs.provider() == 'openai'
+
+
+def test_openai_settings_in_browser(store):
+    import threading
+    from pathlib import Path
+    import test_mcp_tokens as tt
+    from werkzeug.serving import make_server
+    playwright = pytest.importorskip('playwright.sync_api')
+    chromium = os.environ.get('TG_CHART_CHROMIUM', '/usr/bin/chromium')
+    if not Path(chromium).exists():
+        pytest.skip('Chromium не установлен')
+    with tt.Env():
+        app = tt._admin_app()
+        app.jinja_env.globals['app_version'] = 'test'
+        srv = make_server('127.0.0.1', 0, app, threaded=True)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        base = f'http://127.0.0.1:{srv.server_port}'
+        try:
+            with playwright.sync_playwright() as p:
+                browser = p.chromium.launch(executable_path=chromium, headless=True)
+                context = browser.new_context(viewport={'width': 1280, 'height': 900})
+                context.request.post(base + '/login', form={'login': 'owner', 'password': 'ownerpass'})
+                page = context.new_page()
+                errors = []
+                page.on('pageerror', lambda error: errors.append(str(error)))
+                page.goto(base + '/admin/mcp')
+                page.wait_for_function("document.querySelector('#mcpBotKeyHint').textContent.length > 0")
+                page.select_option('#mcpBotProvider', 'openai')
+                page.select_option('#mcpBotEffort', 'high')
+                fake_key = 'sk-proj-' + 'x' * 80
+                page.fill('#mcpBotOpenAIKey', fake_key)
+                page.click('#mcpBotSave')
+                page.wait_for_function("document.querySelector('#mcpBotOk').textContent === 'Сохранено'")
+                assert page.input_value('#mcpBotOpenAIKey') == ''
+                assert page.input_value('#mcpBotKey') == ''
+                assert cs.provider() == 'openai' and cs.active_key() == fake_key
+                page.reload()
+                page.wait_for_function("document.querySelector('#mcpBotProvider').value === 'openai'")
+                assert page.input_value('#mcpBotEffort') == 'high'
+                assert 'Сохранён:' in page.inner_text('#mcpBotOpenAIKeyHint')
+                assert fake_key not in page.content() and not errors
+                if os.environ.get('ASTRA_SETTINGS_SHOT'):
+                    page.locator('#mcpBotProvider').scroll_into_view_if_needed()
+                    page.screenshot(path=os.environ['ASTRA_SETTINGS_SHOT'])
+                browser.close()
+        finally:
+            srv.shutdown()
 
 
 # ------------------------------------------------------------------ API страницы «Доступ агентов»
@@ -310,7 +392,8 @@ def test_bot_api_only_for_engine_key(site_env):
         assert call(env, method, path, other, json={}).status_code == 401, 'MCP-токен агента секреты не открывает'
     r = call(env, 'GET', '/api/bot/config', key1)
     assert r.status_code == 200 and r.headers['Cache-Control'] == 'no-store'
-    assert r.get_json() == {'telegram': {'token': GOOD, 'username': 'MCPkulturabot'}, 'anthropic_key': KEY,
+    assert r.get_json() == {**cs.model_config(), 'openai_key': '',
+                            'telegram': {'token': GOOD, 'username': 'MCPkulturabot'}, 'anthropic_key': KEY,
                             'paused': False}
 
     key2 = engine_key(site_api.issue_install(env.owner)['command'])
