@@ -120,7 +120,8 @@ def provider() -> str:
 def model_config() -> Dict[str, str]:
     selected = provider()
     effort = _stored(KEY_EFFORT)
-    effort = effort if effort in bot_settings.MODEL_EFFORTS else bot_settings.EFFORT
+    effort = effort if effort in bot_settings.MODEL_EFFORTS else (
+        bot_settings.OPENAI_EFFORT if selected == 'openai' else bot_settings.EFFORT)
     return {'provider': selected, 'model': bot_settings.OPENAI_MODEL if selected == 'openai' else bot_settings.MODEL,
             'effort': effort, 'agent_effort': effort}
 

@@ -107,7 +107,8 @@ def test_client_search_loads_only_matching_authorized_schemas(env):
                   ctx=ctx_for(env, allowed=catalog.bot.toolset.names))
     assert result.text == 'Итог' and len(client.calls) == 3
     initial_names = {t.get('name') for t in client.calls[0]['tools']}
-    assert 'analytics_sales' not in initial_names and tools.REPORT_TOOL in initial_names
+    assert 'analytics_sales' in initial_names and tools.REPORT_TOOL in initial_names
+    assert not any(t.get('type') == 'tool_search' or 'defer_loading' in t for t in client.calls[0]['tools'])
     loaded = next(i for i in client.calls[1]['input'] if i.get('type') == 'tool_search_output')
     assert loaded['execution'] == 'client' and loaded['call_id'] == 'search1'
     assert [t['name'] for t in loaded['tools']] == ['analytics_sales']
@@ -425,5 +426,20 @@ def test_real_sdk_stream_contract_with_mock_transport(env):
         result = turn(env, client, tool_list=tools.load_catalog(env.site).bot.toolset.defs)
     assert result.text == 'SDK работает'
     assert captured[0]['stream'] is True and captured[0]['store'] is False
-    assert captured[0]['tools'][0]['type'] == 'tool_search'
-    assert captured[0]['tools'][0]['execution'] == 'client'
+    assert all(t['type'] == 'function' for t in captured[0]['tools'])
+    assert captured[0]['reasoning']['effort'] == 'medium'
+
+
+def test_astra_medium_default_and_full_role_catalog(env):
+    selected = providers.selection({'provider': 'openai'})
+    assert selected.effort == selected.agent_effort == 'medium'
+    catalog = tools.load_catalog(env.site)
+    for persona in [catalog.bot, *catalog.agents.values()]:
+        params = agent.request_params(model=selected.model, effort=selected.effort,
+                                      system_text=persona.system, tool_list=persona.toolset.defs, messages=[])
+        request = astra.request_params(params)
+        expected = {t['name'] for t in astra.tool_defs(persona.toolset.defs)
+                    if t.get('type') == 'function' and t['name'] not in settings.HIDDEN_TOOLS}
+        assert {t['name'] for t in request['tools']} == expected
+        assert request['reasoning']['effort'] == 'medium'
+        assert all(t['type'] == 'function' and 'defer_loading' not in t for t in request['tools'])

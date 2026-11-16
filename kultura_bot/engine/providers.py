@@ -25,7 +25,7 @@ def selection(config=None):
     model = config.get('model') or (settings.OPENAI_MODEL if provider == 'openai' else settings.MODEL)
     if provider == 'openai' and model != settings.OPENAI_MODEL:
         raise ValueError('Для OpenAI поддерживается модель ' + settings.OPENAI_MODEL)
-    effort = config.get('effort') or settings.EFFORT
+    effort = config.get('effort') or (settings.OPENAI_EFFORT if provider == 'openai' else settings.EFFORT)
     agent_effort = config.get('agent_effort') or effort
     if effort not in settings.MODEL_EFFORTS or agent_effort not in settings.MODEL_EFFORTS:
         raise ValueError('Неизвестное усилие модели')

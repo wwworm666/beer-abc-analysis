@@ -7,6 +7,7 @@ output items (reasoning, tool search, compaction, call IDs) для stateless Res
 Все функции исполняет только tools.execute: Responses не получает удалённый MCP.
 """
 import json
+import re
 import threading
 from types import SimpleNamespace
 
@@ -218,10 +219,17 @@ def request_params(params):
         'или шире; найденные инструменты остаются доступны до конца разговора.',
         'Ищи по задаче и разделу: продажи, смены, остатки, заказы, кеги, зарплата. '
         'Не нашлось — уточни назначение инструмента; найденные функции доступны дальше в разговоре.')
+    instructions = re.sub(r'# Как найти инструмент\n.*?(?=\n# |\Z)',
+                          '# Доступные инструменты\nВсе разрешённые функции уже предоставлены. '
+                          'Выбирай и вызывай их напрямую; поиск инструментов не требуется.\n',
+                          instructions, flags=re.S)
+    instructions += '\nВсе разрешённые функции переданы непосредственно в tools; tool_search недоступен.'
     result = {
         'model': params['model'], 'instructions': instructions,
         'input': input_items(params['messages']),
-        'tools': [tool for tool in tool_defs(params['tools']) if not tool.get('defer_loading')],
+        'tools': [{k: v for k, v in tool.items() if k != 'defer_loading'}
+                  for tool in tool_defs(params['tools'])
+                  if tool.get('type') == 'function' and tool['name'] not in settings.HIDDEN_TOOLS],
         'reasoning': {'effort': params['output_config']['effort']},
         'max_output_tokens': params['max_tokens'], 'store': False,
         'include': ['reasoning.encrypted_content'],

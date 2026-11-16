@@ -78,6 +78,7 @@ TELEGRAM_USERNAMES = ('ivanwiwkin', 'pk_kvvo', 'Chappssful')
 # в много шагов. Цены — PRICES_PER_MTOK ниже.
 MODEL = 'claude-opus-5-5'
 OPENAI_MODEL = 'gpt-6-astra'
+OPENAI_EFFORT = 'medium'
 MODEL_EFFORTS = ('low', 'medium', 'high', 'xhigh', 'max')
 # Compaction до порога удорожания Astra (272K входа); инструкции и каталог передаются заново.
 OPENAI_COMPACT_AT_TOKENS = 200_000
