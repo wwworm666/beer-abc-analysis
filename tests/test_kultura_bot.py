@@ -1447,8 +1447,7 @@ def test_report_budget_leaves_steps_only_for_the_page(bot):
     bot.client.script += [resp(use('common_whoami', {}, 't1'), stop='tool_use'),
                           resp(use('common_whoami', {}, 't2'), stop='tool_use'),
                           resp(use('common_whoami', {}, 't3'), stop='tool_use'),
-                          resp(use(tools.REPORT_TOOL, report_args(), 't4'), stop='tool_use'),
-                          resp(text(''))]
+                          resp(use(tools.REPORT_TOOL, report_args(), 't4'), stop='tool_use')]
     bot.svc.handle_update(message('/research сентябрь'))
     called = [n for n, _ in bot.env.site.calls if n in ('common_whoami', tools.REPORT_TOOL)]
     assert called == ['common_whoami', 'common_whoami', tools.REPORT_TOOL], 'после предела — только отчёт'
@@ -1457,7 +1456,8 @@ def test_report_budget_leaves_steps_only_for_the_page(bot):
     refused = bot.client.calls[3]['messages'][-1]['content'][0]
     assert refused['is_error'] and refused['content'][0]['text'] == tools.REPORT_ONLY_TEXT
     assert all('tool_choice' not in c for c in bot.client.calls), 'инструменты не отключены: отчёт отправить можно'
-    assert [m[1] for m in bot.tg.sent] == [service.cost_line(agent.Spend(usd=5 * step, steps=5, limit=1.5 * step))], \
+    assert len(bot.client.calls) == 4, 'доставленный отчёт завершает вопрос без платного подтверждения'
+    assert [m[1] for m in bot.tg.sent] == [service.cost_line(agent.Spend(usd=4 * step, steps=4, limit=1.5 * step))], \
         'в чат — страница и строка «остановился на пределе»: отчёт мог выйти неполным'
 
 

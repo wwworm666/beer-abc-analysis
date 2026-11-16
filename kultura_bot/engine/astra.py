@@ -16,6 +16,22 @@ from kultura_bot.engine import claude
 _clients = {}
 _lock = threading.Lock()
 
+# Поиск выполняется локально: не отправляем полный каталог на каждом шаге.
+SEARCH = {
+    'type': 'tool_search', 'execution': 'client',
+    'description': ('Найти инструменты Культуры по имени, описанию или русским корням слов. '
+                    'terms — буквальные подстроки, не regex; достаточно совпадения одной. '
+                    'Разделы имён: analytics_, stocks_, staff_, content_, common_. '
+                    'Например: ["retention", "удержан"], ["salary", "зарплат"]. '
+                    'Если результатов много, уточни terms или увеличь offset.'),
+    'parameters': {'type': 'object', 'properties': {
+        'terms': {'type': 'array', 'items': {'type': 'string', 'minLength': 2, 'maxLength': 100},
+                  'minItems': 1, 'maxItems': 6},
+        'offset': {'type': 'integer', 'minimum': 0, 'maximum': 500},
+    }, 'required': ['terms'], 'additionalProperties': False},
+}
+SEARCH_PAGE_SIZE = 6
+
 
 def make_client(key, *, timeout=claude.REQUEST_TIMEOUT_S, max_retries=claude.MAX_RETRIES):
     from openai import OpenAI
@@ -75,7 +91,7 @@ def tool_defs(definitions):
     result = []
     for tool in definitions:
         if str(tool.get('type', '')).startswith('tool_search_'):
-            result.append({'type': 'tool_search'})
+            result.append(dict(SEARCH))
             continue
         item = {'type': 'function', 'name': tool['name'], 'description': tool.get('description', ''),
                 'parameters': tool['input_schema'], 'strict': False}
@@ -83,6 +99,35 @@ def tool_defs(definitions):
             item['defer_loading'] = True
         result.append(item)
     return result
+
+
+def search_tools(definitions, arguments):
+    """Только каталог текущей роли; без сети, regex и доступа к чужим инструментам."""
+    if isinstance(arguments, str):
+        try:
+            arguments = json.loads(arguments)
+        except ValueError:
+            return []
+    if not isinstance(arguments, dict):
+        return []
+    terms = arguments.get('terms')
+    offset = arguments.get('offset', 0)
+    if (not isinstance(terms, list) or not 1 <= len(terms) <= 6
+            or any(not isinstance(t, str) or not 2 <= len(t.strip()) <= 100 for t in terms)
+            or not isinstance(offset, int) or isinstance(offset, bool) or not 0 <= offset <= 500):
+        return []
+    terms = {term.strip().casefold() for term in terms}
+    ranked = []
+    for tool in tool_defs(definitions):
+        if tool.get('type') != 'function' or not tool.get('defer_loading') or tool['name'] in settings.HIDDEN_TOOLS:
+            continue
+        name = tool['name'].casefold()
+        description = tool.get('description', '').casefold()
+        score = sum(8 * (term in name) + (term in description) for term in terms)
+        if score:
+            ranked.append((score, name, dict(tool, defer_loading=True)))
+    ranked.sort(key=lambda item: (-item[0], item[1]))
+    return [item[2] for item in ranked[offset:offset + SEARCH_PAGE_SIZE]]
 
 
 def _input_block(block):
@@ -175,7 +220,8 @@ def request_params(params):
         'Не нашлось — уточни назначение инструмента; найденные функции доступны дальше в разговоре.')
     result = {
         'model': params['model'], 'instructions': instructions,
-        'input': input_items(params['messages']), 'tools': tool_defs(params['tools']),
+        'input': input_items(params['messages']),
+        'tools': [tool for tool in tool_defs(params['tools']) if not tool.get('defer_loading')],
         'reasoning': {'effort': params['output_config']['effort']},
         'max_output_tokens': params['max_tokens'], 'store': False,
         'include': ['reasoning.encrypted_content'],
@@ -188,11 +234,20 @@ def request_params(params):
     return result
 
 
-def normalize(response):
+def normalize(response, definitions=()):
     raw = response.model_dump(mode='json', exclude_none=True) if hasattr(response, 'model_dump') else response
     if raw.get('status') not in ('completed', 'incomplete'):
         raise ResponseError('OpenAI не завершил ответ. Действия этого шага не выполнены.')
-    output = raw.get('output') or []
+    output = list(raw.get('output') or [])
+    searches = [item for item in output if item.get('type') == 'tool_search_call'
+                and item.get('execution') == 'client']
+    search_ids = [item.get('call_id') for item in searches]
+    if searches and (not all(search_ids) or len(set(search_ids)) != len(search_ids)):
+        raise ResponseError('OpenAI вернул некорректный идентификатор поиска инструментов.')
+    for item in searches:
+        found = search_tools(definitions, item.get('arguments')) if raw.get('status') == 'completed' else []
+        output.append({'type': 'tool_search_output', 'execution': 'client', 'call_id': item['call_id'],
+                       'status': 'completed', 'tools': found})
     content = [{'type': 'provider_state', 'provider': 'openai', 'version': 1, 'output': output}]
     calls, refused, truncated = False, False, False
     seen_calls = set()
@@ -216,8 +271,8 @@ def normalize(response):
                 arguments = None     # tools.execute вернёт ошибку, не вызовет сайт
             content.append({'type': 'tool_use', 'id': item['call_id'], 'name': item['name'], 'input': arguments})
     stop = 'refusal' if refused else ('tool_use' if calls else 'end_turn')
-    if not calls and not refused and not any(b['type'] == 'text' for b in content) and any(
-            item.get('type') == 'tool_search_output' for item in output):
+    if not calls and not refused and (searches or (not any(b['type'] == 'text' for b in content) and any(
+            item.get('type') in ('tool_search_output', 'compaction') for item in output))):
         stop = 'pause_turn'
     if truncated:
         stop = 'max_tokens'
@@ -243,12 +298,13 @@ def create_message(client, build):
     from openai import APIConnectionError, APIStatusError
     from kultura_bot.engine import agent
     while True:
-        params = request_params(build())
+        source = build()
+        params = request_params(source)
         fast = params.get('service_tier') == 'fast'
         try:
             sdk = client.with_options(max_retries=0) if fast else client
             with sdk.responses.stream(**params) as stream:
-                return normalize(stream.get_final_response())
+                return normalize(stream.get_final_response(), source['tools'])
         except (APIConnectionError, APIStatusError) as exc:
             status = getattr(exc, 'status_code', 0)
             rejected_fast = status in (400, 403) and any(

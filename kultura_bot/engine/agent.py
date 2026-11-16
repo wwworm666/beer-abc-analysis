@@ -60,6 +60,8 @@ Anthropic («Echoing fallback turns back»): до последнего блок�
   перед каждым шагом сверяется со своей базой
   сервера бота (store.usage); исчерпан — BudgetExceeded (бот отвечает «лимит на сегодня»);
   расход каждого шага пишется туда же и уходит сайту в отчёте (on_usage);
+- успешно доставленная карточка завершает вопрос при исчерпанном бюджете вопроса/суток:
+  парные результаты инструментов сохраняются, платное подтверждение не требуется;
 - расход вопроса settings.QUESTION_BUDGET_USD (отчёта — REPORT_BUDGET_USD, Spend.limit) — бот
   и его агенты вместе (Spend в ToolContext): дошёл — к результатам инструментов добавляется
   QUESTION_BUDGET_NOTE, и следующий запрос идёт без инструментов (модель отвечает тем, что
@@ -305,7 +307,7 @@ def check_budget(store, user: str = '') -> None:
     if limit:
         spent = store.spent_on()
         if spent >= limit:
-            raise BudgetExceeded(f'Общий дневной предел расхода на Claude исчерпан: {spent:.2f} $ из {limit:.2f} $ '
+            raise BudgetExceeded(f'Общий дневной предел расхода на ИИ исчерпан: {spent:.2f} $ из {limit:.2f} $ '
                                  f'(DAILY_BUDGET_USD в kultura_bot/settings.py). Бот снова ответит после полуночи МСК.')
     personal = settings.USER_DAILY_BUDGET_USD
     if personal and user:
@@ -435,11 +437,26 @@ def run_turn(client: Any, *, system_text: str, tool_list: List[Dict[str, Any]], 
         sent_before = len(ctx.charts_sent) + len(ctx.reports_sent)
         check_stop(ctx)
         results = [tools.execute(b, ctx) for b in tool_uses]
-        if not ctx.is_agent and len(ctx.charts_sent) + len(ctx.reports_sent) > sent_before:
+        delivered = not ctx.is_agent and len(ctx.charts_sent) + len(ctx.reports_sent) > sent_before
+        if delivered:
             # Карточка (график с подписью-ответом или отчёт) ушла — она и есть ответ: текст до неё
             # («Посмотрю выручку…») вторым сообщением не отправляется. Текст после неё — да.
             final_texts = []
         limit = spend.budget()
+        if delivered:
+            # Успешная карточка уже отвечает на вопрос. Если денег на завершающую
+            # реплику нет, сохраняем парные результаты инструментов и завершаем успешно.
+            exhausted = 'question_budget' if limit and spend.usd >= limit else ''
+            if not exhausted:
+                try:
+                    check_budget(store, ctx.user)
+                except BudgetExceeded:
+                    exhausted = 'daily_budget'
+            if exhausted:
+                if exhausted not in result.notes:
+                    result.notes.append(exhausted)
+                messages.append({'role': 'user', 'content': results})
+                break
         if limit and spend.usd >= limit and not final and finish_left < 0:
             result.notes.append('question_budget')
             if _finishing_report(ctx):

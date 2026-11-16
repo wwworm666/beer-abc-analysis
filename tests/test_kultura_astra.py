@@ -69,7 +69,7 @@ def test_catalog_export_preserves_optional_arguments_and_hidden_tools(env):
     catalog = tools.load_catalog(env.site)
     fingerprint = catalog.bot.fingerprint
     exported = astra.tool_defs(catalog.bot.toolset.defs)
-    assert exported[0] == {'type': 'tool_search'}
+    assert exported[0]['type'] == 'tool_search' and exported[0]['execution'] == 'client'
     assert tools.load_catalog(env.site).bot.fingerprint == fingerprint
     assert not any(t.get('name') in settings.HIDDEN_TOOLS for t in exported)
     assert next(t for t in exported if t.get('name') == 'analytics_sales')['defer_loading']
@@ -94,6 +94,38 @@ def test_search_only_response_resumes_without_executing_a_function(env):
                            response(output_text('Готово')))
     result = turn(env, client)
     assert len(client.calls) == 2 and result.text == 'Готово' and not env.site.calls
+
+
+def test_client_search_loads_only_matching_authorized_schemas(env):
+    catalog = tools.load_catalog(env.site)
+    env.site.calls.clear()
+    search = {'type': 'tool_search_call', 'execution': 'client', 'call_id': 'search1',
+              'status': 'completed', 'arguments': {'terms': ['analytics_sales']}}
+    client = FakeResponses(response(output_text('Найду данные.'), search),
+                           response(call('analytics_sales')), response(output_text('Итог')))
+    result = turn(env, client, tool_list=catalog.bot.toolset.defs,
+                  ctx=ctx_for(env, allowed=catalog.bot.toolset.names))
+    assert result.text == 'Итог' and len(client.calls) == 3
+    initial_names = {t.get('name') for t in client.calls[0]['tools']}
+    assert 'analytics_sales' not in initial_names and tools.REPORT_TOOL in initial_names
+    loaded = next(i for i in client.calls[1]['input'] if i.get('type') == 'tool_search_output')
+    assert loaded['execution'] == 'client' and loaded['call_id'] == 'search1'
+    assert [t['name'] for t in loaded['tools']] == ['analytics_sales']
+    assert env.site.calls == [('analytics_sales', {})]
+    assert not astra.search_tools(catalog.agents['content'].toolset.defs, {'terms': ['salary']})
+    assert not astra.search_tools(catalog.bot.toolset.defs, {'terms': ['common_bot_journal']})
+
+
+def test_search_is_literal_bounded_and_has_stable_pagination():
+    definitions = [{'name': f'analytics_item_{n:02d}', 'description': 'Выручка по барам',
+                    'input_schema': {'type': 'object'}, 'defer_loading': True} for n in range(20)]
+    first = astra.search_tools(definitions, {'terms': ['выручк']})
+    second = astra.search_tools(definitions, {'terms': ['выручк'], 'offset': 6})
+    assert len(first) == len(second) == 6
+    assert not {t['name'] for t in first} & {t['name'] for t in second}
+    assert not astra.search_tools(definitions, {'terms': ['(a+)+$']})
+    for invalid in (None, {'terms': ['x']}, {'terms': ['yy'], 'offset': -1}, {'terms': ['yy'] * 7}):
+        assert astra.search_tools(definitions, invalid) == []
 
 
 def test_duplicate_call_ids_abort_before_any_side_effect(env):
@@ -215,6 +247,38 @@ def test_budget_and_stop_apply_before_next_astra_request(env):
     with pytest.raises(agent.Stopped):
         turn(env, empty, ctx=ctx)
     assert not empty.calls
+
+
+@pytest.mark.parametrize('budget', ['question', 'daily', 'personal'])
+@pytest.mark.parametrize('web', [False, True])
+def test_delivered_report_finishes_successfully_when_budget_exhausted(env, budget, web):
+    ctx = ctx_for(env)
+    ctx.user = 'reviewer'
+    if web:
+        ctx.web_question = 'question1'
+    if budget == 'question':
+        ctx.spend = agent.Spend(limit=.001)
+    else:
+        env.monkeypatch.setattr(settings, 'DAILY_BUDGET_USD' if budget == 'daily'
+                                else 'USER_DAILY_BUDGET_USD', .001)
+    client = FakeResponses(response(call(tools.REPORT_TOOL, {'title': 'Отчёт'})))
+    result = turn(env, client, ctx=ctx)
+    assert len(client.calls) == len(ctx.reports_sent) == 1
+    assert result.text == ''
+    assert ('question_budget' if budget == 'question' else 'daily_budget') in result.notes
+    paired = result.messages[-1]['content'][0]
+    assert paired['type'] == 'tool_result' and paired['tool_use_id'] == 'call_test'
+    assert not paired.get('is_error')
+
+
+def test_failed_report_is_not_success_when_budget_exhausted(env):
+    env.monkeypatch.setattr(settings, 'DAILY_BUDGET_USD', .001)
+    env.site.report_error = 'Не доставлено'
+    ctx = ctx_for(env)
+    client = FakeResponses(response(call(tools.REPORT_TOOL, {'title': 'Отчёт'})))
+    with pytest.raises(agent.BudgetExceeded):
+        turn(env, client, ctx=ctx)
+    assert not ctx.reports_sent and len(client.calls) == 1
 
 
 def test_compaction_keeps_opaque_state_and_following_items():
@@ -361,4 +425,5 @@ def test_real_sdk_stream_contract_with_mock_transport(env):
         result = turn(env, client, tool_list=tools.load_catalog(env.site).bot.toolset.defs)
     assert result.text == 'SDK работает'
     assert captured[0]['stream'] is True and captured[0]['store'] is False
-    assert captured[0]['tools'][0] == {'type': 'tool_search'}
+    assert captured[0]['tools'][0]['type'] == 'tool_search'
+    assert captured[0]['tools'][0]['execution'] == 'client'

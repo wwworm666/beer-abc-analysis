@@ -7,7 +7,7 @@ import pytest
 from scripts import kultura_astra_eval as ev
 from kultura_bot.engine import tools
 from kultura_bot.engine.site import SiteError
-from test_kultura_astra import FakeResponses, output_text, response
+from test_kultura_astra import FakeResponses, call, output_text, response
 from test_kultura_bot import env, site_tool  # noqa: F401
 
 
@@ -72,6 +72,19 @@ def test_evaluation_does_not_show_reference_to_model(env):
     assert 'SECRET_REFERENCE' not in serialized and 'SECRET_CARD' not in serialized
     assert report['candidate_answer'] == 'Новый ответ' and report['quality'] == 'requires_review'
     assert report['reference_answer'] == 'SECRET_REFERENCE'
+
+
+def test_budget_failure_keeps_actual_usage_and_partial_cards(env, monkeypatch):
+    from kultura_bot import settings
+    monkeypatch.setattr(settings, 'DAILY_BUDGET_USD', .001)
+    catalog = tools.load_catalog(env.site)
+    site = ev.ReadOnlySite(env.site)
+    client = FakeResponses(response(call('analytics_sales')))
+    case = {'id': 'x', 'question': 'Сколько гостей?', 'asked_at': '2026-10-01', 'mode': 'answer'}
+    report = ev.evaluate(case, client, catalog, site, env.store, .001)
+    assert report['status'] == 'budget' and report['steps'] == 1
+    assert report['cost_usd'] > 0 and report['usage'][0]['tokens']['input_tokens'] == 1000
+    assert report['candidate_answer'] == '' and report['notes'] == ['daily_budget']
 
 
 def test_dry_run_is_offline_and_output_is_private(tmp_path, monkeypatch):

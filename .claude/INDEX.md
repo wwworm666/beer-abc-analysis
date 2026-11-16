@@ -388,4 +388,4 @@ Beer ABC/XYZ Analysis (Flask + iiko + ЧЗ)
 
 ## GPT-6 Astra (2026-11-16)
 
-[kultura-astra.md](../docs/kultura-astra.md) — адаптер Responses для Research и Telegram, совместимость истории, ключи, стоимость, сравнение сохранённых ответов и условия выкладки.
+[kultura-astra.md](../docs/kultura-astra.md) — адаптер Responses для Research и Telegram, клиентский поиск инструментов, совместимость истории, ключи, стоимость, завершение по бюджету, сравнение сохранённых ответов и условия выкладки.

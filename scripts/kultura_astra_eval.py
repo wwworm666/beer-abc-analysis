@@ -109,16 +109,26 @@ def evaluate(case, client, catalog, site, store, budget):
     dated = ('Контрольный вопрос был задан ' + case['asked_at'] + '. Относительные даты в нём считай от этой даты. '
              'Если данные относятся к текущему состоянию и прошлое восстановить нельзя, явно скажи это. '
              'Работаем только на чтение.\n' + case['question'])
+    usage = []
+
+    def on_usage(model, tokens, cost):
+        usage.append({'model': model, 'tokens': dict(tokens), 'cost_usd': cost})
 
     def run_agent(name, task):
         return agent.run_agent(client, catalog.agents[name], task, parent=ctx, store=store,
-                               header='Дата исходного вопроса: ' + case['asked_at'])
+                               header='Дата исходного вопроса: ' + case['asked_at'], on_usage=on_usage)
     ctx.run_agent = run_agent
     started = time.monotonic()
-    result = agent.run_turn(client, system_text=catalog.bot.system, tool_list=catalog.bot.toolset.defs,
-                            history=[], user_content=[{'type': 'text', 'text': dated}], ctx=ctx, store=store,
-                            max_rounds=12)
-    return {**case, 'candidate_model': client.model, 'candidate_answer': result.text,
+    status, error = 'done', ''
+    try:
+        result = agent.run_turn(client, system_text=catalog.bot.system, tool_list=catalog.bot.toolset.defs,
+                                history=[], user_content=[{'type': 'text', 'text': dated}], ctx=ctx, store=store,
+                                max_rounds=12, on_usage=on_usage)
+    except agent.BudgetExceeded as exc:
+        status, error = 'budget', str(exc)
+        result = agent.TurnResult(text='', messages=[], notes=['daily_budget'])
+    return {**case, 'status': status, 'error': error, 'usage': usage,
+            'candidate_model': client.model, 'candidate_answer': result.text,
             'candidate_cards': list(site.cards), 'cost_usd': spend.usd, 'steps': spend.steps,
             'seconds': round(time.monotonic() - started, 1), 'notes': result.notes,
             'used_tools': sorted({c['name'] for c in ctx.calls}), 'blocked_tools': list(site.denied),
@@ -174,15 +184,17 @@ def main(argv=None):
                     outcomes.append({'id': case['id'], 'status': 'budget'})
                     continue
                 try:
+                    spent_before = store.spent_on()
                     outcomes.append(evaluate(case, client, catalog, site, store, remaining))
                 except Exception as exc:
                     kind, message = providers.describe_error(exc, selected, (api_key, site_key))
-                    outcomes.append({'id': case['id'], 'status': 'error', 'kind': kind, 'error': message})
+                    outcomes.append({'id': case['id'], 'status': 'error', 'kind': kind, 'error': message,
+                                     'cost_usd': store.spent_on() - spent_before})
                 private_json(args.out, {'status': 'requires_review', 'results': outcomes})
         finally:
             store.close()
     print(f'Прогон завершён: {len(outcomes)}. Отчёт сохранён локально; отправок в Telegram нет.')
-    return 1 if any(o.get('status') == 'error' for o in outcomes) else 0
+    return 1 if any(o.get('status') in ('error', 'budget') for o in outcomes) else 0
 
 
 if __name__ == '__main__':
