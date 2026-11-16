@@ -381,7 +381,7 @@
             case 'running':
                 // Telegram слушается, но последний ответ Claude не получился (ключ, отказ серверу,
                 // деньги, связь) — держим это на виду, пока следующий ответ не получится.
-                if (st.claude_error) return { text: 'Бот ' + bot + ' слушает Telegram, но Claude не ответил: ' +
+                if (st.claude_error) return { text: 'Бот ' + bot + ' слушает Telegram, но модель не ответила: ' +
                     st.claude_error, bad: true };
                 return { text: 'Бот ' + bot + ' работает: слушает Telegram и отвечает.', bad: false };
             case 'waiting': return { text: 'Бот ждёт настройки: ' + st.detail + '.', bad: true };
@@ -467,9 +467,16 @@
             ? 'Сохранён: ' + key.key_hint + '. Новый ключ — вставьте сюда; пустое поле — ключ не меняется.'
             : 'Нет. console.anthropic.com → API Keys → Create Key. Ключ проверит сервер бота — ошибку покажет ' +
               'строка состояния вверху.');
+        var openaiKey = data.openai || {};
+        setText('mcpBotOpenAIKeyHint', openaiKey.configured
+            ? 'Сохранён: ' + openaiKey.key_hint + '. Пустое поле — ключ не меняется.'
+            : 'Нет. platform.openai.com → API keys. Доступ к Astra проверит сервер бота.');
         if (resetForm) {
             byId('mcpBotToken').value = '';
             byId('mcpBotKey').value = '';
+            byId('mcpBotOpenAIKey').value = '';
+            byId('mcpBotProvider').value = data.provider || 'anthropic';
+            byId('mcpBotEffort').value = data.effort || 'xhigh';
             byId('mcpBotPaused').checked = !!data.paused;
         }
         var engine = data.engine || {};
@@ -482,7 +489,7 @@
         var usage = data.usage || {};
         var today = usage.today || {};
         var period = usage.period || {};
-        setText('mcpBotUsage', 'Расход на Claude: сегодня ' + money(today.cost_usd) +
+        setText('mcpBotUsage', 'Расход на ИИ: сегодня ' + money(today.cost_usd) +
             (data.budget_usd ? ' из ' + money(data.budget_usd) : '') + ' (запросов к модели ' + (today.requests || 0) +
             '), за ' + (usage.days || 30) + ' дней ' + money(period.cost_usd) + '.');
         var agents = (data.agents || []).map(function (a) { return a.title; }).join(', ');
@@ -541,11 +548,14 @@
     function saveBot() {
         setText('mcpBotError', '');
         setText('mcpBotOk', '');
-        var body = { paused: !!byId('mcpBotPaused').checked };
+        var body = { paused: !!byId('mcpBotPaused').checked,
+            provider: byId('mcpBotProvider').value, effort: byId('mcpBotEffort').value };
         var token = byId('mcpBotToken').value.trim();
         var key = byId('mcpBotKey').value.trim();
         if (token) body.token = token;
         if (key) body.anthropic_key = key;
+        var openaiKey = byId('mcpBotOpenAIKey').value.trim();
+        if (openaiKey) body.openai_key = openaiKey;
         var button = byId('mcpBotSave');
         button.disabled = true;
         call('PUT', API.bot, body)

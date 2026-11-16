@@ -47,10 +47,14 @@ from kultura_bot import settings as bot_settings
 KEY_TOKEN = 'tg_chart_bot_token'
 KEY_USERNAME = 'tg_chart_bot_username'
 KEY_ANTHROPIC = 'kultura_bot_anthropic_key'
+KEY_OPENAI = 'kultura_bot_openai_key'
+KEY_PROVIDER = 'kultura_bot_provider'
+KEY_EFFORT = 'kultura_bot_effort'
 KEY_PAUSED = 'kultura_bot_paused'
 
 BOT_TOKEN_ENV = 'TELEGRAM_MCP_BOT_TOKEN'
 ANTHROPIC_ENV = 'KULTURA_BOT_ANTHROPIC_KEY'
+OPENAI_ENV = 'KULTURA_BOT_OPENAI_KEY'
 
 TOKEN_RE = re.compile(r'\d{5,15}:[A-Za-z0-9_-]{30,64}')        # формат токена @BotFather
 USERNAME_RE = re.compile(r'[A-Za-z][A-Za-z0-9_]{3,31}')
@@ -104,6 +108,27 @@ def anthropic_key() -> str:
     return _text(KEY_ANTHROPIC, ANTHROPIC_ENV)
 
 
+def openai_key() -> str:
+    return _text(KEY_OPENAI, OPENAI_ENV)
+
+
+def provider() -> str:
+    # Новая версия кода сама не переключает действующий сервис.
+    return 'openai' if _stored(KEY_PROVIDER) == 'openai' else 'anthropic'
+
+
+def model_config() -> Dict[str, str]:
+    selected = provider()
+    effort = _stored(KEY_EFFORT)
+    effort = effort if effort in bot_settings.MODEL_EFFORTS else bot_settings.EFFORT
+    return {'provider': selected, 'model': bot_settings.OPENAI_MODEL if selected == 'openai' else bot_settings.MODEL,
+            'effort': effort, 'agent_effort': effort}
+
+
+def active_key() -> str:
+    return openai_key() if provider() == 'openai' else anthropic_key()
+
+
 def paused() -> bool:
     return _stored(KEY_PAUSED) is True
 
@@ -116,20 +141,22 @@ def hint(secret: str) -> str:
 
 def public_view() -> Dict[str, Any]:
     """Состояние для страницы «Доступ агентов» — без самих секретов."""
-    token, key = bot_token(), anthropic_key()
+    token, key, gpt_key = bot_token(), anthropic_key(), openai_key()
     return {
+        **model_config(),
         'telegram': {'configured': bool(token), 'source': token_source(), 'token_hint': hint(token),
                      'bot_username': bot_username()},
         'anthropic': {'configured': bool(key), 'source': _source(KEY_ANTHROPIC, ANTHROPIC_ENV),
                       'key_hint': hint(key)},
+        'openai': {'configured': bool(gpt_key), 'source': _source(KEY_OPENAI, OPENAI_ENV), 'key_hint': hint(gpt_key)},
         'paused': paused(),
     }
 
 
 def engine_view() -> Dict[str, Any]:
     """Настройки для сервера бота (GET /api/bot/config) — с секретами, только его ключу."""
-    return {'telegram': {'token': bot_token(), 'username': bot_username()},
-            'anthropic_key': anthropic_key(), 'paused': paused()}
+    return {**model_config(), 'telegram': {'token': bot_token(), 'username': bot_username()},
+            'anthropic_key': anthropic_key(), 'openai_key': openai_key(), 'paused': paused()}
 
 
 # ------------------------------------------------------------------ запись
@@ -141,6 +168,8 @@ def _getme(token: str) -> Optional[Dict[str, Any]]:
 
 def save(*, token: Optional[str] = None, clear_token: bool = False,
          anthropic_key_value: Optional[str] = None, clear_anthropic_key: bool = False,
+         openai_key_value: Optional[str] = None, clear_openai_key: bool = False,
+         provider_value: Optional[str] = None, effort_value: Optional[str] = None,
          paused_value: Optional[bool] = None, by: str = '', getme: Optional[GetMe] = None) -> Dict[str, Any]:
     """Сохранить переданное (None — не менять). Вернуть public_view() + warnings.
 
@@ -182,6 +211,22 @@ def save(*, token: Optional[str] = None, clear_token: bool = False,
         if not isinstance(paused_value, bool):
             raise ValueError('Пауза: да или нет')
         writes.append((KEY_PAUSED, paused_value))
+
+    if clear_openai_key:
+        writes.append((KEY_OPENAI, ''))
+    elif openai_key_value is not None and openai_key_value.strip():
+        new_key = openai_key_value.strip()
+        if not re.fullmatch(r'sk-[A-Za-z0-9_-]{20,512}', new_key) or new_key.startswith('sk-ant-'):
+            raise ValueError('Нужен ключ OpenAI API (sk-…), а не ключ Anthropic')
+        writes.append((KEY_OPENAI, new_key))
+    if provider_value is not None:
+        if provider_value not in ('anthropic', 'openai'):
+            raise ValueError('Провайдер: anthropic или openai')
+        writes.append((KEY_PROVIDER, provider_value))
+    if effort_value is not None:
+        if effort_value not in bot_settings.MODEL_EFFORTS:
+            raise ValueError('Усилие: ' + ', '.join(bot_settings.MODEL_EFFORTS))
+        writes.append((KEY_EFFORT, effort_value))
 
     for key, value in writes:
         settings.set(key, value, by=by)

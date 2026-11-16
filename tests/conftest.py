@@ -33,6 +33,7 @@ _OUTBOUND_SECRETS = (
     'TELEGRAM_OPEN_CHECK_BOT_TOKEN', # бот персонала: проверка открытия, тревоги, отзывы владельцу
     'TELEGRAM_MCP_BOT_TOKEN',        # @MCPkulturabot: бот и графики агентов (kultura_bot/)
     'KULTURA_BOT_ANTHROPIC_KEY',     # ключ Claude API бота: каждый запрос платный
+    'KULTURA_BOT_OPENAI_KEY',        # ключ Astra: живой прогон только отдельной командой
     'KULTURA_BOT_KEY',               # ключ сервера бота (kultura_bot/engine/main.py) — открывает сайт по MCP
     'TELEGRAM_GROUP_CHAT_ID',        # чат смены
     'TELEGRAM_ALARM_CHAT_IDS',       # чаты тревог

@@ -84,12 +84,13 @@ def _times(value) -> str:
 @research_bp.route('/research', methods=['GET'])
 @admin_required
 def research_page():
-    from kultura_bot import settings
+    from kultura_bot import credentials, settings
     # Числа для «Как работает» — из настроек бота, а не из текста страницы. has_thread — открыта беседа
     # по ссылке (?t=): страница не рисуется сначала пустой (само значение в разметку не попадает).
     return render_template('research.html', question_budget=settings.QUESTION_BUDGET_USD,
                            report_budget=settings.REPORT_BUDGET_USD, user_budget=settings.USER_DAILY_BUDGET_USD,
                            fast_mode=settings.FAST_MODE, idle_minutes=settings.DIALOG_IDLE_MINUTES,
+                           openai_mode=credentials.provider() == 'openai',
                            fast_speedup=_times(settings.FAST_SPEEDUP_UP_TO),
                            fast_price=_times(settings.FAST_PRICE_MULTIPLIER),
                            files_max=settings.WEB_FILES_MAX, file_max_bytes=settings.WEB_FILE_MAX_BYTES,

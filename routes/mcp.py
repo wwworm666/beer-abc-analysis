@@ -258,7 +258,8 @@ def admin_settings_put():
 
 # ------------------------------------------------------------------ бот @MCPkulturabot
 
-BOT_FIELDS = {'token', 'clear_token', 'anthropic_key', 'clear_anthropic_key', 'paused'}
+BOT_FIELDS = {'token', 'clear_token', 'anthropic_key', 'clear_anthropic_key', 'paused',
+              'openai_key', 'clear_openai_key', 'provider', 'effort'}
 
 
 def _bot_payload(warnings=None) -> dict:
@@ -284,7 +285,7 @@ def admin_bot_put():
     unknown = sorted(set(body) - BOT_FIELDS)
     if unknown:
         return _error('Неизвестные настройки: ' + ', '.join(unknown))
-    for name in ('token', 'anthropic_key'):
+    for name in ('token', 'anthropic_key', 'openai_key', 'provider', 'effort'):
         if body.get(name) is not None and not isinstance(body.get(name), str):
             return _error(f'{name} — строка')
     paused = body.get('paused')
@@ -294,6 +295,9 @@ def admin_bot_put():
         view = credentials.save(token=body.get('token'), clear_token=body.get('clear_token') is True,
                                 anthropic_key_value=body.get('anthropic_key'),
                                 clear_anthropic_key=body.get('clear_anthropic_key') is True,
+                                openai_key_value=body.get('openai_key'),
+                                clear_openai_key=body.get('clear_openai_key') is True,
+                                provider_value=body.get('provider'), effort_value=body.get('effort'),
                                 paused_value=paused, by=_login())
     except ValueError as exc:
         return _error(str(exc))

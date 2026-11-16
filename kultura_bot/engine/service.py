@@ -102,7 +102,7 @@ from datetime import timedelta
 from typing import Any, Dict, List, Optional
 
 from kultura_bot import links, rich_demo, settings
-from kultura_bot.engine import agent, claude, config, formatting, journal, progress, report_text, rich, tools
+from kultura_bot.engine import agent, claude, config, formatting, journal, progress, providers, report_text, rich, tools
 from kultura_bot.engine.site import SiteError
 from kultura_bot.engine.store import is_telegram_chat, msk_day, msk_now
 from kultura_bot.engine import telegram_io
@@ -427,8 +427,10 @@ class Service:
         self.site = site
         self.store = store
         self.io_factory = io_factory
-        self.client_factory = client_factory or claude.client_for
-        self.check_key = check_key or claude.check_key
+        self.client_factory = client_factory
+        self.check_key = check_key
+        self.model_selection = providers.selection()
+        self._checked_model = None
         self.tg: Optional[TelegramIO] = None
         self.token = ''
         self.key = ''
@@ -467,7 +469,9 @@ class Service:
 
     def _secrets(self) -> tuple:
         """Что не должно попасть в текст ошибки для чата и страницы."""
-        return (self.token, self.key, getattr(self.site, 'key', ''))
+        cfg = self.config or {}
+        return (self.token, self.key, getattr(self.site, 'key', ''),
+                cfg.get('openai_key', ''), cfg.get('anthropic_key', ''))
 
     def set_status(self, state: str, detail: str = '', *, claude_error: Optional[str] = None) -> None:
         with self.status_lock:
@@ -546,19 +550,25 @@ class Service:
             return False
         telegram = self.config.get('telegram') or {}
         token = str(telegram.get('token') or '')
-        key = str(self.config.get('anthropic_key') or '')
+        selected = providers.selection(self.config)
+        key = providers.api_key(self.config, selected)
         if not token:
             self.set_status('waiting', 'нет токена бота: вставьте его на странице «Доступ агентов»')
             return False
         if not key:
-            self.set_status('waiting', 'нет ключа Claude API: вставьте его на странице «Доступ агентов»')
+            self.key = ''
+            self.model_selection = selected
+            label = 'OpenAI' if selected.provider == 'openai' else 'Claude'
+            self.set_status('waiting', f'нет ключа {label} API: вставьте его на странице «Доступ агентов»')
             return False
         if self.config.get('paused'):
             self.set_status('paused', 'бот на паузе')
             return False
-        if key != self.key:
+        if key != self.key or (key, selected) != self._checked_model:
             self.key = key
-            kind, text = self.check_key(key)
+            self.model_selection = selected
+            self._checked_model = (key, selected)
+            kind, text = self.check_key(key) if self.check_key else providers.check_key(key, selected)
             self.set_status(self.status['state'], self.status['detail'],
                             claude_error='' if kind in ('ok', 'offline', 'rate', 'overloaded', 'server') else text)
         if token != self.token:
@@ -759,7 +769,8 @@ class Service:
 
     def web_ready(self) -> bool:
         """Можно брать вопросы с сайта: настройки получены, ключ Claude есть, бот не на паузе."""
-        return bool(self.config is not None and self.key and not self.config.get('paused'))
+        return bool(self.config is not None and self.key and not self.config.get('paused')
+                    and providers.api_key(self.config, providers.selection(self.config)))
 
     def web_loop(self) -> None:
         """Вопросы со страницы сайта /research (2026-11-09, kultura_bot/web.py): раз в WEB_POLL_S спросить
@@ -1592,12 +1603,18 @@ class Service:
     def answer(self, chat_id: str, job: Dict[str, Any]) -> None:
         """Вопрос -> ответ. Куда — решает out: чат Telegram (TelegramOut) или вопрос со страницы сайта
         (WebOut, 2026-11-09): разговор, инструменты, агенты, пределы и журнал — одни и те же."""
+        # Одно чтение конфигурации: смена ключа/модели в ready не меняет этот вопрос.
+        config_snapshot = dict(self.config or {})
+        selected = providers.selection(config_snapshot) if config_snapshot else self.model_selection
+        key = providers.api_key(config_snapshot, selected) if config_snapshot else self.key
+        question_secrets = self._secrets() + (key,)
         web = job.get('kind') == 'web'
         out = WebOut(self, job) if web else TelegramOut(self, chat_id, job)
         message = job.get('message') or {}
         job_id = job.get('job_id') or self.store.start_job(chat_id, job['actor'].get('tg_user_id') or '')
         self.store.run_job(job_id)
         entry = journal.start(job, chat_id, job_id)
+        entry.update(provider=selected.provider, model=selected.model)
         started_ts = time.time()
         try:
             # Права — ещё раз: пока вопрос ждал очереди, привязку могли снять, а админство — отозвать
@@ -1669,7 +1686,7 @@ class Service:
                     dialog = None                      # молча: прошлую работу продолжают ответом на неё
                 elif dialog['fingerprint'] != persona.fingerprint:
                     notice, dialog = FINGERPRINT_NOTICE, None
-                elif len(str(dialog['messages'])) > settings.DIALOG_MAX_CHARS:
+                elif selected.provider != 'openai' and len(str(dialog['messages'])) > settings.DIALOG_MAX_CHARS:
                     notice, dialog = LONG_DIALOG_NOTICE, None
             if web and dialog is None and job.get('history'):
                 # Беседа на сайте продолжается, а диалог начат заново (простой, новые инструкции): прошлые
@@ -1684,7 +1701,7 @@ class Service:
             started_at = dialog['started_at'] if dialog else msk_now().isoformat(timespec='seconds')
             turns = dialog['turns'] if dialog else 0
 
-            client = self.client_factory(self.key)
+            client = self.client_factory(key) if self.client_factory else providers.client_for(key, selected)
             agent_header = self.header(actor)          # агенту — без «режим: отчёт»: страницу собирает бот
 
             def run_agent(name: str, task: str) -> str:
@@ -1717,10 +1734,10 @@ class Service:
             status, error, shown = 'error', 'stopped', STOPPED_TEXT
             out.stopped(stop_notice)
         except Exception as exc:  # noqa: BLE001 — любая беда -> понятный ответ в чат
-            kind, text = claude.describe_error(exc, secrets=self._secrets())
+            kind, text = providers.describe_error(exc, selected, secrets=question_secrets)
             status, error = 'error', f'{kind}: {text}'
             log.warning('[BOT] ответ не получился (%s): %s', kind, text)
-            if kind == 'bad_request':
+            if kind == 'bad_request' and selected.provider == 'anthropic':
                 self.store.delete_dialog(chat_id)        # битая история не должна ломать следующие вопросы
                 text += ' Диалог начат заново — повторите вопрос.'
             elif kind == 'other':

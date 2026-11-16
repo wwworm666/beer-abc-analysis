@@ -131,6 +131,6 @@ def finish(entry: Dict[str, Any], *, status: str, error: str = '', shown: str = 
         'fast_steps': int(getattr(spend, 'fast_steps', 0) or 0),
         'tool_calls': int(getattr(tracker, 'tool_calls', 0) or 0),
         'calls': list(getattr(ctx, 'calls', None) or [])[:CALLS_MAX],
-        'model': settings.MODEL,
+        'model': entry.get('model') or settings.MODEL,
     })
     return record

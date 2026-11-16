@@ -703,8 +703,9 @@ def engine_state(now: Optional[float] = None) -> Dict[str, Any]:
     now = time.time() if now is None else now
     if credentials.paused():
         return {'ok': False, 'text': 'Бот на паузе (страница «Доступ агентов»): вопрос подождёт в очереди.'}
-    if not credentials.anthropic_key():
-        return {'ok': False, 'text': 'Нет ключа Claude API (страница «Доступ агентов»): вопрос подождёт в очереди.'}
+    if not credentials.active_key():
+        label = 'OpenAI' if credentials.provider() == 'openai' else 'Claude'
+        return {'ok': False, 'text': f'Нет ключа {label} API (страница «Доступ агентов»): вопрос подождёт в очереди.'}
     status = store.get_status()
     at_ts = float(status.get('at_ts') or 0)
     if status.get('state') in (None, 'stopped') or not at_ts or now - at_ts > site_api.STALE_AFTER_S:

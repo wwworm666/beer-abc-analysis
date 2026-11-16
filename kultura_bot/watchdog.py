@@ -89,7 +89,7 @@ def problem(status: Dict[str, Any], *, configured: bool, now: float) -> Tuple[st
 def _configured() -> bool:
     """Сторожить есть что: токен, ключ, не пауза, сервер бота установлен (выпущен его ключ)."""
     from kultura_bot import credentials, site_api
-    return bool(credentials.bot_token() and credentials.anthropic_key() and not credentials.paused()
+    return bool(credentials.bot_token() and credentials.active_key() and not credentials.paused()
                 and site_api.engine_token_id())
 
 
