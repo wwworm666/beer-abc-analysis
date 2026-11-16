@@ -476,7 +476,7 @@
             byId('mcpBotKey').value = '';
             byId('mcpBotOpenAIKey').value = '';
             byId('mcpBotProvider').value = data.provider || 'anthropic';
-            byId('mcpBotEffort').value = data.effort || 'xhigh';
+            byId('mcpBotEffort').value = data.effort || (data.provider === 'openai' ? 'medium' : 'xhigh');
             byId('mcpBotPaused').checked = !!data.paused;
         }
         var engine = data.engine || {};

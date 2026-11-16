@@ -508,7 +508,7 @@ class Service:
         with self.status_lock:
             # version — коммит кода (config.code_version, читается каждый раз): страница видит, обновился ли бот
             status = dict(self.status, bot=self.username, version=config.code_version(),
-                          eta=self.store.eta_accuracy('report'))      # точность «осталось» у отчётов
+                          eta=self.store.eta_accuracy(providers.timing_profile('report', self.model_selection)))      # точность «осталось» у отчётов
         try:
             self.site.report({'status': status, 'usage': list(pending.values())})
             self.reported_at = now
@@ -1365,7 +1365,7 @@ class Service:
     def _save_stats(self, job_id: int, tracker: 'progress.Tracker') -> None:
         """Удачная работа — в историю оценки «сколько осталось» (job_stats, tool_stats)."""
         try:
-            self.store.add_job_stats(job_id, tracker.mode, tracker.elapsed(), steps=int(tracker.spend.steps),
+            self.store.add_job_stats(job_id, tracker.stats_mode, tracker.elapsed(), steps=int(tracker.spend.steps),
                                      tool_calls=tracker.tool_calls, cost_usd=float(tracker.spend.usd),
                                      shown_eta=tracker.shown_eta, shown_at=tracker.shown_at, tools=tracker.tool_times)
         except Exception:  # noqa: BLE001 — учёт не роняет ответ
@@ -1652,9 +1652,12 @@ class Service:
             self.running[chat_id] = (job_id, stop, stop_notice)
         # Прогресс (engine/progress.py): в Telegram — «печатает…», а дольше PROGRESS_AFTER_S — сообщение
         # «что делаю, сколько осталось», убирается, когда ушёл ответ; на сайте — те же строки на странице.
-        tracker = progress.Tracker(mode, spend, limit=limit, durations=self.store.recent_durations(mode),
+        stats_mode = providers.timing_profile(mode, selected, fast)
+        tracker = progress.Tracker(mode, spend, limit=limit, durations=self.store.recent_durations(stats_mode),
                                    tool_typical=self._tool_typical(), titles=catalog.titles,
                                    is_finishing=lambda: ctx.report_only)
+        tracker.stats_mode = stats_mode
+        tracker.use_default_history = selected.provider != 'openai'
         ctx.progress = tracker
         reporter = out.reporter(tracker, mode=mode, job_id=job_id, rich_view=rich_view, stop=stop)
         try:

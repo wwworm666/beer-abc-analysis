@@ -139,6 +139,8 @@ class Tracker:
                  tool_typical: Dict[str, float], titles: Dict[str, str],
                  is_finishing: Callable[[], bool] = lambda: False, clock: Callable[[], float] = time.monotonic):
         self.mode = mode
+        self.stats_mode = mode
+        self.use_default_history = True
         self.spend = spend
         self.limit = limit
         self.durations = list(durations)
@@ -198,7 +200,8 @@ class Tracker:
         finish = settings.REPORT_FINISH_ROUNDS if self.mode == 'report' else 1
         bound = upper_bound(elapsed=elapsed, spent=float(self.spend.usd), limit=self.limit,
                             steps=int(self.spend.steps), finish_steps=finish)
-        est = remaining_estimate(self.durations, elapsed, self.mode)
+        est = (remaining_estimate(self.durations, elapsed, self.mode)
+               if self.use_default_history or len(self.durations) >= MIN_HISTORY else None)
         if est is not None and bound is not None:
             est = min(est, bound)
         return est, bound
@@ -214,6 +217,8 @@ class Tracker:
             if self.is_finishing():
                 lines.append(f'{bar(max(self._fraction, 0.9))} заканчиваю: собираю ответ из того, что уже есть')
                 self._fraction = max(self._fraction, 0.9)
+            elif est is None and not self.use_default_history and len(self.durations) < MIN_HISTORY:
+                lines.append(f'{bar(self._fraction)} оцениваю время')
             elif est is None:
                 tail = f', не дольше {math.ceil(bound / 60)} мин' if bound is not None else ''
                 lines.append(f'{bar(self._fraction)} дольше обычного{tail}')
@@ -245,7 +250,8 @@ class Tracker:
         if self.is_finishing():
             left = 'заканчиваю'
         elif est is None:
-            left = 'дольше обычного'
+            left = ('оцениваю время' if not self.use_default_history and len(self.durations) < MIN_HISTORY
+                    else 'дольше обычного')
         else:
             left = f'{left_text(est)} осталось'
         return f'{doing}…', f'{clock_text(elapsed)} · {left}'

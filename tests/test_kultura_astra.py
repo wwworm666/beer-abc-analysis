@@ -427,3 +427,25 @@ def test_hosted_search_with_planning_text_continues(env):
                            response(output_text('Итог')))
     result = turn(env, client)
     assert len(client.calls) == 2 and result.text == 'Итог'
+
+
+def test_astra_timing_does_not_mix_models_efforts_or_speed(env):
+    from kultura_bot.engine import progress
+    from dataclasses import replace
+    selected = providers.selection({'provider': 'openai'})
+    keys = {providers.timing_profile('report', selected),
+            providers.timing_profile('report', selected, True),
+            providers.timing_profile('report', replace(selected, effort='high')),
+            providers.timing_profile('report', replace(selected, agent_effort='high')),
+            providers.timing_profile('answer', selected),
+            providers.timing_profile('report', providers.selection())}
+    assert len(keys) == 6
+    tracker = progress.Tracker('report', agent.Spend(), limit=5, durations=[],
+                               tool_typical={}, titles={}, clock=lambda: 0)
+    tracker.use_default_history = False
+    assert tracker.estimate()[0] is None
+    assert 'оцениваю время' in tracker.render()
+    assert 'дольше обычного' not in tracker.render()
+    assert 'оцениваю время' in tracker.draft_lines()[1]
+    tracker.durations = [20, 30, 40, 50, 60]
+    assert tracker.estimate()[0] == 40

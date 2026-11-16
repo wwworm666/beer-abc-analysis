@@ -74,3 +74,11 @@ def cost_usd(client, model, usage, speed):
         from kultura_bot.engine import astra
         return astra.cost_usd(usage, speed)
     return claude.cost_usd(model, usage, speed)
+
+
+def timing_profile(mode, selected, fast=False):
+    """Astra learns its own timings; retain legacy Anthropic statistics unchanged."""
+    if selected.provider != 'openai':
+        return mode
+    return ':'.join((mode, selected.provider, selected.model, selected.effort,
+                     selected.agent_effort, 'fast' if fast else 'standard'))
