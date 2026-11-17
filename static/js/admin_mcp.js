@@ -471,12 +471,14 @@
         setText('mcpBotOpenAIKeyHint', openaiKey.configured
             ? 'Сохранён: ' + openaiKey.key_hint + '. Пустое поле — ключ не меняется.'
             : 'Нет. platform.openai.com → API keys. Доступ к Astra проверит сервер бота.');
+        setText('mcpBotClaudeHubHint', data.claudehub && data.claudehub.configured ? 'Ключ сохранён. Пустое поле — не менять.' : 'Ключ ClaudeHub не задан.');
         if (resetForm) {
             byId('mcpBotToken').value = '';
             byId('mcpBotKey').value = '';
             byId('mcpBotOpenAIKey').value = '';
             byId('mcpBotProvider').value = data.provider || 'anthropic';
-            byId('mcpBotEffort').value = data.effort || (data.provider === 'openai' ? 'medium' : 'xhigh');
+            if (byId('mcpBotClaudeHubKey')) byId('mcpBotClaudeHubKey').value = '';
+            byId('mcpBotEffort').value = data.effort || 'xhigh';
             byId('mcpBotPaused').checked = !!data.paused;
         }
         var engine = data.engine || {};
@@ -556,6 +558,8 @@
         if (key) body.anthropic_key = key;
         var openaiKey = byId('mcpBotOpenAIKey').value.trim();
         if (openaiKey) body.openai_key = openaiKey;
+        const hubKey = byId('mcpBotClaudeHubKey').value.trim();
+        if (hubKey) body.claudehub_key = hubKey;
         var button = byId('mcpBotSave');
         button.disabled = true;
         call('PUT', API.bot, body)

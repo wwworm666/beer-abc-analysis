@@ -55,6 +55,7 @@
                         <select id="mcpBotProvider" class="mcp-input">
                             <option value="anthropic">Claude Opus 5.5 · Anthropic</option>
                             <option value="openai">GPT-6 Astra · OpenAI</option>
+                            <option value="claudehub">ClaudeHub · выбор модели в Research и Telegram</option>
                         </select>
                         <span class="mcp-hint">Смена применяется к новым вопросам. История и отчёты сохраняются.</span>
                     </div>
@@ -69,6 +70,9 @@
                         </select>
                     </div>
                     <div class="mcp-field mcp-full">
+                        <label for="mcpBotClaudeHubKey">Ключ ClaudeHub</label>
+                        <input id="mcpBotClaudeHubKey" class="mcp-input" type="password" autocomplete="off" placeholder="Единый ключ четырёх моделей">
+                        <span class="mcp-hint" id="mcpBotClaudeHubHint"></span>
                         <label for="mcpBotOpenAIKey">Ключ OpenAI API</label>
                         <input id="mcpBotOpenAIKey" class="mcp-input" type="password" autocomplete="off"
                                spellcheck="false" placeholder="sk-…">

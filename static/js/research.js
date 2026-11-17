@@ -277,7 +277,8 @@
     const turn = el('article', 'rx-turn');
     turn.dataset.id = q.id;
     const ask = el('div', 'rx-q');
-    const tags = [q.mode === 'report' ? 'ИССЛЕДОВАНИЕ' : '', q.fast ? 'БЫСТРО' : ''].filter(Boolean);
+    const modelNames = {'claude-opus-5-5': 'Opus 5.5', 'gpt-6.1-sol': 'Sol', 'claude-fable-5-1': 'Fable 5.1', 'gpt-6-astra': 'Astra'};
+    const tags = [modelNames[q.model] || '', q.mode === 'report' ? 'ИССЛЕДОВАНИЕ' : '', q.fast ? 'БЫСТРО' : ''].filter(Boolean);
     if (tags.length) ask.append(el('div', 'rx-q-meta', tags.join(' · ')));
     ask.append(el('div', 'rx-q-text', q.question));
     if (q.files && q.files.length) ask.append(questionFiles(q.files));
@@ -470,7 +471,7 @@
     showError('');
     state.sending = true;
     syncComposer();
-    const body = { question, mode: state.mode, fast: !!(els.fast && els.fast.getAttribute('aria-pressed') === 'true') };
+    const body = { question, model: $('rsModel') ? $('rsModel').value : '', mode: state.mode, fast: !!(els.fast && els.fast.getAttribute('aria-pressed') === 'true') };
     if (state.current) body.thread_id = state.current;
     const attached = typed ? state.files.slice() : [];         // готовый вопрос — без файлов: он о данных сети
     try {
@@ -599,6 +600,13 @@
       els.fast.setAttribute('aria-pressed', on ? 'true' : 'false');
       if (on && noHover && els.fastTip) toast(els.fastTip.textContent.replace(/\s+/g, ' ').trim());
     });
+  }
+  const modelSelect = $('rsModel');
+  if (modelSelect) {
+    const modelStorageKey = modelSelect.dataset.storageKey;
+    try { const saved = localStorage.getItem(modelStorageKey); if ([...modelSelect.options].some(o => o.value === saved)) modelSelect.value = saved; } catch (_) {}
+    modelSelect.addEventListener('change', () => { try { localStorage.setItem(modelStorageKey, modelSelect.value); } catch (_) {} });
+    if (els.fast) { els.fast.disabled = true; els.fast.setAttribute('aria-pressed', 'false'); els.fast.title = 'Быстрый режим недоступен для этого подключения'; }
   }
   els.form.addEventListener('submit', e => {
     e.preventDefault();

@@ -392,7 +392,7 @@ test('исполнение: бот — секреты подсказками, с
     page.nodes.mcpBotSave.fire('click');
     await tick(); await tick();
     const put = page.calls.find((c) => c.method === 'PUT' && c.url === '/api/admin/mcp/bot');
-    assert.deepEqual(put.body, { paused: false, anthropic_key: 'sk-ant-api03-' + 'k'.repeat(40) },
+    assert.deepEqual(put.body, { paused: false, anthropic_key: 'sk-ant-api03-' + 'k'.repeat(40), provider: 'anthropic', effort: 'xhigh' },
         'пустой токен не отправляется');
     assert.match(page.nodes.mcpBotState.textContent, /работает/);
     assert.equal(page.nodes.mcpBotState.className, 'mcp-note mcp-state-good');
@@ -423,7 +423,7 @@ test('исполнение: бот — секреты подсказками, с
     await tick(); await tick();
     assert.equal(page.nodes.mcpBotLinkHint.textContent, 'Готово: Telegram подключён.', 'повторная привязка замечена');
     assert.equal(page.nodes.mcpBotLinkUrl.hidden, true);
-    assert.match(page.nodes.mcpBotState.textContent, /слушает Telegram, но Claude не ответил: Anthropic не принял ключ/,
+    assert.match(page.nodes.mcpBotState.textContent, /слушает Telegram, но модель не ответила: Anthropic не принял ключ/,
         'ошибка Claude видна, хотя опрос Telegram идёт');
     assert.equal(page.nodes.mcpBotState.className, 'mcp-note mcp-state-bad');
 

@@ -20,11 +20,14 @@ class Selection:
 def selection(config=None):
     config = config or {}
     provider = config.get('provider') or 'anthropic'
-    if provider not in ('anthropic', 'openai'):
+    if provider not in ('anthropic', 'openai', 'claudehub'):
         raise ValueError('Неизвестный провайдер модели')
     model = config.get('model') or (settings.OPENAI_MODEL if provider == 'openai' else settings.MODEL)
     if provider == 'openai' and model != settings.OPENAI_MODEL:
         raise ValueError('Для OpenAI поддерживается модель ' + settings.OPENAI_MODEL)
+    if provider == 'claudehub':
+        from kultura_bot.engine import gateway
+        gateway.connection(model)
     effort = config.get('effort') or (settings.OPENAI_EFFORT if provider == 'openai' else settings.EFFORT)
     agent_effort = config.get('agent_effort') or effort
     if effort not in settings.MODEL_EFFORTS or agent_effort not in settings.MODEL_EFFORTS:
@@ -33,6 +36,9 @@ def selection(config=None):
 
 
 def api_key(config, selected):
+    if selected.provider == 'claudehub':
+        from kultura_bot.engine import gateway
+        return str((config or {}).get('claudehub_key') or gateway.api_key())
     return str((config or {}).get(selected.provider + '_key') or '')
 
 
@@ -49,6 +55,9 @@ class BoundClient:
 
 
 def client_for(key, selected):
+    if selected.provider == 'claudehub':
+        from kultura_bot.engine.gateway_client import Client
+        return BoundClient(Client(key, selected.model), selected)
     if selected.provider == 'openai':
         from kultura_bot.engine import astra
         return BoundClient(astra.client_for(key), selected)
@@ -56,6 +65,8 @@ def client_for(key, selected):
 
 
 def check_key(key, selected):
+    if selected.provider == 'claudehub':
+        return ('ok', 'ClaudeHub: ключ проверяется первым запросом') if key else ('auth', 'Не задан ключ ClaudeHub')
     if selected.provider == 'openai':
         from kultura_bot.engine import astra
         return astra.check_key(key, selected.model)
@@ -63,6 +74,8 @@ def check_key(key, selected):
 
 
 def describe_error(exc, selected, secrets=()):
+    if selected.provider == 'claudehub':
+        return 'server', claude.scrub(str(exc), secrets)
     if selected.provider == 'openai':
         from kultura_bot.engine import astra
         return astra.describe_error(exc, secrets)
@@ -70,6 +83,9 @@ def describe_error(exc, selected, secrets=()):
 
 
 def cost_usd(client, model, usage, speed):
+    if getattr(client, 'provider', '') == 'claudehub':
+        from kultura_bot.engine.gateway_client import cost
+        return cost(usage, client.rates)
     if getattr(client, 'provider', '') == 'openai':
         from kultura_bot.engine import astra
         return astra.cost_usd(usage, speed)
@@ -78,7 +94,7 @@ def cost_usd(client, model, usage, speed):
 
 def timing_profile(mode, selected, fast=False):
     """Astra learns its own timings; retain legacy Anthropic statistics unchanged."""
-    if selected.provider != 'openai':
+    if selected.provider not in ('openai', 'claudehub'):
         return mode
     return ':'.join((mode, selected.provider, selected.model, selected.effort,
                      selected.agent_effort, 'fast' if fast else 'standard'))

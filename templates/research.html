@@ -88,6 +88,12 @@
                 <textarea id="rsInput" rows="1" maxlength="8000" enterkeyhint="send"
                           placeholder="Спросите о выручке, остатках, сменах…"></textarea>
                 <div class="rx-bar">
+                    {% if model_choices %}
+                    <label class="rx-sr" for="rsModel">Модель</label>
+                    <select id="rsModel" data-storage-key="{{ model_preference_key }}" class="rx-model" aria-label="Модель">
+                        {% for item in model_choices %}<option value="{{ item.id }}"{% if item.id == 'gpt-6-astra' %} selected{% endif %}>{{ item.label }}</option>{% endfor %}
+                    </select>
+                    {% endif %}
                     {#- файлы: кнопка, выбор, перетаскивание на поле и вставка картинки из буфера (research.js) -#}
                     <button class="rx-attach" type="button" id="rsAttach" aria-label="Приложить файл"
                             title="Приложить файл: картинку, PDF, Excel, CSV или текст">
@@ -101,8 +107,8 @@
                                 aria-describedby="rsFastTip">
                             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2.5L5 13.2h6l-1 8.3 8-10.7h-6z"/></svg>
                         </button>
-                        <span class="rx-tip" id="rsFastTip" role="tooltip">{% if openai_mode %}Быстрый режим{% else %}Быстро: до {{ fast_speedup }} раза быстрее{% endif %},
-                            но в {{ fast_price }} раза дороже — только для этого вопроса</span>
+                        <span class="rx-tip" id="rsFastTip" role="tooltip">{% if model_choices %}Быстрый режим недоступен для этого подключения{% else %}{% if openai_mode %}Быстрый режим{% else %}Быстро: до {{ fast_speedup }} раза быстрее{% endif %},
+                            но в {{ fast_price }} раза дороже — только для этого вопроса{% endif %}</span>
                     </span>
                     {%- endif %}
                     {#- глубина ответа — как выбор усилия у моделей: кнопка справа, меню с описаниями -#}
@@ -172,8 +178,9 @@
            ${{ '%.2f'|format(report_budget) }}, собирается несколько минут. Глубина ответа выбирается справа в поле
            вопроса.</p>
         {% if fast_mode %}
+        {% if model_choices %}<p>Быстрый режим для этого подключения недоступен.</p>{% else %}
         <p><b>Быстро</b> (молния слева в поле) — {% if openai_mode %}ускоренный режим той же модели{% else %}та же модель отвечает до {{ fast_speedup }} раза быстрее{% endif %}, но в
-           {{ fast_price }} раза дороже; включается для одного вопроса (как команда /fast в Telegram).</p>
+           {{ fast_price }} раза дороже; включается для одного вопроса (как команда /fast в Telegram).</p>{% endif %}
         {% endif %}
         <p><b>Файлы</b> (скрепка слева в поле, перетаскивание или вставка картинки) — картинки, PDF, Excel (.xlsx),
            CSV и текст: до {{ files_max }} к вопросу, каждый до {{ file_max_mb }} МБ, все вместе до

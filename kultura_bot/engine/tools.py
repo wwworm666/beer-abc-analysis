@@ -166,6 +166,7 @@ class ToolContext:
     site: Any
     chat_id: str
     allowed: FrozenSet[str]                                  # инструменты сайта этого разговора
+    local_search: Any = None
     run_agent: Optional[Callable[[str, str], str]] = None    # ask_agent: (имя агента, задача) -> отчёт
     is_agent: bool = False                                   # агент не поручает задачи другим агентам
     charts_sent: List[Dict[str, Any]] = field(default_factory=list)
@@ -255,6 +256,11 @@ def _execute(block: Dict[str, Any], ctx: ToolContext) -> Dict[str, Any]:
         return tool_result(tool_use_id, REPORT_ONLY_TEXT, is_error=True)
     if ctx.report_mode and name == CHART_TOOL:
         return tool_result(tool_use_id, AGENT_CHART_TEXT if ctx.is_agent else REPORT_CHART_TEXT, is_error=True)
+    if name == 'kultura_find_tools' and ctx.local_search is not None:
+        try:
+            return tool_result(tool_use_id, json.dumps(ctx.local_search.search(args.get('query'), args.get('offset', 0)), ensure_ascii=False))
+        except ValueError as exc:
+            return tool_result(tool_use_id, str(exc), is_error=True)
     if name == ASK_AGENT:
         return _run_ask_agent(tool_use_id, args, ctx)
     if name not in ctx.allowed:

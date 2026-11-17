@@ -144,7 +144,7 @@ def _help_text() -> str:
     """/help и /start: разделы меню — из settings.MENU, чтобы справка не отставала от меню."""
     sections = '\n'.join(f'/{item["command"]} — {_lower_first(item["description"])}'
                          for item in settings.MENU if item.get('questions'))
-    fast = (f'/{settings.FAST_COMMAND} вопрос — быстрый ответ: та же модель отвечает быстрее, но вдвое дороже. '
+    fast = (f'/{settings.FAST_COMMAND} вопрос — быстрый ответ, если поддерживается выбранным подключением. Цена зависит от провайдера. '
             'Без команды — обычная скорость.\n') if settings.FAST_MODE else ''
     return ('Я kultura.research — помощник сети «Культура» для анализа: отвечаю по данным сайта kultura.os. '
             'Пишите вопрос обычными '
@@ -155,6 +155,7 @@ def _help_text() -> str:
             f'/{settings.REPORT_COMMAND} вопрос — отчёт: полный разбор на странице (графики, таблицы), в чат — '
             'выжимка с кнопкой «Открыть отчёт». Так же — «Отчёт: вопрос».\n'
             f'{fast}'
+            '/model — выбрать модель для следующих вопросов.\n'
             '/new — начать новый диалог: прошлый разговор я забуду.\n\n'
             'Графики приходят с кнопкой «Открыть интерактивно», пояснение расчёта — «Как считается». '
             'Вернуться к прошлой работе — ответьте на моё сообщение с отчётом или графиком («Ответить»).\n\n'
@@ -471,7 +472,7 @@ class Service:
         """Что не должно попасть в текст ошибки для чата и страницы."""
         cfg = self.config or {}
         return (self.token, self.key, getattr(self.site, 'key', ''),
-                cfg.get('openai_key', ''), cfg.get('anthropic_key', ''))
+                cfg.get('openai_key', ''), cfg.get('anthropic_key', ''), cfg.get('claudehub_key', ''))
 
     def set_status(self, state: str, detail: str = '', *, claude_error: Optional[str] = None) -> None:
         with self.status_lock:
@@ -558,7 +559,7 @@ class Service:
         if not key:
             self.key = ''
             self.model_selection = selected
-            label = 'OpenAI' if selected.provider == 'openai' else 'Claude'
+            label = {'openai': 'OpenAI', 'claudehub': 'ClaudeHub'}.get(selected.provider, 'Claude')
             self.set_status('waiting', f'нет ключа {label} API: вставьте его на странице «Доступ агентов»')
             return False
         if self.config.get('paused'):
@@ -822,7 +823,7 @@ class Service:
                  if isinstance(f, dict) and isinstance(f.get('n'), int) and f.get('kind') in WEB_FILE_KINDS]
         return {
             'kind': 'web', 'web_id': qid, 'chat_id': chat_id, 'message': {}, 'chat_type': 'web', 'source': 'web',
-            'text': found['question'], 'mode': 'report' if found.get('mode') == 'report' else 'answer',
+            'text': found['question'], 'model': found.get('model') or '', 'mode': 'report' if found.get('mode') == 'report' else 'answer',
             'fast': bool(found.get('fast')), 'history': found.get('history') or [], 'files': files,
             'asked_ts': float(found.get('asked_ts') or time.time()),
             'actor': {'tg_user_id': '', 'user_id': actor['user_id'], 'login': str(actor.get('login') or ''),
@@ -1043,6 +1044,9 @@ class Service:
             if chat_type == 'private' and self.refusal_due(tg_user_id):
                 self.tg.send_plain(chat_id, refusal_text())
             return
+        if command == 'model':
+            self.model_menu(chat_id, tg_user_id)
+            return
         if command == 'new':
             # Через очередь чата: ответ, который ещё пишется, иначе сохранил бы старый диалог обратно.
             self.enqueue(chat_id, {'kind': 'new', 'message': message, 'actor': actor, 'text': '',
@@ -1099,6 +1103,11 @@ class Service:
     # ---------------------------------------------------------------- очередь
 
     def enqueue(self, chat_id: str, job: Dict[str, Any]) -> None:
+        if job.get('kind') != 'web':
+            from kultura_bot.engine import gateway
+            chosen = self.store.get_meta('model:' + str(job.get('actor', {}).get('tg_user_id') or ''))
+            if chosen in gateway.MODELS:
+                job.setdefault('model', chosen)
         job.setdefault('asked_ts', time.time())          # журнал: когда пришёл вопрос (ждал ли очереди)
         if job.get('kind') not in ('new', 'rich'):
             # Вопрос записан сразу ('queued'): остановка, пока он ждёт очереди, не потеряет его
@@ -1203,6 +1212,17 @@ class Service:
             return
         self.tg.send_plain(chat_id, text)
 
+    def model_menu(self, chat_id, tg_user_id):
+        from kultura_bot.engine import gateway
+        if not (self.config or {}).get('claudehub_key') and not gateway.api_key():
+            self.tg.send_plain(chat_id, 'Выбор моделей пока не подключён: добавьте ключ ClaudeHub в настройках бота.')
+            return
+        selected = self.store.get_meta('model:' + str(tg_user_id))
+        label = gateway.LABELS.get(selected or self.model_selection.model, 'по настройке сервиса')
+        buttons = [[{'text': item['label'], 'callback_data': 'model:' + item['id']}] for item in gateway.choices()]
+        self.tg.send_plain(chat_id, 'Модель для ваших следующих вопросов: ' + label,
+                           reply_markup={'inline_keyboard': buttons})
+
     # ---------------------------------------------------------------- кнопки и «Остановить»
 
     def handle_callback(self, query: Dict[str, Any]) -> None:
@@ -1232,6 +1252,19 @@ class Service:
             return
         if actor is None:
             self.tg.answer_callback(callback_id, 'Это закрытый бот сети «Культура»')
+            return
+        if data.startswith('model:'):
+            from kultura_bot.engine import gateway
+            chosen = data[len('model:'):]
+            if chosen not in gateway.MODELS:
+                self.tg.answer_callback(callback_id, 'Неизвестная модель')
+                return
+            if not (self.config or {}).get('claudehub_key') and not gateway.api_key():
+                self.tg.answer_callback(callback_id, 'Ключ ClaudeHub не настроен')
+                return
+            self.store.set_meta('model:' + str(tg_user_id), chosen)
+            self.tg.answer_callback(callback_id, 'Для новых вопросов: ' + gateway.LABELS[chosen])
+            self.model_menu(chat_id, tg_user_id)
             return
         if data in ('fmt:rich', 'fmt:plain'):
             self.set_format(chat_id, data[4:], tg_user_id, edit_message_id=message.get('message_id'),
@@ -1605,6 +1638,8 @@ class Service:
         (WebOut, 2026-11-09): разговор, инструменты, агенты, пределы и журнал — одни и те же."""
         # Одно чтение конфигурации: смена ключа/модели в ready не меняет этот вопрос.
         config_snapshot = dict(self.config or {})
+        if job.get('model'):
+            config_snapshot.update(provider='claudehub', model=job['model'], effort='xhigh', agent_effort='xhigh')
         selected = providers.selection(config_snapshot) if config_snapshot else self.model_selection
         key = providers.api_key(config_snapshot, selected) if config_snapshot else self.key
         question_secrets = self._secrets() + (key,)
@@ -1643,7 +1678,7 @@ class Service:
         spend = agent.Spend(limit=limit)
         rich_view = False if web else self.chat_rich(chat_id)
         stop = threading.Event()                   # «Остановить»: у черновика Telegram или на странице сайта
-        fast = bool(job.get('fast')) and settings.FAST_MODE      # «/fast …» — этот вопрос и его агенты
+        fast = bool(job.get('fast')) and settings.FAST_MODE and selected.provider != 'claudehub'      # «/fast …» — этот вопрос и его агенты
         ctx = tools.ToolContext(site=self.site, chat_id=chat_id, allowed=catalog.bot.toolset.names, spend=spend,
                                 report_mode=report_mode, stop=stop, user=asker, fast=fast,
                                 web_question=out.web_question)
@@ -1657,7 +1692,7 @@ class Service:
                                    tool_typical=self._tool_typical(), titles=catalog.titles,
                                    is_finishing=lambda: ctx.report_only)
         tracker.stats_mode = stats_mode
-        tracker.use_default_history = selected.provider != 'openai'
+        tracker.use_default_history = selected.provider not in ('openai', 'claudehub')
         ctx.progress = tracker
         reporter = out.reporter(tracker, mode=mode, job_id=job_id, rich_view=rich_view, stop=stop)
         try:
@@ -1704,6 +1739,8 @@ class Service:
             started_at = dialog['started_at'] if dialog else msk_now().isoformat(timespec='seconds')
             turns = dialog['turns'] if dialog else 0
 
+            if not key:
+                raise ValueError('Ключ выбранного подключения не настроен')
             client = self.client_factory(key) if self.client_factory else providers.client_for(key, selected)
             agent_header = self.header(actor)          # агенту — без «режим: отчёт»: страницу собирает бот
 
