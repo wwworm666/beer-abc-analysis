@@ -33,10 +33,11 @@ _CLIENTS: Dict[str, Any] = {}
 _CLIENTS_LOCK = threading.Lock()
 
 
-def make_client(api_key: str, *, timeout: float = REQUEST_TIMEOUT_S, max_retries: int = MAX_RETRIES):
+def make_client(api_key: str, *, timeout: float = REQUEST_TIMEOUT_S, max_retries: int = MAX_RETRIES, base_url=None):
     """Новый клиент Anthropic."""
     import anthropic
-    return anthropic.Anthropic(api_key=api_key, timeout=timeout, max_retries=max_retries)
+    return anthropic.Anthropic(api_key=api_key, timeout=timeout, max_retries=max_retries,
+                               **({'base_url': base_url} if base_url else {}))
 
 
 def client_for(api_key: str):

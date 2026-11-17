@@ -17,9 +17,10 @@ _clients = {}
 _lock = threading.Lock()
 
 
-def make_client(key, *, timeout=claude.REQUEST_TIMEOUT_S, max_retries=claude.MAX_RETRIES):
+def make_client(key, *, timeout=claude.REQUEST_TIMEOUT_S, max_retries=claude.MAX_RETRIES, base_url=None):
     from openai import OpenAI
-    return OpenAI(api_key=key, timeout=timeout, max_retries=max_retries)
+    return OpenAI(api_key=key, timeout=timeout, max_retries=max_retries,
+                  **({'base_url': base_url} if base_url else {}))
 
 
 def client_for(key):
