@@ -994,14 +994,13 @@ details.rx-how[open] > summary { margin-bottom: 10px; }
     .rx-report { padding: 16px 14px 14px; border-radius: 14px; }
 }
 
-/* Model selection shares the composer; on phones it gets its own row. */
 /* Model picker follows the same quiet typography and popover as answer depth. */
 .rx-model { position: relative; min-width: 0; }
 .rx-model .rx-effort-btn { max-width: 100%; padding-left: 6px; }
 #rsModelLabel { overflow: hidden; text-overflow: ellipsis; }
-.rx-model-menu { left: 0; right: auto; width: min(240px, calc(100vw - 56px)); }
-.rx-model-caption { display: block; padding: 6px 10px 8px; color: var(--rx-ink-4); font-size: 11px; }
-.rx-model-menu [role="menuitemradio"] { grid-template-columns: minmax(0, 1fr) 16px; align-items: center; font-size: 13.5px; }
+.rx-model-menu { left: 0; right: auto; width: min(300px, calc(100vw - 56px)); }
+.rx-model-caption { display: flex; justify-content: space-between; padding: 6px 38px 8px 10px; color: var(--rx-ink-4); font-size: 11px; }
+.rx-model-menu [role="menuitemradio"] { grid-template-columns: minmax(0, 1fr) 38px 16px; align-items: center; font-size: 13.5px; }
 .rx-model-menu [aria-checked="true"] { background: var(--rx-soft); }
 @media (max-width: 480px) {
     .rx-bar { gap: 4px; }
@@ -1009,3 +1008,11 @@ details.rx-how[open] > summary { margin-bottom: 10px; }
     .rx-model .rx-effort-btn { font-size: 12px; gap: 3px; }
     .rx-effort-btn { padding-left: 6px; padding-right: 6px; }
 }
+
+.rx-model-cost { display: inline-flex; align-items: center; justify-content: flex-end; gap: 3px; height: 20px; }
+.rx-model-cost i { width: 7px; height: 7px; border-radius: 2px; background: var(--rx-line); }
+.rx-model-cost i.is-filled { background: var(--rx-ink-3); }
+.rx-model-menu [aria-checked="true"] .rx-model-cost i.is-filled { background: var(--rx-ink); }
+.rx-model-cost-note { margin: 5px 10px 3px; padding-top: 9px; border-top: 1px solid var(--rx-line); color: var(--rx-ink-4); font-size: 11px; }
+.rx-model-cost-note summary { cursor: pointer; }
+.rx-model-cost-note p { margin: 8px 0 4px; line-height: 1.5; color: var(--rx-ink-3); }

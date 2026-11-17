@@ -96,13 +96,22 @@
                             <svg class="rx-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5"/></svg>
                         </button>
                         <div class="rx-effort-menu rx-model-menu" id="rsModelMenu" role="menu" aria-label="Модель" hidden>
-                            <span class="rx-model-caption">Модель</span>
+                            <div class="rx-model-caption"><span>Модель</span><span>Стоимость</span></div>
                             {% for item in model_choices %}
                             <button type="button" role="menuitemradio" aria-checked="{{ 'true' if item.id == 'gpt-6-astra' else 'false' }}" tabindex="-1" data-model="{{ item.id }}">
                                 <span>{{ item.label }}</span>
+                                {% if item.cost_level %}
+                                <span class="rx-model-cost" role="img" aria-label="Стоимость: {{ item.cost_level }} из 4" title="{{ item.cost_rates }}">
+                                    {% for level in range(1, 5) %}<i{% if level <= item.cost_level %} class="is-filled"{% endif %} aria-hidden="true"></i>{% endfor %}
+                                </span>
+                                {% else %}<span class="rx-model-cost" aria-label="Стоимость неизвестна">—</span>{% endif %}
                                 <svg class="rx-check" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
                             </button>
                             {% endfor %}
+                            <details class="rx-model-cost-note">
+                                <summary>Как сравниваем стоимость</summary>
+                                <p>Больше делений — выше тариф. Сравнение для одинакового количества входных и выходных токенов без кэша, по тарифам ClaudeHub на 17.11.2026. Стоимость ответа зависит от объёма работы модели.</p>
+                            </details>
                         </div>
                     </div>
                     {% endif %}

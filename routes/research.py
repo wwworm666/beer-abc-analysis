@@ -81,6 +81,12 @@ def _times(value) -> str:
     return ('%g' % float(value)).replace('.', ',')
 
 
+# Display-only catalogue snapshot, 2026-11-17: USD / 1M input and output tokens.
+# Rank equal uncached token volumes; billing continues to use live gateway prices.
+_MODEL_COST_RATES = {'gpt-6.1-sol': (0.33, 0.33), 'gpt-6-astra': (0.4, 0.4),
+                     'claude-opus-5-5': (0.6, 0.6), 'claude-fable-5-1': (1, 2)}
+
+
 @research_bp.route('/research', methods=['GET'])
 @admin_required
 def research_page():
@@ -88,7 +94,14 @@ def research_page():
     # Числа для «Как работает» — из настроек бота, а не из текста страницы. has_thread — открыта беседа
     # по ссылке (?t=): страница не рисуется сначала пустой (само значение в разметку не попадает).
     from kultura_bot.engine import gateway
-    return render_template('research.html', model_choices=gateway.choices() if credentials.claudehub_key() else [],
+    models = gateway.choices() if credentials.claudehub_key() else []
+    cost_order = sorted(_MODEL_COST_RATES, key=lambda model: sum(_MODEL_COST_RATES[model]))
+    for model in models:
+        rates = _MODEL_COST_RATES.get(model['id'])
+        if rates:
+            model.update(cost_level=cost_order.index(model['id']) + 1,
+                         cost_rates=f'${rates[0]:g} вход / ${rates[1]:g} выход за 1 млн токенов')
+    return render_template('research.html', model_choices=models,
                            model_preference_key='kultura.research.model.' + str(current_user()['id']), question_budget=settings.QUESTION_BUDGET_USD,
                            report_budget=settings.REPORT_BUDGET_USD, user_budget=settings.USER_DAILY_BUDGET_USD,
                            fast_mode=settings.FAST_MODE, idle_minutes=settings.DIALOG_IDLE_MINUTES,
