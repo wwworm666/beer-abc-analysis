@@ -993,3 +993,10 @@ details.rx-how[open] > summary { margin-bottom: 10px; }
     .rx-q { max-width: 92%; }
     .rx-report { padding: 16px 14px 14px; border-radius: 14px; }
 }
+
+/* Model selection shares the composer; on phones it gets its own row. */
+.rx-model { min-width: 0; max-width: 170px; padding: 6px 8px; border: 1px solid var(--rx-line-3); border-radius: 8px; background: var(--rx-bg); color: var(--rx-ink); font: inherit; }
+@media (max-width: 600px) {
+    .rx-bar:has(.rx-model) { flex-wrap: wrap; }
+    .rx-model { flex-basis: 100%; max-width: 100%; }
+}

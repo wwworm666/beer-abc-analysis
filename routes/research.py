@@ -87,7 +87,9 @@ def research_page():
     from kultura_bot import credentials, settings
     # Числа для «Как работает» — из настроек бота, а не из текста страницы. has_thread — открыта беседа
     # по ссылке (?t=): страница не рисуется сначала пустой (само значение в разметку не попадает).
-    return render_template('research.html', question_budget=settings.QUESTION_BUDGET_USD,
+    from kultura_bot.engine import gateway
+    return render_template('research.html', model_choices=gateway.choices() if credentials.claudehub_key() else [],
+                           model_preference_key='kultura.research.model.' + str(current_user()['id']), question_budget=settings.QUESTION_BUDGET_USD,
                            report_budget=settings.REPORT_BUDGET_USD, user_budget=settings.USER_DAILY_BUDGET_USD,
                            fast_mode=settings.FAST_MODE, idle_minutes=settings.DIALOG_IDLE_MINUTES,
                            openai_mode=credentials.provider() == 'openai',
@@ -133,7 +135,7 @@ def research_ask():
     from kultura_bot import settings, web
     try:
         data = _body(_ask_max_bytes())
-        question = web.ask(current_user(), data.get('question'), mode=data.get('mode') or 'answer',
+        question = web.ask(current_user(), data.get('question'), model=data.get('model') or '', mode=data.get('mode') or 'answer',
                            fast=bool(data.get('fast')) and settings.FAST_MODE, thread_id=data.get('thread_id'),
                            files=data.get('files'))
     except (ValueError, web.WebError) as exc:

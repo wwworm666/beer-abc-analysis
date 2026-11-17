@@ -341,6 +341,13 @@ def run_turn(client: Any, *, system_text: str, tool_list: List[Dict[str, Any]], 
     max_rounds = settings.MAX_TOOL_ROUNDS if max_rounds is None else max_rounds
     spend = ctx.spend if ctx.spend is not None else Spend()
     messages = list(history) + [{'role': 'user', 'content': user_content}]
+    discovery = None
+    if getattr(client, 'provider', '') == 'claudehub':
+        from kultura_bot.engine.local_search import Catalogue
+        discovery = Catalogue(tool_list)
+        discovery.load(b.get('name') for m in history for b in (m.get('content') or [])
+                       if isinstance(b, dict) and b.get('type') == 'tool_use')
+        ctx.local_search = discovery
     result = TurnResult(text='', messages=messages)
     final_texts: List[str] = []
     pauses = 0
@@ -351,7 +358,11 @@ def run_turn(client: Any, *, system_text: str, tool_list: List[Dict[str, Any]], 
         check_stop(ctx)
         if ctx.progress is not None:
             ctx.progress.model_start()
-        response = create_message(client, lambda: request_params(
+        sender = create_message
+        if discovery is not None:
+            from kultura_bot.engine import gateway_client
+            sender = lambda c, build: gateway_client.create_message(c, build, discovery)
+        response = sender(client, lambda: request_params(
             model=model, effort=effort, system_text=system_text, tool_list=tool_list, messages=messages,
             final=final, fast=fast))
         usage = _usage_dict(response.usage)

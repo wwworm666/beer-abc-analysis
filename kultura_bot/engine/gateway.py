@@ -1,4 +1,4 @@
-"""ClaudeHub connection metadata. Not activated until protocol checks pass.
+"""ClaudeHub connection metadata for the four approved models.
 
 The gateway key is distinct from the direct Anthropic/OpenAI credentials.
 Only the four approved model IDs and fixed HTTPS endpoints are accepted.
@@ -8,13 +8,14 @@ import math
 import os
 from dataclasses import dataclass
 
+DEFAULT_EFFORT = 'xhigh'
 KEY_ENV = 'ClaudeHub'
 ANTHROPIC_URL = 'https://api.claudehub.fun'
 OPENAI_URL = 'https://api.claudehub.fun/v1'
 MODELS = {
     'claude-opus-5-5': 'anthropic',
     'gpt-6.1-sol': 'chat_completions',
-    'claude-fable-5-2': 'anthropic',
+    'claude-fable-5-1': 'anthropic',
     'gpt-6-astra': 'chat_completions',
 }
 
@@ -70,3 +71,14 @@ def validate_response(payload, key=''):
             message = message.replace(key, '***')
         raise ValueError('ClaudeHub: ' + message[:500])
     return payload
+
+LABELS = {
+    'claude-opus-5-5': 'Claude Opus 5.5',
+    'gpt-6.1-sol': 'GPT-6.1 Sol',
+    'claude-fable-5-1': 'Claude Fable 5.1',
+    'gpt-6-astra': 'GPT-6 Astra',
+}
+
+
+def choices():
+    return [{'id': model, 'label': LABELS[model]} for model in MODELS]

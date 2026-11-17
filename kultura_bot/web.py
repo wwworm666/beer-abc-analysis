@@ -135,6 +135,12 @@ def _ensure() -> None:
     # Колонка files (2026-11-09) — в таблицу, созданную раньше: миграция только добавляет колонку.
     with db.write() as conn:
         columns = {row['name'] for row in conn.execute('PRAGMA table_info(bot_web_questions)')}
+        if 'model' not in columns:
+            try:
+                conn.execute("ALTER TABLE bot_web_questions ADD COLUMN model TEXT NOT NULL DEFAULT ''")
+            except Exception as exc:
+                if 'duplicate column' not in str(exc).lower():
+                    raise
         if 'files' not in columns:
             try:
                 conn.execute("ALTER TABLE bot_web_questions ADD COLUMN files TEXT NOT NULL DEFAULT '[]'")
@@ -177,9 +183,16 @@ def _row(row) -> Dict[str, Any]:
 # ------------------------------------------------------------------ страница: вопрос, беседы
 
 def ask(user: Dict[str, Any], question: Any, *, mode: Any = 'answer', fast: Any = False,
-        thread_id: Any = None, files: Any = None, now: Optional[float] = None) -> Dict[str, Any]:
+        thread_id: Any = None, files: Any = None, model: Any = '', now: Optional[float] = None) -> Dict[str, Any]:
     """Новый вопрос в очередь. thread_id — продолжить свою беседу, без него — новая беседа. files —
     приложенные файлы [{name, data: base64}] (kultura_bot/web_files.py)."""
+    from kultura_bot.engine import gateway
+    if model and model not in gateway.MODELS:
+        raise WebError('Неизвестная модель')
+    if model:
+        from kultura_bot import credentials
+        if not credentials.claudehub_key():
+            raise WebError('Ключ ClaudeHub не настроен')
     text = str(question if question is not None else '').strip()
     if not text:
         raise WebError('Напишите вопрос')
@@ -202,7 +215,7 @@ def ask(user: Dict[str, Any], question: Any, *, mode: Any = 'answer', fast: Any 
     except web_files.FileError as exc:
         raise WebError(str(exc)) from None
     try:
-        _insert(user, qid, text, mode, fast, thread_id, meta, now)
+        _insert(user, qid, text, mode, fast, thread_id, meta, now, model=model or '')
     except BaseException:
         web_files.delete(qid)                    # вопрос не записан — и файлам незачем лежать
         raise
@@ -210,7 +223,7 @@ def ask(user: Dict[str, Any], question: Any, *, mode: Any = 'answer', fast: Any 
 
 
 def _insert(user: Dict[str, Any], qid: str, text: str, mode: str, fast: Any, thread_id: Any,
-            meta: List[Dict[str, Any]], now: float) -> None:
+            meta: List[Dict[str, Any]], now: float, model: str = '') -> None:
     with db.write() as conn:
         if thread_id:
             own = conn.execute('SELECT 1 FROM bot_web_questions WHERE thread_id = ? AND user_id = ? LIMIT 1',
@@ -228,10 +241,10 @@ def _insert(user: Dict[str, Any], qid: str, text: str, mode: str, fast: Any, thr
         if active >= ACTIVE_MAX:
             raise WebError(f'Уже идут {active} вопроса — дождитесь ответа хотя бы на один')
         conn.execute('INSERT INTO bot_web_questions (id, thread_id, user_id, login, name, question, mode, fast, '
-                     'status, asked_ts, files) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                     'status, asked_ts, files, model) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                      (qid, thread_id, int(user['id']), str(user.get('login') or ''),
                       str(user.get('display_name') or user.get('login') or ''), text, mode, 1 if fast else 0,
-                      'queued', int(now), json.dumps(meta, ensure_ascii=False, separators=(',', ':'))))
+                      'queued', int(now), json.dumps(meta, ensure_ascii=False, separators=(',', ':')), model))
 
 
 def get(user_id: int, qid: str) -> Optional[Dict[str, Any]]:
@@ -431,7 +444,7 @@ def view(row: Dict[str, Any]) -> Dict[str, Any]:
     cards = [c for c in (_card_view(card) for card in row['cards']) if c is not None]
     done = row['status'] in FINAL
     return {
-        'id': row['id'], 'thread_id': row['thread_id'], 'question': row['question'], 'mode': row['mode'],
+        'id': row['id'], 'thread_id': row['thread_id'], 'question': row['question'], 'model': row['model'], 'mode': row['mode'],
         'fast': bool(row['fast']), 'status': row['status'], 'active': active,
         'asked_at': _iso(row['asked_ts']), 'finished_at': _iso(row.get('finished_ts')),
         'progress': row['progress'] if active else '', 'stopping': bool(row['stop']) and active,
@@ -519,7 +532,7 @@ def claim(now: Optional[float] = None) -> Optional[Dict[str, Any]]:
             history = _history(conn, row['thread_id'], row['asked_ts'])
         return {
             'id': row['id'], 'thread_id': row['thread_id'], 'chat_id': chat_id(row['thread_id']),
-            'question': row['question'], 'mode': row['mode'], 'fast': bool(row['fast']),
+            'question': row['question'], 'model': row['model'], 'mode': row['mode'], 'fast': bool(row['fast']),
             'asked_at': _iso(row['asked_ts']), 'asked_ts': int(row['asked_ts']),
             'actor': {'user_id': int(user['id']), 'login': str(user.get('login') or row['login']),
                       'display_name': str(user.get('display_name') or user.get('login') or row['name'])},

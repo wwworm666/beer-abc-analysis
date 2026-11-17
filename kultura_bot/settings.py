@@ -78,7 +78,7 @@ TELEGRAM_USERNAMES = ('ivanwiwkin', 'pk_kvvo', 'Chappssful')
 # в много шагов. Цены — PRICES_PER_MTOK ниже.
 MODEL = 'claude-opus-5-5'
 OPENAI_MODEL = 'gpt-6-astra'
-OPENAI_EFFORT = 'medium'
+OPENAI_EFFORT = 'xhigh'  # 2026-11-17: сверхвысокое усилие по умолчанию для всех моделей
 MODEL_EFFORTS = ('low', 'medium', 'high', 'xhigh', 'max')
 # Compaction до порога удорожания Astra (272K входа); инструкции и каталог передаются заново.
 OPENAI_COMPACT_AT_TOKENS = 200_000
@@ -289,7 +289,8 @@ MENU = (
      'questions': ('Контент-план на месяц', 'Чего не хватает на неделе', 'Новые отзывы гостей',
                    'Предложи ответы на отзывы')},
     {'command': REPORT_COMMAND, 'description': 'Отчёт: полный разбор на странице'},
-    {'command': FAST_COMMAND, 'description': 'Быстрый ответ: та же модель, вдвое дороже'},
+    {'command': FAST_COMMAND, 'description': 'Быстрый ответ, если доступен для модели'},
+    {'command': 'model', 'description': 'Выбрать модель для следующих вопросов'},
     {'command': 'new', 'description': 'Начать новый диалог'},
     {'command': 'help', 'description': 'Что умеет бот'},
 )

@@ -394,12 +394,12 @@ def test_real_sdk_stream_contract_with_mock_transport(env):
     assert result.text == 'SDK работает'
     assert captured[0]['stream'] is True and captured[0]['store'] is False
     assert captured[0]['tools'][0] == {'type': 'tool_search', 'execution': 'server'}
-    assert captured[0]['reasoning']['effort'] == 'medium'
+    assert captured[0]['reasoning']['effort'] == 'xhigh'
 
 
-def test_astra_medium_default_and_full_role_catalog(env):
+def test_astra_xhigh_default_and_full_role_catalog(env):
     selected = providers.selection({'provider': 'openai'})
-    assert selected.effort == selected.agent_effort == 'medium'
+    assert selected.effort == selected.agent_effort == 'xhigh'
     catalog = tools.load_catalog(env.site)
     for persona in [catalog.bot, *catalog.agents.values()]:
         params = agent.request_params(model=selected.model, effort=selected.effort,
@@ -409,7 +409,7 @@ def test_astra_medium_default_and_full_role_catalog(env):
                     if t.get('type') == 'function' and t['name'] not in settings.HIDDEN_TOOLS}
         assert {t['name'] for t in request['tools'] if t['type'] == 'function'} == expected
         assert request['tools'][0] == {'type': 'tool_search', 'execution': 'server'}
-        assert request['reasoning']['effort'] == 'medium'
+        assert request['reasoning']['effort'] == 'xhigh'
         assert any(t.get('defer_loading') for t in request['tools'])
 
 

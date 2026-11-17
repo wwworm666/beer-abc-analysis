@@ -2388,7 +2388,7 @@ def test_telegram_profile_photo_goes_as_multipart(monkeypatch):
 def test_menu_fits_telegram_and_every_command_works():
     import re
     names = [item['command'] for item in settings.MENU]
-    assert names == ['sales', 'stock', 'staff', 'content', 'research', 'fast', 'new', 'help']
+    assert names == ['sales', 'stock', 'staff', 'content', 'research', 'fast', 'model', 'new', 'help']
     assert len(set(names)) == len(names) and 'rich' not in names and 'start' not in names, \
         'в меню — работа с данными; вид ответов и привязка — нет'
     for item in settings.MENU:
@@ -2399,7 +2399,7 @@ def test_menu_fits_telegram_and_every_command_works():
             assert formatting.menu_data(question) == formatting.MENU_PREFIX + question, 'влез в 64 байта целиком'
     sections = [item['command'] for item in settings.MENU if item.get('questions')]
     assert sections == ['sales', 'stock', 'staff', 'content'], 'по команде на каждый раздел сайта'
-    assert set(names) - set(sections) == {settings.REPORT_COMMAND, settings.FAST_COMMAND, 'new', 'help'}, \
+    assert set(names) - set(sections) == {settings.REPORT_COMMAND, settings.FAST_COMMAND, 'model', 'new', 'help'}, \
         'остальные бот и так знает'
     assert telegram_io.menu_commands() == [{'command': i['command'], 'description': i['description']}
                                            for i in settings.MENU]

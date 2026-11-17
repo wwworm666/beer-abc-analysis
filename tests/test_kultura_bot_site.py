@@ -115,7 +115,7 @@ def test_anthropic_key_checked_by_format_and_given_only_to_engine(store):
     assert view['anthropic'] == {'configured': True, 'source': 'settings', 'key_hint': 'sk-a…kkk'}
     assert KEY not in repr(view) and KEY not in repr(cs.public_view())
     cs.save(token=GOOD, getme=getme_ok())
-    assert cs.engine_view() == {**cs.model_config(), 'openai_key': '',
+    assert cs.engine_view() == {**cs.model_config(), 'openai_key': '', 'claudehub_key': '',
                                 'telegram': {'token': GOOD, 'username': 'MCPkulturabot'}, 'anthropic_key': KEY,
                                 'paused': False}, 'серверу бота — целиком'
 
@@ -392,7 +392,7 @@ def test_bot_api_only_for_engine_key(site_env):
         assert call(env, method, path, other, json={}).status_code == 401, 'MCP-токен агента секреты не открывает'
     r = call(env, 'GET', '/api/bot/config', key1)
     assert r.status_code == 200 and r.headers['Cache-Control'] == 'no-store'
-    assert r.get_json() == {**cs.model_config(), 'openai_key': '',
+    assert r.get_json() == {**cs.model_config(), 'openai_key': '', 'claudehub_key': '',
                             'telegram': {'token': GOOD, 'username': 'MCPkulturabot'}, 'anthropic_key': KEY,
                             'paused': False}
 
@@ -690,3 +690,14 @@ def test_chat_format_and_rich_demo_for_engine(site_env, monkeypatch):
     monkeypatch.setattr(chart_send, 'send_chart', refused)
     with pytest.raises(SiteError, match='не принял богатое сообщение'):
         site.rich_demo('555')
+
+
+def test_claudehub_key_is_private_and_provider_is_explicit(store):
+    key = 'test-hub-secret-for-model-selection'
+    view = cs.save(claudehub_key_value=key, provider_value='claudehub', effort_value='xhigh')
+    assert key not in repr(view)
+    assert view['claudehub']['configured'] is True
+    assert cs.engine_view()['claudehub_key'] == key
+    assert cs.active_key() == key and cs.model_config()['provider'] == 'claudehub'
+    with pytest.raises(ValueError, match='ClaudeHub'):
+        cs.save(claudehub_key_value='bad\nkey')
