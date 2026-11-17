@@ -1564,7 +1564,7 @@ def test_fast_mode_only_by_command(bot):
 
 
 def test_fast_command_in_menu_and_help_only_when_enabled(monkeypatch):
-    assert {'command': 'fast', 'description': 'Быстрый ответ: та же модель, вдвое дороже'} in \
+    assert {'command': 'fast', 'description': 'Быстрый ответ, если доступен для модели'} in \
         telegram_io.menu_commands()
     assert '/fast вопрос — быстрый ответ' in service.HELP_TEXT and 'Без команды — обычная скорость' in service.HELP_TEXT
     monkeypatch.setattr(settings, 'FAST_MODE', False)

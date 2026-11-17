@@ -148,7 +148,7 @@ def test_research_model_selector_in_browser(web_app, monkeypatch, tmp_path):
             assert response.value.status in (200, 201)
             assert web.claim()['model'] == 'claude-fable-5-1'
             page.wait_for_timeout(300)
-            page.screenshot(path='/workspace/model-selector-mobile.png', full_page=True)
+            page.screenshot(path=str(tmp_path / 'model-selector-mobile.png'), full_page=True)
             assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
             assert not errors
             browser.close()
