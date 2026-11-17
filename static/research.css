@@ -995,8 +995,17 @@ details.rx-how[open] > summary { margin-bottom: 10px; }
 }
 
 /* Model selection shares the composer; on phones it gets its own row. */
-.rx-model { min-width: 0; max-width: 170px; padding: 6px 8px; border: 1px solid var(--rx-line-3); border-radius: 8px; background: var(--rx-bg); color: var(--rx-ink); font: inherit; }
-@media (max-width: 600px) {
-    .rx-bar:has(.rx-model) { flex-wrap: wrap; }
-    .rx-model { flex-basis: 100%; max-width: 100%; }
+/* Model picker follows the same quiet typography and popover as answer depth. */
+.rx-model { position: relative; min-width: 0; }
+.rx-model .rx-effort-btn { max-width: 100%; padding-left: 6px; }
+#rsModelLabel { overflow: hidden; text-overflow: ellipsis; }
+.rx-model-menu { left: 0; right: auto; width: min(240px, calc(100vw - 56px)); }
+.rx-model-caption { display: block; padding: 6px 10px 8px; color: var(--rx-ink-4); font-size: 11px; }
+.rx-model-menu [role="menuitemradio"] { grid-template-columns: minmax(0, 1fr) 16px; align-items: center; font-size: 13.5px; }
+.rx-model-menu [aria-checked="true"] { background: var(--rx-soft); }
+@media (max-width: 480px) {
+    .rx-bar { gap: 4px; }
+    .rx-model { flex: 1; }
+    .rx-model .rx-effort-btn { font-size: 12px; gap: 3px; }
+    .rx-effort-btn { padding-left: 6px; padding-right: 6px; }
 }

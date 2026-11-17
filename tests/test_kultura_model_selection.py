@@ -111,7 +111,7 @@ def test_research_selector_lists_new_four_models(web_app, monkeypatch):
     assert 'secret-never-in-html' not in page
     assert 'claude-fable-5-2' not in page
     for name in gateway.MODELS:
-        assert 'value="' + name + '"' in page
+        assert 'data-model="' + name + '"' in page
     response = web_app.client.post('/api/research/ask', json={'question': 'test', 'model': 'gpt-6.1-sol'})
     assert response.status_code in (200, 201)
     from kultura_bot import web
@@ -138,10 +138,20 @@ def test_research_model_selector_in_browser(web_app, monkeypatch, tmp_path):
             errors = []
             page.on('pageerror', lambda e: errors.append(str(e)))
             page.goto(f'http://127.0.0.1:{server.server_port}/research')
-            page.select_option('#rsModel', 'claude-fable-5-1')
+            page.click('#rsModelBtn')
+            page.wait_for_timeout(200)
+            page.screenshot(path=str(tmp_path / 'model-menu-open.png'), full_page=True)
+            page.set_viewport_size({'width': 1280, 'height': 900})
+            page.screenshot(path=str(tmp_path / 'model-menu-desktop.png'), full_page=True)
+            page.set_viewport_size({'width': 390, 'height': 844})
+            page.click('[data-model="claude-fable-5-1"]')
+            page.click('#rsModelBtn')
+            page.keyboard.press('Escape')
+            assert not page.is_visible('#rsModelMenu')
+            assert page.locator('#rsModelBtn').evaluate('(el) => el === document.activeElement')
             page.reload()
             assert page.input_value('#rsModel') == 'claude-fable-5-1'
-            assert page.is_disabled('#rsFast')
+            assert page.locator('#rsFast').count() == 0
             page.fill('#rsInput', 'Тест выбора модели')
             with page.expect_response('**/api/research/ask') as response:
                 page.click('#rsSend')

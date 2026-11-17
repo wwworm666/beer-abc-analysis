@@ -603,10 +603,43 @@
   }
   const modelSelect = $('rsModel');
   if (modelSelect) {
-    const modelStorageKey = modelSelect.dataset.storageKey;
-    try { const saved = localStorage.getItem(modelStorageKey); if ([...modelSelect.options].some(o => o.value === saved)) modelSelect.value = saved; } catch (_) {}
-    modelSelect.addEventListener('change', () => { try { localStorage.setItem(modelStorageKey, modelSelect.value); } catch (_) {} });
-    if (els.fast) { els.fast.disabled = true; els.fast.setAttribute('aria-pressed', 'false'); els.fast.title = 'Быстрый режим недоступен для этого подключения'; }
+    const picker = $('rsModelPicker'), button = $('rsModelBtn'), menu = $('rsModelMenu');
+    const options = [...menu.querySelectorAll('[data-model]')];
+    function choose(value) {
+      const option = options.find(o => o.dataset.model === value);
+      if (!option) return;
+      modelSelect.value = value;
+      $('rsModelLabel').textContent = option.querySelector('span').textContent;
+      options.forEach(o => o.setAttribute('aria-checked', String(o === option)));
+      try { localStorage.setItem(modelSelect.dataset.storageKey, value); } catch (_) {}
+    }
+    function closeModel(focus = false) {
+      menu.hidden = true; button.setAttribute('aria-expanded', 'false');
+      if (focus) button.focus();
+    }
+    function openModel() {
+      menu.hidden = false; button.setAttribute('aria-expanded', 'true');
+      menu.classList.toggle('is-up', button.getBoundingClientRect().bottom + menu.offsetHeight + 16 > innerHeight);
+      (options.find(o => o.dataset.model === modelSelect.value) || options[0]).focus();
+    }
+    try { choose(localStorage.getItem(modelSelect.dataset.storageKey) || modelSelect.value); } catch (_) {}
+    button.addEventListener('click', () => menu.hidden ? openModel() : closeModel());
+    button.addEventListener('keydown', e => {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); openModel(); }
+    });
+    options.forEach(o => o.addEventListener('click', () => { choose(o.dataset.model); closeModel(true); }));
+    picker.addEventListener('keydown', e => {
+      if (e.key === 'Escape') { e.preventDefault(); closeModel(true); }
+      if (e.key === 'Tab') closeModel();
+      if (!menu.hidden && ['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key) && e.target !== button) {
+        e.preventDefault();
+        const i = options.indexOf(document.activeElement);
+        const next = e.key === 'Home' ? 0 : e.key === 'End' ? options.length - 1 : (i + (e.key === 'ArrowDown' ? 1 : -1) + options.length) % options.length;
+        options[next].focus();
+      }
+    });
+    document.addEventListener('click', e => { if (!picker.contains(e.target)) closeModel(); });
+    picker.addEventListener('focusout', e => { if (!picker.contains(e.relatedTarget)) closeModel(); });
   }
   els.form.addEventListener('submit', e => {
     e.preventDefault();
