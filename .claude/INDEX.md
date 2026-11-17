@@ -390,4 +390,4 @@ Beer ABC/XYZ Analysis (Flask + iiko + ЧЗ)
 
 [kultura-astra.md](../docs/kultura-astra.md) — адаптер Responses для Research и Telegram, серверный поиск OpenAI по каталогу роли, medium, раздельная статистика времени, совместимость истории, ключи, стоимость, завершение по бюджету, сравнение сохранённых ответов и условия выкладки.
 
-[kultura-claudehub.md](../docs/kultura-claudehub.md) — единый ключ, Fable 5.1 и выбор четырёх моделей в Research/Telegram; общий движок, локальный поиск, тарифы и история проверок.
+[kultura-claudehub.md](../docs/kultura-claudehub.md) — единый ключ, Fable 5.1 и выбор четырёх моделей в Research/Telegram, компактное меню Research без турбо; общий движок, локальный поиск, тарифы и история проверок.

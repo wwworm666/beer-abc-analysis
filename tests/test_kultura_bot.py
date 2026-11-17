@@ -1564,9 +1564,10 @@ def test_fast_mode_only_by_command(bot):
 
 
 def test_fast_command_in_menu_and_help_only_when_enabled(monkeypatch):
+    monkeypatch.setattr(settings, 'FAST_MODE', True)
     assert {'command': 'fast', 'description': 'Быстрый ответ, если доступен для модели'} in \
         telegram_io.menu_commands()
-    assert '/fast вопрос — быстрый ответ' in service.HELP_TEXT and 'Без команды — обычная скорость' in service.HELP_TEXT
+    assert '/fast вопрос — быстрый ответ' in service._help_text() and 'Без команды — обычная скорость' in service._help_text()
     monkeypatch.setattr(settings, 'FAST_MODE', False)
     assert 'fast' not in [c['command'] for c in telegram_io.menu_commands()], 'выключен — в меню его нет'
     assert '/fast' not in service._help_text(), 'и в справке'
@@ -2402,7 +2403,7 @@ def test_menu_fits_telegram_and_every_command_works():
     assert set(names) - set(sections) == {settings.REPORT_COMMAND, settings.FAST_COMMAND, 'model', 'new', 'help'}, \
         'остальные бот и так знает'
     assert telegram_io.menu_commands() == [{'command': i['command'], 'description': i['description']}
-                                           for i in settings.MENU]
+                                           for i in settings.MENU if settings.FAST_MODE or i['command'] != settings.FAST_COMMAND]
     assert all('/' + command in service.HELP_TEXT for command in sections)
     assert '/rich' in service.HELP_TEXT, 'вид ответов — в справке, не в меню'
 

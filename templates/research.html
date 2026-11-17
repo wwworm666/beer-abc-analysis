@@ -89,10 +89,22 @@
                           placeholder="Спросите о выручке, остатках, сменах…"></textarea>
                 <div class="rx-bar">
                     {% if model_choices %}
-                    <label class="rx-sr" for="rsModel">Модель</label>
-                    <select id="rsModel" data-storage-key="{{ model_preference_key }}" class="rx-model" aria-label="Модель">
-                        {% for item in model_choices %}<option value="{{ item.id }}"{% if item.id == 'gpt-6-astra' %} selected{% endif %}>{{ item.label }}</option>{% endfor %}
-                    </select>
+                    <div class="rx-model" id="rsModelPicker">
+                        <input type="hidden" id="rsModel" value="gpt-6-astra" data-storage-key="{{ model_preference_key }}">
+                        <button class="rx-effort-btn" id="rsModelBtn" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="rsModelMenu" aria-label="Выбрать модель">
+                            <span id="rsModelLabel">GPT-6 Astra</span>
+                            <svg class="rx-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5"/></svg>
+                        </button>
+                        <div class="rx-effort-menu rx-model-menu" id="rsModelMenu" role="menu" aria-label="Модель" hidden>
+                            <span class="rx-model-caption">Модель</span>
+                            {% for item in model_choices %}
+                            <button type="button" role="menuitemradio" aria-checked="{{ 'true' if item.id == 'gpt-6-astra' else 'false' }}" tabindex="-1" data-model="{{ item.id }}">
+                                <span>{{ item.label }}</span>
+                                <svg class="rx-check" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
+                            </button>
+                            {% endfor %}
+                        </div>
+                    </div>
                     {% endif %}
                     {#- файлы: кнопка, выбор, перетаскивание на поле и вставка картинки из буфера (research.js) -#}
                     <button class="rx-attach" type="button" id="rsAttach" aria-label="Приложить файл"

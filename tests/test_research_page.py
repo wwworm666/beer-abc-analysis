@@ -264,9 +264,8 @@ def test_page_and_api_are_for_admins_and_json_only(web_app):
     # усилия у моделей; молния — «до 2,5 раза быстрее, в 2 раза дороже» (FAST_SPEEDUP_UP_TO,
     # FAST_PRICE_MULTIPLIER; владелец написал наоборот — цифры из прайса Anthropic).
     assert '>Ответ<' in body and '>Исследование<' in body and '>Research<' not in body and 'rsMode' not in body
-    assert body.index('id="rsFast"') < body.index('id="rsEffortBtn"') < body.index('id="rsSend"'), \
-        'молния слева, глубина ответа — справа у кнопки «Спросить»'
-    assert 'Быстро: до 2,5 раза быстрее,' in body and 'но в 2 раза дороже — только для этого вопроса' in body
+    assert 'id="rsFast"' not in body
+    assert body.index('id="rsEffortBtn"') < body.index('id="rsSend"')
     assert 'sidebar-link' not in body and 'dashboard/styles' not in body and 'admin_mcp.css' not in body, \
         'свой дизайн (2026-11-09): без меню, шапки и стилей сайта'
     # Правки владельца по снимку (2026-11-09): заголовка и плашки нет, логотип набирается; готовые вопросы —
@@ -297,9 +296,9 @@ def test_page_and_api_are_for_admins_and_json_only(web_app):
     assert r.status_code == 400 and 'JSON' in r.get_json()['error'], 'форма с чужого сайта не пройдёт'
     asked = c.post('/api/research/ask', json={'question': 'Выручка вчера', 'mode': 'answer', 'fast': True}).get_json()
     q = asked['question']
-    assert q['status'] == 'queued' and q['fast'] is True
+    assert q['status'] == 'queued' and q['fast'] is False
     listing = c.get('/api/research/threads').get_json()
-    assert listing['threads'][0]['id'] == q['thread_id'] and listing['fast'] is True
+    assert listing['threads'][0]['id'] == q['thread_id'] and listing['fast'] is False
     assert listing['suggestions'] == [{'question': x['question'], 'hint': x['hint']} for x in bot_settings.WEB_SUGGESTIONS]
     assert 'engine' in listing and c.get('/api/research/threads').headers['Cache-Control'] == 'no-store'
     assert c.get(f'/api/research/threads/{q["thread_id"]}').get_json()['thread']['questions'][0]['id'] == q['id']
@@ -697,16 +696,7 @@ def test_page_in_browser(web_app, monkeypatch):
             first = page.get_attribute('.rx-sq >> nth=0', 'data-question')
             assert first in pool and pool[first] in page.inner_text('#rsSuggest'), 'случайные — из списка'
             assert page.is_disabled('#rsSend'), 'пустой вопрос не отправить'
-            # Молния: подсказка при наведении, включение — свечение (aria-pressed).
-            assert not page.is_visible('#rsFastTip')
-            page.hover('#rsFast')
-            page.wait_for_selector('#rsFastTip', state='visible')
-            assert 'до 2,5 раза быстрее' in page.inner_text('#rsFastTip')
-            page.click('#rsFast')
-            assert page.get_attribute('#rsFast', 'aria-pressed') == 'true'
-            page.wait_for_function("getComputedStyle(document.querySelector('#rsFast')).color === 'rgb(255, 75, 10)'")
-            page.click('#rsFast')
-            assert page.get_attribute('#rsFast', 'aria-pressed') == 'false'
+            assert page.locator('#rsFast').count() == 0
             # Глубина ответа: меню справа, выбранное — галочкой, Esc закрывает.
             assert page.inner_text('#rsEffortBtn').strip() == 'Ответ' and not page.is_visible('#rsEffortMenu')
             page.click('#rsEffortBtn')
@@ -833,16 +823,14 @@ def test_page_in_browser(web_app, monkeypatch):
             # Готовый вопрос — сразу вопрос боту, с выбранной глубиной и молнией; набранный текст остаётся.
             page.click('#rsEffortBtn')
             page.click('#rsEffortMenu [data-mode="answer"]')
-            page.click('#rsFast')
             page.fill('#rsInput', 'черновик')
             deep = page.get_attribute('.rx-sq >> nth=2', 'data-question')
             page.locator('.rx-sq').nth(2).click()
             page.wait_for_selector('.rx-turn .rx-run')
             assert page.inner_text('.rx-q-text') == deep and page.input_value('#rsInput') == 'черновик'
-            assert 'БЫСТРО' in page.inner_text('.rx-q-meta')
-            assert page.get_attribute('#rsFast', 'aria-pressed') == 'false', 'молния — только для этого вопроса'
+            assert 'БЫСТРО' not in page.inner_text('.rx-q-meta')
             ready = engine.get('/api/bot/web/next', headers=ENGINE).get_json()['job']
-            assert ready['question'] == deep and ready['mode'] == 'answer' and ready['fast'] is True
+            assert ready['question'] == deep and ready['mode'] == 'answer' and ready['fast'] is False
             engine.post(f'/api/bot/web/{ready["id"]}/finish', headers=ENGINE,
                         json={'status': 'done', 'answer': 'Кега IPA — на 2 дня.', 'cost_usd': 0.12, 'steps': 3})
             page.wait_for_selector('.rx-turn .rx-prose')
