@@ -100,14 +100,16 @@ def exercise(tmp, site, registrations):
         assert count == (1 if run == 1 else 0)
         assert len(registrations) - before == count, "unexpected extra OAuth registration"
         assert [r["tool"] for r in reversed(audit.recent())] == expected * run
-        listing = subprocess.run(["codex", "plugin", "list", "--json"], cwd=tmp, env=env,
+        listing = subprocess.run(["codex", "plugin", "list", "--marketplace", "kultura-plugins", "--json"], cwd=tmp, env=env,
                                  capture_output=True, encoding="utf-8", check=True, timeout=60)
         assert "kultura-os" in json.dumps(json.loads(listing.stdout)["installed"])
         sources = subprocess.run(["codex", "plugin", "marketplace", "list", "--json"], cwd=tmp,
                                  env=env, capture_output=True, encoding="utf-8", check=True, timeout=60)
         roots = [Path(m["root"]) for m in json.loads(sources.stdout)["marketplaces"]
                  if m["name"] == "kultura-plugins"]
-        assert roots == [tmp / "settings/KulturaOS/marketplaces/kultura-os-1.1.2"]
+        expected_root = tmp / "settings/KulturaOS/marketplaces/kultura-os-1.1.2"
+        # The Windows CLI may return an expanded or extended-length path to the same folder.
+        assert len(roots) == 1 and roots[0].samefile(expected_root), (roots, expected_root)
         print(f"Install {run} verified in the server audit.", flush=True)
 
 
@@ -126,7 +128,7 @@ if __name__ == "__main__":
     server = make_server("127.0.0.1", 0, env.app, threaded=True)
     Thread(target=server.serve_forever, daemon=True).start()
     try:
-        with TemporaryDirectory() as folder:
+        with TemporaryDirectory(ignore_cleanup_errors=True) as folder:
             exercise(Path(folder), f"http://127.0.0.1:{server.server_port}", registrations)
     finally:
         server.shutdown()
