@@ -25,19 +25,28 @@ jobs:
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
           python-version: '3.11'
-      - name: Test first sign-in and reinstall with real Codex and a clean profile
+      - name: Install Kultura integration test dependencies
         shell: pwsh
         env:
           PYTHONUTF8: '1'
         run: |
           python -m pip install -q -r requirements.txt
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Install the official Windows Codex CLI for the test
+        shell: pwsh
+        run: |
           $cli = Join-Path $env:RUNNER_TEMP 'kultura-test-cli'
           npm install --prefix $cli --ignore-scripts --no-audit --no-fund @openai/codex@0.167.0-alpha.4
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           $binary = Get-ChildItem -LiteralPath $cli -Recurse -Filter codex.exe | Select-Object -First 1
           if (!$binary) { throw 'Codex executable missing' }
-          $env:PATH = "$($binary.DirectoryName);$env:PATH"
+          $binary.DirectoryName | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      - name: Test first sign-in, reinstall and upgrade in a clean Windows profile
+        shell: pwsh
+        env:
+          PYTHONUTF8: '1'
+        run: |
+          codex.exe --version
           python scripts/kultura_local_connect/check_oauth.py
       - name: Attach the tested Windows installer
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
