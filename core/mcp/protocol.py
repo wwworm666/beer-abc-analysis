@@ -203,8 +203,9 @@ READ_CHUNK = 64 * 1024
 ECHO_LIMIT = 64
 
 # Кому можно слать запросы из браузера (заголовок Origin): наш сайт, приложения
-# Claude (и их поддомены) и локальные адреса (Claude Code, разработка).
-ALLOWED_ORIGIN_HOSTS = ('claude.ai', 'claude.com', 'localhost', '127.0.0.1', '::1')
+# Claude (и их поддомены), точные хосты ChatGPT и локальные адреса разработки.
+ALLOWED_ORIGIN_HOSTS = ('claude.ai', 'claude.com', 'chatgpt.com', 'chat.openai.com',
+                        'localhost', '127.0.0.1', '::1')
 ALLOWED_ORIGIN_SUFFIXES = ('.claude.ai', '.claude.com')
 
 CAPABILITIES = {'tools': {'listChanged': False}, 'prompts': {'listChanged': False}}

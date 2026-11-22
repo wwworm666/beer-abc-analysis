@@ -1,0 +1,42 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "kultura-os",
+  "version": "1.0.0",
+  "description": "Все MCP-инструменты kultura.os и подробные инструкции по работе с сервисом.",
+  "author": {
+    "name": "Evan"
+  },
+  "homepage": "https://beerkultura.ru",
+  "repository": "https://github.com/wwworm666/beer-abc-analysis",
+  "keywords": [
+    "kultura",
+    "analytics",
+    "operations",
+    "mcp"
+  ],
+  "extensions": {
+    "com.openai": {
+      "onboardingSkill": "./skills/setup/SKILL.md",
+      "interface": {
+        "displayName": "Культура OS",
+        "shortDescription": "Весь сервис kultura.os в чате",
+        "longDescription": "Продажи и планы, гости, остатки и заказы, краны и меню, сотрудники и графики, контент и отзывы. Все MCP-инструменты и подробные инструкции. Чтение и изменения по запросу владельца; вход активного администратора kultura.os.",
+        "developerName": "Evan",
+        "category": "Business & Operations",
+        "capabilities": [
+          "Read",
+          "Write"
+        ],
+        "websiteURL": "https://beerkultura.ru",
+        "brandColor": "#ff512b",
+        "composerIcon": "./assets/icon.png",
+        "logo": "./assets/logo.png",
+        "defaultPrompt": [
+          "Покажи выручку по точкам Культуры за последнюю полную неделю.",
+          "У кого из барменов самый высокий план-факт за последние полгода и почему?",
+          "Проверь остатки и сроки годности по всем барам."
+        ]
+      }
+    }
+  }
+}

@@ -552,6 +552,19 @@ def _docs_read(args: Dict[str, Any], principal: Principal) -> Dict[str, Any]:
 
 def _instructions(args: Dict[str, Any], principal: Principal) -> Dict[str, Any]:
     domain = args.get('domain')
+    if domain == 'all':
+        call = bridge.current_call()
+        connector = call.connector if call else None
+        mode = call.mode if call else principal.mode
+        parts = [f'# kultura.os — инструкции\n\nРежим подключения: {MODE_TITLES[mode]}.',
+                 f'## Общие правила\n\n{INSTRUCTIONS}']
+        for key, item in DOMAINS.items():
+            if principal.allows(key) and (connector is None or connector == key):
+                text = registry.domain_instructions(key)
+                if not text:
+                    raise ToolError(f'Для раздела {key} инструкций нет (модуль раздела не загружен).')
+                parts.append(f'## {item.title} ({key})\n\n{text}')
+        return ToolResult.text('\n\n'.join(parts))
     text = registry.domain_instructions(domain) if domain != 'common' else INSTRUCTIONS
     if not text:
         raise ToolError(f'Для раздела {domain} инструкций нет (модуль раздела не загружен).')
@@ -966,11 +979,12 @@ TOOLS = [
         name='common_instructions', domain='common', title='Правила раздела',
         description='Полные правила раздела для агента: как устроен, идентификаторы, формулы, порядок вызовов, '
                     'что тяжёлое, что нельзя без просьбы владельца. В коннекторе раздела они уже приложены к '
-                    'подключению; в полном коннекторе /mcp — бери отсюда перед работой с разделом.',
+                    'подключению; в полном коннекторе /mcp — бери отсюда перед работой с разделом. '
+                    'domain="all" возвращает общие правила и все доступные разделы одним вызовом.',
         input_schema={'type': 'object', 'additionalProperties': False, 'required': ['domain'], 'properties': {
-            'domain': {'type': 'string', 'enum': list(DOMAINS) + ['common'],
+            'domain': {'type': 'string', 'enum': list(DOMAINS) + ['common', 'all'],
                        'description': 'Раздел: ' + ', '.join(f'{k} — {d.title}' for k, d in DOMAINS.items())
-                                      + ', common — общие правила.'},
+                                      + ', common — общие правила, all — все доступные разделы.'},
         }},
         handler=_instructions, read_only=True, idempotent=True, examples=({'domain': 'common'},)),
     ToolSpec(
