@@ -188,12 +188,13 @@ AUTH_METHODS = ('none', 'client_secret_post', 'client_secret_basic')
 DEFAULT_AUTH_METHOD = 'client_secret_basic'   # RFC 7591 §2: умолчание, если клиент не указал
 PUBLIC_AUTH_METHOD = 'none'
 
-DEFAULT_REDIRECT_HOSTS = ('claude.ai', 'claude.com', 'localhost', '127.0.0.1')
+DEFAULT_REDIRECT_HOSTS = ('claude.ai', 'claude.com', 'chatgpt.com', 'localhost', '127.0.0.1')
 LOOPBACK_HOSTS = ('localhost', '127.0.0.1', '::1')
 # Для хостов Claude разрешён только адрес возврата хостовых приложений Claude
 # (claude.com/docs/connectors/building/authentication; справка Anthropic: адрес может
 # переехать на claude.com с тем же путём). Если Anthropic сменит путь — дописать сюда.
 PINNED_CALLBACK_PATHS = {
+    'chatgpt.com': ('/connector_platform_oauth_redirect',),
     'claude.ai': ('/api/mcp/auth_callback',),
     'claude.com': ('/api/mcp/auth_callback',),
 }

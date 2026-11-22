@@ -37,7 +37,7 @@ SCHEMA = (
 # localhost/127.0.0.1 — Claude Code принимает код на локальный порт (loopback).
 DEFAULTS: Dict[str, Any] = {
     'notify_chat_id': '',
-    'oauth_redirect_hosts': ['claude.ai', 'claude.com', 'localhost', '127.0.0.1'],
+    'oauth_redirect_hosts': ['claude.ai', 'claude.com', 'chatgpt.com', 'localhost', '127.0.0.1'],
 }
 
 # Предел списка хостов: владельцу нужны единицы; сотни — это ошибка ввода.

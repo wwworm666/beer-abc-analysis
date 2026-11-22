@@ -294,7 +294,7 @@ def test_authenticate_revoked_and_expired():
 def test_settings_defaults_validation_roundtrip():
     with Env():
         assert settings.get('notify_chat_id') == ''
-        assert settings.get('oauth_redirect_hosts') == ['claude.ai', 'claude.com', 'localhost', '127.0.0.1']
+        assert settings.get('oauth_redirect_hosts') == ['claude.ai', 'claude.com', 'chatgpt.com', 'localhost', '127.0.0.1']
         assert settings.get('oauth_redirect_hosts', ['x.example']) == ['x.example'], 'default вызывающего'
         assert settings.get('unknown_key') is None
         assert settings.set('notify_chat_id', ' -1001234567890 ', by='owner') == '-1001234567890'
