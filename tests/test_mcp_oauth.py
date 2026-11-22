@@ -530,6 +530,15 @@ def test_loopback_port_agnostic(env):
 
 
 @isolated
+def test_chatgpt_callback_registration(env):
+    callback = 'https://chatgpt.com/connector_platform_oauth_redirect'
+    registered = env.register(redirect_uris=[callback])
+    assert registered['redirect_uris'] == [callback]
+    for uri in (callback + '/other', callback + '?next=/other', 'https://chatgpt.com/'):
+        assert env.register(redirect_uris=[uri], expect=400)['error'] == 'invalid_redirect_uri'
+
+
+@isolated
 def test_registration_validation(env):
     bad_uris = [
         'https://evil.example/cb',                        # хост не разрешён
