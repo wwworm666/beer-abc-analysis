@@ -133,3 +133,21 @@ python scripts/update_kultura_plugin.py "$KULTURA_PUBLISHER_LISTING" --cdp "$KUL
 python scripts/update_kultura_plugin.py --profile /workspace/kultura-publisher-profile --login
 python scripts/update_kultura_plugin.py --profile /workspace/kultura-publisher-profile --upload
 ```
+
+### Личный пакет ChatGPT на Windows
+
+Команда сборки для издателя: `python scripts/kultura_local_connect/build.py Kultura-OS-Connect.exe` (требуется компилятор Go).
+Пользователь запускает один файл на ПК с Codex. Установщик запрашивает у локального
+Codex список приложений аккаунта. При единственном совпадении по имени и известному
+URL «Культуры» он подставляет ID автоматически. Иначе принимает ссылку на карточку
+зарегистрированного MCP в ChatGPT или его ID. При первом создании подключения
+используется пользовательский раздел https://chatgpt.com/plugins, адрес сервера
+https://beerkultura.ru/mcp и OAuth. Учётными данными управляет клиент.
+
+Личная сборка использует совместимый манифест `.codex-plugin/plugin.json` и
+`.app.json`. Состав пакета, исходный marketplace и имя плагина сохраняются.
+Версия личной сборки включает отпечаток ID для разделения кэша разных подключений.
+Установщик проверяет чтение привязки и двух навыков, затем пытается вызвать
+`common_whoami` в новом потоке именно через соответствующий зарегистрированный
+коннектор. Установка и результат вызова показываются отдельно. Издательский
+ZIP и URL публичного сервера задаются обычной сборкой из исходников.

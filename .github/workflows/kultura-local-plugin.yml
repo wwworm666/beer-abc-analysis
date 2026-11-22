@@ -1,0 +1,24 @@
+name: Check Kultura local installer
+on:
+  pull_request:
+    paths:
+      - 'scripts/kultura_local_connect/**'
+      - 'plugins/kultura-os/**'
+      - '.github/workflows/kultura-local-plugin.yml'
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Build and run Windows installer with isolated account fixtures
+        shell: pwsh
+        run: |
+          $env:KULTURA_QA_INSTALLER = Join-Path $env:RUNNER_TEMP 'Kultura-OS-Connect.exe'
+          python scripts/kultura_local_connect/build.py $env:KULTURA_QA_INSTALLER
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          go test -v scripts/kultura_local_connect/main.go scripts/kultura_local_connect/main_test.go
