@@ -1,26 +1,27 @@
-// Personal, local ChatGPT plugin installer. Communicates with the official local Codex app-server over stdio.
+// Local Kultura OS plugin installer for Codex. Communicates with the official local Codex app-server over stdio.
 package main
 
 import (
 	"archive/zip"
 	"bufio"
+	"bytes"
 	"context"
-	"crypto/sha256"
+
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"net/url"
+
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
+
 	"runtime"
 	"strings"
 	"time"
 )
 
-const directory = "https://chatgpt.com/plugins"
+const serverName = "kultura_os"
 const endpoint = "https://beerkultura.ru/mcp"
 
 type client struct {
@@ -103,108 +104,22 @@ func start(ctx context.Context, exe string) (*client, error) {
 }
 func (c *client) close() { c.in.Close(); c.cmd.Process.Kill(); c.cmd.Wait() }
 
-var validID = regexp.MustCompile(`^(?:plugin_)?asdk_app_[A-Za-z0-9_-]+$`)
-
-type app struct {
-	ID, Name, InstallURL string
-	IsAccessible         bool
-	Branding             struct{ Website string }
-}
-
-func verified(a app) bool {
-	u, err := url.Parse(a.Branding.Website)
-	if err != nil || u.Scheme != "https" || !strings.EqualFold(u.Host, "beerkultura.ru") || u.User != nil {
-		return false
+// Keep the marketplace available after installation. The directory is versioned so
+// upgrading cannot change files used by an earlier plugin while it is running.
+func unpack(bundle *zip.ReadCloser, parent string) (string, error) {
+	if err := os.MkdirAll(parent, 0700); err != nil {
+		return "", err
 	}
-	if u.Path != "/mcp" && u.Path != "/plugins/kultura-os/support" {
-		return false
-	}
-	switch strings.ToLower(strings.TrimSpace(a.Name)) {
-	case "культура", "культура os", "kultura os", "beerkultura", "kultura":
-		return a.IsAccessible && validID.MatchString(a.ID)
-	}
-	return false
-}
-func available(c *client) ([]app, error) {
-	var list []app
-	cursor := ""
-	for {
-		var page struct {
-			Data       []app
-			NextCursor string
-		}
-		args := map[string]any{"limit": 100, "forceRefetch": cursor == ""}
-		if cursor != "" {
-			args["cursor"] = cursor
-		}
-		if err := c.call("app/list", args, &page); err != nil {
-			return nil, err
-		}
-		list = append(list, page.Data...)
-		if page.NextCursor == "" {
-			return list, nil
-		}
-		if page.NextCursor == cursor {
-			return nil, errors.New("повтор страницы каталога")
-		}
-		cursor = page.NextCursor
-	}
-}
-
-func readID(s string) (string, error) {
-	s = strings.TrimSpace(s)
-	if !validID.MatchString(s) {
-		u, err := url.Parse(s)
-		if err != nil || u.Scheme != "https" || u.Host != "chatgpt.com" || u.User != nil || !strings.HasPrefix(u.Path, "/plugins/") {
-			return "", errors.New("Нужна ссылка на карточку ChatGPT или ID зарегистрированного MCP")
-		}
-		s = filepath.Base(strings.TrimSuffix(u.Path, "/"))
-		if !validID.MatchString(s) {
-			return "", errors.New("В ссылке отсутствует ID приложения MCP")
-		}
-	}
-	return strings.TrimPrefix(s, "plugin_"), nil
-}
-
-func choose(list []app, input *bufio.Reader) (string, error) {
-	var candidates []app
-	for _, a := range list {
-		if verified(a) {
-			candidates = append(candidates, a)
-		}
-	}
-	if len(candidates) == 1 {
-		fmt.Println("Подключение найдено в текущем аккаунте:", candidates[0].Name)
-		return candidates[0].ID, nil
-	}
-	fmt.Println("Откройте", directory, "в своём аккаунте и выберите подключение с адресом", endpoint)
-	fmt.Println("Если такого подключения ещё нет, добавьте его через Add custom MCP server с OAuth.")
-	fmt.Print("Вставьте ссылку на карточку или её технический ID (Enter для выхода): ")
-	line, _ := input.ReadString('\n')
-	if strings.TrimSpace(line) == "" {
-		return "", errors.New("Подключение ещё не выбрано")
-	}
-	id, err := readID(line)
+	staging, err := os.MkdirTemp(parent, ".install-")
 	if err != nil {
 		return "", err
 	}
-	for _, a := range list {
-		if strings.TrimPrefix(a.ID, "plugin_") == id {
-			return a.ID, nil
-		}
-	}
-	return id, nil
-}
-
-func materialize(archive *zip.ReadCloser, root, id string) (string, error) {
-	if !validID.MatchString(id) {
-		return "", errors.New("Некорректный ID MCP")
-	}
-	for _, f := range archive.File {
+	defer os.RemoveAll(staging)
+	for _, f := range bundle.File {
 		if !filepath.IsLocal(filepath.FromSlash(f.Name)) {
-			return "", errors.New("Неверный путь в пакете")
+			return "", errors.New("Недопустимый путь в пакете")
 		}
-		path := filepath.Join(root, filepath.FromSlash(f.Name))
+		path := filepath.Join(staging, filepath.FromSlash(f.Name))
 		if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 			return "", err
 		}
@@ -217,101 +132,156 @@ func materialize(archive *zip.ReadCloser, root, id string) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		if f.Name == "plugins/kultura-os/.codex-plugin/plugin.json" {
-			var m map[string]any
-			if err = json.Unmarshal(data, &m); err != nil {
-				return "", err
-			}
-			digest := sha256.Sum256([]byte(id))
-			m["version"] = fmt.Sprintf("%s+local.%x", m["version"], digest[:6])
-			if data, err = json.Marshal(m); err != nil {
-				return "", err
-			}
-		}
-		if err = os.WriteFile(path, data, 0600); err != nil {
+		if err := os.WriteFile(path, data, 0600); err != nil {
 			return "", err
 		}
 	}
-	// Apps are declared in a Codex-compatible local manifest. The portable portal package stays separate.
-	mapping, err := json.Marshal(map[string]any{"apps": map[string]any{"kultura": map[string]string{"id": id}}})
+	root := filepath.Join(parent, "kultura-os-1.1.2")
+	if err := os.Rename(staging, root); err != nil {
+		// A previous or concurrent install is usable only if it has identical files.
+		for _, f := range bundle.File {
+			path := filepath.FromSlash(f.Name)
+			a, ea := os.ReadFile(filepath.Join(root, path))
+			b, eb := os.ReadFile(filepath.Join(staging, path))
+			if ea != nil || eb != nil || !bytes.Equal(a, b) {
+				return "", err
+			}
+		}
+	}
+	return root, nil
+}
+
+type server struct {
+	Name      string
+	Enabled   bool
+	Auth      string `json:"auth_status"`
+	Transport struct{ Type, URL string }
+}
+
+func findServer(ctx context.Context, exe string) (*server, error) {
+	out, err := exec.CommandContext(ctx, exe, "mcp", "list", "--json").Output()
 	if err != nil {
-		return "", err
+		return nil, fmt.Errorf("Codex не прочитал список локальных серверов MCP: %w", err)
 	}
-	if err = os.WriteFile(filepath.Join(root, "plugins", "kultura-os", ".app.json"), mapping, 0600); err != nil {
-		return "", err
+	var servers []server
+	if err := json.Unmarshal(out, &servers); err != nil {
+		return nil, err
 	}
-	return filepath.Join(root, ".agents", "plugins", "marketplace.json"), nil
+	for _, s := range servers {
+		if s.Name != serverName {
+			continue
+		}
+		if s.Transport.Type != "streamable_http" || s.Transport.URL != endpoint || !s.Enabled {
+			return nil, errors.New("В Codex уже есть другая или отключённая конфигурация с именем kultura_os. Установка остановлена, настройки сохранены")
+		}
+		return &s, nil
+	}
+	return nil, nil
 }
 
-type toolInfo struct {
-	Name string
-	Meta map[string]any `json:"_meta"`
+func connect(ctx context.Context, exe string) error {
+	s, err := findServer(ctx, exe)
+	if err != nil {
+		return err
+	}
+	args := []string{"mcp", "add", serverName, "--url", endpoint}
+	if s != nil {
+		if s.Auth != "not_logged_in" && s.Auth != "unsupported" && s.Auth != "unknown" {
+			return nil
+		}
+		args = []string{"mcp", "login", serverName}
+	}
+	fmt.Println("Подключаю Культуру. При первом входе подтвердите доступ на сайте в браузере.")
+	cmd := exec.CommandContext(ctx, exe, args...)
+	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("Подключение MCP или вход прерваны: %w", err)
+	}
+	return nil
 }
 
-func checkThread(c *client, root, id string) error {
+func install(c *client, root string) error {
+	selection := map[string]string{"pluginName": "kultura-os", "marketplacePath": filepath.Join(root, ".agents", "plugins", "marketplace.json")}
+	if err := c.call("plugin/install", selection, nil); err != nil {
+		return err
+	}
+	var detail struct {
+		Plugin struct {
+			Summary    struct{ Installed, Enabled bool }
+			McpServers []string
+			Skills     []json.RawMessage
+		}
+	}
+	if err := c.call("plugin/read", selection, &detail); err != nil {
+		return err
+	}
+	p := detail.Plugin
+	if !p.Summary.Installed || !p.Summary.Enabled || len(p.Skills) != 2 || len(p.McpServers) != 1 || p.McpServers[0] != serverName {
+		return errors.New("Codex не подтвердил установку плагина с сервером kultura_os и двумя навыками")
+	}
+	return nil
+}
+
+func checkThread(c *client, root string) error {
 	var started struct{ Thread struct{ ID string } }
 	if err := c.call("thread/start", map[string]any{"cwd": root, "ephemeral": true}, &started); err != nil {
 		return err
 	}
-	var status struct {
+	var inventory struct {
 		Data []struct {
 			Name  string
-			Tools map[string]toolInfo
+			Tools map[string]json.RawMessage
 		}
 	}
-	params := map[string]any{"threadId": started.Thread.ID, "serverName": "codex_apps", "detail": "toolsAndAuthOnly"}
-	if err := c.call("mcpServerStatus/list", params, &status); err != nil {
+	if err := c.call("mcpServerStatus/list", map[string]any{"threadId": started.Thread.ID, "serverName": serverName, "detail": "toolsAndAuthOnly"}, &inventory); err != nil {
 		return err
 	}
-	var names []string
-	for _, server := range status.Data {
-		if server.Name != "codex_apps" {
-			continue
-		}
-		for key, t := range server.Tools {
-			if !strings.HasSuffix(strings.ToLower(key), "common_whoami") {
-				continue
-			}
-			// Accept only a tool tied to the selected connector. A native bearer server
-			// or another app with a tool of the same name cannot verify this install.
-			meta, _ := json.Marshal(t.Meta)
-			aliases := []string{id, strings.TrimPrefix(id, "plugin_")}
-			for _, alias := range aliases {
-				if strings.Contains(key, alias) || strings.Contains(string(meta), fmt.Sprintf("%q", alias)) {
-					names = append(names, key)
-					break
-				}
-			}
+	if len(inventory.Data) != 1 || inventory.Data[0].Name != serverName {
+		return errors.New("Новый чат не видит сервер kultura_os")
+	}
+	requests := []struct {
+		name string
+		args map[string]string
+	}{
+		{"common_whoami", map[string]string{}}, {"common_instructions", map[string]string{"domain": "all"}},
+		{"common_docs_list", map[string]string{}}, {"common_bars_reference", map[string]string{}},
+	}
+	var account struct {
+		Connector struct {
+			Mode, Domain string
+			Tools        int
+			Hidden       int `json:"tools_hidden_by_mode"`
 		}
 	}
-	if len(names) != 1 {
-		return errors.New("Пакет установлен. Клиент не показал однозначно привязанный common_whoami в каталоге приложений этой сессии; вызов из ChatGPT пока не подтверждён")
-	}
-	var reply struct {
-		IsError bool
-		Content []struct{ Text string }
-	}
-	if err := c.call("mcpServer/tool/call", map[string]any{"threadId": started.Thread.ID, "server": "codex_apps", "tool": names[0], "arguments": map[string]any{}}, &reply); err != nil {
-		return err
-	}
-	if !reply.IsError {
-		for _, b := range reply.Content {
-			var data struct {
-				Connector struct {
-					Mode, Domain string
-					Tools        int
-				}
+	for _, r := range requests {
+		if _, ok := inventory.Data[0].Tools[r.name]; !ok {
+			return fmt.Errorf("В чате отсутствует %s", r.name)
+		}
+		var reply struct {
+			IsError bool
+			Content []struct{ Text string }
+		}
+		if err := c.call("mcpServer/tool/call", map[string]any{"threadId": started.Thread.ID, "server": serverName, "tool": r.name, "arguments": r.args}, &reply); err != nil {
+			return err
+		}
+		if reply.IsError || len(reply.Content) == 0 || reply.Content[0].Text == "" {
+			return fmt.Errorf("Сервер не вернул данные для %s", r.name)
+		}
+		if r.name == "common_whoami" {
+			if err := json.Unmarshal([]byte(reply.Content[0].Text), &account); err != nil {
+				return fmt.Errorf("Ответ common_whoami: %w", err)
 			}
-			if json.Unmarshal([]byte(b.Text), &data) == nil && data.Connector.Mode != "" && data.Connector.Tools > 0 {
-				fmt.Printf("common_whoami ответил через зарегистрированное приложение: режим %s, раздел %s, инструментов %d.\n", data.Connector.Mode, data.Connector.Domain, data.Connector.Tools)
-				return nil
+			a := account.Connector
+			if a.Mode != "full" || a.Domain != "all" || a.Tools <= 0 || a.Hidden != 0 {
+				return fmt.Errorf("Вход выполнен. Сервер выдал режим %q и раздел %q. Полный доступ ко всем разделам не подтверждён", a.Mode, a.Domain)
 			}
 		}
 	}
-	return errors.New("Клиент не получил ожидаемый ответ common_whoami")
+	fmt.Printf("Культура OS готова в локальном Codex. Полный доступ, инструментов %d. Инструкции и справочник баров загружены.\n", account.Connector.Tools)
+	return nil
 }
 
-func run(input *bufio.Reader) error {
+func run() error {
 	exe, err := executable()
 	if err != nil {
 		return err
@@ -322,89 +292,40 @@ func run(input *bufio.Reader) error {
 	}
 	bundle, err := zip.OpenReader(self)
 	if err != nil {
-		return fmt.Errorf("в установщике отсутствует пакет: %w", err)
+		return err
 	}
 	defer bundle.Close()
+	base, err := os.UserConfigDir()
+	if err != nil {
+		return err
+	}
+	root, err := unpack(bundle, filepath.Join(base, "KulturaOS", "marketplaces"))
+	if err != nil {
+		return err
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
 	defer cancel()
+	if err := connect(ctx, exe); err != nil {
+		return err
+	}
 	c, err := start(ctx, exe)
 	if err != nil {
 		return err
 	}
 	defer c.close()
-	fmt.Println("Проверяю список подключений в вашем аккаунте через Codex…")
-	list, err := available(c)
-	if err != nil {
-		fmt.Println("Список подключений недоступен:", err)
-	}
-	id, err := choose(list, input)
-	if err != nil {
+	if err := install(c, root); err != nil {
 		return err
 	}
-	home, err := os.UserConfigDir()
-	if err != nil {
-		return err
-	}
-	parent := filepath.Join(home, "KulturaOS", "marketplaces")
-	if err = os.MkdirAll(parent, 0700); err != nil {
-		return err
-	}
-	root, err := os.MkdirTemp(parent, "local-")
-	if err != nil {
-		return err
-	}
-	market, err := materialize(bundle, root, id)
-	if err != nil {
-		return err
-	}
-	selection := map[string]string{"pluginName": "kultura-os", "marketplacePath": market}
-	inspect := func(afterInstall bool) error {
-		var info struct {
-			Plugin struct {
-				Summary struct{ Installed, Enabled bool }
-				Apps    []app
-				Skills  []json.RawMessage
-			}
-		}
-		if err := c.call("plugin/read", selection, &info); err != nil {
-			return err
-		}
-		if afterInstall && (!info.Plugin.Summary.Installed || !info.Plugin.Summary.Enabled) {
-			return errors.New("Клиент не подтвердил, что плагин установлен и включён")
-		}
-		if len(info.Plugin.Apps) != 1 || info.Plugin.Apps[0].ID != id || len(info.Plugin.Skills) != 2 {
-			return errors.New("Клиент не подтвердил привязку и оба навыка")
-		}
-		return nil
-	}
-	if err = inspect(false); err != nil {
-		return err
-	}
-	var installed struct{ AppsNeedingAuth []app }
-	if err = c.call("plugin/install", selection, &installed); err != nil {
-		return err
-	}
-	if err = inspect(true); err != nil {
-		return err
-	}
-	fmt.Println("Культура OS установлена. Codex прочитал привязку MCP и оба навыка.")
-	if len(installed.AppsNeedingAuth) > 0 {
-		fmt.Println("Клиент запросил авторизацию приложения в ChatGPT. Выберите «Подключить» в карточке зарегистрированного MCP.")
-	}
-	fmt.Println("Проверяю вызов common_whoami через подключение приложения…")
-	return checkThread(c, root, id)
+	return checkThread(c, root)
 }
+
 func main() {
-	input := bufio.NewReader(os.Stdin)
-	err := run(input)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "Остановлено:", err)
-	}
-	if runtime.GOOS == "windows" {
-		fmt.Print("Enter — закрыть окно.")
-		input.ReadString('\n')
-	}
-	if err != nil {
+	if err := run(); err != nil {
+		fmt.Fprintln(os.Stderr, "Установка остановлена:", err)
+		if runtime.GOOS == "windows" {
+			fmt.Print("Enter — закрыть окно.")
+			bufio.NewReader(os.Stdin).ReadString('\n')
+		}
 		os.Exit(1)
 	}
 }

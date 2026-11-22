@@ -12,61 +12,44 @@ import (
 	"testing"
 )
 
-const fixtureID = "asdk_app_0123456789abcdef"
-
-func TestLink(t *testing.T) {
-	for _, s := range []string{fixtureID, "plugin_" + fixtureID, "https://chatgpt.com/plugins/example/plugin_" + fixtureID} {
-		id, err := readID(s)
-		if err != nil || id != fixtureID {
-			t.Fatal(s, id, err)
-		}
-	}
-	for _, s := range []string{"https://beerkultura.ru/oauth/authorize?state=opaque", "https://chatgpt.com.evil.invalid/plugins/" + fixtureID, "https://chatgpt.com/plugins", ""} {
-		if _, err := readID(s); err == nil {
-			t.Fatal("unexpected ID", s)
-		}
-	}
-}
-
+// The actual installer is run with no user input; only the Codex subprocess is substituted.
 func TestInstalledExecutable(t *testing.T) {
 	installer := os.Getenv("KULTURA_QA_INSTALLER")
 	if installer == "" {
 		t.Skip("supply compiled installer")
 	}
-	for _, scenario := range []string{"works", "unrelated", "missing"} {
+	for _, scenario := range []string{"fresh", "existing", "expired", "conflict", "read-only", "offline"} {
 		t.Run(scenario, func(t *testing.T) {
-			bin := t.TempDir()
-			user := t.TempDir()
+			bin, user := t.TempDir(), t.TempDir()
 			self, err := os.Executable()
 			if err != nil {
 				t.Fatal(err)
 			}
-			cli := "codex"
-			if runtime.GOOS == "windows" {
-				cli += ".exe"
-			}
-			// Test executable doubles as an isolated local app-server; no account, network or user profile is used.
 			b, err := os.ReadFile(self)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err = os.WriteFile(filepath.Join(bin, cli), b, 0700); err != nil {
+			name := "codex"
+			if runtime.GOOS == "windows" {
+				name += ".exe"
+			}
+			if err = os.WriteFile(filepath.Join(bin, name), b, 0700); err != nil {
 				t.Fatal(err)
 			}
 			t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 			t.Setenv("KULTURA_QA_BACKEND", scenario)
+			t.Setenv("KULTURA_QA_ROOT", user)
 			t.Setenv("XDG_CONFIG_HOME", user)
 			t.Setenv("AppData", user)
 			cmd := exec.Command(installer)
-			cmd.Stdin = strings.NewReader("\n\n")
 			out, err := cmd.CombinedOutput()
-			if scenario == "works" {
-				if err != nil || !strings.Contains(string(out), "инструментов 255") {
-					t.Fatalf("%v %s", err, out)
-				}
-			} else {
-				if err == nil || strings.Contains(string(out), "инструментов 255") {
-					t.Fatalf("%v %s", err, out)
+			want := scenario == "fresh" || scenario == "existing" || scenario == "expired"
+			if (err == nil) != want || strings.Contains(string(out), "инструментов 255") != want {
+				t.Fatalf("%v %s", err, out)
+			}
+			if want {
+				if _, err := os.Stat(filepath.Join(user, "called-common_bars_reference")); err != nil {
+					t.Fatal(err)
 				}
 			}
 		})
@@ -75,69 +58,117 @@ func TestInstalledExecutable(t *testing.T) {
 
 func TestMain(m *testing.M) {
 	scenario := os.Getenv("KULTURA_QA_BACKEND")
-	if len(os.Args) != 2 || os.Args[1] != "app-server" || scenario == "" {
+	if scenario == "" || len(os.Args) < 2 {
 		os.Exit(m.Run())
 	}
-	in := bufio.NewScanner(os.Stdin)
-	enc := json.NewEncoder(os.Stdout)
-	installed := false
-	for in.Scan() {
-		var req struct {
-			ID     int
-			Method string
-			Params map[string]any
-		}
-		if err := json.Unmarshal(in.Bytes(), &req); err != nil {
-			panic(err)
-		}
-		var result any = map[string]any{}
-		switch req.Method {
-		case "initialized":
-			continue
-		case "initialize":
-		case "app/list":
-			apps := []any{}
-			if scenario != "missing" {
-				apps = append(apps, map[string]any{"name": "Культура OS", "id": fixtureID, "isAccessible": true, "branding": map[string]string{"website": endpoint}})
+	dir := os.Getenv("KULTURA_QA_ROOT")
+	switch os.Args[1] {
+	case "mcp":
+		args := strings.Join(os.Args[2:], " ")
+		switch args {
+		case "list --json":
+			if scenario == "fresh" {
+				fmt.Println("[]")
+				return
 			}
-			result = map[string]any{"data": apps}
-		case "plugin/install":
-			installed = true
-		case "plugin/read":
-			root := filepath.Clean(filepath.Join(req.Params["marketplacePath"].(string), "../../..", "plugins", "kultura-os"))
-			mp, err := os.ReadFile(filepath.Join(root, ".app.json"))
-			if err != nil {
+			url := endpoint
+			auth := "o_auth"
+			if scenario == "expired" {
+				auth = "not_logged_in"
+			}
+			if scenario == "conflict" {
+				url = "https://unrelated.invalid/mcp"
+			}
+			json.NewEncoder(os.Stdout).Encode([]any{map[string]any{"name": serverName, "enabled": true, "auth_status": auth, "transport": map[string]string{"type": "streamable_http", "url": url}}})
+		case "add " + serverName + " --url " + endpoint:
+			if scenario != "fresh" {
+				panic("unexpected registration")
+			}
+			os.Exit(0)
+		case "login " + serverName:
+			if scenario != "expired" {
+				panic("unexpected login")
+			}
+			os.Exit(0)
+		default:
+			panic(args)
+		}
+	case "app-server":
+		in := bufio.NewScanner(os.Stdin)
+		enc := json.NewEncoder(os.Stdout)
+		installed := false
+		for in.Scan() {
+			var req struct {
+				ID     int
+				Method string
+				Params map[string]any
+			}
+			if err := json.Unmarshal(in.Bytes(), &req); err != nil {
 				panic(err)
 			}
-			var d struct{ Apps map[string]app }
-			if err = json.Unmarshal(mp, &d); err != nil || d.Apps["kultura"].ID != fixtureID {
-				panic("bad binding")
-			}
-			for _, f := range []string{".codex-plugin/plugin.json", ".mcp.json", "skills/setup/SKILL.md", "skills/kultura-os/SKILL.md"} {
-				if _, err = os.Stat(filepath.Join(root, f)); err != nil {
+			var result any = map[string]any{}
+			switch req.Method {
+			case "initialized":
+				continue
+			case "initialize":
+			case "plugin/install":
+				installed = true
+			case "plugin/read":
+				path := filepath.Join(filepath.Dir(req.Params["marketplacePath"].(string)), "..", "..", "plugins", "kultura-os")
+				for _, f := range []string{".codex-plugin/plugin.json", ".mcp.json", "skills/setup/SKILL.md", "skills/kultura-os/SKILL.md"} {
+					if _, err := os.Stat(filepath.Join(path, f)); err != nil {
+						panic(err)
+					}
+				}
+				data, err := os.ReadFile(filepath.Join(path, ".mcp.json"))
+				if err != nil {
 					panic(err)
 				}
+				var cfg struct {
+					McpServers map[string]struct{ URL string }
+				}
+				if json.Unmarshal(data, &cfg) != nil || cfg.McpServers[serverName].URL != endpoint {
+					panic("invalid endpoint")
+				}
+				result = map[string]any{"plugin": map[string]any{"mcpServers": []string{serverName}, "skills": []string{"setup", "kultura-os"}, "summary": map[string]bool{"installed": installed, "enabled": true}}}
+			case "thread/start":
+				result = map[string]any{"thread": map[string]string{"id": "fixture"}}
+			case "mcpServerStatus/list":
+				if req.Params["serverName"] != serverName {
+					panic("wrong server")
+				}
+				tools := map[string]any{}
+				if scenario != "offline" {
+					for _, n := range []string{"common_whoami", "common_instructions", "common_docs_list", "common_bars_reference"} {
+						tools[n] = map[string]any{}
+					}
+				}
+				result = map[string]any{"data": []any{map[string]any{"name": serverName, "tools": tools}}}
+			case "mcpServer/tool/call":
+				if req.Params["threadId"] != "fixture" || req.Params["server"] != serverName {
+					panic("wrong call")
+				}
+				name := req.Params["tool"].(string)
+				body := "test"
+				if name == "common_whoami" {
+					mode := "full"
+					if scenario == "read-only" {
+						mode = "read"
+					}
+					body = fmt.Sprintf(`{"connector":{"domain":"all","mode":%q,"tools":255,"tools_hidden_by_mode":0}}`, mode)
+				}
+				if err := os.WriteFile(filepath.Join(dir, "called-"+name), nil, 0600); err != nil {
+					panic(err)
+				}
+				result = map[string]any{"content": []any{map[string]string{"text": body}}}
+			default:
+				panic("unexpected RPC " + req.Method)
 			}
-			result = map[string]any{"plugin": map[string]any{"skills": []any{"setup", "kultura-os"}, "apps": []app{d.Apps["kultura"]}, "summary": map[string]any{"installed": installed, "enabled": installed}}}
-		case "thread/start":
-			result = map[string]any{"thread": map[string]string{"id": "thread-fixture"}}
-		case "mcpServerStatus/list":
-			owner := fixtureID
-			if scenario == "unrelated" {
-				owner = "asdk_app_unrelated"
+			if err := enc.Encode(map[string]any{"id": req.ID, "result": result}); err != nil {
+				panic(err)
 			}
-			result = map[string]any{"data": []any{map[string]any{"name": "codex_apps", "tools": map[string]any{"kultura_common_whoami": map[string]any{"_meta": map[string]string{"connector_id": owner}}}}}}
-		case "mcpServer/tool/call":
-			if !installed || req.Params["server"] != "codex_apps" || req.Params["tool"] != "kultura_common_whoami" || req.Params["threadId"] != "thread-fixture" {
-				panic("wrong tool call")
-			}
-			result = map[string]any{"content": []any{map[string]string{"text": `{"connector":{"mode":"full","domain":"all","tools":255}}`}}}
-		default:
-			panic(fmt.Sprintf("unexpected method %q", req.Method))
 		}
-		if err := enc.Encode(map[string]any{"id": req.ID, "result": result}); err != nil {
-			panic(err)
-		}
+	default:
+		panic(os.Args[1])
 	}
-	os.Exit(0)
 }

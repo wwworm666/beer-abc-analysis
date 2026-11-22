@@ -16,8 +16,8 @@ def build(destination, go, target):
     ext = manifest.pop('extensions')['com.openai']
     manifest.pop('$schema')
     # A separate version prevents reuse of the cached portable 1.1.0 package.
-    manifest.update(version='1.1.1', interface=ext['interface'], onboardingSkill=ext['onboardingSkill'],
-                    skills='./skills/', apps='./.app.json', mcpServers='./.mcp.json')
+    manifest.update(version='1.1.2', interface=ext['interface'], onboardingSkill=ext['onboardingSkill'],
+                    skills='./skills/', mcpServers='./.mcp.json')
     with TemporaryDirectory() as tmp:
         binary = Path(tmp) / 'connect'
         subprocess.run([go, 'build', '-trimpath', '-ldflags=-s -w', '-o', str(binary), 'main.go'],
@@ -30,7 +30,7 @@ def build(destination, go, target):
             archive.writestr(base + '.codex-plugin/plugin.json', json.dumps(manifest, ensure_ascii=False))
             servers = json.loads((PLUGIN / 'mcp.json').read_bytes())['mcpServers']
             archive.writestr(base + '.mcp.json', json.dumps({'mcpServers': {
-                'kultura': {'url': servers['kultura']['url']}}}))
+                'kultura_os': {'url': servers['kultura']['url']}}}))
             for folder in ('skills', 'assets'):
                 for f in sorted((PLUGIN / folder).rglob('*')):
                     if f.is_file():
