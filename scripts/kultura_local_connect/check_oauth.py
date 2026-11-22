@@ -1,4 +1,6 @@
 """Exercise the installer, real Codex client and Kultura OAuth in a disposable profile."""
+import json
+import logging
 import os
 from pathlib import Path
 import re
@@ -59,7 +61,16 @@ def exercise(tmp, site):
     session = requests.Session()
     session.trust_env = False
     expected = ["common_whoami", "common_instructions", "common_docs_list", "common_bars_reference"]
-    for run in (1, 2):
+    for run in (1, 2, 3):
+        if run == 3:
+            # Reproduce the older Downloads marketplace on an already authorised PC.
+            old = tmp / "downloads/kultura-os-1.1.0-local"
+            shutil.copytree(ROOT / ".agents/plugins", old / ".agents/plugins")
+            shutil.copytree(ROOT / "plugins/kultura-os", old / "plugins/kultura-os")
+            for args in (["marketplace", "remove", "kultura-plugins"],
+                         ["marketplace", "add", str(old)], ["add", "kultura-os@kultura-plugins"]):
+                subprocess.run(["codex", "plugin", *args], cwd=tmp, env=env,
+                               check=True, capture_output=True, timeout=45)
         count = 0
         proc = subprocess.Popen([str(exe)], env=env, cwd=tmp, stdin=subprocess.DEVNULL,
                                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
@@ -80,10 +91,19 @@ def exercise(tmp, site):
                 proc.wait()
         assert count == (1 if run == 1 else 0)
         assert [r["tool"] for r in reversed(audit.recent())] == expected * run
+        listing = subprocess.run(["codex", "plugin", "list", "--json"], cwd=tmp, env=env,
+                                 capture_output=True, encoding="utf-8", check=True, timeout=60)
+        assert "kultura-os" in json.dumps(json.loads(listing.stdout)["installed"])
+        sources = subprocess.run(["codex", "plugin", "marketplace", "list", "--json"], cwd=tmp,
+                                 env=env, capture_output=True, encoding="utf-8", check=True, timeout=60)
+        roots = [Path(m["root"]) for m in json.loads(sources.stdout)["marketplaces"]
+                 if m["name"] == "kultura-plugins"]
+        assert roots == [tmp / "settings/KulturaOS/marketplaces/kultura-os-1.1.2"]
         print(f"Install {run} verified in the server audit.", flush=True)
 
 
 if __name__ == "__main__":
+    logging.getLogger("werkzeug").setLevel(logging.ERROR)
     env = Env()
     env.app.register_blueprint(mcp_bp)
     server = make_server("127.0.0.1", 0, env.app, threaded=True)

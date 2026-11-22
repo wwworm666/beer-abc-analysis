@@ -200,6 +200,42 @@ func connect(ctx context.Context, exe string) error {
 	return nil
 }
 
+// Preserve the global plugin ID when upgrading an existing Kultura marketplace.
+// Codex installs from an explicit path without adding it to the discovery list.
+func registerMarketplace(c *client, root string) error {
+	const name = "kultura-plugins"
+	var settings struct {
+		Config struct {
+			Marketplaces map[string]struct {
+				Type   string `json:"source_type"`
+				Source string
+			}
+		}
+	}
+	if err := c.call("config/read", map[string]bool{"includeLayers": false}, &settings); err != nil {
+		return err
+	}
+	if old, ok := settings.Config.Marketplaces[name]; ok && filepath.Clean(old.Source) != filepath.Clean(root) {
+		known := false
+		if old.Type == "local" && filepath.IsAbs(old.Source) {
+			b, err := os.ReadFile(filepath.Join(old.Source, ".agents", "plugins", "marketplace.json"))
+			var m struct {
+				Name    string
+				Plugins []struct{ Name string }
+			}
+			known = err == nil && json.Unmarshal(b, &m) == nil && m.Name == name && len(m.Plugins) == 1 && m.Plugins[0].Name == "kultura-os"
+		} else if old.Type == "git" {
+			repo := strings.TrimSuffix(old.Source, ".git")
+			known = repo == "https://github.com/wwworm666/beer-abc-analysis" || repo == "wwworm666/beer-abc-analysis"
+		}
+		if !known {
+			return errors.New("Имя каталога kultura-plugins занято другим источником. Установка остановлена")
+		}
+		return c.call("config/value/write", map[string]any{"keyPath": "marketplaces." + name, "mergeStrategy": "replace", "value": map[string]string{"source_type": "local", "source": root}}, nil)
+	}
+	return c.call("marketplace/add", map[string]string{"source": root}, nil)
+}
+
 func install(c *client, root string) error {
 	selection := map[string]string{"pluginName": "kultura-os", "marketplacePath": filepath.Join(root, ".agents", "plugins", "marketplace.json")}
 	if err := c.call("plugin/install", selection, nil); err != nil {
@@ -313,10 +349,13 @@ func run() error {
 		return err
 	}
 	defer c.close()
+	if err := registerMarketplace(c, root); err != nil {
+		return err
+	}
 	if err := install(c, root); err != nil {
 		return err
 	}
-	return checkThread(c, root)
+	return checkThread(c, base)
 }
 
 func main() {

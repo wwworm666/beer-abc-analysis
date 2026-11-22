@@ -110,7 +110,7 @@ func TestMain(m *testing.M) {
 			switch req.Method {
 			case "initialized":
 				continue
-			case "initialize":
+			case "initialize", "config/read", "marketplace/add":
 			case "plugin/install":
 				installed = true
 			case "plugin/read":
