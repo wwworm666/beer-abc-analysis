@@ -22,3 +22,9 @@ jobs:
           python scripts/kultura_local_connect/build.py $env:KULTURA_QA_INSTALLER
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           go test -v scripts/kultura_local_connect/main.go scripts/kultura_local_connect/main_test.go
+      - name: Attach the tested Windows installer
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: Kultura-OS-Connect-Windows
+          path: ${{ runner.temp }}/Kultura-OS-Connect.exe
+          if-no-files-found: error
