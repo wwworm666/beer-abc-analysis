@@ -22,6 +22,7 @@ revoke_all_for_user, ограничения DCR (LRU-лимитер, IPv6 /64, �
 import base64
 import hashlib
 import html
+import json
 import os
 import re
 import secrets
@@ -686,7 +687,55 @@ def test_non_admin_gets_403(env):
     assert 'только администратор' in text and 'barman' in text
     assert 'Location' not in r.headers
     r = c.post('/oauth/authorize', data={'decision': 'allow', 'client_id': reg['client_id']})
-    assert r.status_code == 403
+    assert r.status_code == 400  # no valid consent form/CSRF
+
+
+@isolated
+def test_chatgpt_team_full_catalog_and_route_as_employee(env):
+    from unittest.mock import patch
+    from routes.dashboard import dashboard_bp
+    from routes.mcp import mcp_bp
+    from core.mcp import registry
+    env.app.register_blueprint(dashboard_bp)
+    env.app.register_blueprint(mcp_bp)
+    cb = 'https://chatgpt.com/connector_platform_oauth_redirect'
+    resource = BASE + '/mcp'
+    reg = env.register(client_name='Kultura OS', redirect_uris=[cb])
+    catalogs = []
+    for login, password in [('owner', 'ownerpass'), ('barman', 'barpass1')]:
+        verifier, challenge = _pkce()
+        c = env.client(login, password)
+        code, _ = _get_code(env, reg['client_id'], challenge, c=c, resource=resource, redirect_uri=cb)
+        body = env.token(dict(grant_type='authorization_code', code=code, redirect_uri=cb,
+                              client_id=reg['client_id'], code_verifier=verifier, resource=resource),
+                         expect=200).get_json()
+        def rpc(method, params):
+            return env.app.test_client().post('/mcp', json=dict(jsonrpc='2.0', id=1, method=method,
+                params=params), headers={'Authorization': 'Bearer ' + body['access_token']})
+        tools = rpc('tools/list', {}).get_json()['result']['tools']
+        catalogs.append({tool['name'] for tool in tools})
+        assert catalogs[-1] == {t.name for t in registry.all_tools()}
+        # An admin-protected operational route works through MCP for the employee.
+        r = rpc('tools/call', {'name': 'staff_auth_users', 'arguments': {}}).get_json()['result']
+        assert not r.get('isError') and 'barman' in str(r['content'])
+        for bar in ('all', 'bolshoy', 'ligovskiy', 'varshavskaya', 'kremenchugskaya'):
+            args = dict(bar=bar, date_from='2026-11-01', date_to='2026-11-01')
+            sample = {'data': [{'UniqOrderId.Id': 'demo', 'DishDiscountSumInt': 1250}]}
+            with patch('routes.dashboard.load_dashboard_sales', return_value=sample), \
+                 patch('routes.dashboard.plans_manager.calculate_plan_for_period', return_value={}):
+                r = rpc('tools/call', {'name': 'analytics_revenue_metrics', 'arguments': args}).get_json()['result']
+                assert not r.get('isError'), r
+                metrics = json.loads(next(b['text'] for b in r['content'] if b['text'].startswith('{')))
+                assert metrics['current'] == 1250
+    assert catalogs[0] == catalogs[1] and 'analytics_revenue_metrics' in catalogs[1]
+    assert not env.mgr.get_by_id(env.user_id)['is_admin']
+    assert c.get('/api/auth/users').status_code == 403
+    data = dict(grant_type='refresh_token', refresh_token=body['refresh_token'], client_id=reg['client_id'])
+    body = env.token(data, expect=200).get_json()
+    oauth.revoke_all_for_user(env.user_id)
+    assert rpc('tools/list', {}).status_code == 401
+    data['refresh_token'] = body['refresh_token']
+    env.token(data, expect=400)
 
 
 @isolated

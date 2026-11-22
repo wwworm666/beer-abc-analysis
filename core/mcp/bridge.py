@@ -596,10 +596,10 @@ def _remote_addr() -> str:
 
 
 def owner_record(principal: Principal, mode: str = 'full') -> Optional[Dict[str, Any]]:
-    """Запись владельца для g._current_user (None — не активный администратор)."""
+    """Запись владельца для g._current_user, если он имеет доступ к подключению."""
     from core.auth_manager import get_auth_manager
     user = get_auth_manager().get_by_id(principal.user_id)
-    if not user or not user.get('active') or not user.get('is_admin'):
+    if not user or not user.get('active') or not (user.get('is_admin') or principal.team_access):
         return None
     record = dict(user)
     record.update({'via_mcp': True, 'mcp_mode': mode, 'mcp_client': principal.client_name,
@@ -648,9 +648,13 @@ def _run_route(spec: ToolSpec, args: Dict[str, Any], principal: Principal, mode:
     # своей заглушкой старой формы. Режим дописывается отдельно — маршрут видит его всегда.
     owner = owner_record(principal)
     if owner is None:
-        return ToolResult.fail('Нет доступа: владелец токена не найден или больше не активный администратор.',
+        return ToolResult.fail('У владельца токена нет доступа к этому подключению.',
                                http_status=401)
     owner = dict(owner, mcp_mode=mode)
+    # The plugin permits every registered MCP operation. Apply operational privileges
+    # only inside this route dispatch, preserving the actual user ID for attribution.
+    if principal.team_access:
+        owner['is_admin'] = True
     base = _external_base()
     full_url = base.rstrip('/') + path + ('?' + query if query else '')
     app = current_app._get_current_object()

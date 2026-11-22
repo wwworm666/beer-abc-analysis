@@ -9,6 +9,14 @@ from extensions import TAPS_DATA_PATH, TELEGRAM_BOT_ENABLED
 misc_bp = Blueprint('misc', __name__)
 
 
+@misc_bp.route('/plugins/kultura-os/<any(support, privacy, terms):page>')
+def plugin_info(page):
+    titles = {'support': 'Поддержка', 'privacy': 'Политика конфиденциальности',
+              'terms': 'Условия использования'}
+    return render_template('plugin_info.html', page=page, title=titles[page],
+                           contact='wwworm37@gmail.com')
+
+
 @misc_bp.route('/api/test', methods=['GET', 'POST'])
 def test_endpoint():
     """Тестовый endpoint"""

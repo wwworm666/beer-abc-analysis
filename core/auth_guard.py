@@ -28,6 +28,7 @@ SESSION_DAYS = 180
 
 # Эндпоинты, доступные без входа. Используем имена эндпоинтов (а не пути) — надёжнее.
 PUBLIC_ENDPOINTS = {
+    'misc.plugin_info',  # Public product support and policies for the ChatGPT directory.
     'auth.login',
     'auth.logout',
     'auth.setup',

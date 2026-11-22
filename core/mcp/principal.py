@@ -33,6 +33,8 @@ class Principal:
     grant_id: Optional[str] = None     # OAuth: грант 'g_…' — одно подключение клиента; access-токен
                                        # в нём меняется каждый час, грант остаётся
 
+    team_access: bool = False  # verified OAuth grant for the Kultura OS plugin
+
     def connection_id(self) -> str:
         """Стабильный id подключения: грант OAuth или статический токен. Для учёта «на
         подключение» (предел поисков картинок): token_id OAuth меняется с каждым
