@@ -718,15 +718,28 @@ def test_chatgpt_team_full_catalog_and_route_as_employee(env):
         # An admin-protected operational route works through MCP for the employee.
         r = rpc('tools/call', {'name': 'staff_auth_users', 'arguments': {}}).get_json()['result']
         assert not r.get('isError') and 'barman' in str(r['content'])
-        for bar in ('all', 'bolshoy', 'ligovskiy', 'varshavskaya', 'kremenchugskaya'):
-            args = dict(bar=bar, date_from='2026-11-01', date_to='2026-11-01')
-            sample = {'data': [{'UniqOrderId.Id': 'demo', 'DishDiscountSumInt': 1250}]}
-            with patch('routes.dashboard.load_dashboard_sales', return_value=sample), \
-                 patch('routes.dashboard.plans_manager.calculate_plan_for_period', return_value={}):
+        sales = {'bolshoy': 1250, 'ligovskiy': 1500, 'varshavskaya': 750, 'kremenchugskaya': 1200}
+        plans = {'bolshoy': 1000, 'ligovskiy': 2000, 'varshavskaya': 500, 'kremenchugskaya': 1500}
+        totals = {}
+        for bar in ('all', *sales):
+            week = ('2026-11-09', '2026-11-15')
+            args = dict(bar=bar, date_from=week[0], date_to=week[1], period_from=week[0], period_to=week[1])
+            venues = sales if bar == 'all' else [bar]
+            sample = {'data': [{'UniqOrderId.Id': v, 'DishDiscountSumInt': sales[v]} for v in venues]}
+            plan = sum(plans[v] for v in venues)
+            with patch('routes.dashboard.load_dashboard_sales', return_value=sample) as load_sales, \
+                 patch('routes.dashboard.plans_manager.calculate_plan_for_period', return_value={'revenue': plan}) as load_plan:
                 r = rpc('tools/call', {'name': 'analytics_revenue_metrics', 'arguments': args}).get_json()['result']
                 assert not r.get('isError'), r
+                load_sales.assert_called_once_with(bar, *week)
+                load_plan.assert_called_once_with('' if bar == 'all' else bar, *week)
                 metrics = json.loads(next(b['text'] for b in r['content'] if b['text'].startswith('{')))
-                assert metrics['current'] == 1250
+                expected_sales = sum(sales[v] for v in venues)
+                assert metrics['current'] == expected_sales
+                assert metrics['plan'] == plan
+                assert metrics['completion_percent'] == round(expected_sales / plan * 100, 1)
+                totals[bar] = metrics['current']
+        assert totals['all'] == sum(totals[v] for v in sales)
     assert catalogs[0] == catalogs[1] and 'analytics_revenue_metrics' in catalogs[1]
     assert not env.mgr.get_by_id(env.user_id)['is_admin']
     assert c.get('/api/auth/users').status_code == 403

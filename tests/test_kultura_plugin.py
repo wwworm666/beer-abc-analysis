@@ -2,6 +2,7 @@
 import json
 from pathlib import Path
 from types import SimpleNamespace
+from zipfile import ZipFile
 
 import pytest
 
@@ -68,3 +69,22 @@ def test_plugin_full_endpoint_oauth_and_assets():
 def test_chatgpt_origins_are_exact(origin, allowed):
     request = SimpleNamespace(headers={'Origin': origin}, host_url='https://beerkultura.ru/')
     assert protocol.origin_allowed(request) is allowed
+
+
+def test_publisher_archive_matches_reviewed_source(tmp_path):
+    from scripts.package_kultura_plugin import build
+
+    path = tmp_path / 'kultura-os.zip'
+    build(path)
+    with ZipFile(path) as archive:
+        files = {'plugin.json', 'assets/icon.png', 'assets/logo.png',
+                 'skills/setup/SKILL.md', 'skills/kultura-os/SKILL.md'}
+        assert sorted(archive.namelist()) == sorted(files | {'mcp.json'})
+        for name in files:
+            assert archive.read(name) == (PLUGIN / name).read_bytes()
+        config = json.loads(archive.read('mcp.json'))
+        transport = config['mcpServers']['kultura']
+        assert transport.pop('extensions') == {
+            'com.openai': {'auth': {'type': 'oauth', 'client': {'mode': 'dcr'}}}
+        }
+        assert config == json.loads((PLUGIN / 'mcp.json').read_text())
