@@ -22,7 +22,8 @@ import (
 )
 
 const serverName = "kultura_os"
-const endpoint = "https://beerkultura.ru/mcp"
+
+var endpoint = "https://beerkultura.ru/mcp" // set from the published MCP manifest at build time
 
 type client struct {
 	cmd *exec.Cmd
@@ -252,8 +253,8 @@ func install(c *client, root string) error {
 		return err
 	}
 	p := detail.Plugin
-	if !p.Summary.Installed || !p.Summary.Enabled || len(p.Skills) != 2 || len(p.McpServers) != 1 || p.McpServers[0] != serverName {
-		return errors.New("Codex не подтвердил установку плагина с сервером kultura_os и двумя навыками")
+	if !p.Summary.Installed || !p.Summary.Enabled || len(p.Skills) != 2 || len(p.McpServers) != 0 {
+		return errors.New("Codex не подтвердил установку плагина с двумя навыками")
 	}
 	return nil
 }

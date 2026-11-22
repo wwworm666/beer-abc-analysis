@@ -12,6 +12,7 @@ from threading import Thread
 from urllib.parse import urlsplit
 
 import requests
+from flask import request
 from werkzeug.serving import make_server
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -41,17 +42,17 @@ def build_fixture(tmp, site):
     shutil.copytree(ROOT / "scripts/kultura_local_connect", build_dir)
     shutil.copytree(ROOT / "plugins/kultura-os", plugin)
     shutil.copytree(ROOT / ".agents/plugins", src / ".agents/plugins")
-    for p in (build_dir / "main.go", plugin / "mcp.json"):
-        s = p.read_text(encoding="utf-8")
-        assert "https://beerkultura.ru/mcp" in s
-        p.write_text(s.replace("https://beerkultura.ru/mcp", site + "/mcp"), encoding="utf-8")
+    p = plugin / "mcp.json"
+    s = p.read_text(encoding="utf-8")
+    assert "https://beerkultura.ru/mcp" in s
+    p.write_text(s.replace("https://beerkultura.ru/mcp", site + "/mcp"), encoding="utf-8")
     target = "windows" if os.name == "nt" else "linux"
     exe = tmp / ("installer.exe" if os.name == "nt" else "installer")
     subprocess.run([sys.executable, str(build_dir / "build.py"), str(exe), "--target", target], check=True)
     return exe
 
 
-def exercise(tmp, site):
+def exercise(tmp, site, registrations):
     exe = build_fixture(tmp, site)
     profile = tmp / "profile"
     profile.mkdir()
@@ -67,10 +68,13 @@ def exercise(tmp, site):
             old = tmp / "downloads/kultura-os-1.1.0-local"
             shutil.copytree(ROOT / ".agents/plugins", old / ".agents/plugins")
             shutil.copytree(ROOT / "plugins/kultura-os", old / "plugins/kultura-os")
+            old_mcp = old / "plugins/kultura-os/mcp.json"
+            old_mcp.write_text(old_mcp.read_text().replace("https://beerkultura.ru/mcp", site + "/mcp"))
             for args in (["marketplace", "remove", "kultura-plugins"],
                          ["marketplace", "add", str(old)], ["add", "kultura-os@kultura-plugins"]):
                 subprocess.run(["codex", "plugin", *args], cwd=tmp, env=env,
                                check=True, capture_output=True, timeout=45)
+        before = len(registrations)
         count = 0
         proc = subprocess.Popen([str(exe)], env=env, cwd=tmp, stdin=subprocess.DEVNULL,
                                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
@@ -84,12 +88,17 @@ def exercise(tmp, site):
                     consent(session, match.group(), site)
                 elif "://" not in line:
                     print(line.rstrip(), flush=True)
-            assert proc.wait(timeout=10) == 0
+                    # A Windows browser may keep an inherited output handle open after
+                    # the installer exits. Wait for its process, not for browser EOF.
+                    if "Культура OS готова" in line or "Установка остановлена" in line:
+                        break
+            assert proc.wait(timeout=25) == 0
         finally:
             if proc.poll() is None:
                 proc.kill()
                 proc.wait()
         assert count == (1 if run == 1 else 0)
+        assert len(registrations) - before == count, "unexpected extra OAuth registration"
         assert [r["tool"] for r in reversed(audit.recent())] == expected * run
         listing = subprocess.run(["codex", "plugin", "list", "--json"], cwd=tmp, env=env,
                                  capture_output=True, encoding="utf-8", check=True, timeout=60)
@@ -106,11 +115,19 @@ if __name__ == "__main__":
     logging.getLogger("werkzeug").setLevel(logging.ERROR)
     env = Env()
     env.app.register_blueprint(mcp_bp)
+    registrations = []
+
+    @env.app.after_request
+    def count_registrations(response):
+        if request.path == "/oauth/register" and response.status_code == 201:
+            registrations.append(True)
+        return response
+
     server = make_server("127.0.0.1", 0, env.app, threaded=True)
     Thread(target=server.serve_forever, daemon=True).start()
     try:
         with TemporaryDirectory() as folder:
-            exercise(Path(folder), f"http://127.0.0.1:{server.server_port}")
+            exercise(Path(folder), f"http://127.0.0.1:{server.server_port}", registrations)
     finally:
         server.shutdown()
         env.close()

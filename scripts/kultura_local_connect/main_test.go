@@ -115,22 +115,15 @@ func TestMain(m *testing.M) {
 				installed = true
 			case "plugin/read":
 				path := filepath.Join(filepath.Dir(req.Params["marketplacePath"].(string)), "..", "..", "plugins", "kultura-os")
-				for _, f := range []string{".codex-plugin/plugin.json", ".mcp.json", "skills/setup/SKILL.md", "skills/kultura-os/SKILL.md"} {
+				for _, f := range []string{".codex-plugin/plugin.json", "skills/setup/SKILL.md", "skills/kultura-os/SKILL.md"} {
 					if _, err := os.Stat(filepath.Join(path, f)); err != nil {
 						panic(err)
 					}
 				}
-				data, err := os.ReadFile(filepath.Join(path, ".mcp.json"))
-				if err != nil {
-					panic(err)
+				if _, err := os.Stat(filepath.Join(path, ".mcp.json")); !os.IsNotExist(err) {
+					panic("duplicate MCP registration")
 				}
-				var cfg struct {
-					McpServers map[string]struct{ URL string }
-				}
-				if json.Unmarshal(data, &cfg) != nil || cfg.McpServers[serverName].URL != endpoint {
-					panic("invalid endpoint")
-				}
-				result = map[string]any{"plugin": map[string]any{"mcpServers": []string{serverName}, "skills": []string{"setup", "kultura-os"}, "summary": map[string]bool{"installed": installed, "enabled": true}}}
+				result = map[string]any{"plugin": map[string]any{"mcpServers": []string{}, "skills": []string{"setup", "kultura-os"}, "summary": map[string]bool{"installed": installed, "enabled": true}}}
 			case "thread/start":
 				result = map[string]any{"thread": map[string]string{"id": "fixture"}}
 			case "mcpServerStatus/list":

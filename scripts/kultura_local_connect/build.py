@@ -17,20 +17,23 @@ def build(destination, go, target):
     manifest.pop('$schema')
     # A separate version prevents reuse of the cached portable 1.1.0 package.
     manifest.update(version='1.1.2', interface=ext['interface'], onboardingSkill=ext['onboardingSkill'],
-                    skills='./skills/', mcpServers='./.mcp.json')
+                    skills='./skills/')
+    endpoint = json.loads((PLUGIN / 'mcp.json').read_bytes())['mcpServers']['kultura']['url']
     with TemporaryDirectory() as tmp:
         binary = Path(tmp) / 'connect'
-        subprocess.run([go, 'build', '-trimpath', '-ldflags=-s -w', '-o', str(binary), 'main.go'],
+        subprocess.run([go, 'build', '-trimpath', f'-ldflags=-s -w -X main.endpoint={endpoint}', '-o', str(binary), 'main.go'],
                        cwd=Path(__file__).parent, check=True,
                        env={**os.environ, 'CGO_ENABLED': '0', 'GOOS': target, 'GOARCH': 'amd64'})
         with ZipFile(binary, 'a', ZIP_DEFLATED) as archive:
             market = '.agents/plugins/marketplace.json'
-            archive.write(ROOT / market, market)
+            catalog = json.loads((ROOT / market).read_bytes())
+            # OAuth is already handled by the native Codex MCP client before plugin/install.
+            for entry in catalog['plugins']:
+                if entry['name'] == 'kultura-os':
+                    entry['policy']['authentication'] = 'ON_USE'
+            archive.writestr(market, json.dumps(catalog, ensure_ascii=False))
             base = 'plugins/kultura-os/'
             archive.writestr(base + '.codex-plugin/plugin.json', json.dumps(manifest, ensure_ascii=False))
-            servers = json.loads((PLUGIN / 'mcp.json').read_bytes())['mcpServers']
-            archive.writestr(base + '.mcp.json', json.dumps({'mcpServers': {
-                'kultura_os': {'url': servers['kultura']['url']}}}))
             for folder in ('skills', 'assets'):
                 for f in sorted((PLUGIN / folder).rglob('*')):
                     if f.is_file():
