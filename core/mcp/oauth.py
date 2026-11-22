@@ -1455,15 +1455,21 @@ def authenticate_client(authorization_header: Optional[str], params: Mapping[str
     return client
 
 
-def _user_can_hold_tokens(user_id: int) -> bool:
-    """Владелец токена — существующий активный администратор (контракт 0 и 4.3)."""
+def is_team_connection(redirect_uri: str, resource: str) -> bool:
+    """Team access belongs to the registered ChatGPT callback and root MCP resource."""
+    return (redirect_uri == 'https://chatgpt.com/connector_platform_oauth_redirect'
+            and urlsplit(resource).path == '/mcp')
+
+
+def _user_can_hold_tokens(user_id: int, redirect_uri: str, resource: str) -> bool:
+    """Проверяет активность владельца и право на выбранное подключение."""
     try:
         from core.auth_manager import get_auth_manager
         user = get_auth_manager().get_by_id(int(user_id))
     except Exception:  # noqa: BLE001 — нет auth.db = нет пользователя
         log.exception('oauth: cannot load user %s', user_id)
         return False
-    return bool(user and user.get('active') and user.get('is_admin'))
+    return bool(user and user.get('active') and (user.get('is_admin') or is_team_connection(redirect_uri, resource)))
 
 
 def _revoke_grant(conn: sqlite3.Connection, grant_id: str, now: int, reason: str) -> int:
@@ -1550,8 +1556,8 @@ def exchange_authorization_code(client: dict, params: Mapping[str, str]) -> dict
                 error = OAuthError('invalid_grant', 'PKCE verification failed')
             elif resource is not None and canonical_url(resource) != row['resource']:
                 error = OAuthError('invalid_target', 'resource does not match the authorization')
-            elif not _user_can_hold_tokens(row['user_id']):
-                error = OAuthError('invalid_grant', 'resource owner is no longer an active admin')
+            elif not _user_can_hold_tokens(row['user_id'], row['redirect_uri'], row['resource']):
+                error = OAuthError('invalid_grant', 'resource owner is no longer authorized for this connection')
             else:
                 conn.execute('UPDATE oauth_codes SET used_at = ? WHERE code_hash = ?',
                              (now, row['code_hash']))
@@ -1598,7 +1604,7 @@ def refresh_tokens(client: dict, params: Mapping[str, str]) -> dict:
     body: Optional[dict] = None
     with db.write() as conn:
         row = conn.execute(
-            'SELECT t.*, g.revoked_at AS grant_revoked_at FROM oauth_tokens t '
+            'SELECT t.*, g.revoked_at AS grant_revoked_at, g.redirect_uri FROM oauth_tokens t '
             'JOIN oauth_grants g ON g.grant_id = t.grant_id '
             "WHERE t.token_hash = ? AND t.kind = 'refresh'", (_hash(raw),)).fetchone()
         if row is None or row['client_id'] != client['client_id']:
@@ -1626,8 +1632,8 @@ def refresh_tokens(client: dict, params: Mapping[str, str]) -> dict:
                 error = OAuthError('invalid_scope', 'scope exceeds the original grant')
             elif resource is not None and canonical_url(resource) != row['resource']:
                 error = OAuthError('invalid_target', 'resource does not match the grant')
-            elif not _user_can_hold_tokens(row['user_id']):
-                error = OAuthError('invalid_grant', 'resource owner is no longer an active admin')
+            elif not _user_can_hold_tokens(row['user_id'], row['redirect_uri'], row['resource']):
+                error = OAuthError('invalid_grant', 'resource owner is no longer authorized for this connection')
             else:
                 grant = {'grant_id': row['grant_id'], 'client_id': row['client_id'],
                          'user_id': row['user_id'], 'resource': row['resource'],
@@ -1705,7 +1711,7 @@ def verify_access_token(raw, resource_url) -> Optional[Principal]:
         row = conn.execute(
             'SELECT t.token_id, t.user_id, t.client_id, t.resource, t.expires_at, t.last_used_at, '
             't.grant_id, t.revoked_at, c.client_name, c.revoked_at AS client_revoked_at, '
-            'g.revoked_at AS grant_revoked_at, g.mode AS grant_mode '
+            'g.revoked_at AS grant_revoked_at, g.mode AS grant_mode, g.redirect_uri '
             'FROM oauth_tokens t '
             'JOIN oauth_clients c ON c.client_id = t.client_id '
             'JOIN oauth_grants g ON g.grant_id = t.grant_id '
@@ -1722,7 +1728,8 @@ def verify_access_token(raw, resource_url) -> Optional[Principal]:
     except Exception:  # noqa: BLE001
         log.exception('oauth: cannot load token owner')
         return None
-    if not user or not user.get('active') or not user.get('is_admin'):
+    team = is_team_connection(row['redirect_uri'], row['resource'])
+    if not user or not user.get('active') or not (user.get('is_admin') or team):
         return None
     if row['last_used_at'] is None or now - row['last_used_at'] >= LAST_USED_WRITE_EVERY:
         try:
@@ -1744,6 +1751,7 @@ def verify_access_token(raw, resource_url) -> Optional[Principal]:
         expires_at=_iso(row['expires_at']),
         mode=stricter_mode(row['grant_mode']),
         grant_id=row['grant_id'],
+        team_access=team,
     )
 
 

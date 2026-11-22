@@ -102,12 +102,12 @@
 
     {% if mode == 'consent' %}
         <h1 class="oc-title">Подключить приложение к данным «Культуры»?</h1>
-        <p class="oc-lead">Приложение просит доступ к сайту по MCP от вашего имени.</p>
+        <p class="oc-lead">{% if team_connection %}В полном режиме приложение сможет читать и изменять данные всех баров от вашего имени, включая зарплаты и сведения о гостях.{% else %}Приложение просит доступ к сайту по MCP от вашего имени.{% endif %}</p>
 
         <section class="oc-block">
             <div class="oc-label">Приложение</div>
             <div class="oc-name">{{ client_name }}</div>
-            <div class="oc-note">Название приложение указало само при регистрации{% if client_registered_at %} ({{ client_registered_at }} МСК){% endif %}, проверять по нему нельзя. Надёжный признак — адрес ниже.</div>
+            <div class="oc-note">Название указано самим приложением при регистрации{% if client_registered_at %} ({{ client_registered_at }} МСК){% endif %}, проверять по нему нельзя. Надёжный признак — адрес ниже.</div>
         </section>
 
         <section class="oc-block">
@@ -116,6 +116,8 @@
             <div class="oc-mono">{{ redirect_uri }}</div>
             {% if is_loopback %}
                 <div class="oc-warn"><strong>Это ваш компьютер (localhost).</strong> Так подключаются Claude Code и другие программы на этом компьютере. Любая программа на нём может выдать себя за приложение, поэтому разрешайте, только если вы сами только что запустили подключение здесь.</div>
+            {% elif team_connection %}
+                <div class="oc-note">Адрес возврата ChatGPT.</div>
             {% elif is_claude_host %}
                 <div class="oc-note">Адрес приложения Claude: сайт, Desktop, мобильное приложение и расписания.</div>
             {% else %}
@@ -157,14 +159,14 @@
 
             <section class="oc-block">
                 <div class="oc-label">От чьего имени</div>
-                <div>{{ user_display }} <span class="oc-mono">({{ user_login }}, администратор)</span></div>
+                <div>{{ user_display }} <span class="oc-mono">({{ user_login }})</span></div>
             </section>
 
             <section class="oc-block">
                 <ul class="oc-facts">
                     <li>Приложение увидит все данные раздела как есть, включая имена, зарплаты и телефоны, если они в нём есть. Что оно сможет менять, определяет выбранный режим доступа. Каждый вызов записывается в журнал.</li>
                     <li>Доступ продлевается сам: ключ действует {{ access_hours }} ч и обновляется, пока приложение пользуется им хотя бы раз в {{ refresh_days }} дней.</li>
-                    <li>Отключить приложение можно в любой момент на странице «Доступ агентов». Доступ пропадает и тогда, когда ваш аккаунт перестаёт быть активным администратором.</li>
+                    <li>Администратор kultura.os может отозвать разрешение на странице «Доступ агентов». Доступ пропадает при отключении вашего аккаунта.</li>
                 </ul>
             </section>
 
@@ -178,7 +180,7 @@
 
     {% elif mode == 'forbidden' %}
         <h1 class="oc-title">Нет доступа</h1>
-        <div class="oc-error">Подключать приложения к данным сайта по MCP может только администратор. Вы вошли как <strong>{{ user_login }}</strong>.</div>
+        <div class="oc-error">Для этого подключения требуется активный аккаунт с подходящими правами. Другие MCP-клиенты может подключать только администратор. Вы вошли как <strong>{{ user_login }}</strong>.</div>
         <div class="oc-links"><a href="/logout">Войти под другим аккаунтом</a> · <a href="/">На главную</a></div>
 
     {% else %}

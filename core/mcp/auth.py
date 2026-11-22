@@ -141,9 +141,9 @@ def authenticate(request, domain: Optional[str], mode: Optional[str] = None) -> 
                                           mode=mode))
     from core.auth_manager import get_auth_manager
     user = get_auth_manager().get_by_id(principal.user_id)   # сбой БД — наверх (503), не «нет доступа»
-    if not user or not user.get('active') or not user.get('is_admin'):
-        return AuthError(401, 'Нет доступа: владелец токена не активный администратор.',
-                         www_authenticate(request, domain, 'invalid_token', 'token owner is not an active admin',
+    if not user or not user.get('active') or not (user.get('is_admin') or principal.team_access):
+        return AuthError(401, 'У владельца токена нет доступа к этому подключению.',
+                         www_authenticate(request, domain, 'invalid_token', 'token owner is not authorized for this connection',
                                           mode=mode))
     principal = dataclasses.replace(principal, login=user.get('login') or principal.login,
                                     display_name=user.get('display_name') or principal.display_name)

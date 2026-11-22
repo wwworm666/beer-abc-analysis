@@ -252,7 +252,8 @@ def _consent_context(req: 'oauth.AuthorizationRequest', user: dict) -> dict:
         'redirect_uri': req.redirect_uri,
         'redirect_host': host,
         'is_loopback': oauth.is_loopback_redirect(req.redirect_uri),
-        'is_claude_host': host in oauth.PINNED_CALLBACK_PATHS,
+        'is_claude_host': host in ('claude.ai', 'claude.com'),
+        'team_connection': oauth.is_team_connection(req.redirect_uri, req.resource),
         'connector': connector,
         'user_display': user.get('display_name') or user.get('login'),
         'user_login': user.get('login'),
@@ -275,7 +276,7 @@ def authorize():
     user = auth_guard.current_user()
     if not user:
         return _login_redirect()
-    if not (user.get('is_admin') and user.get('active', True)):
+    if not user.get('active', True):
         return _page('forbidden', 403, user_login=user.get('login'))
 
     base = _base()
@@ -296,6 +297,9 @@ def authorize():
             return _error_page(e.message_ru)
         resp = redirect(oauth.authorization_error_redirect(e, issuer), code=303 if is_post else 302)
         return _no_store(resp)
+
+    if not user.get('is_admin') and not oauth.is_team_connection(req.redirect_uri, req.resource):
+        return _page('forbidden', 403, user_login=user.get('login'))
 
     if not is_post:
         return _page('consent', 200, **_consent_context(req, user))
