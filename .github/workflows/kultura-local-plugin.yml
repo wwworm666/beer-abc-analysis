@@ -1,0 +1,56 @@
+name: Check Kultura local installer
+on:
+  pull_request:
+    paths:
+      - 'scripts/kultura_local_connect/**'
+      - 'plugins/kultura-os/**'
+      - '.github/workflows/kultura-local-plugin.yml'
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Build and run Windows installer with isolated account fixtures
+        shell: pwsh
+        run: |
+          $env:KULTURA_QA_INSTALLER = Join-Path $env:RUNNER_TEMP 'Kultura-OS-1.1.2-Windows.exe'
+          python scripts/kultura_local_connect/build.py $env:KULTURA_QA_INSTALLER
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          go test -v scripts/kultura_local_connect/main.go scripts/kultura_local_connect/main_test.go
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.11'
+      - name: Install Kultura integration test dependencies
+        shell: pwsh
+        env:
+          PYTHONUTF8: '1'
+        run: |
+          python -m pip install -q -r requirements.txt
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Install the official Windows Codex CLI for the test
+        shell: pwsh
+        run: |
+          $cli = Join-Path $env:RUNNER_TEMP 'kultura-test-cli'
+          npm install --prefix $cli --ignore-scripts --no-audit --no-fund @openai/codex@0.167.0-alpha.4
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $binary = Get-ChildItem -LiteralPath $cli -Recurse -Filter codex.exe | Select-Object -First 1
+          if (!$binary) { throw 'Codex executable missing' }
+          $binary.DirectoryName | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      - name: Test first sign-in, reinstall and upgrade in a clean Windows profile
+        shell: pwsh
+        env:
+          PYTHONUTF8: '1'
+        run: |
+          codex.exe --version
+          python scripts/kultura_local_connect/check_oauth.py
+      - name: Attach the tested Windows installer
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: Kultura-OS-1.1.2-Windows
+          path: ${{ runner.temp }}/Kultura-OS-1.1.2-Windows.exe
+          if-no-files-found: error

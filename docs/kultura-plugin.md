@@ -133,3 +133,23 @@ python scripts/update_kultura_plugin.py "$KULTURA_PUBLISHER_LISTING" --cdp "$KUL
 python scripts/update_kultura_plugin.py --profile /workspace/kultura-publisher-profile --login
 python scripts/update_kultura_plugin.py --profile /workspace/kultura-publisher-profile --upload
 ```
+
+### Установка в локальный Codex на Windows
+
+Пользователь запускает `Kultura-OS-1.1.2-Windows.exe` при установленном Codex.
+Установщик регистрирует в личной конфигурации Codex сервер `kultura_os`
+с адресом `https://beerkultura.ru/mcp`. Первый вход открывает официальный клиент
+Codex в браузере. Для этого локального OAuth на стороне «Культуры» требуется
+активная учётная запись администратора. При действующей авторизации повторный
+запуск использует имеющийся доступ.
+
+Установщик добавляет пакет `kultura-os` с обоими навыками, создаёт временный
+чат Codex и вызывает `common_whoami`, `common_instructions(all)`,
+`common_docs_list` и `common_bars_reference`. Результат содержит число
+инструментов, которое вернул сервер. Конфликт существующих настроек,
+ограниченный грант и ошибка доступа отображаются отдельно от успешной установки.
+
+Сборка выполняется командой
+`python scripts/kultura_local_connect/build.py Kultura-OS-1.1.2-Windows.exe`
+с установленным Go. Упакованная конфигурация предназначена для локального Codex.
+Установку из каталога ChatGPT обслуживает отдельный пакет издателя.
