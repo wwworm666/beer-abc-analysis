@@ -21,7 +21,8 @@
         employees: [],
         shifts: [],
         dayOffs: [],
-        plans: null // {days: {...}, plan_formula} — только на странице редактора
+        plans: null, // {days: {...}, plan_formula}
+        plansLoading: false
     };
 
     // ==================== API ====================
@@ -590,7 +591,11 @@
         var sumEl = card && card.querySelector('.pf-summary');
         if (sumEl) sumEl.textContent = '';
         var days = state.plans && state.plans.days;
-        if (!days) { host.innerHTML = '<div class="pf-empty">Нет данных по плану</div>'; return; }
+        if (!days) {
+            host.innerHTML = '<div class="pf-empty">' +
+                (state.plansLoading ? 'Загружаю план/факт…' : 'Нет данных по плану') + '</div>';
+            return;
+        }
 
         var locs = state.locations;
         var daysInMonth = new Date(state.year, state.month, 0).getDate();

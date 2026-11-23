@@ -195,36 +195,41 @@
             });
     });
 
-    // Загрузка месяца. План/факт ходит в iiko — тяжёлый запрос, поэтому (static/js/shared/
-    // strip_runner.js): серия переключений месяца в полосе — одна загрузка после паузы,
-    // устаревший ответ отбрасывается (прошлый месяц не дорисуется поверх нового), пока идёт —
-    // «Загружаю график на ноябрь 2026…». После правок графика — сразу (reload).
+    // Смены хранятся на сервере. План/факт догружается из iiko после показа месяца.
+    var plansLoader = KStripRunner.create({
+        run: function (signal) {
+            return S.api('/api/schedule/plans/' + S.state.year + '/' + S.state.month, { signal: signal });
+        },
+        onDone: function (plans) { S.state.plans = plans; },
+        onError: function (err) {
+            console.error(err);
+            S.showToast('Не удалось загрузить план/факт', true);
+        },
+        onFinally: function () {
+            S.state.plansLoading = false;
+            renderFinancials();
+        }
+    });
+
     var monthLoader = KStripRunner.create({
         run: function (signal) {
-            var year = S.state.year, month = S.state.month;
-            return Promise.all([
-                S.fetchMonthData(year, month, { signal: signal }),
-                S.api('/api/schedule/plans/' + year + '/' + month, { signal: signal })
-                    .catch(function (err) {
-                        if (KStripRunner.isAbort(err)) throw err;
-                        // не глушим молча: иначе сбой выглядит как «плана нет» и вводит в заблуждение
-                        console.error(err);
-                        return { _failed: true };
-                    })
-            ]);
+            return S.fetchMonthData(S.state.year, S.state.month, { signal: signal });
         },
         onStart: function () {
+            plansLoader.cancel();
+            S.state.plans = null;
+            S.state.plansLoading = true;
             S.showLoading(true, 'Загружаю график на ' + monthPhrase() + '…');
         },
         onDone: function (res) {
-            S.state.shifts = res[0].shifts;
-            S.state.dayOffs = res[0].dayOffs;
-            S.state.plans = res[1] && res[1]._failed ? null : res[1];
-            if (res[1] && res[1]._failed) S.showToast('Не удалось загрузить план/факт', true);
+            S.state.shifts = res.shifts;
+            S.state.dayOffs = res.dayOffs;
             renderAll();
+            plansLoader.now();
             return loadFeed();
         },
         onError: function (err) {
+            S.state.plansLoading = false;
             console.error(err);
             S.showToast('Ошибка загрузки месяца', true);
         },
@@ -243,13 +248,17 @@
             { employeeIikoId: emp || null, icsHref: emp ? '/schedule/cal.ics' : null,
               onDayOffToggle: onMobileDayOffToggle });
         // десктоп
-        S.renderTodayBoard(document.getElementById('todayBoard'));
         renderLanes();
         S.renderLegend(document.getElementById('legend'));
-        S.renderPlanFact(document.getElementById('planFactBody'));
+        renderFinancials();
         renderWishesBoard();
         loadCashRegister();
         renderEmployeesAdmin();
+    }
+
+    function renderFinancials() {
+        S.renderTodayBoard(document.getElementById('todayBoard'));
+        S.renderPlanFact(document.getElementById('planFactBody'));
         if (selectedDate) renderDayPanel(selectedDate);
     }
 
