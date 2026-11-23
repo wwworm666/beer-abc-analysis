@@ -216,6 +216,11 @@ cd /opt/beer && docker compose up -d --force-recreate caddy
 обновления кода без установленного скрипта обязательно `docker compose up -d --build app`.
 В `.dockerignore` исключены `.env`, `.env.*` (включая резервные копии) и `secrets/`.
 
+У `app` и `caddy` в Compose заданы два DNS-сервера Selectel. При переносе на другой
+хост задать адреса его резолверов в `BEER_DNS_PRIMARY` и `BEER_DNS_SECONDARY`
+и пересоздать оба контейнера. Раз в минуту Docker проверяет разрешение имени
+iiko из приложения и ответ локального `/login`. Результат виден в `docker compose ps`.
+
 Быстрый ручной откат последнего успешного автоматического выпуска без пересборки:
 
 ```bash

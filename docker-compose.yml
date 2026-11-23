@@ -1,3 +1,8 @@
+# DNS провайдера на рабочем VPS. Контейнерам нужен публичный DNS даже при потере VPN.
+x-service-dns: &service-dns
+  - ${BEER_DNS_PRIMARY:-188.93.16.19}
+  - ${BEER_DNS_SECONDARY:-188.93.17.19}
+
 services:
   app:
     build: .
@@ -6,6 +11,13 @@ services:
     restart: unless-stopped
     env_file: .env
     network_mode: host
+    dns: *service-dns
+    healthcheck:
+      test: ["CMD-SHELL", "getent ahostsv4 \"$${IIKO_SERVER:-first-federation.iiko.it}\" >/dev/null && curl -fsS --max-time 4 -o /dev/null http://127.0.0.1:10000/login"]
+      interval: 1m
+      timeout: 10s
+      retries: 3
+      start_period: 30s
     extra_hosts:
       # Системный DNS отдаёт для api.telegram.org адрес 149.154.166.110,
       # который заблокирован на магистрали (ТСПУ) для датацентровых сетей;
@@ -30,6 +42,7 @@ services:
     container_name: beer-caddy
     restart: unless-stopped
     network_mode: host
+    dns: *service-dns
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
